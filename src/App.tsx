@@ -1,52 +1,13 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
+import PdfReader from "./components/PdfReader";
 
 function App() {
-  const [count, setCount] = useState(0)
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 to-gray-800 flex items-center justify-center">
-      <div className="max-w-4xl mx-auto p-8 text-center">
-        <div className="flex justify-center gap-8 mb-8">
-          <a href="https://vite.dev" target="_blank" rel="noopener noreferrer">
-            <img 
-              src={viteLogo} 
-              className="h-24 p-6 transition-all duration-300 hover:drop-shadow-[0_0_2em_#646cffaa]" 
-              alt="Vite logo" 
-            />
-          </a>
-          <a href="https://react.dev" target="_blank" rel="noopener noreferrer">
-            <img 
-              src={reactLogo} 
-              className="h-24 p-6 transition-all duration-300 hover:drop-shadow-[0_0_2em_#61dafbaa] animate-[spin_20s_linear_infinite]" 
-              alt="React logo" 
-            />
-          </a>
-        </div>
-        
-        <h1 className="text-5xl font-bold text-white mb-8">
-          Vite + React + TypeScript
-        </h1>
-        
-        <div className="bg-gray-800/50 backdrop-blur-sm rounded-lg p-8 mb-8 border border-gray-700">
-          <button 
-            onClick={() => setCount((count) => count + 1)}
-            className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-800"
-          >
-            count is {count}
-          </button>
-          <p className="mt-4 text-gray-300">
-            Edit <code className="bg-gray-900 px-2 py-1 rounded text-sm text-blue-400">src/App.tsx</code> and save to test HMR
-          </p>
-        </div>
-        
-        <p className="text-gray-400 text-sm">
-          Click on the Vite and React logos to learn more
-        </p>
+    <div className="min-h-screen bg-base-200">
+      <div className="container mx-auto px-4 py-6 sm:py-8 md:py-12">
+        <PdfReader />
       </div>
     </div>
-  )
+  );
 }
 
-export default App
+export default App;
