@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { ReactNode } from 'react'
 
 type ExtractedPage = {
   page_number: number
@@ -152,7 +153,7 @@ function PdfReader() {
   const renderTextWithClickableWords = useCallback(
     (text: string) => {
       // Preserve original whitespace and newlines while making words clickable
-      const nodes: (JSX.Element | string)[] = []
+      const nodes: ReactNode[] = []
       const wordRegex = /[A-Za-z]+(?:['’\-][A-Za-z]+)*/g
       let lastIndex = 0
       let match: RegExpExecArray | null
