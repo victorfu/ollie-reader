@@ -2,11 +2,9 @@ import PdfReader from "./components/PdfReader";
 
 function App() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 to-gray-800 flex items-center justify-center">
-      <div className="max-w-4xl mx-auto p-8 text-center">
-        <div className="mt-10">
-          <PdfReader />
-        </div>
+    <div className="min-h-screen bg-base-200">
+      <div className="container mx-auto px-4 py-6 sm:py-8 md:py-12">
+        <PdfReader />
       </div>
     </div>
   );
