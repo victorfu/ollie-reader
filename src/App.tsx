@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import reactLogo from './assets/react.svg'
 import viteLogo from '/vite.svg'
+import PdfReader from './components/PdfReader'
 
 function App() {
   const [count, setCount] = useState(0)
@@ -30,20 +31,20 @@ function App() {
         </h1>
         
         <div className="bg-gray-800/50 backdrop-blur-sm rounded-lg p-8 mb-8 border border-gray-700">
-          <button 
-            onClick={() => setCount((count) => count + 1)}
-            className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-800"
-          >
-            count is {count}
-          </button>
-          <p className="mt-4 text-gray-300">
-            Edit <code className="bg-gray-900 px-2 py-1 rounded text-sm text-blue-400">src/App.tsx</code> and save to test HMR
-          </p>
+          <div className="flex items-center justify-center gap-4">
+            <button 
+              onClick={() => setCount((count) => count + 1)}
+              className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-800"
+            >
+              count is {count}
+            </button>
+            <p className="text-gray-300">這是示範按鈕</p>
+          </div>
         </div>
-        
-        <p className="text-gray-400 text-sm">
-          Click on the Vite and React logos to learn more
-        </p>
+
+        <div className="mt-10">
+          <PdfReader />
+        </div>
       </div>
     </div>
   )
