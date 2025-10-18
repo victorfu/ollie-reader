@@ -25,6 +25,7 @@ function PdfReader() {
 
   const [speechRate, setSpeechRate] = useState(1);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [readingMode, setReadingMode] = useState<"word" | "sentence">("word");
   const abortRef = useRef<AbortController | null>(null);
 
   const speechSupported =
@@ -197,6 +198,103 @@ function PdfReader() {
     [speak],
   );
 
+  const splitIntoSentences = useCallback((text: string): string[] => {
+    // Step 1: Normalize the text - replace multiple spaces/tabs with single space
+    const normalized = text.replace(/[ \t]+/g, " ");
+
+    // Step 2: Split by common sentence boundaries
+    // This regex handles:
+    // - Period/question mark/exclamation followed by space and capital letter
+    // - Period/question mark/exclamation at end of line
+    // - Double newlines (paragraph breaks)
+    // - Single newlines that might indicate sentence breaks in PDFs
+    const sentences: string[] = [];
+
+    // First, split by double newlines (clear paragraph boundaries)
+    const paragraphs = normalized.split(/\n\n+/);
+
+    for (const para of paragraphs) {
+      // For each paragraph, try to identify sentences
+      // Split by: sentence-ending punctuation OR single newlines
+      const parts = para.split(/([.!?]+(?:\s+(?=[A-Z])|(?=\n)|\s*$)|\n)/);
+
+      let currentSentence = "";
+      for (let i = 0; i < parts.length; i++) {
+        const part = parts[i];
+        if (!part) continue;
+
+        currentSentence += part;
+
+        // Check if this is a sentence boundary
+        if (/[.!?]+\s*$/.test(part) || part === "\n") {
+          const trimmed = currentSentence.trim();
+          if (trimmed && trimmed.length > 0) {
+            sentences.push(trimmed);
+          }
+          currentSentence = "";
+        }
+      }
+
+      // Don't forget remaining text
+      if (currentSentence.trim()) {
+        sentences.push(currentSentence.trim());
+      }
+    }
+
+    // Fallback: if no sentences found, split by newlines
+    if (sentences.length === 0) {
+      return text
+        .split(/\n/)
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0);
+    }
+
+    // Filter out very short fragments (< 3 characters) unless they're complete
+    return sentences.filter((s) => {
+      const cleaned = s.trim();
+      return cleaned.length >= 3 || /[.!?]$/.test(cleaned);
+    });
+  }, []);
+
+  const renderTextWithClickableSentences = useCallback(
+    (text: string) => {
+      const sentences = splitIntoSentences(text);
+      const nodes: ReactNode[] = [];
+
+      sentences.forEach((sentence, index) => {
+        if (index > 0) {
+          // Add a space between sentences for readability
+          nodes.push(" ");
+        }
+
+        nodes.push(
+          <button
+            key={`s-${index}`}
+            type="button"
+            onClick={() => speak(sentence)}
+            className="inline-block px-1.5 py-0.5 my-0.5 rounded hover:bg-info/30 hover:text-info-content transition-colors focus:outline-none focus:ring-2 focus:ring-info/50"
+            title={`Speak: ${sentence.substring(0, 60)}${
+              sentence.length > 60 ? "..." : ""
+            }`}
+          >
+            {sentence}
+          </button>,
+        );
+      });
+
+      return (
+        <div className="whitespace-pre-wrap leading-relaxed text-left">
+          {nodes.length > 0 ? (
+            nodes
+          ) : (
+            <span className="text-base-content/50">無法識別句子</span>
+          )}
+        </div>
+      );
+    },
+    [speak, splitIntoSentences],
+  );
+
   const header = useMemo(() => {
     return (
       <div className="text-center mb-8 lg:mb-12">
@@ -331,6 +429,71 @@ function PdfReader() {
             </svg>
             朗讀設定
           </h3>
+
+          {/* Reading Mode Toggle */}
+          <div className="mb-6">
+            <label className="label">
+              <span className="label-text font-semibold">朗讀模式</span>
+            </label>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setReadingMode("word")}
+                className={`btn flex-1 ${
+                  readingMode === "word"
+                    ? "btn-primary"
+                    : "btn-outline btn-primary"
+                }`}
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-5 w-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"
+                  />
+                </svg>
+                單字模式
+              </button>
+              <button
+                type="button"
+                onClick={() => setReadingMode("sentence")}
+                className={`btn flex-1 ${
+                  readingMode === "sentence"
+                    ? "btn-secondary"
+                    : "btn-outline btn-secondary"
+                }`}
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-5 w-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                  />
+                </svg>
+                句子模式
+              </button>
+            </div>
+            <div className="text-xs text-base-content/60 mt-2">
+              {readingMode === "word"
+                ? "點擊任何單字朗讀該單字"
+                : "點擊任何句子朗讀該句子"}
+            </div>
+          </div>
+
           <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
             <div className="flex-1 w-full">
               <label className="label">
@@ -510,7 +673,9 @@ function PdfReader() {
                   </div>
                   <div className="divider my-2"></div>
                   <div className="prose prose-sm sm:prose-base lg:prose-lg max-w-none">
-                    {renderTextWithClickableWords(p.text || "")}
+                    {readingMode === "word"
+                      ? renderTextWithClickableWords(p.text || "")
+                      : renderTextWithClickableSentences(p.text || "")}
                   </div>
                 </div>
               </div>
