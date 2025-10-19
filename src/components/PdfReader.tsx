@@ -14,8 +14,9 @@ type ExtractResponse = {
   pages: ExtractedPage[];
 };
 
-const API_URL =
-  "https://purism-ev-bot-1027147244019.asia-east1.run.app/api/pdf/extract";
+const API_BASE_URL = "https://purism-ev-bot-1027147244019.asia-east1.run.app";
+const API_URL = `${API_BASE_URL}/api/pdf/extract`;
+const TRANSLATE_API_URL = `${API_BASE_URL}/api/translate`;
 
 function PdfReader() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -27,6 +28,9 @@ function PdfReader() {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [readingMode, setReadingMode] = useState<"word" | "selection">("word");
   const [selectedText, setSelectedText] = useState<string>("");
+  const [translatedText, setTranslatedText] = useState<string>("");
+  const [isTranslating, setIsTranslating] = useState(false);
+  const [translateError, setTranslateError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
   const speechSupported =
@@ -137,7 +141,42 @@ function PdfReader() {
     const selection = window.getSelection();
     const text = selection?.toString().trim() || "";
     setSelectedText(text);
+    setTranslatedText("");
+    setTranslateError(null);
   }, []);
+
+  const translateText = useCallback(async () => {
+    if (!selectedText.trim()) return;
+
+    setIsTranslating(true);
+    setTranslateError(null);
+
+    try {
+      const response = await fetch(TRANSLATE_API_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          text: selectedText,
+          from_lang: "en",
+          to_lang: "zh-TW",
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`翻譯失敗: ${response.status}`);
+      }
+
+      const result = await response.json();
+      setTranslatedText(result.text || "無翻譯結果");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "翻譯時發生未知錯誤";
+      setTranslateError(message);
+    } finally {
+      setIsTranslating(false);
+    }
+  }, [selectedText]);
 
   const pickEnglishVoice = useCallback((): SpeechSynthesisVoice | null => {
     if (!speechSupported) return null;
@@ -526,33 +565,85 @@ function PdfReader() {
                     : "尚未選取文字"}
                 </span>
               </div>
-              <button
-                type="button"
-                onClick={speakSelection}
-                disabled={!selectedText}
-                className="btn btn-sm sm:btn-md gap-2 bg-accent-content text-accent hover:bg-accent-content/90"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="h-5 w-5"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
+              <div className="flex gap-2 flex-wrap">
+                <button
+                  type="button"
+                  onClick={speakSelection}
+                  disabled={!selectedText}
+                  className="btn btn-sm sm:btn-md gap-2 bg-accent-content text-accent hover:bg-accent-content/90"
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"
-                  />
-                </svg>
-                朗讀選取
-              </button>
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-5 w-5"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"
+                    />
+                  </svg>
+                  朗讀選取
+                </button>
+                <button
+                  type="button"
+                  onClick={translateText}
+                  disabled={!selectedText || isTranslating}
+                  className="btn btn-sm sm:btn-md gap-2 bg-accent-content text-accent hover:bg-accent-content/90"
+                >
+                  {isTranslating ? (
+                    <>
+                      <span className="loading loading-spinner loading-sm"></span>
+                      翻譯中...
+                    </>
+                  ) : (
+                    <>
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        className="h-5 w-5"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129"
+                        />
+                      </svg>
+                      翻譯
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
             {selectedText && (
-              <div className="mt-3 p-2 bg-base-100/90 rounded text-xs text-base-content max-h-20 overflow-auto">
-                {selectedText.substring(0, 200)}
-                {selectedText.length > 200 && "..."}
+              <div className="mt-3 space-y-2">
+                <div className="p-2 bg-base-100/90 rounded text-xs text-base-content max-h-20 overflow-auto">
+                  <div className="font-semibold text-accent-content/70 mb-1">
+                    原文：
+                  </div>
+                  {selectedText.substring(0, 200)}
+                  {selectedText.length > 200 && "..."}
+                </div>
+                {translateError && (
+                  <div className="p-2 bg-error/20 rounded text-xs text-error">
+                    <div className="font-semibold mb-1">翻譯錯誤：</div>
+                    {translateError}
+                  </div>
+                )}
+                {translatedText && !translateError && (
+                  <div className="p-2 bg-base-100/90 rounded text-xs text-base-content max-h-20 overflow-auto">
+                    <div className="font-semibold text-accent-content/70 mb-1">
+                      翻譯：
+                    </div>
+                    {translatedText}
+                  </div>
+                )}
               </div>
             )}
           </div>
