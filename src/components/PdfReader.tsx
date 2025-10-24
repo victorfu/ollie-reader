@@ -1,5 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, memo } from "react";
 import type { ReactNode } from "react";
+import { Document, Page, pdfjs } from "react-pdf";
+// React-PDF CSS (path differs by version). Use non-esm paths for broader compatibility.
+import "react-pdf/dist/Page/AnnotationLayer.css";
+import "react-pdf/dist/Page/TextLayer.css";
 
 type ExtractedPage = {
   page_number: number;
@@ -18,11 +22,307 @@ const API_BASE_URL = "https://purism-ev-bot-1027147244019.asia-east1.run.app";
 const API_URL = `${API_BASE_URL}/api/pdf/extract`;
 const TRANSLATE_API_URL = `${API_BASE_URL}/api/translate`;
 
+// Memoized text area component to prevent re-render when other pages change
+const PageTextArea = memo(
+  ({
+    pageNumber,
+    text,
+    textLength,
+    readingMode,
+    onSpeak,
+    onStopSpeaking,
+    onTextSelection,
+  }: {
+    pageNumber: number;
+    text: string;
+    textLength: number;
+    readingMode: "word" | "selection";
+    onSpeak: (text: string) => void;
+    onStopSpeaking: () => void;
+    onTextSelection: () => void;
+  }) => {
+    const renderTextWithClickableWords = useCallback(
+      (text: string) => {
+        const nodes: ReactNode[] = [];
+        const wordRegex = /[A-Za-z]+(?:[''-][A-Za-z]+)*/g;
+        let lastIndex = 0;
+        let match: RegExpExecArray | null;
+        let key = 0;
+
+        while ((match = wordRegex.exec(text)) !== null) {
+          const [word] = match;
+          const start = match.index;
+          const end = start + word.length;
+          if (start > lastIndex) {
+            nodes.push(text.slice(lastIndex, start));
+          }
+          nodes.push(
+            <button
+              key={`w-${key++}-${start}`}
+              type="button"
+              onClick={() => onSpeak(word)}
+              className="inline px-0.5 rounded hover:bg-warning/30 hover:text-warning-content transition-colors focus:outline-none focus:ring-2 focus:ring-warning/50"
+              title={`Speak: ${word}`}
+            >
+              {word}
+            </button>,
+          );
+          lastIndex = end;
+        }
+        if (lastIndex < text.length) {
+          nodes.push(text.slice(lastIndex));
+        }
+
+        return (
+          <div className="whitespace-pre-wrap leading-relaxed text-left text-lg">
+            {nodes}
+          </div>
+        );
+      },
+      [onSpeak],
+    );
+
+    const renderSelectableText = useCallback(
+      (text: string) => {
+        return (
+          <div
+            className="whitespace-pre-wrap leading-relaxed text-left select-text cursor-text text-lg"
+            onMouseUp={onTextSelection}
+            onTouchEnd={onTextSelection}
+          >
+            {text}
+          </div>
+        );
+      },
+      [onTextSelection],
+    );
+
+    return (
+      <div className="card bg-base-100 shadow-md">
+        <div className="card-body p-4 sm:p-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
+            <h3 className="card-title text-xl sm:text-2xl">
+              <span className="badge badge-primary badge-lg">
+                Page {pageNumber}
+              </span>
+              {textLength != null && (
+                <span className="text-sm text-base-content/60 font-normal ml-2">
+                  {textLength} 字符
+                </span>
+              )}
+            </h3>
+            <div className="flex gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={() => onSpeak(text)}
+                className="btn btn-success btn-sm sm:btn-md gap-2"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-5 w-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"
+                  />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
+                </svg>
+                朗讀此頁
+              </button>
+              <button
+                type="button"
+                onClick={onStopSpeaking}
+                className="btn btn-ghost btn-sm sm:btn-md"
+              >
+                停止
+              </button>
+            </div>
+          </div>
+          <div className="divider my-2"></div>
+          <div
+            className="prose prose-lg sm:prose-xl lg:prose-2xl max-w-none overflow-auto"
+            style={{ maxHeight: "750px" }}
+          >
+            {readingMode === "word" && renderTextWithClickableWords(text || "")}
+            {readingMode === "selection" && renderSelectableText(text || "")}
+          </div>
+        </div>
+      </div>
+    );
+  },
+);
+
+PageTextArea.displayName = "PageTextArea";
+
+// Memoized PDF Viewer to prevent re-renders
+const PdfViewer = memo(
+  ({
+    url,
+    pagesByNumber,
+    readingMode,
+    onSpeak,
+    onStopSpeaking,
+    onTextSelection,
+  }: {
+    url: string;
+    pagesByNumber: Map<number, ExtractedPage>;
+    readingMode: "word" | "selection";
+    onSpeak: (text: string) => void;
+    onStopSpeaking: () => void;
+    onTextSelection: () => void;
+  }) => {
+    const containerRef = useRef<HTMLDivElement | null>(null);
+    const pageRefs = useRef<(HTMLDivElement | null)[]>([]);
+    const [numPages, setNumPages] = useState<number>(0);
+    const [containerWidth, setContainerWidth] = useState<number>(800);
+    const rafIdRef = useRef<number | null>(null);
+
+    // track container width for responsive Page width
+    useEffect(() => {
+      if (!containerRef.current) return;
+      const ro = new ResizeObserver((entries) => {
+        for (const entry of entries) {
+          const cr = entry.contentRect;
+          // padding is managed by parent; use full width minus a small margin
+          setContainerWidth(Math.max(320, Math.floor(cr.width - 24)));
+        }
+      });
+      ro.observe(containerRef.current);
+      // init immediately
+      const rect = containerRef.current.getBoundingClientRect();
+      setContainerWidth(Math.max(320, Math.floor(rect.width - 24)));
+      return () => ro.disconnect();
+    }, []);
+
+    // No scroll-driven state updates needed now that text is per-page
+    const handleScroll = useCallback(() => {
+      if (!containerRef.current || numPages === 0) return;
+      if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current);
+      rafIdRef.current = requestAnimationFrame(() => {
+        /* noop: keep for future metrics or lazy-loading hooks */
+      });
+    }, [numPages]);
+
+    useEffect(() => {
+      return () => {
+        if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current);
+      };
+    }, []);
+
+    // Removed currentPage sync; pages are paired with their own text
+
+    return (
+      <div className="w-full h-full flex flex-col">
+        <div className="flex items-center justify-between p-3 bg-base-200 rounded-t-lg sticky top-0 z-10">
+          <span className="text-sm font-medium">PDF 預覽</span>
+        </div>
+        <div
+          ref={containerRef}
+          className="w-full flex-1 overflow-y-auto overflow-x-hidden rounded-b-lg p-3"
+          style={{ minHeight: "800px", height: "800px" }}
+          onScroll={handleScroll}
+        >
+          <Document
+            file={url}
+            onLoadSuccess={({ numPages }) => setNumPages(numPages)}
+            loading={
+              <div className="w-full h-64 grid place-items-center text-base-content/60">
+                載入 PDF 中...
+              </div>
+            }
+            error={<div className="alert alert-error m-3">PDF 載入失敗</div>}
+          >
+            <div className="flex flex-col items-stretch gap-6">
+              {Array.from({ length: numPages }, (_, i) => i + 1).map(
+                (pageNumber) => (
+                  <div
+                    key={`page-wrap-${pageNumber}`}
+                    ref={(el) => {
+                      pageRefs.current[pageNumber - 1] = el;
+                    }}
+                    data-page-number={pageNumber}
+                    className="rounded-lg"
+                  >
+                    <div className="grid grid-cols-1 xl:grid-cols-5 gap-4 items-start">
+                      {/* PDF page */}
+                      <div className="xl:col-span-3">
+                        <div className="card bg-base-100 shadow-md max-w-full overflow-hidden">
+                          <div className="card-body p-2 sm:p-3">
+                            <Page
+                              pageNumber={pageNumber}
+                              width={containerWidth}
+                              renderTextLayer
+                              renderAnnotationLayer
+                              loading={
+                                <div className="skeleton w-full h-[600px]" />
+                              }
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Text for this page */}
+                      <div className="xl:col-span-2">
+                        <PageTextArea
+                          pageNumber={pageNumber}
+                          text={pagesByNumber.get(pageNumber)?.text || ""}
+                          textLength={
+                            pagesByNumber.get(pageNumber)?.text_length || 0
+                          }
+                          readingMode={readingMode}
+                          onSpeak={onSpeak}
+                          onStopSpeaking={onStopSpeaking}
+                          onTextSelection={onTextSelection}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ),
+              )}
+            </div>
+          </Document>
+        </div>
+      </div>
+    );
+  },
+);
+
+PdfViewer.displayName = "PdfViewer";
+
 function PdfReader() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ExtractResponse | null>(null);
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const pagesByNumber = useMemo(() => {
+    const map = new Map<number, ExtractedPage>();
+    if (result) {
+      for (const p of result.pages) map.set(p.page_number, p);
+    }
+    return map;
+  }, [result]);
+
+  // Configure pdf.js worker for react-pdf
+  useEffect(() => {
+    if (pdfjs.GlobalWorkerOptions) {
+      // Point worker to bundled pdf.worker for Vite
+      pdfjs.GlobalWorkerOptions.workerSrc = new URL(
+        "pdfjs-dist/build/pdf.worker.min.mjs",
+        import.meta.url,
+      ).toString();
+    }
+  }, []);
 
   const [speechRate, setSpeechRate] = useState(1);
   const [isSpeaking, setIsSpeaking] = useState(false);
@@ -97,18 +397,32 @@ function PdfReader() {
     }
   }, [selectedFile, uploadAndExtract]);
 
+  // Cleanup PDF URL when component unmounts or file changes
+  useEffect(() => {
+    return () => {
+      if (pdfUrl) {
+        URL.revokeObjectURL(pdfUrl);
+      }
+    };
+  }, [pdfUrl]);
+
   const handleFileChange = useCallback((file: File | null) => {
     if (!file) {
       setSelectedFile(null);
+      setPdfUrl(null);
       return;
     }
     if (file.type !== "application/pdf") {
       setError("請上傳 PDF 檔案 (application/pdf)");
       setSelectedFile(null);
+      setPdfUrl(null);
       return;
     }
     setError(null);
     setSelectedFile(file);
+    // Create URL for PDF display
+    const url = URL.createObjectURL(file);
+    setPdfUrl(url);
   }, []);
 
   const onInputChange: React.ChangeEventHandler<HTMLInputElement> = (e) => {
@@ -131,18 +445,24 @@ function PdfReader() {
     setIsUploading(false);
   };
 
-  const stopSpeaking = () => {
+  const stopSpeaking = useCallback(() => {
     if (!speechSupported) return;
     window.speechSynthesis.cancel();
     setIsSpeaking(false);
-  };
+  }, [speechSupported]);
+
+  // Use ref to track selectedText to avoid re-creating handleTextSelection
+  const selectedTextRef = useRef<string>("");
 
   const handleTextSelection = useCallback(() => {
     const selection = window.getSelection();
     const text = selection?.toString().trim() || "";
-    setSelectedText(text);
-    setTranslatedText("");
-    setTranslateError(null);
+    if (text !== selectedTextRef.current) {
+      selectedTextRef.current = text;
+      setSelectedText(text);
+      setTranslatedText("");
+      setTranslateError(null);
+    }
   }, []);
 
   const translateText = useCallback(async () => {
@@ -209,62 +529,6 @@ function PdfReader() {
     }
   }, [selectedText, speak]);
 
-  const renderTextWithClickableWords = useCallback(
-    (text: string) => {
-      const nodes: ReactNode[] = [];
-      const wordRegex = /[A-Za-z]+(?:[''-][A-Za-z]+)*/g;
-      let lastIndex = 0;
-      let match: RegExpExecArray | null;
-      let key = 0;
-
-      while ((match = wordRegex.exec(text)) !== null) {
-        const [word] = match;
-        const start = match.index;
-        const end = start + word.length;
-        if (start > lastIndex) {
-          nodes.push(text.slice(lastIndex, start));
-        }
-        nodes.push(
-          <button
-            key={`w-${key++}-${start}`}
-            type="button"
-            onClick={() => speak(word)}
-            className="inline px-0.5 rounded hover:bg-warning/30 hover:text-warning-content transition-colors focus:outline-none focus:ring-2 focus:ring-warning/50"
-            title={`Speak: ${word}`}
-          >
-            {word}
-          </button>,
-        );
-        lastIndex = end;
-      }
-      if (lastIndex < text.length) {
-        nodes.push(text.slice(lastIndex));
-      }
-
-      return (
-        <div className="whitespace-pre-wrap leading-relaxed text-left">
-          {nodes}
-        </div>
-      );
-    },
-    [speak],
-  );
-
-  const renderSelectableText = useCallback(
-    (text: string) => {
-      return (
-        <div
-          className="whitespace-pre-wrap leading-relaxed text-left select-text cursor-text"
-          onMouseUp={handleTextSelection}
-          onTouchEnd={handleTextSelection}
-        >
-          {text}
-        </div>
-      );
-    },
-    [handleTextSelection],
-  );
-
   const header = useMemo(() => {
     return (
       <div className="text-center mb-8 lg:mb-12">
@@ -279,7 +543,15 @@ function PdfReader() {
   }, []);
 
   return (
-    <div className="w-full max-w-6xl mx-auto">
+    <div className="w-full">
+      {/* Local CSS to keep react-pdf pages within cards */}
+      <style>
+        {`
+        .react-pdf__Document{width:100%}
+        .react-pdf__Page{width:100% !important;max-width:100%}
+        .react-pdf__Page canvas,.react-pdf__Page svg{width:100% !important;height:auto !important;max-width:100%;display:block}
+        `}
+      </style>
       {header}
 
       {/* Upload Area */}
@@ -699,70 +971,43 @@ function PdfReader() {
               </div>
               <div className="stat-desc">已成功解析</div>
             </div>
+
+            {/* Removed current page navigation: per-page layout makes it unnecessary */}
           </div>
 
-          {/* Pages */}
-          <div className="space-y-6">
-            {result.pages.map((p) => (
-              <div key={p.page_number} className="card bg-base-100 shadow-xl">
-                <div className="card-body p-4 sm:p-6 lg:p-8">
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
-                    <h3 className="card-title text-xl sm:text-2xl">
-                      <span className="badge badge-primary badge-lg">
-                        Page {p.page_number}
-                      </span>
-                      <span className="text-sm text-base-content/60 font-normal ml-2">
-                        {p.text_length} 字符
-                      </span>
-                    </h3>
-                    <div className="flex gap-2 flex-wrap">
-                      <button
-                        type="button"
-                        onClick={() => speak(p.text)}
-                        className="btn btn-success btn-sm sm:btn-md gap-2"
-                      >
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          className="h-5 w-5"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"
-                          />
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                          />
-                        </svg>
-                        朗讀整頁
-                      </button>
-                      <button
-                        type="button"
-                        onClick={stopSpeaking}
-                        className="btn btn-ghost btn-sm sm:btn-md"
-                      >
-                        停止
-                      </button>
-                    </div>
-                  </div>
-                  <div className="divider my-2"></div>
-                  <div className="prose prose-sm sm:prose-base lg:prose-lg max-w-none">
-                    {readingMode === "word" &&
-                      renderTextWithClickableWords(p.text || "")}
-                    {readingMode === "selection" &&
-                      renderSelectableText(p.text || "")}
-                  </div>
-                </div>
+          {/* PDF and Text Side by Side */}
+          {pdfUrl && (
+            <div className="card bg-base-100 shadow-xl h-full">
+              <div className="card-body p-0">
+                <PdfViewer
+                  url={pdfUrl}
+                  pagesByNumber={pagesByNumber}
+                  readingMode={readingMode}
+                  onSpeak={speak}
+                  onStopSpeaking={stopSpeaking}
+                  onTextSelection={handleTextSelection}
+                />
               </div>
-            ))}
-          </div>
+            </div>
+          )}
+
+          {/* All Pages Overview (when no PDF URL) */}
+          {!pdfUrl && (
+            <div className="space-y-6">
+              {result.pages.map((p) => (
+                <PageTextArea
+                  key={p.page_number}
+                  pageNumber={p.page_number}
+                  text={p.text || ""}
+                  textLength={p.text_length}
+                  readingMode={readingMode}
+                  onSpeak={speak}
+                  onStopSpeaking={stopSpeaking}
+                  onTextSelection={handleTextSelection}
+                />
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>
