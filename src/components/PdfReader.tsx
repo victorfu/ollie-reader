@@ -86,7 +86,7 @@ const PageTextArea = memo(
       (text: string) => {
         return (
           <div
-            className="whitespace-pre-wrap leading-relaxed text-left select-text cursor-text text-lg"
+            className="whitespace-pre-wrap leading-relaxed text-left select-text cursor-text text-xl sm:text-2xl"
             onMouseUp={onTextSelection}
             onTouchEnd={onTextSelection}
           >
@@ -326,7 +326,9 @@ function PdfReader() {
 
   const [speechRate, setSpeechRate] = useState(1);
   const [isSpeaking, setIsSpeaking] = useState(false);
-  const [readingMode, setReadingMode] = useState<"word" | "selection">("word");
+  const [readingMode, setReadingMode] = useState<"word" | "selection">(
+    "selection",
+  );
   const [selectedText, setSelectedText] = useState<string>("");
   const [translatedText, setTranslatedText] = useState<string>("");
   const [isTranslating, setIsTranslating] = useState(false);
@@ -354,7 +356,8 @@ function PdfReader() {
     if (!selectedFile) return;
     setIsUploading(true);
     setError(null);
-    setResult(null);
+    // Don't clear result immediately to avoid UI jump
+    // setResult(null);
 
     abortRef.current?.abort();
     const controller = new AbortController();
@@ -529,6 +532,22 @@ function PdfReader() {
     }
   }, [selectedText, speak]);
 
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyPress = (e: KeyboardEvent) => {
+      // Escape: Clear selection
+      if (e.key === "Escape" && selectedText) {
+        setSelectedText("");
+        setTranslatedText("");
+        setTranslateError(null);
+        window.getSelection()?.removeAllRanges();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyPress);
+    return () => window.removeEventListener("keydown", handleKeyPress);
+  }, [selectedText]);
+
   const header = useMemo(() => {
     return (
       <div className="text-center mb-8 lg:mb-12">
@@ -536,7 +555,7 @@ function PdfReader() {
           📚 Ollie Reader
         </h1>
         <p className="text-base sm:text-lg text-base-content/70 max-w-2xl mx-auto px-4">
-          上傳 PDF 文件，自動解析英文文字，點擊任何單字即可朗讀發音
+          上傳 PDF 文件，選取文字即可朗讀或翻譯
         </p>
       </div>
     );
@@ -552,222 +571,36 @@ function PdfReader() {
         .react-pdf__Page canvas,.react-pdf__Page svg{width:100% !important;height:auto !important;max-width:100%;display:block}
         `}
       </style>
-      {header}
+      {!result && header}
 
-      {/* Upload Area */}
-      <div className="card bg-base-100 shadow-xl mb-6">
-        <div className="card-body p-4 sm:p-6 lg:p-8">
-          <div
-            onDrop={onDrop}
-            onDragOver={onDragOver}
-            className="border-2 border-dashed border-base-300 rounded-xl p-8 sm:p-12 hover:border-primary transition-colors cursor-pointer"
-          >
-            <input
-              id="file"
-              type="file"
-              accept="application/pdf"
-              onChange={onInputChange}
-              className="hidden"
-            />
-            <label htmlFor="file" className="block cursor-pointer">
-              <div className="text-center">
-                <div className="text-5xl sm:text-6xl mb-4">📄</div>
-                <div className="text-lg sm:text-xl font-semibold mb-2">
-                  {selectedFile ? (
-                    <span className="text-primary">{selectedFile.name}</span>
-                  ) : (
-                    "拖曳或點擊上傳 PDF"
-                  )}
-                </div>
-                <div className="text-sm text-base-content/60">
-                  支援格式：PDF (.pdf)
-                </div>
-              </div>
-            </label>
+      {/* Compact Header when PDF loaded */}
+      {result && (
+        <div className="flex items-center justify-between mb-6 bg-base-100 rounded-lg shadow-md p-4">
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">📚</span>
+            <div>
+              <h2 className="font-bold text-lg">{result.filename}</h2>
+              <p className="text-sm text-base-content/60">
+                {result.total_pages} 頁
+                {isUploading && (
+                  <span className="ml-2 text-warning">· 載入中...</span>
+                )}
+              </p>
+            </div>
           </div>
-
-          {/* Action Buttons */}
-          <div className="flex flex-wrap gap-3 justify-center mt-6">
-            <button
-              type="button"
-              disabled={!selectedFile || isUploading}
-              onClick={uploadAndExtract}
-              className="btn btn-primary btn-lg gap-2"
-            >
-              {isUploading ? (
-                <>
-                  <span className="loading loading-spinner"></span>
-                  解析中...
-                </>
-              ) : (
-                <>
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="h-5 w-5"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                    />
-                  </svg>
-                  重新解析
-                </>
-              )}
-            </button>
+          <div className="flex items-center gap-2">
             {isUploading && (
-              <button
-                type="button"
-                onClick={cancelUpload}
-                className="btn btn-error btn-outline btn-lg"
-              >
-                取消
-              </button>
+              <span className="loading loading-spinner loading-sm text-primary"></span>
             )}
-          </div>
-
-          {!speechSupported && (
-            <div className="alert alert-warning mt-6">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="stroke-current shrink-0 h-6 w-6"
-                fill="none"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-                />
-              </svg>
-              <span>您的瀏覽器不支援語音朗讀功能</span>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* TTS Controls */}
-      <div className="card bg-base-100 shadow-xl mb-6">
-        <div className="card-body p-4 sm:p-6">
-          <h3 className="card-title text-lg sm:text-xl mb-4">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="h-6 w-6"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"
-              />
-            </svg>
-            朗讀設定
-          </h3>
-
-          {/* Reading Mode Toggle */}
-          <div className="mb-6">
-            <label className="label">
-              <span className="label-text font-semibold">朗讀模式</span>
-            </label>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => setReadingMode("word")}
-                className={`btn ${
-                  readingMode === "word"
-                    ? "btn-primary"
-                    : "btn-outline btn-primary"
-                }`}
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="h-4 w-4 sm:h-5 sm:w-5"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"
-                  />
-                </svg>
-                <span className="hidden sm:inline">單字</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setReadingMode("selection")}
-                className={`btn ${
-                  readingMode === "selection"
-                    ? "btn-accent"
-                    : "btn-outline btn-accent"
-                }`}
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="h-4 w-4 sm:h-5 sm:w-5"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122"
-                  />
-                </svg>
-                <span className="hidden sm:inline">選取</span>
-              </button>
-            </div>
-            <div className="text-xs text-base-content/60 mt-2">
-              {readingMode === "word" && "點擊任何單字朗讀該單字"}
-              {readingMode === "selection" &&
-                "用滑鼠選取任意文字，然後點擊「朗讀選取」"}
-            </div>
-          </div>
-
-          <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
-            <div className="flex-1 w-full">
-              <label className="label">
-                <span className="label-text">朗讀速度</span>
-                <span className="label-text-alt badge badge-primary">
-                  {speechRate.toFixed(1)}x
-                </span>
-              </label>
-              <input
-                type="range"
-                min={0.5}
-                max={1.5}
-                step={0.1}
-                value={speechRate}
-                onChange={(e) => setSpeechRate(Number(e.target.value))}
-                className="range range-primary"
-              />
-              <div className="w-full flex justify-between text-xs px-2 mt-1 text-base-content/60">
-                <span>慢速</span>
-                <span>正常</span>
-                <span>快速</span>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={stopSpeaking}
-              disabled={!isSpeaking}
-              className="btn btn-error btn-outline w-full sm:w-auto"
+            <label
+              htmlFor="file-change"
+              className={`btn btn-outline btn-sm gap-2 ${
+                isUploading ? "btn-disabled" : ""
+              }`}
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
-                className="h-5 w-5"
+                className="h-4 w-4"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -776,20 +609,212 @@ function PdfReader() {
                   strokeLinecap="round"
                   strokeLinejoin="round"
                   strokeWidth={2}
-                  d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                />
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"
+                  d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"
                 />
               </svg>
-              停止朗讀
-            </button>
+              更換檔案
+            </label>
+            <input
+              id="file-change"
+              type="file"
+              accept="application/pdf"
+              onChange={onInputChange}
+              className="hidden"
+              disabled={isUploading}
+            />
           </div>
         </div>
-      </div>
+      )}
+
+      {/* Upload Area - Only show when no PDF */}
+      {!result && (
+        <div className="card bg-base-100 shadow-xl mb-6">
+          <div className="card-body p-4 sm:p-6 lg:p-8">
+            <div
+              onDrop={onDrop}
+              onDragOver={onDragOver}
+              className="border-2 border-dashed border-base-300 rounded-xl p-8 sm:p-12 hover:border-primary transition-colors cursor-pointer"
+            >
+              <input
+                id="file"
+                type="file"
+                accept="application/pdf"
+                onChange={onInputChange}
+                className="hidden"
+              />
+              <label htmlFor="file" className="block cursor-pointer">
+                <div className="text-center">
+                  <div className="text-5xl sm:text-6xl mb-4">📄</div>
+                  <div className="text-lg sm:text-xl font-semibold mb-2">
+                    {selectedFile ? (
+                      <span className="text-primary">{selectedFile.name}</span>
+                    ) : (
+                      "拖曳或點擊上傳 PDF"
+                    )}
+                  </div>
+                  <div className="text-sm text-base-content/60">
+                    支援格式：PDF (.pdf)
+                  </div>
+                </div>
+              </label>
+            </div>
+
+            {isUploading && (
+              <div className="flex justify-center gap-3 mt-6">
+                <button
+                  type="button"
+                  disabled
+                  className="btn btn-primary btn-lg gap-2"
+                >
+                  <span className="loading loading-spinner"></span>
+                  解析中...
+                </button>
+                <button
+                  type="button"
+                  onClick={cancelUpload}
+                  className="btn btn-error btn-outline btn-lg"
+                >
+                  取消
+                </button>
+              </div>
+            )}
+
+            {!speechSupported && (
+              <div className="alert alert-warning mt-6">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="stroke-current shrink-0 h-6 w-6"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                  />
+                </svg>
+                <span>您的瀏覽器不支援語音朗讀功能</span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Compact TTS Controls - Only show when PDF loaded */}
+      {result && (
+        <div className="card bg-base-100 shadow-md mb-6">
+          <div className="card-body p-4">
+            <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+              {/* Reading Mode Toggle */}
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setReadingMode("word")}
+                  className={`btn btn-sm ${
+                    readingMode === "word"
+                      ? "btn-primary"
+                      : "btn-outline btn-primary"
+                  }`}
+                  title="點擊單字朗讀"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-4 w-4"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"
+                    />
+                  </svg>
+                  <span className="hidden sm:inline ml-1">單字</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setReadingMode("selection")}
+                  className={`btn btn-sm ${
+                    readingMode === "selection"
+                      ? "btn-accent"
+                      : "btn-outline btn-accent"
+                  }`}
+                  title="選取文字朗讀"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-4 w-4"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122"
+                    />
+                  </svg>
+                  <span className="hidden sm:inline ml-1">選取</span>
+                </button>
+              </div>
+
+              {/* Speed Control */}
+              <div className="flex-1 w-full sm:max-w-xs">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm whitespace-nowrap">速度</span>
+                  <input
+                    type="range"
+                    min={0.5}
+                    max={1.5}
+                    step={0.1}
+                    value={speechRate}
+                    onChange={(e) => setSpeechRate(Number(e.target.value))}
+                    className="range range-primary range-xs"
+                  />
+                  <span className="badge badge-primary badge-sm">
+                    {speechRate.toFixed(1)}x
+                  </span>
+                </div>
+              </div>
+
+              {/* Stop Button */}
+              {isSpeaking && (
+                <button
+                  type="button"
+                  onClick={stopSpeaking}
+                  className="btn btn-error btn-sm gap-1"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-4 w-4"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"
+                    />
+                  </svg>
+                  停止
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Error Alert */}
       {error && (
@@ -811,15 +836,24 @@ function PdfReader() {
         </div>
       )}
 
-      {/* Sticky Selection Mode Controls */}
-      {readingMode === "selection" && result && (
-        <div className="sticky top-4 z-50 mb-6">
-          <div className="p-4 bg-accent/95 border border-accent rounded-lg backdrop-blur-md shadow-2xl">
-            <div className="flex flex-col sm:flex-row gap-3 items-center justify-between">
-              <div className="flex items-center gap-2">
+      {/* Floating Selection Toolbar - Only show when text is selected */}
+      {readingMode === "selection" && result && selectedText && (
+        <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 z-50">
+          <div className="bg-accent text-accent-content rounded-full shadow-2xl px-6 py-3 flex items-center gap-3 backdrop-blur-md">
+            <span className="text-sm font-medium hidden sm:inline">
+              已選 {selectedText.length} 字
+            </span>
+            <div className="h-4 w-px bg-accent-content/30 hidden sm:block"></div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={speakSelection}
+                className="btn btn-sm btn-circle bg-accent-content text-accent hover:bg-accent-content/90 border-0 tooltip tooltip-top"
+                data-tip="朗讀 (Ctrl+S)"
+              >
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
-                  className="h-5 w-5 text-accent-content"
+                  className="h-5 w-5"
                   fill="none"
                   viewBox="0 0 24 24"
                   stroke="currentColor"
@@ -828,22 +862,20 @@ function PdfReader() {
                     strokeLinecap="round"
                     strokeLinejoin="round"
                     strokeWidth={2}
-                    d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                    d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"
                   />
                 </svg>
-                <span className="text-sm font-medium text-accent-content">
-                  {selectedText
-                    ? `已選取 ${selectedText.length} 個字符`
-                    : "尚未選取文字"}
-                </span>
-              </div>
-              <div className="flex gap-2 flex-wrap">
-                <button
-                  type="button"
-                  onClick={speakSelection}
-                  disabled={!selectedText}
-                  className="btn btn-sm sm:btn-md gap-2 bg-accent-content text-accent hover:bg-accent-content/90"
-                >
+              </button>
+              <button
+                type="button"
+                onClick={translateText}
+                disabled={isTranslating}
+                className="btn btn-sm btn-circle bg-accent-content text-accent hover:bg-accent-content/90 border-0 tooltip tooltip-top"
+                data-tip="翻譯 (Ctrl+T)"
+              >
+                {isTranslating ? (
+                  <span className="loading loading-spinner loading-sm"></span>
+                ) : (
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
                     className="h-5 w-5"
@@ -855,70 +887,78 @@ function PdfReader() {
                       strokeLinecap="round"
                       strokeLinejoin="round"
                       strokeWidth={2}
-                      d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"
+                      d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129"
                     />
                   </svg>
-                  朗讀選取
-                </button>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedText("");
+                  setTranslatedText("");
+                  setTranslateError(null);
+                  window.getSelection()?.removeAllRanges();
+                }}
+                className="btn btn-sm btn-circle bg-accent-content/20 text-accent-content hover:bg-accent-content/30 border-0 tooltip tooltip-top"
+                data-tip="清除 (ESC)"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-4 w-4"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          {/* Translation Result Popup */}
+          {translatedText && (
+            <div className="mt-3 bg-base-100 rounded-lg shadow-2xl p-4 max-w-md mx-auto animate-in slide-in-from-bottom-2">
+              <div className="flex items-start justify-between gap-2 mb-2">
+                <h4 className="font-semibold text-sm flex items-center gap-1">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-4 w-4"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129"
+                    />
+                  </svg>
+                  翻譯結果
+                </h4>
                 <button
                   type="button"
-                  onClick={translateText}
-                  disabled={!selectedText || isTranslating}
-                  className="btn btn-sm sm:btn-md gap-2 bg-accent-content text-accent hover:bg-accent-content/90"
+                  onClick={() => setTranslatedText("")}
+                  className="btn btn-ghost btn-xs btn-circle"
                 >
-                  {isTranslating ? (
-                    <>
-                      <span className="loading loading-spinner loading-sm"></span>
-                      翻譯中...
-                    </>
-                  ) : (
-                    <>
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        className="h-5 w-5"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129"
-                        />
-                      </svg>
-                      翻譯
-                    </>
-                  )}
+                  ✕
                 </button>
               </div>
+              <p className="text-sm leading-relaxed">{translatedText}</p>
             </div>
-            {selectedText && (
-              <div className="mt-3 space-y-2">
-                <div className="p-2 bg-base-100/90 rounded text-xs text-base-content max-h-20 overflow-auto">
-                  <div className="font-semibold text-accent-content/70 mb-1">
-                    原文：
-                  </div>
-                  {selectedText.substring(0, 200)}
-                  {selectedText.length > 200 && "..."}
-                </div>
-                {translateError && (
-                  <div className="p-2 bg-error/20 rounded text-xs text-error">
-                    <div className="font-semibold mb-1">翻譯錯誤：</div>
-                    {translateError}
-                  </div>
-                )}
-                {translatedText && !translateError && (
-                  <div className="p-2 bg-base-100/90 rounded text-xs text-base-content max-h-20 overflow-auto">
-                    <div className="font-semibold text-accent-content/70 mb-1">
-                      翻譯：
-                    </div>
-                    {translatedText}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
+          )}
+
+          {translateError && (
+            <div className="mt-3 bg-error/10 text-error rounded-lg shadow-2xl p-3 max-w-md mx-auto">
+              <p className="text-xs">{translateError}</p>
+            </div>
+          )}
         </div>
       )}
 
