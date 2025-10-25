@@ -21,6 +21,7 @@ type ExtractResponse = {
 const API_BASE_URL = "https://purism-ev-bot-1027147244019.asia-east1.run.app";
 const API_URL = `${API_BASE_URL}/api/pdf/extract`;
 const TRANSLATE_API_URL = `${API_BASE_URL}/api/translate`;
+const FETCH_URL_API = `${API_BASE_URL}/api/fetch-url`;
 
 // Memoized text area component to prevent re-render when other pages change
 const PageTextArea = memo(
@@ -305,6 +306,8 @@ function PdfReader() {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ExtractResponse | null>(null);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [urlInput, setUrlInput] = useState<string>("");
+  const [isLoadingFromUrl, setIsLoadingFromUrl] = useState(false);
   const pagesByNumber = useMemo(() => {
     const map = new Map<number, ExtractedPage>();
     if (result) {
@@ -426,6 +429,126 @@ function PdfReader() {
     // Create URL for PDF display
     const url = URL.createObjectURL(file);
     setPdfUrl(url);
+  }, []);
+
+  const loadPdfFromUrl = useCallback(async (url: string) => {
+    if (!url.trim()) {
+      setError("請輸入有效的 URL");
+      return;
+    }
+
+    setIsLoadingFromUrl(true);
+    setError(null);
+    setResult(null);
+    setSelectedFile(null);
+    setPdfUrl(null);
+
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    try {
+      // Step 1: 使用伺服器端 API 抓取 PDF (自動處理 redirects 和 CORS)
+      const apiUrl = new URL(FETCH_URL_API);
+      apiUrl.searchParams.set("url", url);
+      apiUrl.searchParams.set("follow_redirects", "true");
+
+      const response = await fetch(apiUrl.toString(), {
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        let errorMessage = `無法載入 PDF: ${response.status}`;
+
+        // 根據狀態碼提供更詳細的錯誤訊息
+        switch (response.status) {
+          case 400:
+            errorMessage = "URL 格式錯誤或參數不正確";
+            break;
+          case 404:
+            errorMessage = "找不到指定的 PDF 檔案";
+            break;
+          case 408:
+            errorMessage = "請求超時，請稍後再試";
+            break;
+          case 429:
+            errorMessage = "請求過於頻繁，請稍後再試";
+            break;
+          case 500:
+            errorMessage = "伺服器錯誤，無法抓取檔案";
+            break;
+          default:
+            try {
+              const errorText = await response.text();
+              if (errorText) errorMessage = errorText;
+            } catch {
+              // ignore
+            }
+        }
+        throw new Error(errorMessage);
+      }
+
+      const contentType = response.headers.get("content-type");
+      if (!contentType?.includes("application/pdf")) {
+        throw new Error(`URL 未返回 PDF 檔案 (Content-Type: ${contentType})`);
+      }
+
+      // 取得檔案資訊
+      // const finalUrl = response.headers.get("X-Final-URL");
+      const redirectCount = response.headers.get("X-Redirect-Count");
+      // const fileExtension = response.headers.get("X-File-Extension");
+
+      // Get the PDF as a blob
+      const blob = await response.blob();
+
+      // 從 Content-Disposition 或 URL 取得檔名
+      const currentTime = Date.now();
+      const filename = `downloaded_${currentTime}.pdf`;
+
+      // Create a File object from the blob
+      const file = new File([blob], filename, { type: "application/pdf" });
+
+      // Create object URL for PDF display
+      const objectUrl = URL.createObjectURL(blob);
+      setPdfUrl(objectUrl);
+
+      // 顯示成功訊息
+      if (redirectCount && parseInt(redirectCount) > 0) {
+        console.log(`✓ PDF 已載入 (經過 ${redirectCount} 次重定向)`);
+      }
+
+      // Step 2: 上傳 PDF 到文字提取 API
+      setIsUploading(true);
+      const form = new FormData();
+      form.append("file", file);
+
+      const extractRes = await fetch(API_URL, {
+        method: "POST",
+        body: form,
+        headers: { Accept: "application/json" },
+        signal: controller.signal,
+      });
+
+      if (!extractRes.ok) {
+        const text = await extractRes.text().catch(() => "");
+        throw new Error(text || `文字提取失敗: ${extractRes.status}`);
+      }
+
+      const data = (await extractRes.json()) as ExtractResponse;
+      setResult(data);
+      setSelectedFile(file);
+    } catch (err: unknown) {
+      if (err instanceof Error && err.name === "AbortError") return;
+      const message =
+        err instanceof Error ? err.message : "載入 PDF 時發生未知錯誤";
+      setError(message);
+      setSelectedFile(null);
+      setPdfUrl(null);
+      setResult(null);
+    } finally {
+      setIsLoadingFromUrl(false);
+      setIsUploading(false);
+    }
   }, []);
 
   const onInputChange: React.ChangeEventHandler<HTMLInputElement> = (e) => {
@@ -571,65 +694,69 @@ function PdfReader() {
         .react-pdf__Page canvas,.react-pdf__Page svg{width:100% !important;height:auto !important;max-width:100%;display:block}
         `}
       </style>
-      {!result && header}
+      {header}
 
-      {/* Compact Header when PDF loaded */}
-      {result && (
-        <div className="flex items-center justify-between mb-6 bg-base-100 rounded-lg shadow-md p-4">
-          <div className="flex items-center gap-3">
-            <span className="text-2xl">📚</span>
-            <div>
-              <h2 className="font-bold text-lg">{result.filename}</h2>
-              <p className="text-sm text-base-content/60">
-                {result.total_pages} 頁
-                {isUploading && (
-                  <span className="ml-2 text-warning">· 載入中...</span>
-                )}
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            {isUploading && (
-              <span className="loading loading-spinner loading-sm text-primary"></span>
-            )}
-            <label
-              htmlFor="file-change"
-              className={`btn btn-outline btn-sm gap-2 ${
-                isUploading ? "btn-disabled" : ""
-              }`}
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-4 w-4"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"
-                />
-              </svg>
-              更換檔案
-            </label>
-            <input
-              id="file-change"
-              type="file"
-              accept="application/pdf"
-              onChange={onInputChange}
-              className="hidden"
-              disabled={isUploading}
-            />
-          </div>
-        </div>
-      )}
-
-      {/* Upload Area - Only show when no PDF */}
-      {!result && (
+      {/* Upload Area - Always show */}
+      {
         <div className="card bg-base-100 shadow-xl mb-6">
           <div className="card-body p-4 sm:p-6 lg:p-8">
+            {/* URL Input Section */}
+            <div className="mb-6">
+              <label className="label">
+                <span className="label-text font-semibold text-base">
+                  從網址載入 PDF
+                </span>
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="輸入 PDF 連結，例如：https://example.com/file.pdf"
+                  className="input input-bordered flex-1"
+                  value={urlInput}
+                  onChange={(e) => setUrlInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && urlInput.trim()) {
+                      void loadPdfFromUrl(urlInput);
+                    }
+                  }}
+                  disabled={isLoadingFromUrl}
+                />
+                <button
+                  type="button"
+                  onClick={() => loadPdfFromUrl(urlInput)}
+                  disabled={isLoadingFromUrl || !urlInput.trim()}
+                  className="btn btn-primary"
+                >
+                  {isLoadingFromUrl ? (
+                    <>
+                      <span className="loading loading-spinner loading-sm"></span>
+                      載入中
+                    </>
+                  ) : (
+                    <>
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        className="h-5 w-5"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"
+                        />
+                      </svg>
+                      載入
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            <div className="divider">或</div>
+
             <div
               onDrop={onDrop}
               onDragOver={onDragOver}
@@ -699,7 +826,7 @@ function PdfReader() {
             )}
           </div>
         </div>
-      )}
+      }
 
       {/* Compact TTS Controls - Only show when PDF loaded */}
       {result && (
