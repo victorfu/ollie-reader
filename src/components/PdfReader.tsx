@@ -22,6 +22,7 @@ const API_BASE_URL = "https://purism-ev-bot-1027147244019.asia-east1.run.app";
 const API_URL = `${API_BASE_URL}/api/pdf/extract`;
 const TRANSLATE_API_URL = `${API_BASE_URL}/api/translate`;
 const FETCH_URL_API = `${API_BASE_URL}/api/fetch-url`;
+const TTS_API_URL = `${API_BASE_URL}/api/tts`;
 
 // Memoized text area component to prevent re-render when other pages change
 const PageTextArea = memo(
@@ -33,6 +34,7 @@ const PageTextArea = memo(
     onSpeak,
     onStopSpeaking,
     onTextSelection,
+    isLoadingAudio,
   }: {
     pageNumber: number;
     text: string;
@@ -41,6 +43,7 @@ const PageTextArea = memo(
     onSpeak: (text: string) => void;
     onStopSpeaking: () => void;
     onTextSelection: () => void;
+    isLoadingAudio?: boolean;
   }) => {
     const renderTextWithClickableWords = useCallback(
       (text: string) => {
@@ -117,28 +120,38 @@ const PageTextArea = memo(
                 type="button"
                 onClick={() => onSpeak(text)}
                 className="btn btn-success btn-sm sm:btn-md gap-2"
+                disabled={isLoadingAudio}
               >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="h-5 w-5"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"
-                  />
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                  />
-                </svg>
-                朗讀此頁
+                {isLoadingAudio ? (
+                  <>
+                    <span className="loading loading-spinner loading-sm"></span>
+                    生成中
+                  </>
+                ) : (
+                  <>
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="h-5 w-5"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"
+                      />
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                      />
+                    </svg>
+                    朗讀此頁
+                  </>
+                )}
               </button>
               <button
                 type="button"
@@ -174,6 +187,7 @@ const PdfViewer = memo(
     onSpeak,
     onStopSpeaking,
     onTextSelection,
+    isLoadingAudio,
   }: {
     url: string;
     pagesByNumber: Map<number, ExtractedPage>;
@@ -181,6 +195,7 @@ const PdfViewer = memo(
     onSpeak: (text: string) => void;
     onStopSpeaking: () => void;
     onTextSelection: () => void;
+    isLoadingAudio?: boolean;
   }) => {
     const containerRef = useRef<HTMLDivElement | null>(null);
     const pageRefs = useRef<(HTMLDivElement | null)[]>([]);
@@ -284,6 +299,7 @@ const PdfViewer = memo(
                           onSpeak={onSpeak}
                           onStopSpeaking={onStopSpeaking}
                           onTextSelection={onTextSelection}
+                          isLoadingAudio={isLoadingAudio}
                         />
                       </div>
                     </div>
@@ -337,6 +353,13 @@ function PdfReader() {
   const [isTranslating, setIsTranslating] = useState(false);
   const [translateError, setTranslateError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+
+  // TTS 模式選擇: "browser" 使用瀏覽器內建, "api" 使用 Piper TTS API
+  const [ttsMode, setTtsMode] = useState<"browser" | "api">("browser");
+  const [currentAudio, setCurrentAudio] = useState<HTMLAudioElement | null>(
+    null,
+  );
+  const [isLoadingAudio, setIsLoadingAudio] = useState(false);
 
   const speechSupported =
     typeof window !== "undefined" && "speechSynthesis" in window;
@@ -575,7 +598,14 @@ function PdfReader() {
     if (!speechSupported) return;
     window.speechSynthesis.cancel();
     setIsSpeaking(false);
-  }, [speechSupported]);
+    setIsLoadingAudio(false);
+    // 同時停止 API TTS 音訊
+    if (currentAudio) {
+      currentAudio.pause();
+      currentAudio.currentTime = 0;
+      setCurrentAudio(null);
+    }
+  }, [speechSupported, currentAudio]);
 
   // Use ref to track selectedText to avoid re-creating handleTextSelection
   const selectedTextRef = useRef<string>("");
@@ -631,22 +661,99 @@ function PdfReader() {
     return en ?? null;
   }, [speechSupported]);
 
+  const speakWithAPI = useCallback(
+    async (text: string) => {
+      try {
+        setIsLoadingAudio(true);
+        setIsSpeaking(false);
+
+        // 使用 POST 方法,參數放在 body 以 JSON 格式傳送
+        const response = await fetch(TTS_API_URL, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            text: text,
+            speaker: "0",
+            length_scale: speechRate.toString(),
+            noise_scale: "0.667",
+            noise_w: "0.8",
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error(`TTS API 錯誤: ${response.status}`);
+        }
+
+        // 取得音訊資料
+        const blob = await response.blob();
+        const audioUrl = URL.createObjectURL(blob);
+
+        setIsLoadingAudio(false);
+
+        // 播放音訊
+        const audio = new Audio(audioUrl);
+        setCurrentAudio(audio);
+        setIsSpeaking(true);
+
+        audio.onended = () => {
+          setIsSpeaking(false);
+          setCurrentAudio(null);
+          URL.revokeObjectURL(audioUrl);
+        };
+
+        audio.onerror = () => {
+          setIsSpeaking(false);
+          setIsLoadingAudio(false);
+          setCurrentAudio(null);
+          URL.revokeObjectURL(audioUrl);
+          setError("音訊播放失敗");
+        };
+
+        await audio.play();
+      } catch (err: unknown) {
+        setIsSpeaking(false);
+        setIsLoadingAudio(false);
+        const message = err instanceof Error ? err.message : "TTS API 呼叫失敗";
+        setError(message);
+      }
+    },
+    [speechRate],
+  );
+
   const speak = useCallback(
     (text: string) => {
-      if (!speechSupported) return;
       if (!text.trim()) return;
-      const voice = pickEnglishVoice();
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = voice?.lang || "en-US";
-      utterance.voice = voice || null;
-      utterance.rate = speechRate;
-      utterance.onend = () => setIsSpeaking(false);
-      utterance.onerror = () => setIsSpeaking(false);
-      window.speechSynthesis.cancel();
-      setIsSpeaking(true);
-      window.speechSynthesis.speak(utterance);
+
+      // 停止之前的播放
+      stopSpeaking();
+
+      if (ttsMode === "api") {
+        // 使用 Piper TTS API
+        speakWithAPI(text);
+      } else {
+        // 使用瀏覽器內建 TTS
+        if (!speechSupported) return;
+        const voice = pickEnglishVoice();
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = voice?.lang || "en-US";
+        utterance.voice = voice || null;
+        utterance.rate = speechRate;
+        utterance.onend = () => setIsSpeaking(false);
+        utterance.onerror = () => setIsSpeaking(false);
+        setIsSpeaking(true);
+        window.speechSynthesis.speak(utterance);
+      }
     },
-    [pickEnglishVoice, speechRate, speechSupported],
+    [
+      pickEnglishVoice,
+      speechRate,
+      speechSupported,
+      ttsMode,
+      stopSpeaking,
+      speakWithAPI,
+    ],
   );
 
   const speakSelection = useCallback(() => {
@@ -833,6 +940,62 @@ function PdfReader() {
         <div className="card bg-base-100 shadow-md mb-6">
           <div className="card-body p-4">
             <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+              {/* TTS Mode Selection */}
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setTtsMode("browser")}
+                  className={`btn btn-sm ${
+                    ttsMode === "browser" ? "btn-info" : "btn-outline btn-info"
+                  }`}
+                  title="使用系統內建語音引擎"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-4 w-4"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+                    />
+                  </svg>
+                  <span className="hidden sm:inline ml-1">系統語音</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTtsMode("api")}
+                  className={`btn btn-sm ${
+                    ttsMode === "api"
+                      ? "btn-success"
+                      : "btn-outline btn-success"
+                  }`}
+                  title="使用雲端 AI 語音合成"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-4 w-4"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01"
+                    />
+                  </svg>
+                  <span className="hidden sm:inline ml-1">AI 語音</span>
+                </button>
+              </div>
+
+              <div className="divider divider-horizontal hidden sm:flex m-0"></div>
+
               {/* Reading Mode Toggle */}
               <div className="flex gap-2">
                 <button
@@ -909,33 +1072,43 @@ function PdfReader() {
               </div>
 
               {/* Stop Button */}
-              {isSpeaking && (
+              {(isSpeaking || isLoadingAudio) && (
                 <button
                   type="button"
                   onClick={stopSpeaking}
                   className="btn btn-error btn-sm gap-1"
+                  disabled={isLoadingAudio}
                 >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="h-4 w-4"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                    />
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"
-                    />
-                  </svg>
-                  停止
+                  {isLoadingAudio ? (
+                    <>
+                      <span className="loading loading-spinner loading-xs"></span>
+                      <span className="hidden sm:inline">生成中</span>
+                    </>
+                  ) : (
+                    <>
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        className="h-4 w-4"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                        />
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"
+                        />
+                      </svg>
+                      停止
+                    </>
+                  )}
                 </button>
               )}
             </div>
@@ -1153,6 +1326,7 @@ function PdfReader() {
                   onSpeak={speak}
                   onStopSpeaking={stopSpeaking}
                   onTextSelection={handleTextSelection}
+                  isLoadingAudio={isLoadingAudio}
                 />
               </div>
             </div>
@@ -1171,6 +1345,7 @@ function PdfReader() {
                   onSpeak={speak}
                   onStopSpeaking={stopSpeaking}
                   onTextSelection={handleTextSelection}
+                  isLoadingAudio={isLoadingAudio}
                 />
               ))}
             </div>
