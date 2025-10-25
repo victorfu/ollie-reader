@@ -1,0 +1,40 @@
+<svg width="192" height="192" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="ollie-reader icon">
+  <defs>
+    <linearGradient id="g" x1="64" y1="64" x2="448" y2="448" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#5B8CFF"/>
+      <stop offset="1" stop-color="#7A5CFF"/>
+    </linearGradient>
+    <filter id="s" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="8" stdDeviation="20" flood-opacity="0.15"/>
+    </filter>
+  </defs>
+
+  <!-- 背景：圓角方塊 -->
+  <rect x="32" y="32" width="448" height="448" rx="96" fill="url(#g)" />
+
+  <!-- 「O」：中空圓環（品牌的 ollie） -->
+  <circle cx="256" cy="176" r="60" fill="white" opacity="0.18"/>
+  <circle cx="256" cy="176" r="36" fill="white" filter="url(#s)"/>
+
+  <!-- 書本：左右頁 -->
+  <g transform="translate(0,8)">
+    <!-- 書的底部微陰影 -->
+    <ellipse cx="256" cy="392" rx="140" ry="20" fill="black" opacity="0.08"/>
+    <!-- 左頁 -->
+    <path d="M120 240
+             C160 220, 208 220, 248 238
+             L248 368
+             C208 350, 160 350, 120 370
+             Z"
+          fill="white"/>
+    <!-- 右頁 -->
+    <path d="M392 240
+             C352 220, 304 220, 264 238
+             L264 368
+             C304 350, 352 350, 392 370
+             Z"
+          fill="white"/>
+    <!-- 書脊高光 -->
+    <rect x="252" y="236" width="8" height="140" rx="4" fill="#E6E6FF"/>
+  </g>
+</svg>
