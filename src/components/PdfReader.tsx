@@ -3,12 +3,14 @@ import { usePdfUpload } from "../hooks/usePdfUpload";
 import { useSpeech } from "../hooks/useSpeech";
 import { useTextSelection } from "../hooks/useTextSelection";
 import { usePdfWorker } from "../hooks/usePdfWorker";
+import { useChat } from "../hooks/useChat";
 import { UploadArea } from "./PdfReader/UploadArea";
 import { TTSControls } from "./PdfReader/TTSControls";
 import { FileInfo } from "./PdfReader/FileInfo";
 import { PdfViewer } from "./PdfReader/PdfViewer";
 import { PageTextArea } from "./PdfReader/PageTextArea";
 import { SelectionToolbar } from "./PdfReader/SelectionToolbar";
+import { ChatPanel } from "./PdfReader/ChatPanel";
 
 function PdfReader() {
   // Use custom hooks
@@ -60,6 +62,21 @@ function PdfReader() {
     }
     return map;
   }, [result]);
+
+  // Get PDF full text for chat context
+  const pdfFullText = useMemo(() => {
+    if (!result) return "";
+    return result.pages.map((p) => p.text).join("\n\n");
+  }, [result]);
+
+  // Chat hook
+  const {
+    messages,
+    isLoading: isChatLoading,
+    error: chatError,
+    sendMessage,
+    clearMessages,
+  } = useChat(pdfFullText);
 
   // Handlers for child components
   const onInputChange: React.ChangeEventHandler<HTMLInputElement> = (e) => {
@@ -177,7 +194,7 @@ function PdfReader() {
           {/* File Info */}
           <FileInfo result={result} />
 
-          {/* PDF and Text Side by Side */}
+          {/* PDF Viewer */}
           {pdfUrl && (
             <div className="card bg-base-100 shadow-xl h-full">
               <div className="card-body p-0">
@@ -214,6 +231,16 @@ function PdfReader() {
           )}
         </div>
       )}
+
+      {/* Floating Chat Panel */}
+      <ChatPanel
+        messages={messages}
+        isLoading={isChatLoading}
+        error={chatError}
+        onSendMessage={sendMessage}
+        onClear={clearMessages}
+        disabled={!result}
+      />
     </div>
   );
 }
