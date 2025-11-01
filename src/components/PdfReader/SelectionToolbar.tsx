@@ -7,6 +7,8 @@ interface SelectionToolbarProps {
   onTranslate: () => void;
   onClear: () => void;
   onClearTranslation: () => void;
+  onAddToVocabulary?: () => void;
+  isAddingToVocabulary?: boolean;
 }
 
 export const SelectionToolbar = ({
@@ -18,6 +20,8 @@ export const SelectionToolbar = ({
   onTranslate,
   onClear,
   onClearTranslation,
+  onAddToVocabulary,
+  isAddingToVocabulary = false,
 }: SelectionToolbarProps) => {
   if (!selectedText) return null;
 
@@ -76,6 +80,34 @@ export const SelectionToolbar = ({
               </svg>
             )}
           </button>
+          {onAddToVocabulary && (
+            <button
+              type="button"
+              onClick={onAddToVocabulary}
+              disabled={isAddingToVocabulary}
+              className="btn btn-sm btn-circle bg-accent-content text-accent hover:bg-accent-content/90 border-0 tooltip tooltip-top"
+              data-tip="加入生詞本"
+            >
+              {isAddingToVocabulary ? (
+                <span className="loading loading-spinner loading-sm"></span>
+              ) : (
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-5 w-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"
+                  />
+                </svg>
+              )}
+            </button>
+          )}
           <button
             type="button"
             onClick={onClear}

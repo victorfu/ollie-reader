@@ -1,9 +1,10 @@
 import { useMemo, useState } from "react";
-import { usePdfUpload } from "../hooks/usePdfUpload";
-import { useSpeech } from "../hooks/useSpeech";
+import { usePdfState } from "../hooks/usePdfState";
+import { useSpeechState } from "../hooks/useSpeechState";
 import { useTextSelection } from "../hooks/useTextSelection";
 import { usePdfWorker } from "../hooks/usePdfWorker";
 import { useChat } from "../hooks/useChat";
+import { useVocabulary } from "../hooks/useVocabulary";
 import { UploadArea } from "./PdfReader/UploadArea";
 import { TTSControls } from "./PdfReader/TTSControls";
 import { FileInfo } from "./PdfReader/FileInfo";
@@ -11,11 +12,13 @@ import { PdfViewer } from "./PdfReader/PdfViewer";
 import { PageTextArea } from "./PdfReader/PageTextArea";
 import { SelectionToolbar } from "./PdfReader/SelectionToolbar";
 import { ChatPanel } from "./PdfReader/ChatPanel";
+import { Toast } from "./common/Toast";
 
 function PdfReader() {
   // Use custom hooks
   usePdfWorker();
 
+  // Use PDF state from context instead of local hook
   const {
     selectedFile,
     isUploading,
@@ -26,7 +29,7 @@ function PdfReader() {
     handleFileChange,
     loadPdfFromUrl,
     cancelUpload,
-  } = usePdfUpload();
+  } = usePdfState();
 
   const {
     speechRate,
@@ -38,7 +41,7 @@ function PdfReader() {
     speechSupported,
     speak,
     stopSpeaking,
-  } = useSpeech();
+  } = useSpeechState();
 
   const {
     readingMode,
@@ -54,6 +57,14 @@ function PdfReader() {
   } = useTextSelection();
 
   const [urlInput, setUrlInput] = useState<string>("");
+  const [isAddingToVocabulary, setIsAddingToVocabulary] = useState(false);
+  const [toastMessage, setToastMessage] = useState<{
+    message: string;
+    type: "success" | "error" | "info";
+  } | null>(null);
+
+  // Vocabulary hook
+  const { addWord } = useVocabulary();
 
   const pagesByNumber = useMemo(() => {
     const map = new Map();
@@ -97,6 +108,39 @@ function PdfReader() {
   const speakSelection = () => {
     if (selectedText) {
       speak(selectedText);
+    }
+  };
+
+  const handleAddToVocabulary = async () => {
+    if (!selectedText.trim()) return;
+
+    // Extract the first word if multiple words are selected
+    const word = selectedText.trim().split(/\s+/)[0];
+
+    setIsAddingToVocabulary(true);
+    try {
+      const response = await addWord(word, {
+        sourceContext: selectedText,
+        sourcePdfName: selectedFile?.name,
+        sourcePage: undefined, // You can track current page if needed
+      });
+
+      if (response.success) {
+        setToastMessage({
+          message: `"${word}" 已加入生詞本！`,
+          type: "success",
+        });
+      } else {
+        setToastMessage({
+          message: response.message || "加入失敗",
+          type: "info",
+        });
+      }
+    } catch (error) {
+      console.error("Error adding to vocabulary:", error);
+      setToastMessage({ message: "加入生詞本時發生錯誤", type: "error" });
+    } finally {
+      setIsAddingToVocabulary(false);
     }
   };
 
@@ -185,6 +229,8 @@ function PdfReader() {
           onTranslate={translateText}
           onClear={clearSelection}
           onClearTranslation={() => setTranslatedText("")}
+          onAddToVocabulary={handleAddToVocabulary}
+          isAddingToVocabulary={isAddingToVocabulary}
         />
       )}
 
@@ -241,6 +287,15 @@ function PdfReader() {
         onClear={clearMessages}
         disabled={!result}
       />
+
+      {/* Toast Notifications */}
+      {toastMessage && (
+        <Toast
+          message={toastMessage.message}
+          type={toastMessage.type}
+          onClose={() => setToastMessage(null)}
+        />
+      )}
     </div>
   );
 }

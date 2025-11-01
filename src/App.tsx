@@ -1,9 +1,20 @@
+import {
+  BrowserRouter,
+  Routes,
+  Route,
+  Link,
+  useLocation,
+} from "react-router-dom";
 import AuthScreen from "./components/Auth/AuthScreen";
 import PdfReader from "./components/PdfReader";
+import { VocabularyBook } from "./components/Vocabulary/VocabularyBook";
 import { useAuth } from "./hooks/useAuth";
+import { PdfProvider } from "./contexts/PdfContext";
+import { SpeechProvider } from "./contexts/SpeechContext";
 
-function App() {
+function AppContent() {
   const { user, loading, authError, signOutUser } = useAuth();
+  const location = useLocation();
 
   if (loading) {
     return (
@@ -28,12 +39,34 @@ function App() {
     void signOutUser();
   };
 
+  const isVocabularyPage = location.pathname === "/vocabulary";
+
   return (
     <div className="min-h-screen bg-base-200">
-      <header className="border-b border-base-300 bg-base-100">
+      <header className="border-b border-base-300 bg-base-100 sticky top-0 z-40">
         <div className="mx-auto flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="text-sm text-base-content/70 truncate">
-            {user.email}
+          <div className="flex items-center gap-4">
+            <div className="text-sm text-base-content/70 truncate">
+              {user.email}
+            </div>
+            <div className="flex gap-2">
+              <Link
+                to="/"
+                className={`btn btn-sm ${
+                  !isVocabularyPage ? "btn-primary" : "btn-ghost"
+                }`}
+              >
+                📚 閱讀器
+              </Link>
+              <Link
+                to="/vocabulary"
+                className={`btn btn-sm ${
+                  isVocabularyPage ? "btn-primary" : "btn-ghost"
+                }`}
+              >
+                📖 生詞本
+              </Link>
+            </div>
           </div>
           <button className="btn btn-ghost btn-sm" onClick={handleSignOut}>
             登出
@@ -50,9 +83,24 @@ function App() {
       )}
 
       <div className="mx-auto px-4 py-6 sm:py-8 md:py-12">
-        <PdfReader />
+        <SpeechProvider>
+          <PdfProvider>
+            <Routes>
+              <Route path="/" element={<PdfReader />} />
+              <Route path="/vocabulary" element={<VocabularyBook />} />
+            </Routes>
+          </PdfProvider>
+        </SpeechProvider>
       </div>
     </div>
+  );
+}
+
+function App() {
+  return (
+    <BrowserRouter>
+      <AppContent />
+    </BrowserRouter>
   );
 }
 

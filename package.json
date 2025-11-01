@@ -15,7 +15,8 @@
     "firebase": "^12.5.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
-    "react-pdf": "^10.2.0"
+    "react-pdf": "^10.2.0",
+    "react-router-dom": "^7.9.5"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.0",

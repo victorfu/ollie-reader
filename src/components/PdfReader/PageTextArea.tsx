@@ -57,7 +57,7 @@ export const PageTextArea = memo(
         }
 
         return (
-          <div className="whitespace-pre-wrap leading-relaxed text-left text-lg">
+          <div className="whitespace-pre-wrap leading-relaxed text-left text-xl sm:text-2xl">
             {nodes}
           </div>
         );
