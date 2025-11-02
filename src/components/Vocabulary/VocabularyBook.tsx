@@ -1,11 +1,14 @@
 import { useEffect, useState } from "react";
+import type { FormEvent } from "react";
 import { useVocabulary } from "../../hooks/useVocabulary";
 import { useSpeechState } from "../../hooks/useSpeechState";
 import type { VocabularyWord, VocabularyFilters } from "../../types/vocabulary";
 import { WordDetail } from "../Vocabulary/WordDetail";
 import { SimpleTTSControls } from "../common/SimpleTTSControls";
+import { Toast } from "../common/Toast";
 export const VocabularyBook = () => {
-  const { words, loading, loadVocabulary, deleteWord } = useVocabulary();
+  const { words, loading, loadVocabulary, deleteWord, addWord } =
+    useVocabulary();
   const {
     speechSupported,
     speechRate,
@@ -22,6 +25,13 @@ export const VocabularyBook = () => {
     sortOrder: "desc",
   });
   const [searchQuery, setSearchQuery] = useState("");
+  const [manualWord, setManualWord] = useState("");
+  const [isAddingManualWord, setIsAddingManualWord] = useState(false);
+  const [toastMessage, setToastMessage] = useState<{
+    message: string;
+    type: "success" | "error" | "info";
+  } | null>(null);
+  const manualWordFieldId = "manual-word-input";
 
   // Load vocabulary when component mounts or filters change
   useEffect(() => {
@@ -38,6 +48,46 @@ export const VocabularyBook = () => {
     value: string | undefined,
   ) => {
     setFilters((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const handleManualSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const trimmed = manualWord.trim();
+    if (!trimmed) return;
+
+    const word = trimmed.split(/\s+/)[0];
+    setIsAddingManualWord(true);
+    try {
+      const response = await addWord(word);
+      if (response.success) {
+        setToastMessage({
+          message: `"${word}" 已加入生詞本！`,
+          type: "success",
+        });
+        setManualWord("");
+        await loadVocabulary(filters);
+      } else {
+        const message =
+          response.message === "Word already in vocabulary"
+            ? `"${word}" 已經存在生詞本`
+            : response.message || "加入失敗";
+        setToastMessage({
+          message,
+          type:
+            response.message === "Word already in vocabulary"
+              ? "info"
+              : "error",
+        });
+      }
+    } catch (error) {
+      console.error("Error adding manual vocabulary word:", error);
+      setToastMessage({
+        message: "加入生詞本時發生錯誤",
+        type: "error",
+      });
+    } finally {
+      setIsAddingManualWord(false);
+    }
   };
 
   const handleDelete = async (wordId: string) => {
@@ -72,6 +122,14 @@ export const VocabularyBook = () => {
 
   return (
     <div className="container mx-auto max-w-7xl">
+      {toastMessage && (
+        <Toast
+          message={toastMessage.message}
+          type={toastMessage.type}
+          onClose={() => setToastMessage(null)}
+        />
+      )}
+
       {/* TTS Controls */}
       {speechSupported && (
         <div className="mb-4">
@@ -87,21 +145,62 @@ export const VocabularyBook = () => {
         </div>
       )}
 
+      {/* Manual Add */}
+      <div className="bg-base-100 rounded-lg shadow p-4 mb-4">
+        <form
+          className="flex flex-col sm:flex-row gap-3 sm:items-end"
+          onSubmit={handleManualSubmit}
+        >
+          <div className="flex-1">
+            <label
+              htmlFor={manualWordFieldId}
+              className="block text-sm font-medium text-base-content mb-2"
+            >
+              手動新增英文單字
+            </label>
+            <input
+              id={manualWordFieldId}
+              type="text"
+              placeholder="例如：vocabulary"
+              className="input input-bordered w-full"
+              value={manualWord}
+              onChange={(e) => setManualWord(e.target.value)}
+              disabled={isAddingManualWord}
+              autoComplete="off"
+            />
+          </div>
+          <button
+            type="submit"
+            className="btn btn-primary w-full sm:w-auto sm:min-w-[10rem]"
+            disabled={isAddingManualWord || manualWord.trim().length === 0}
+          >
+            {isAddingManualWord ? (
+              <>
+                <span className="loading loading-spinner loading-xs" />
+                處理中…
+              </>
+            ) : (
+              "加入生詞本"
+            )}
+          </button>
+        </form>
+      </div>
+
       {/* Compact Filters and Search */}
       <div className="bg-base-100 rounded-lg shadow p-4 mb-4">
         <div className="flex flex-col sm:flex-row gap-3">
           <input
             type="text"
             placeholder="搜尋單字..."
-            className="input input-bordered input-sm flex-1"
+            className="input input-bordered input-sm w-full sm:flex-1"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
 
-          <div className="flex gap-2">
+          <div className="grid grid-cols-3 sm:flex gap-2">
             {/* Difficulty Filter */}
             <select
-              className="select select-bordered select-sm"
+              className="select select-bordered select-sm w-full sm:w-auto"
               value={filters.difficulty || ""}
               onChange={(e) =>
                 handleFilterChange("difficulty", e.target.value || undefined)
@@ -115,7 +214,7 @@ export const VocabularyBook = () => {
 
             {/* Sort Options */}
             <select
-              className="select select-bordered select-sm"
+              className="select select-bordered select-sm w-full sm:w-auto"
               value={filters.sortBy}
               onChange={(e) => handleFilterChange("sortBy", e.target.value)}
             >
@@ -124,7 +223,7 @@ export const VocabularyBook = () => {
             </select>
 
             <select
-              className="select select-bordered select-sm"
+              className="select select-bordered select-sm w-full sm:w-auto"
               value={filters.sortOrder}
               onChange={(e) => handleFilterChange("sortOrder", e.target.value)}
             >
