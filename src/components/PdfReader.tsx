@@ -219,7 +219,10 @@ function PdfReader() {
                       disabled={loadingCourseId === record.id}
                     >
                       <span className="font-semibold text-base">
-                        {record.CoursesName}
+                        Lv{record.Level}
+                      </span>
+                      <span className="font-semibold text-base">
+                        {record.CoursesName || record.OpenName}
                       </span>
                       <span className="text-sm text-gray-600">
                         {record.ClassTime}
