@@ -12,6 +12,7 @@ interface UploadAreaProps {
   onUrlChange: (url: string) => void;
   onUrlLoad: (url: string) => void;
   onCancel: () => void;
+  onOpenBookingDrawer?: () => void;
 }
 
 export const UploadArea = ({
@@ -26,6 +27,7 @@ export const UploadArea = ({
   onUrlChange,
   onUrlLoad,
   onCancel,
+  onOpenBookingDrawer,
 }: UploadAreaProps) => {
   return (
     <div className="card bg-base-100 shadow-xl mb-6">
@@ -37,7 +39,7 @@ export const UploadArea = ({
               從網址載入 PDF
             </span>
           </label>
-          <div className="flex gap-2">
+          <div className="flex gap-2 items-center">
             <input
               type="text"
               placeholder="輸入 PDF 連結,例如:https://example.com/file.pdf"
@@ -82,6 +84,18 @@ export const UploadArea = ({
                 </>
               )}
             </button>
+            {/* 課程紀錄 Icon Button，直接放在載入按鈕旁 */}
+            {onOpenBookingDrawer && (
+              <button
+                type="button"
+                className="btn btn-accent text-white font-semibold px-4 py-2 transition-colors duration-150 hover:bg-accent-focus"
+                style={{ minWidth: 40, minHeight: 40 }}
+                onClick={onOpenBookingDrawer}
+                aria-label="查看課程預約紀錄"
+              >
+                課程紀錄
+              </button>
+            )}
           </div>
         </div>
 
