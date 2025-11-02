@@ -1,8 +1,15 @@
-import { useState, useCallback, useEffect, type ReactNode } from "react";
+import {
+  useState,
+  useCallback,
+  useEffect,
+  useRef,
+  type ReactNode,
+} from "react";
 import type { TTSMode } from "../types/pdf";
 import { SpeechContext, type SpeechContextType } from "./SpeechContextType";
 import { TTS_API_URL } from "../constants/api";
 import { useSettings } from "../hooks/useSettings";
+import { ttsCache } from "../services/ttsCache";
 
 interface SpeechProviderProps {
   children: ReactNode;
@@ -17,6 +24,7 @@ export const SpeechProvider = ({ children }: SpeechProviderProps) => {
     null,
   );
   const [isLoadingAudio, setIsLoadingAudio] = useState(false);
+  const currentAudioUrl = useRef<string | null>(null);
 
   // Sync local ttsMode with settings
   useEffect(() => {
@@ -69,6 +77,11 @@ export const SpeechProvider = ({ children }: SpeechProviderProps) => {
       currentAudio.currentTime = 0;
       setCurrentAudio(null);
     }
+    // Revoke object URL but keep blob in cache
+    if (currentAudioUrl.current) {
+      URL.revokeObjectURL(currentAudioUrl.current);
+      currentAudioUrl.current = null;
+    }
   }, [speechSupported, currentAudio]);
 
   const speakWithAPI = useCallback(
@@ -77,26 +90,115 @@ export const SpeechProvider = ({ children }: SpeechProviderProps) => {
         setIsLoadingAudio(true);
         setIsSpeaking(false);
 
-        const response = await fetch(TTS_API_URL, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            text: text,
-            speaker: "0",
-            length_scale: speechRate.toString(),
-            noise_scale: "0.667",
-            noise_w: "0.8",
-          }),
-        });
+        // Generate cache key
+        const cacheKey = ttsCache.getCacheKey(text, speechRate, "0");
 
-        if (!response.ok) {
-          throw new Error(`TTS API 錯誤: ${response.status}`);
+        // Check for pending request
+        const pendingRequest = ttsCache.getPendingRequest(cacheKey);
+        if (pendingRequest) {
+          // Wait for the existing request to complete
+          const blob = await pendingRequest;
+          const audioUrl = URL.createObjectURL(blob);
+          currentAudioUrl.current = audioUrl;
+          setIsLoadingAudio(false);
+
+          const audio = new Audio(audioUrl);
+          setCurrentAudio(audio);
+          setIsSpeaking(true);
+
+          audio.onended = () => {
+            setIsSpeaking(false);
+            setCurrentAudio(null);
+            if (currentAudioUrl.current) {
+              URL.revokeObjectURL(currentAudioUrl.current);
+              currentAudioUrl.current = null;
+            }
+          };
+
+          audio.onerror = () => {
+            setIsSpeaking(false);
+            setIsLoadingAudio(false);
+            setCurrentAudio(null);
+            if (currentAudioUrl.current) {
+              URL.revokeObjectURL(currentAudioUrl.current);
+              currentAudioUrl.current = null;
+            }
+            throw new Error("音訊播放失敗");
+          };
+
+          await audio.play();
+          return;
         }
 
-        const blob = await response.blob();
+        // Check cache
+        const cachedBlob = await ttsCache.get(cacheKey);
+        if (cachedBlob) {
+          // Cache hit - use cached blob
+          const audioUrl = URL.createObjectURL(cachedBlob);
+          currentAudioUrl.current = audioUrl;
+          setIsLoadingAudio(false);
+
+          const audio = new Audio(audioUrl);
+          setCurrentAudio(audio);
+          setIsSpeaking(true);
+
+          audio.onended = () => {
+            setIsSpeaking(false);
+            setCurrentAudio(null);
+            if (currentAudioUrl.current) {
+              URL.revokeObjectURL(currentAudioUrl.current);
+              currentAudioUrl.current = null;
+            }
+          };
+
+          audio.onerror = () => {
+            setIsSpeaking(false);
+            setIsLoadingAudio(false);
+            setCurrentAudio(null);
+            if (currentAudioUrl.current) {
+              URL.revokeObjectURL(currentAudioUrl.current);
+              currentAudioUrl.current = null;
+            }
+            throw new Error("音訊播放失敗");
+          };
+
+          await audio.play();
+          return;
+        }
+
+        // Cache miss - fetch from API
+        const fetchPromise = (async () => {
+          const response = await fetch(TTS_API_URL, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              text: text,
+              speaker: "0",
+              length_scale: speechRate.toString(),
+              noise_scale: "0.667",
+              noise_w: "0.8",
+            }),
+          });
+
+          if (!response.ok) {
+            throw new Error(`TTS API 錯誤: ${response.status}`);
+          }
+
+          return await response.blob();
+        })();
+
+        // Register pending request
+        ttsCache.setPendingRequest(cacheKey, fetchPromise);
+
+        const blob = await fetchPromise;
+
+        // Save to cache
+        await ttsCache.set(cacheKey, blob);
+
         const audioUrl = URL.createObjectURL(blob);
+        currentAudioUrl.current = audioUrl;
 
         setIsLoadingAudio(false);
 
@@ -107,14 +209,20 @@ export const SpeechProvider = ({ children }: SpeechProviderProps) => {
         audio.onended = () => {
           setIsSpeaking(false);
           setCurrentAudio(null);
-          URL.revokeObjectURL(audioUrl);
+          if (currentAudioUrl.current) {
+            URL.revokeObjectURL(currentAudioUrl.current);
+            currentAudioUrl.current = null;
+          }
         };
 
         audio.onerror = () => {
           setIsSpeaking(false);
           setIsLoadingAudio(false);
           setCurrentAudio(null);
-          URL.revokeObjectURL(audioUrl);
+          if (currentAudioUrl.current) {
+            URL.revokeObjectURL(currentAudioUrl.current);
+            currentAudioUrl.current = null;
+          }
           throw new Error("音訊播放失敗");
         };
 
