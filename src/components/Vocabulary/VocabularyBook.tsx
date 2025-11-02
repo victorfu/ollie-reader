@@ -33,10 +33,6 @@ export const VocabularyBook = () => {
     setFilters((prev) => ({ ...prev, searchQuery }));
   }, [searchQuery]);
 
-  const handleRefresh = () => {
-    loadVocabulary(filters);
-  };
-
   const handleFilterChange = (
     key: keyof VocabularyFilters,
     value: string | undefined,
@@ -75,45 +71,10 @@ export const VocabularyBook = () => {
   const wordGroups = groupWordsByDate(words);
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-7xl">
-      <div className="text-center mb-8">
-        <h1 className="text-4xl sm:text-5xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent mb-4">
-          📚 我的生詞本
-        </h1>
-        <div className="flex items-center justify-center gap-3">
-          <p className="text-base-content/70">收藏的單字共 {words.length} 個</p>
-          <button
-            type="button"
-            onClick={handleRefresh}
-            className="btn btn-ghost btn-sm btn-circle"
-            title="重新整理"
-            disabled={loading}
-          >
-            {loading ? (
-              <span className="loading loading-spinner loading-sm"></span>
-            ) : (
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-5 w-5"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                />
-              </svg>
-            )}
-          </button>
-        </div>
-      </div>
-
+    <div className="container mx-auto max-w-7xl">
       {/* TTS Controls */}
       {speechSupported && (
-        <div className="mb-6">
+        <div className="mb-4">
           <SimpleTTSControls
             ttsMode={ttsMode}
             speechRate={speechRate}
@@ -126,20 +87,18 @@ export const VocabularyBook = () => {
         </div>
       )}
 
-      {/* Filters and Search */}
-      <div className="card bg-base-100 shadow-xl mb-6">
-        <div className="card-body">
-          <div className="flex flex-col sm:flex-row gap-4 mb-4">
-            <input
-              type="text"
-              placeholder="搜尋單字..."
-              className="input input-bordered flex-1"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-          </div>
+      {/* Compact Filters and Search */}
+      <div className="bg-base-100 rounded-lg shadow p-4 mb-4">
+        <div className="flex flex-col sm:flex-row gap-3">
+          <input
+            type="text"
+            placeholder="搜尋單字..."
+            className="input input-bordered input-sm flex-1"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
 
-          <div className="flex flex-wrap gap-3">
+          <div className="flex gap-2">
             {/* Difficulty Filter */}
             <select
               className="select select-bordered select-sm"
@@ -198,25 +157,27 @@ export const VocabularyBook = () => {
 
       {/* Word Groups */}
       {!loading && Object.keys(wordGroups).length > 0 && (
-        <div className="space-y-6">
+        <div className="space-y-5">
           {Object.entries(wordGroups).map(([date, groupWords]) => (
             <div key={date}>
-              <h2 className="text-xl font-semibold mb-3 px-2">{date}</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <h2 className="text-lg font-semibold mb-3 text-base-content/70">
+                {date}
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                 {groupWords.map((word) => (
                   <div
                     key={word.id}
-                    className="card bg-base-100 shadow-lg hover:shadow-xl transition-shadow cursor-pointer"
+                    className="card bg-base-100 shadow hover:shadow-lg transition-shadow cursor-pointer"
                     onClick={() => setSelectedWord(word)}
                   >
-                    <div className="card-body">
+                    <div className="card-body p-4">
                       <div className="flex justify-between items-start">
-                        <div className="flex-1">
-                          <h3 className="card-title text-2xl mb-1">
+                        <div className="flex-1 min-w-0">
+                          <h3 className="text-xl font-bold mb-1 truncate">
                             {word.word}
                           </h3>
                           {word.phonetic && (
-                            <p className="text-sm text-base-content/60 mb-2">
+                            <p className="text-xs text-base-content/60 mb-2">
                               {word.phonetic}
                             </p>
                           )}
@@ -227,11 +188,11 @@ export const VocabularyBook = () => {
                             e.stopPropagation();
                             handleDelete(word.id!);
                           }}
-                          className="btn btn-ghost btn-sm btn-circle"
+                          className="btn btn-ghost btn-xs btn-circle"
                         >
                           <svg
                             xmlns="http://www.w3.org/2000/svg"
-                            className="h-5 w-5"
+                            className="h-4 w-4"
                             fill="none"
                             viewBox="0 0 24 24"
                             stroke="currentColor"
@@ -247,38 +208,45 @@ export const VocabularyBook = () => {
                       </div>
 
                       {word.definitions.length > 0 && (
-                        <p className="text-sm line-clamp-2">
+                        <p className="text-sm line-clamp-2 text-base-content/80">
                           {word.definitions[0].definition}
                         </p>
                       )}
 
-                      <div className="flex flex-wrap gap-2 mt-2">
-                        {word.difficulty && (
-                          <span
-                            className={`badge badge-sm ${
-                              word.difficulty === "easy"
-                                ? "badge-success"
+                      {(word.difficulty || word.tags.length > 0) && (
+                        <div className="flex flex-wrap gap-1.5 mt-2">
+                          {word.difficulty && (
+                            <span
+                              className={`badge badge-xs ${
+                                word.difficulty === "easy"
+                                  ? "badge-success"
+                                  : word.difficulty === "medium"
+                                  ? "badge-warning"
+                                  : "badge-error"
+                              }`}
+                            >
+                              {word.difficulty === "easy"
+                                ? "簡單"
                                 : word.difficulty === "medium"
-                                ? "badge-warning"
-                                : "badge-error"
-                            }`}
-                          >
-                            {word.difficulty === "easy"
-                              ? "簡單"
-                              : word.difficulty === "medium"
-                              ? "中等"
-                              : "困難"}
-                          </span>
-                        )}
-                        {word.tags.map((tag) => (
-                          <span
-                            key={tag}
-                            className="badge badge-sm badge-outline"
-                          >
-                            {tag}
-                          </span>
-                        ))}
-                      </div>
+                                ? "中等"
+                                : "困難"}
+                            </span>
+                          )}
+                          {word.tags.slice(0, 2).map((tag) => (
+                            <span
+                              key={tag}
+                              className="badge badge-xs badge-outline"
+                            >
+                              {tag}
+                            </span>
+                          ))}
+                          {word.tags.length > 2 && (
+                            <span className="badge badge-xs badge-ghost">
+                              +{word.tags.length - 2}
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}

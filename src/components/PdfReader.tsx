@@ -144,19 +144,6 @@ function PdfReader() {
     }
   };
 
-  const header = useMemo(() => {
-    return (
-      <div className="text-center mb-8 lg:mb-12">
-        <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent mb-4">
-          📚 Ollie Reader
-        </h1>
-        <p className="text-base sm:text-lg text-base-content/70 max-w-2xl mx-auto px-4">
-          上傳 PDF 文件,選取文字即可朗讀或翻譯
-        </p>
-      </div>
-    );
-  }, []);
-
   return (
     <div className="w-full">
       <style>
@@ -166,7 +153,6 @@ function PdfReader() {
         .react-pdf__Page canvas,.react-pdf__Page svg{width:100% !important;height:auto !important;max-width:100%;display:block}
         `}
       </style>
-      {header}
 
       {/* Upload Area */}
       <UploadArea

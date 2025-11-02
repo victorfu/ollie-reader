@@ -11,10 +11,15 @@ export default function AuthScreen() {
     <div className="w-full max-w-md">
       <div className="card bg-base-100 shadow-xl">
         <div className="card-body space-y-6">
-          <div className="text-center space-y-1">
-            <h2 className="text-2xl font-bold">登入 Ollie Reader</h2>
-            <p className="text-sm text-base-content/70">
-              使用 Google 帳號即可存取 Ollie Reader。
+          <div className="text-center space-y-3">
+            <h2 className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+              📚 Ollie Reader
+            </h2>
+            <p className="text-base sm:text-lg text-base-content/70">
+              上傳 PDF 文件,選取文字即可朗讀或翻譯
+            </p>
+            <p className="text-sm text-base-content/60">
+              使用 Google 帳號登入即可開始使用
             </p>
           </div>
 
