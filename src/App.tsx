@@ -13,10 +13,14 @@ import { useAuth } from "./hooks/useAuth";
 import { PdfProvider } from "./contexts/PdfContext";
 import { SpeechProvider } from "./contexts/SpeechContext";
 import { SettingsProvider } from "./contexts/SettingsContext";
+import { useWarmServerOnRouteChange } from "./hooks/useWarmServer";
 
 function AppContent() {
   const { user, loading, authError, signOutUser } = useAuth();
   const location = useLocation();
+
+  // Warm-start backend on each route change
+  useWarmServerOnRouteChange();
 
   if (loading) {
     return (

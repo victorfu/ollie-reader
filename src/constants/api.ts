@@ -5,3 +5,4 @@ export const TRANSLATE_API_URL = `${API_BASE_URL}/api/translate`;
 export const ARGOS_TRANSLATE_API_URL = `${API_BASE_URL}/api/argos-translate`;
 export const FETCH_URL_API = `${API_BASE_URL}/api/fetch-url`;
 export const TTS_API_URL = `${API_BASE_URL}/api/tts`;
+export const VERSION_API_URL = `${API_BASE_URL}/api/version`;
