@@ -37,7 +37,7 @@ export const SelectionToolbar = ({
             type="button"
             onClick={onSpeak}
             className="btn btn-sm btn-circle bg-accent-content text-accent hover:bg-accent-content/90 border-0 tooltip tooltip-top"
-            data-tip="朗讀 (Ctrl+S)"
+            data-tip="朗讀"
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -59,7 +59,7 @@ export const SelectionToolbar = ({
             onClick={onTranslate}
             disabled={isTranslating}
             className="btn btn-sm btn-circle bg-accent-content text-accent hover:bg-accent-content/90 border-0 tooltip tooltip-top"
-            data-tip="翻譯 (Ctrl+T)"
+            data-tip="翻譯"
           >
             {isTranslating ? (
               <span className="loading loading-spinner loading-sm"></span>

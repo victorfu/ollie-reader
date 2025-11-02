@@ -137,24 +137,26 @@ export const TTSControls = ({
             </button>
           </div>
 
-          {/* Speed Control */}
-          <div className="flex-1 w-full sm:max-w-xs">
-            <div className="flex items-center gap-2">
-              <span className="text-sm whitespace-nowrap">速度</span>
-              <input
-                type="range"
-                min={0.5}
-                max={1.5}
-                step={0.1}
-                value={speechRate}
-                onChange={(e) => onSpeechRateChange(Number(e.target.value))}
-                className="range range-primary range-xs"
-              />
-              <span className="badge badge-primary badge-sm">
-                {speechRate.toFixed(1)}x
-              </span>
+          {/* Speed Control - Only show for browser TTS */}
+          {ttsMode === "browser" && (
+            <div className="flex-1 w-full sm:max-w-xs">
+              <div className="flex items-center gap-2">
+                <span className="text-sm whitespace-nowrap">速度</span>
+                <input
+                  type="range"
+                  min={0.5}
+                  max={1.5}
+                  step={0.1}
+                  value={speechRate}
+                  onChange={(e) => onSpeechRateChange(Number(e.target.value))}
+                  className="range range-primary range-xs"
+                />
+                <span className="badge badge-primary badge-sm">
+                  {speechRate.toFixed(1)}x
+                </span>
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Stop Button */}
           {(isSpeaking || isLoadingAudio) && (

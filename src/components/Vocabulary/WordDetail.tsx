@@ -278,42 +278,14 @@ export const WordDetail = ({ word, onClose, onUpdate }: WordDetailProps) => {
           )}
         </div>
 
-        {/* Source Context */}
-        {word.sourceContext && (
-          <div className="mb-6">
-            <h3 className="font-semibold text-lg mb-3">📄 原文脈絡</h3>
-            <div className="bg-base-200 p-4 rounded-lg">
-              <p className="text-sm leading-relaxed">{word.sourceContext}</p>
-              {word.sourcePdfName && (
-                <p className="text-xs text-base-content/50 mt-2">
-                  來源：{word.sourcePdfName}
-                  {word.sourcePage && ` (第 ${word.sourcePage} 頁)`}
-                </p>
-              )}
-            </div>
-          </div>
-        )}
-
         {/* Stats */}
-        <div className="stats stats-vertical lg:stats-horizontal shadow w-full">
+        <div className="stats shadow w-full">
           <div className="stat">
             <div className="stat-title">加入時間</div>
             <div className="stat-value text-lg">
               {new Date(word.createdAt).toLocaleDateString("zh-TW")}
             </div>
           </div>
-          <div className="stat">
-            <div className="stat-title">複習次數</div>
-            <div className="stat-value text-lg">{word.reviewCount}</div>
-          </div>
-          {word.lastReviewedAt && (
-            <div className="stat">
-              <div className="stat-title">上次複習</div>
-              <div className="stat-value text-lg">
-                {new Date(word.lastReviewedAt).toLocaleDateString("zh-TW")}
-              </div>
-            </div>
-          )}
         </div>
       </div>
       <div className="modal-backdrop" onClick={onClose}></div>

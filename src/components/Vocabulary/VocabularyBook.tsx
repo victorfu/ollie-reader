@@ -162,7 +162,6 @@ export const VocabularyBook = () => {
             >
               <option value="createdAt">加入時間</option>
               <option value="word">字母順序</option>
-              <option value="reviewCount">複習次數</option>
             </select>
 
             <select
@@ -280,14 +279,6 @@ export const VocabularyBook = () => {
                           </span>
                         ))}
                       </div>
-
-                      {word.sourceContext && (
-                        <div className="mt-3 pt-3 border-t border-base-300">
-                          <p className="text-xs text-base-content/50 line-clamp-2">
-                            {word.sourceContext}
-                          </p>
-                        </div>
-                      )}
                     </div>
                   </div>
                 ))}

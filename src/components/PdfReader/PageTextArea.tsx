@@ -44,7 +44,7 @@ export const PageTextArea = memo(
               key={`w-${key++}-${start}`}
               type="button"
               onClick={() => onSpeak(word)}
-              className="inline px-0.5 rounded hover:bg-warning/30 hover:text-warning-content transition-colors focus:outline-none focus:ring-2 focus:ring-warning/50"
+              className="inline rounded hover:bg-warning/30 hover:text-warning-content transition-colors focus:outline-none focus:ring-2 focus:ring-warning/50"
               title={`Speak: ${word}`}
             >
               {word}

@@ -1,8 +1,10 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import type { ReadingMode } from "../types/pdf";
-import { TRANSLATE_API_URL } from "../constants/api";
+import { ARGOS_TRANSLATE_API_URL, TRANSLATE_API_URL } from "../constants/api";
+import { useSettings } from "./useSettings";
 
 export const useTextSelection = () => {
+  const { translationApi } = useSettings();
   const [readingMode, setReadingMode] = useState<ReadingMode>("selection");
   const [selectedText, setSelectedText] = useState<string>("");
   const [translatedText, setTranslatedText] = useState<string>("");
@@ -28,16 +30,25 @@ export const useTextSelection = () => {
     setTranslateError(null);
 
     try {
-      const response = await fetch(TRANSLATE_API_URL, {
+      // Get the API URL based on user settings
+      const apiUrl =
+        translationApi === "ARGOS_TRANSLATE_API_URL"
+          ? ARGOS_TRANSLATE_API_URL
+          : TRANSLATE_API_URL;
+
+      const payload = {
+        text: selectedText,
+        from_lang: "en",
+        to_lang: "zh-TW",
+        from_code: "en",
+        to_code: "zt",
+      };
+      const response = await fetch(apiUrl, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          text: selectedText,
-          from_lang: "en",
-          to_lang: "zh-TW",
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (!response.ok) {
@@ -52,7 +63,7 @@ export const useTextSelection = () => {
     } finally {
       setIsTranslating(false);
     }
-  }, [selectedText]);
+  }, [selectedText, translationApi]);
 
   const clearSelection = useCallback(() => {
     setSelectedText("");

@@ -2,19 +2,37 @@ import { useState, useCallback, useEffect, type ReactNode } from "react";
 import type { TTSMode } from "../types/pdf";
 import { SpeechContext, type SpeechContextType } from "./SpeechContextType";
 import { TTS_API_URL } from "../constants/api";
+import { useSettings } from "../hooks/useSettings";
 
 interface SpeechProviderProps {
   children: ReactNode;
 }
 
 export const SpeechProvider = ({ children }: SpeechProviderProps) => {
+  const { ttsMode: settingsTtsMode, updateTtsMode } = useSettings();
   const [speechRate, setSpeechRate] = useState(1);
   const [isSpeaking, setIsSpeaking] = useState(false);
-  const [ttsMode, setTtsMode] = useState<TTSMode>("browser");
+  const [ttsMode, setTtsMode] = useState<TTSMode>(settingsTtsMode);
   const [currentAudio, setCurrentAudio] = useState<HTMLAudioElement | null>(
     null,
   );
   const [isLoadingAudio, setIsLoadingAudio] = useState(false);
+
+  // Sync local ttsMode with settings
+  useEffect(() => {
+    setTtsMode(settingsTtsMode);
+  }, [settingsTtsMode]);
+
+  // Update settings when ttsMode changes
+  const handleSetTtsMode = useCallback(
+    (mode: TTSMode) => {
+      setTtsMode(mode);
+      updateTtsMode(mode).catch((err) => {
+        console.error("Failed to save TTS mode:", err);
+      });
+    },
+    [updateTtsMode],
+  );
 
   const speechSupported =
     typeof window !== "undefined" && "speechSynthesis" in window;
@@ -149,7 +167,7 @@ export const SpeechProvider = ({ children }: SpeechProviderProps) => {
     setSpeechRate,
     isSpeaking,
     ttsMode,
-    setTtsMode,
+    setTtsMode: handleSetTtsMode,
     isLoadingAudio,
     speechSupported,
     speak,

@@ -8,9 +8,11 @@ import {
 import AuthScreen from "./components/Auth/AuthScreen";
 import PdfReader from "./components/PdfReader";
 import { VocabularyBook } from "./components/Vocabulary/VocabularyBook";
+import { Settings } from "./components/Settings/Settings";
 import { useAuth } from "./hooks/useAuth";
 import { PdfProvider } from "./contexts/PdfContext";
 import { SpeechProvider } from "./contexts/SpeechContext";
+import { SettingsProvider } from "./contexts/SettingsContext";
 
 function AppContent() {
   const { user, loading, authError, signOutUser } = useAuth();
@@ -40,6 +42,7 @@ function AppContent() {
   };
 
   const isVocabularyPage = location.pathname === "/vocabulary";
+  const isSettingsPage = location.pathname === "/settings";
 
   return (
     <div className="min-h-screen bg-base-200">
@@ -53,7 +56,9 @@ function AppContent() {
               <Link
                 to="/"
                 className={`btn btn-sm ${
-                  !isVocabularyPage ? "btn-primary" : "btn-ghost"
+                  !isVocabularyPage && !isSettingsPage
+                    ? "btn-primary"
+                    : "btn-ghost"
                 }`}
               >
                 📚 閱讀器
@@ -65,6 +70,14 @@ function AppContent() {
                 }`}
               >
                 📖 生詞本
+              </Link>
+              <Link
+                to="/settings"
+                className={`btn btn-sm ${
+                  isSettingsPage ? "btn-primary" : "btn-ghost"
+                }`}
+              >
+                ⚙️ 設定
               </Link>
             </div>
           </div>
@@ -83,14 +96,17 @@ function AppContent() {
       )}
 
       <div className="mx-auto px-4 py-6 sm:py-8 md:py-12">
-        <SpeechProvider>
-          <PdfProvider>
-            <Routes>
-              <Route path="/" element={<PdfReader />} />
-              <Route path="/vocabulary" element={<VocabularyBook />} />
-            </Routes>
-          </PdfProvider>
-        </SpeechProvider>
+        <SettingsProvider>
+          <SpeechProvider>
+            <PdfProvider>
+              <Routes>
+                <Route path="/" element={<PdfReader />} />
+                <Route path="/vocabulary" element={<VocabularyBook />} />
+                <Route path="/settings" element={<Settings />} />
+              </Routes>
+            </PdfProvider>
+          </SpeechProvider>
+        </SettingsProvider>
       </div>
     </div>
   );

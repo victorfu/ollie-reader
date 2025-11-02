@@ -1,5 +1,6 @@
 import { useState, useCallback } from "react";
 import { useAuth } from "./useAuth";
+import { useSettings } from "./useSettings";
 import {
   addVocabularyWord,
   getUserVocabulary,
@@ -9,105 +10,115 @@ import {
   checkWordExists,
   getUserTags,
 } from "../services/vocabularyService";
-import { TRANSLATE_API_URL } from "../constants/api";
+import { ARGOS_TRANSLATE_API_URL, TRANSLATE_API_URL } from "../constants/api";
 import type { VocabularyWord, VocabularyFilters } from "../types/vocabulary";
 
 export const useVocabulary = () => {
   const { user } = useAuth();
+  const { translationApi } = useSettings();
   const [words, setWords] = useState<VocabularyWord[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Fetch dictionary data from Free Dictionary API
-  const fetchWordDetails = async (word: string) => {
-    try {
-      const response = await fetch(
-        `https://api.dictionaryapi.dev/api/v2/entries/en/${word.toLowerCase()}`,
-      );
+  const fetchWordDetails = useCallback(
+    async (word: string) => {
+      try {
+        const response = await fetch(
+          `https://api.dictionaryapi.dev/api/v2/entries/en/${word.toLowerCase()}`,
+        );
 
-      if (!response.ok) {
-        return null;
-      }
+        if (!response.ok) {
+          return null;
+        }
 
-      const data = await response.json();
-      if (!data || data.length === 0) {
-        return null;
-      }
+        const data = await response.json();
+        if (!data || data.length === 0) {
+          return null;
+        }
 
-      const entry = data[0];
+        const entry = data[0];
 
-      // Extract definitions with translations
-      const definitions = await Promise.all(
-        entry.meanings?.flatMap(
-          (meaning: {
-            partOfSpeech: string;
-            definitions: { definition: string }[];
-          }) =>
-            meaning.definitions
-              ?.slice(0, 3)
-              .map(async (def: { definition: string }) => {
-                // Translate definition to Chinese
-                let definitionChinese: string | undefined;
-                try {
-                  const translateResponse = await fetch(TRANSLATE_API_URL, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                      text: def.definition,
-                      from_lang: "en",
-                      to_lang: "zh-TW",
-                    }),
-                  });
-                  if (translateResponse.ok) {
-                    const translateData = await translateResponse.json();
-                    definitionChinese = translateData.text;
-                  }
-                } catch (err) {
-                  console.error("Translation failed:", err);
-                }
-
-                return {
-                  partOfSpeech: meaning.partOfSpeech,
-                  definition: def.definition,
-                  ...(definitionChinese && { definitionChinese }),
-                };
-              }),
-        ) || [],
-      );
-
-      return {
-        ...(entry.phonetic || entry.phonetics?.[0]?.text
-          ? { phonetic: entry.phonetic || entry.phonetics[0].text }
-          : {}),
-        definitions,
-        examples:
+        // Extract definitions with translations
+        const definitions = await Promise.all(
           entry.meanings?.flatMap(
-            (meaning: { definitions: { example?: string }[] }) =>
+            (meaning: {
+              partOfSpeech: string;
+              definitions: { definition: string }[];
+            }) =>
               meaning.definitions
-                ?.filter((def: { example?: string }) => def.example)
-                .slice(0, 2)
-                .map((def: { example?: string }) => ({
-                  sentence: def.example,
-                })),
+                ?.slice(0, 3)
+                .map(async (def: { definition: string }) => {
+                  // Translate definition to Chinese
+                  let definitionChinese: string | undefined;
+                  try {
+                    // Get the API URL based on user settings
+                    const apiUrl =
+                      translationApi === "ARGOS_TRANSLATE_API_URL"
+                        ? ARGOS_TRANSLATE_API_URL
+                        : TRANSLATE_API_URL;
+
+                    const translateResponse = await fetch(apiUrl, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        text: def.definition,
+                        from_lang: "en",
+                        to_lang: "zh-TW",
+                      }),
+                    });
+                    if (translateResponse.ok) {
+                      const translateData = await translateResponse.json();
+                      definitionChinese = translateData.text;
+                    }
+                  } catch (err) {
+                    console.error("Translation failed:", err);
+                  }
+
+                  return {
+                    partOfSpeech: meaning.partOfSpeech,
+                    definition: def.definition,
+                    ...(definitionChinese && { definitionChinese }),
+                  };
+                }),
           ) || [],
-        synonyms:
-          entry.meanings
-            ?.flatMap(
-              (meaning: { synonyms?: string[] }) => meaning.synonyms || [],
-            )
-            .slice(0, 5) || [],
-        antonyms:
-          entry.meanings
-            ?.flatMap(
-              (meaning: { antonyms?: string[] }) => meaning.antonyms || [],
-            )
-            .slice(0, 5) || [],
-      };
-    } catch (err) {
-      console.error("Error fetching word details:", err);
-      return null;
-    }
-  };
+        );
+
+        return {
+          ...(entry.phonetic || entry.phonetics?.[0]?.text
+            ? { phonetic: entry.phonetic || entry.phonetics[0].text }
+            : {}),
+          definitions,
+          examples:
+            entry.meanings?.flatMap(
+              (meaning: { definitions: { example?: string }[] }) =>
+                meaning.definitions
+                  ?.filter((def: { example?: string }) => def.example)
+                  .slice(0, 2)
+                  .map((def: { example?: string }) => ({
+                    sentence: def.example,
+                  })),
+            ) || [],
+          synonyms:
+            entry.meanings
+              ?.flatMap(
+                (meaning: { synonyms?: string[] }) => meaning.synonyms || [],
+              )
+              .slice(0, 5) || [],
+          antonyms:
+            entry.meanings
+              ?.flatMap(
+                (meaning: { antonyms?: string[] }) => meaning.antonyms || [],
+              )
+              .slice(0, 5) || [],
+        };
+      } catch (err) {
+        console.error("Error fetching word details:", err);
+        return null;
+      }
+    },
+    [translationApi],
+  );
 
   // Add a word to vocabulary
   const addWord = useCallback(
@@ -177,7 +188,7 @@ export const useVocabulary = () => {
         setLoading(false);
       }
     },
-    [user],
+    [user, fetchWordDetails],
   );
 
   // Load user's vocabulary
