@@ -55,6 +55,7 @@ function PdfReader() {
     translateText,
     clearSelection,
     setTranslatedText,
+    toolbarPosition,
   } = useTextSelection();
 
   const { bookingRecords, token: bookingToken } = useBookingRecords();
@@ -290,6 +291,7 @@ function PdfReader() {
           onClearTranslation={() => setTranslatedText("")}
           onAddToVocabulary={handleAddToVocabulary}
           isAddingToVocabulary={isAddingToVocabulary}
+          position={toolbarPosition}
         />
       )}
 

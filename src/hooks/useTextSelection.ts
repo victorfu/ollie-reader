@@ -3,6 +3,12 @@ import type { ReadingMode } from "../types/pdf";
 import { ARGOS_TRANSLATE_API_URL, TRANSLATE_API_URL } from "../constants/api";
 import { useSettings } from "./useSettings";
 
+export type SelectionToolbarPosition = {
+  top: number;
+  left: number;
+  placement: "above" | "below";
+};
+
 export const useTextSelection = () => {
   const { translationApi } = useSettings();
   const [readingMode, setReadingMode] = useState<ReadingMode>("selection");
@@ -10,7 +16,45 @@ export const useTextSelection = () => {
   const [translatedText, setTranslatedText] = useState<string>("");
   const [isTranslating, setIsTranslating] = useState(false);
   const [translateError, setTranslateError] = useState<string | null>(null);
+  const [toolbarPosition, setToolbarPosition] =
+    useState<SelectionToolbarPosition | null>(null);
   const selectedTextRef = useRef<string>("");
+
+  const updateToolbarPosition = useCallback(() => {
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0) {
+      setToolbarPosition(null);
+      return;
+    }
+
+    const range = selection.getRangeAt(0);
+    const rect = range.getBoundingClientRect();
+    if (!rect || (rect.width === 0 && rect.height === 0)) {
+      setToolbarPosition(null);
+      return;
+    }
+
+    const margin = 16;
+    const horizontalBuffer = 180;
+    const rawLeft = rect.left + rect.width / 2;
+    const viewportWidth = window.innerWidth;
+    const placement: SelectionToolbarPosition["placement"] =
+      rect.top < 140 ? "below" : "above";
+    const top =
+      placement === "above" ? rect.top - margin : rect.bottom + margin;
+
+    if (viewportWidth <= horizontalBuffer * 2) {
+      setToolbarPosition({ top, left: viewportWidth / 2, placement });
+      return;
+    }
+
+    const clampedLeft = Math.min(
+      Math.max(rawLeft, horizontalBuffer),
+      viewportWidth - horizontalBuffer,
+    );
+
+    setToolbarPosition({ top, left: clampedLeft, placement });
+  }, []);
 
   const handleTextSelection = useCallback(() => {
     const selection = window.getSelection();
@@ -21,7 +65,12 @@ export const useTextSelection = () => {
       setTranslatedText("");
       setTranslateError(null);
     }
-  }, []);
+    if (text) {
+      updateToolbarPosition();
+    } else {
+      setToolbarPosition(null);
+    }
+  }, [updateToolbarPosition]);
 
   const translateText = useCallback(async () => {
     if (!selectedText.trim()) return;
@@ -66,11 +115,27 @@ export const useTextSelection = () => {
   }, [selectedText, translationApi]);
 
   const clearSelection = useCallback(() => {
+    selectedTextRef.current = "";
     setSelectedText("");
     setTranslatedText("");
     setTranslateError(null);
+    setToolbarPosition(null);
     window.getSelection()?.removeAllRanges();
   }, []);
+
+  useEffect(() => {
+    if (!selectedText) return;
+
+    const handleReposition = () => updateToolbarPosition();
+
+    window.addEventListener("scroll", handleReposition, true);
+    window.addEventListener("resize", handleReposition);
+
+    return () => {
+      window.removeEventListener("scroll", handleReposition, true);
+      window.removeEventListener("resize", handleReposition);
+    };
+  }, [selectedText, updateToolbarPosition]);
 
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
@@ -94,5 +159,6 @@ export const useTextSelection = () => {
     translateText,
     clearSelection,
     setTranslatedText,
+    toolbarPosition,
   };
 };
