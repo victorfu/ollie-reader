@@ -88,11 +88,6 @@ export const PageTextArea = memo(
               <span className="badge badge-primary badge-lg">
                 Page {pageNumber}
               </span>
-              {textLength != null && (
-                <span className="text-sm text-base-content/60 font-normal ml-2">
-                  {textLength} 字符
-                </span>
-              )}
             </h3>
             <div className="flex gap-2 flex-wrap">
               <button

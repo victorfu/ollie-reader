@@ -92,10 +92,6 @@ export const SelectionToolbar = ({
         {placement === "above" && renderFeedback()}
 
         <div className="bg-accent text-accent-content rounded-full shadow-2xl px-6 py-3 flex items-center gap-3 backdrop-blur-md">
-          <span className="text-sm font-medium hidden sm:inline">
-            已選 {selectedText.length} 字
-          </span>
-          <div className="h-4 w-px bg-accent-content/30 hidden sm:block"></div>
           <div className="flex gap-2">
             <button
               type="button"
