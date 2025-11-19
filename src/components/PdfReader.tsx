@@ -326,7 +326,6 @@ function PdfReader() {
                   key={p.page_number}
                   pageNumber={p.page_number}
                   text={p.text || ""}
-                  textLength={p.text_length}
                   readingMode={readingMode}
                   onSpeak={speak}
                   onStopSpeaking={stopSpeaking}

@@ -113,9 +113,6 @@ export const PdfViewer = memo(
                         <PageTextArea
                           pageNumber={pageNumber}
                           text={pagesByNumber.get(pageNumber)?.text || ""}
-                          textLength={
-                            pagesByNumber.get(pageNumber)?.text_length || 0
-                          }
                           readingMode={readingMode}
                           onSpeak={onSpeak}
                           onStopSpeaking={onStopSpeaking}
