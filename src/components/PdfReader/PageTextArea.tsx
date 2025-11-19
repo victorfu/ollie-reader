@@ -5,7 +5,6 @@ import type { ReadingMode } from "../../types/pdf";
 interface PageTextAreaProps {
   pageNumber: number;
   text: string;
-  textLength: number;
   readingMode: ReadingMode;
   onSpeak: (text: string) => void;
   onStopSpeaking: () => void;
@@ -17,7 +16,6 @@ export const PageTextArea = memo(
   ({
     pageNumber,
     text,
-    textLength,
     readingMode,
     onSpeak,
     onStopSpeaking,
