@@ -96,10 +96,11 @@ export const PdfViewer = memo(
                       <div className="xl:col-span-3">
                         <div className="card bg-base-100 shadow-md max-w-full overflow-hidden">
                           <div className="card-body p-2 sm:p-3">
+                            {/* Disable the react-pdf text layer to keep the PDF text from duplicating after navigation */}
                             <Page
                               pageNumber={pageNumber}
                               width={containerWidth}
-                              renderTextLayer
+                              renderTextLayer={false}
                               renderAnnotationLayer
                               loading={
                                 <div className="skeleton w-full h-[600px]" />

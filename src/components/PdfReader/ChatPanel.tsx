@@ -19,33 +19,64 @@ export function ChatPanel({
   disabled = false,
 }: ChatPanelProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [isFullScreen, setIsFullScreen] = useState(false);
   const [input, setInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  const adjustTextareaHeight = () => {
+    const textarea = textareaRef.current;
+    if (textarea) {
+      textarea.style.height = "auto";
+      textarea.style.height = `${textarea.scrollHeight}px`;
+    }
   };
 
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
 
+  useEffect(() => {
+    adjustTextareaHeight();
+  }, [input]);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (input.trim() && !isLoading && !disabled) {
       onSendMessage(input);
       setInput("");
+      setTimeout(() => adjustTextareaHeight(), 0);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && (e.shiftKey || e.metaKey || e.ctrlKey)) {
+      e.preventDefault();
+      if (input.trim() && !isLoading && !disabled) {
+        onSendMessage(input);
+        setInput("");
+        setTimeout(() => adjustTextareaHeight(), 0);
+      }
     }
   };
 
   const handleClose = () => {
     setIsOpen(false);
+    setIsFullScreen(false);
   };
 
   const handleOpen = () => {
     if (!disabled) {
       setIsOpen(true);
     }
+  };
+
+  const toggleFullScreen = () => {
+    setIsFullScreen(!isFullScreen);
   };
 
   return (
@@ -82,7 +113,13 @@ export function ChatPanel({
 
       {/* Chat Panel Overlay */}
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-end justify-end p-4 sm:p-6 pointer-events-none">
+        <div
+          className={`fixed inset-0 z-50 flex pointer-events-none ${
+            isFullScreen
+              ? "items-center justify-center p-4"
+              : "items-end justify-end p-4 sm:p-6"
+          }`}
+        >
           {/* Backdrop (透明，用於點擊關閉) */}
           <div
             className="absolute inset-0 pointer-events-auto"
@@ -90,7 +127,13 @@ export function ChatPanel({
           />
 
           {/* Chat Window */}
-          <div className="relative w-full sm:w-[400px] h-[600px] max-h-[80vh] bg-gradient-to-br from-base-100 to-base-200 rounded-2xl shadow-2xl flex flex-col pointer-events-auto animate-in slide-in-from-bottom-8 duration-300">
+          <div
+            className={`relative bg-gradient-to-br from-base-100 to-base-200 rounded-2xl shadow-2xl flex flex-col pointer-events-auto animate-in duration-300 ${
+              isFullScreen
+                ? "w-full h-full max-w-7xl max-h-[95vh] slide-in-from-bottom-4"
+                : "w-full sm:w-[400px] h-[600px] max-h-[80vh] slide-in-from-bottom-8"
+            }`}
+          >
             {/* Header */}
             <div className="flex items-center justify-between p-4 border-b border-base-300 bg-gradient-to-r from-primary/10 to-secondary/10 rounded-t-2xl">
               <div className="flex items-center gap-3">
@@ -141,6 +184,43 @@ export function ChatPanel({
                     </svg>
                   </button>
                 )}
+                <button
+                  onClick={toggleFullScreen}
+                  className="btn btn-ghost btn-sm btn-circle"
+                  title={isFullScreen ? "縮小" : "放大"}
+                >
+                  {isFullScreen ? (
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="h-5 w-5"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5l5.25 5.25"
+                      />
+                    </svg>
+                  ) : (
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="h-5 w-5"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15"
+                      />
+                    </svg>
+                  )}
+                </button>
                 <button
                   onClick={handleClose}
                   className="btn btn-ghost btn-sm btn-circle"
@@ -295,15 +375,17 @@ export function ChatPanel({
               onSubmit={handleSubmit}
               className="p-4 border-t border-base-300 bg-base-100/50 backdrop-blur-sm rounded-b-2xl"
             >
-              <div className="flex gap-2">
-                <input
-                  type="text"
+              <div className="flex gap-2 items-end">
+                <textarea
+                  ref={textareaRef}
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
-                  placeholder="輸入訊息..."
-                  className="input input-bordered flex-1 rounded-full focus:outline-none focus:ring-2 focus:ring-primary"
+                  onKeyDown={handleKeyDown}
+                  placeholder="輸入訊息 (Shift+Enter 送出)..."
+                  className="textarea textarea-bordered flex-1 rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary resize-none min-h-[2.5rem] max-h-32 overflow-y-auto scrollbar-hide"
                   disabled={isLoading || disabled}
                   autoFocus
+                  rows={1}
                 />
                 <button
                   type="submit"
