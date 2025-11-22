@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { geminiModel } from "../utils/firebaseUtil";
 import type { ChatMessage } from "../types/chat";
 
@@ -6,6 +6,13 @@ export function useChat(pdfContext: string) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Clear conversation when the underlying PDF content changes to avoid cross-document chat.
+  useEffect(() => {
+    setMessages([]);
+    setError(null);
+    setIsLoading(false);
+  }, [pdfContext]);
 
   const sendMessage = useCallback(
     async (userMessage: string) => {
