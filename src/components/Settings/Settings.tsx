@@ -119,6 +119,23 @@ export const Settings = () => {
                     </div>
                   </div>
                 </label>
+
+                <label className="flex items-start gap-3 p-4 border border-base-300 rounded-lg cursor-pointer hover:bg-base-200 transition-colors">
+                  <input
+                    type="radio"
+                    name="translationApi"
+                    className="radio radio-primary mt-1"
+                    checked={translationApi === "FIREBASE_AI"}
+                    onChange={() => handleApiChange("FIREBASE_AI")}
+                    disabled={saving}
+                  />
+                  <div className="flex-1">
+                    <div className="font-medium">🤖 AI 智慧翻譯</div>
+                    <div className="text-sm text-base-content/60">
+                      使用 AI 翻譯，用小朋友容易懂的方式解釋 (推薦給小學生)
+                    </div>
+                  </div>
+                </label>
               </div>
             </div>
 

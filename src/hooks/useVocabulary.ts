@@ -11,6 +11,7 @@ import {
   getUserTags,
 } from "../services/vocabularyService";
 import { ARGOS_TRANSLATE_API_URL, TRANSLATE_API_URL } from "../constants/api";
+import { geminiModel } from "../utils/firebaseUtil";
 import type { VocabularyWord, VocabularyFilters } from "../types/vocabulary";
 
 export const useVocabulary = () => {
@@ -19,6 +20,28 @@ export const useVocabulary = () => {
   const [words, setWords] = useState<VocabularyWord[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Translate text using Firebase AI (Gemini) for kid-friendly translations
+  const translateWithFirebaseAI = useCallback(
+    async (text: string): Promise<string | undefined> => {
+      try {
+        const prompt = `你是一個幫助國小學生學習英文的翻譯助手。請將以下英文翻譯成繁體中文，使用簡單易懂、適合小朋友理解的詞彙和句子。翻譯要準確但用字要簡單，避免使用艱深的詞彙。
+
+英文原文：${text}
+
+請只回覆翻譯後的中文，不要加任何其他說明。`;
+
+        const result = await geminiModel.generateContent(prompt);
+        const response = result.response;
+        const translatedText = response.text().trim();
+        return translatedText;
+      } catch (err) {
+        console.error("Firebase AI translation failed:", err);
+        return undefined;
+      }
+    },
+    [],
+  );
 
   // Fetch dictionary data from Free Dictionary API
   const fetchWordDetails = useCallback(
@@ -52,24 +75,31 @@ export const useVocabulary = () => {
                   // Translate definition to Chinese
                   let definitionChinese: string | undefined;
                   try {
-                    // Get the API URL based on user settings
-                    const apiUrl =
-                      translationApi === "ARGOS_TRANSLATE_API_URL"
-                        ? ARGOS_TRANSLATE_API_URL
-                        : TRANSLATE_API_URL;
+                    if (translationApi === "FIREBASE_AI") {
+                      // Use Firebase AI (Gemini) for kid-friendly translations
+                      definitionChinese = await translateWithFirebaseAI(
+                        def.definition,
+                      );
+                    } else {
+                      // Get the API URL based on user settings
+                      const apiUrl =
+                        translationApi === "ARGOS_TRANSLATE_API_URL"
+                          ? ARGOS_TRANSLATE_API_URL
+                          : TRANSLATE_API_URL;
 
-                    const translateResponse = await fetch(apiUrl, {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({
-                        text: def.definition,
-                        from_lang: "en",
-                        to_lang: "zh-TW",
-                      }),
-                    });
-                    if (translateResponse.ok) {
-                      const translateData = await translateResponse.json();
-                      definitionChinese = translateData.text;
+                      const translateResponse = await fetch(apiUrl, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          text: def.definition,
+                          from_lang: "en",
+                          to_lang: "zh-TW",
+                        }),
+                      });
+                      if (translateResponse.ok) {
+                        const translateData = await translateResponse.json();
+                        definitionChinese = translateData.text;
+                      }
                     }
                   } catch (err) {
                     console.error("Translation failed:", err);
@@ -117,7 +147,7 @@ export const useVocabulary = () => {
         return null;
       }
     },
-    [translationApi],
+    [translationApi, translateWithFirebaseAI],
   );
 
   // Add a word to vocabulary

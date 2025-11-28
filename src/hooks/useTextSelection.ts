@@ -2,6 +2,7 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import type { ReadingMode } from "../types/pdf";
 import { ARGOS_TRANSLATE_API_URL, TRANSLATE_API_URL } from "../constants/api";
 import { useSettings } from "./useSettings";
+import { geminiModel } from "../utils/firebaseUtil";
 
 export type SelectionToolbarPosition = {
   top: number;
@@ -79,33 +80,50 @@ export const useTextSelection = () => {
     setTranslateError(null);
 
     try {
-      // Get the API URL based on user settings
-      const apiUrl =
-        translationApi === "ARGOS_TRANSLATE_API_URL"
-          ? ARGOS_TRANSLATE_API_URL
-          : TRANSLATE_API_URL;
+      let translatedResult: string;
 
-      const payload = {
-        text: selectedText,
-        from_lang: "en",
-        to_lang: "zh-TW",
-        from_code: "en",
-        to_code: "zt",
-      };
-      const response = await fetch(apiUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      });
+      if (translationApi === "FIREBASE_AI") {
+        // Use Firebase AI (Gemini) for kid-friendly translations
+        const prompt = `你是一個幫助國小學生學習英文的翻譯助手。請將以下英文翻譯成繁體中文，使用簡單易懂、適合小朋友理解的詞彙和句子。翻譯要準確但用字要簡單，避免使用艱深的詞彙。
 
-      if (!response.ok) {
-        throw new Error(`翻譯失敗: ${response.status}`);
+英文原文：${selectedText}
+
+請只回覆翻譯後的中文，不要加任何其他說明。`;
+
+        const result = await geminiModel.generateContent(prompt);
+        const response = result.response;
+        translatedResult = response.text().trim();
+      } else {
+        // Get the API URL based on user settings
+        const apiUrl =
+          translationApi === "ARGOS_TRANSLATE_API_URL"
+            ? ARGOS_TRANSLATE_API_URL
+            : TRANSLATE_API_URL;
+
+        const payload = {
+          text: selectedText,
+          from_lang: "en",
+          to_lang: "zh-TW",
+          from_code: "en",
+          to_code: "zt",
+        };
+        const response = await fetch(apiUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
+        });
+
+        if (!response.ok) {
+          throw new Error(`翻譯失敗: ${response.status}`);
+        }
+
+        const result = await response.json();
+        translatedResult = result.text || "無翻譯結果";
       }
 
-      const result = await response.json();
-      setTranslatedText(result.text || "無翻譯結果");
+      setTranslatedText(translatedResult);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "翻譯時發生未知錯誤";
       setTranslateError(message);
