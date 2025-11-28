@@ -1,6 +1,5 @@
 import { useState, useCallback } from "react";
 import { useAuth } from "./useAuth";
-import { useSettings } from "./useSettings";
 import {
   addVocabularyWord,
   getUserVocabulary,
@@ -10,145 +9,71 @@ import {
   checkWordExists,
   getUserTags,
 } from "../services/vocabularyService";
-import { ARGOS_TRANSLATE_API_URL, TRANSLATE_API_URL } from "../constants/api";
 import { geminiModel } from "../utils/firebaseUtil";
 import type { VocabularyWord, VocabularyFilters } from "../types/vocabulary";
 
 export const useVocabulary = () => {
   const { user } = useAuth();
-  const { translationApi } = useSettings();
   const [words, setWords] = useState<VocabularyWord[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Translate text using Firebase AI (Gemini) for kid-friendly translations
-  const translateWithFirebaseAI = useCallback(
-    async (text: string): Promise<string | undefined> => {
-      try {
-        const prompt = `你是一個幫助國小學生學習英文的翻譯助手。請將以下英文翻譯成繁體中文，使用簡單易懂、適合小朋友理解的詞彙和句子。翻譯要準確但用字要簡單，避免使用艱深的詞彙。
+  // Fetch word details using Firebase AI (Gemini) for kid-friendly definitions
+  const fetchWordDetails = useCallback(async (word: string) => {
+    try {
+      const prompt = `你是一個幫助國小學生學習英文的字典助手。請為以下英文單字提供詳細資訊，使用簡單易懂、適合小朋友理解的詞彙。
 
-英文原文：${text}
+單字：${word}
 
-請只回覆翻譯後的中文，不要加任何其他說明。`;
+請以 JSON 格式回覆，包含以下欄位：
+{
+  "phonetic": "音標（如果知道的話）",
+  "definitions": [
+    {
+      "partOfSpeech": "詞性（如 noun, verb, adjective 等）",
+      "definition": "英文定義（簡單易懂）",
+      "definitionChinese": "中文解釋（用小朋友能懂的方式說明）"
+    }
+  ],
+  "examples": [
+    {
+      "sentence": "簡單的例句"
+    }
+  ],
+  "synonyms": ["同義詞1", "同義詞2"],
+  "antonyms": ["反義詞1", "反義詞2"]
+}
 
-        const result = await geminiModel.generateContent(prompt);
-        const response = result.response;
-        const translatedText = response.text().trim();
-        return translatedText;
-      } catch (err) {
-        console.error("Firebase AI translation failed:", err);
-        return undefined;
+請提供 2-3 個定義，2 個例句，最多 5 個同義詞和反義詞。
+只回覆 JSON，不要加任何其他說明。`;
+
+      const result = await geminiModel.generateContent(prompt);
+      const response = result.response;
+      const text = response.text().trim();
+
+      // Parse JSON response, handling potential markdown code blocks
+      let jsonText = text;
+      if (text.startsWith("```")) {
+        jsonText = text
+          .replace(/```json?\n?/g, "")
+          .replace(/```/g, "")
+          .trim();
       }
-    },
-    [],
-  );
 
-  // Fetch dictionary data from Free Dictionary API
-  const fetchWordDetails = useCallback(
-    async (word: string) => {
-      try {
-        const response = await fetch(
-          `https://api.dictionaryapi.dev/api/v2/entries/en/${word.toLowerCase()}`,
-        );
+      const wordData = JSON.parse(jsonText);
 
-        if (!response.ok) {
-          return null;
-        }
-
-        const data = await response.json();
-        if (!data || data.length === 0) {
-          return null;
-        }
-
-        const entry = data[0];
-
-        // Extract definitions with translations
-        const definitions = await Promise.all(
-          entry.meanings?.flatMap(
-            (meaning: {
-              partOfSpeech: string;
-              definitions: { definition: string }[];
-            }) =>
-              meaning.definitions
-                ?.slice(0, 3)
-                .map(async (def: { definition: string }) => {
-                  // Translate definition to Chinese
-                  let definitionChinese: string | undefined;
-                  try {
-                    if (translationApi === "FIREBASE_AI") {
-                      // Use Firebase AI (Gemini) for kid-friendly translations
-                      definitionChinese = await translateWithFirebaseAI(
-                        def.definition,
-                      );
-                    } else {
-                      // Get the API URL based on user settings
-                      const apiUrl =
-                        translationApi === "ARGOS_TRANSLATE_API_URL"
-                          ? ARGOS_TRANSLATE_API_URL
-                          : TRANSLATE_API_URL;
-
-                      const translateResponse = await fetch(apiUrl, {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                          text: def.definition,
-                          from_lang: "en",
-                          to_lang: "zh-TW",
-                        }),
-                      });
-                      if (translateResponse.ok) {
-                        const translateData = await translateResponse.json();
-                        definitionChinese = translateData.text;
-                      }
-                    }
-                  } catch (err) {
-                    console.error("Translation failed:", err);
-                  }
-
-                  return {
-                    partOfSpeech: meaning.partOfSpeech,
-                    definition: def.definition,
-                    ...(definitionChinese && { definitionChinese }),
-                  };
-                }),
-          ) || [],
-        );
-
-        return {
-          ...(entry.phonetic || entry.phonetics?.[0]?.text
-            ? { phonetic: entry.phonetic || entry.phonetics[0].text }
-            : {}),
-          definitions,
-          examples:
-            entry.meanings?.flatMap(
-              (meaning: { definitions: { example?: string }[] }) =>
-                meaning.definitions
-                  ?.filter((def: { example?: string }) => def.example)
-                  .slice(0, 2)
-                  .map((def: { example?: string }) => ({
-                    sentence: def.example,
-                  })),
-            ) || [],
-          synonyms:
-            entry.meanings
-              ?.flatMap(
-                (meaning: { synonyms?: string[] }) => meaning.synonyms || [],
-              )
-              .slice(0, 5) || [],
-          antonyms:
-            entry.meanings
-              ?.flatMap(
-                (meaning: { antonyms?: string[] }) => meaning.antonyms || [],
-              )
-              .slice(0, 5) || [],
-        };
-      } catch (err) {
-        console.error("Error fetching word details:", err);
-        return null;
-      }
-    },
-    [translationApi, translateWithFirebaseAI],
-  );
+      return {
+        ...(wordData.phonetic && { phonetic: wordData.phonetic }),
+        definitions: wordData.definitions || [],
+        examples: wordData.examples || [],
+        synonyms: wordData.synonyms || [],
+        antonyms: wordData.antonyms || [],
+      };
+    } catch (err) {
+      console.error("Error fetching word details:", err);
+      return null;
+    }
+  }, []);
 
   // Add a word to vocabulary
   const addWord = useCallback(

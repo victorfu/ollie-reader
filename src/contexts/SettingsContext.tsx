@@ -12,7 +12,7 @@ interface SettingsProviderProps {
 export const SettingsProvider = ({ children }: SettingsProviderProps) => {
   const { user } = useAuth();
   const [translationApi, setTranslationApi] =
-    useState<TranslationApiType>("TRANSLATE_API_URL");
+    useState<TranslationApiType>("FIREBASE_AI");
   const [ttsMode, setTtsMode] = useState<TTSMode>("browser");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -21,7 +21,7 @@ export const SettingsProvider = ({ children }: SettingsProviderProps) => {
   useEffect(() => {
     const loadSettings = async () => {
       if (!user) {
-        setTranslationApi("TRANSLATE_API_URL"); // Default when logged out
+        setTranslationApi("FIREBASE_AI"); // Default when logged out
         setTtsMode("browser"); // Default when logged out
         setLoading(false);
         return;
@@ -37,7 +37,7 @@ export const SettingsProvider = ({ children }: SettingsProviderProps) => {
           setTtsMode(settings.ttsMode);
         } else {
           // No settings found, use defaults
-          setTranslationApi("TRANSLATE_API_URL");
+          setTranslationApi("FIREBASE_AI");
           setTtsMode("browser");
         }
       } catch (err) {

@@ -98,24 +98,7 @@ export const Settings = () => {
                   <div className="flex-1">
                     <div className="font-medium">標準翻譯 API</div>
                     <div className="text-sm text-base-content/60">
-                      使用預設的翻譯服務 (推薦)
-                    </div>
-                  </div>
-                </label>
-
-                <label className="flex items-start gap-3 p-4 border border-base-300 rounded-lg cursor-pointer hover:bg-base-200 transition-colors">
-                  <input
-                    type="radio"
-                    name="translationApi"
-                    className="radio radio-primary mt-1"
-                    checked={translationApi === "ARGOS_TRANSLATE_API_URL"}
-                    onChange={() => handleApiChange("ARGOS_TRANSLATE_API_URL")}
-                    disabled={saving}
-                  />
-                  <div className="flex-1">
-                    <div className="font-medium">Argos 翻譯 API</div>
-                    <div className="text-sm text-base-content/60">
-                      使用 Argos 開源翻譯引擎
+                      使用標準翻譯服務
                     </div>
                   </div>
                 </label>
@@ -132,7 +115,7 @@ export const Settings = () => {
                   <div className="flex-1">
                     <div className="font-medium">🤖 AI 智慧翻譯</div>
                     <div className="text-sm text-base-content/60">
-                      使用 AI 翻譯，用小朋友容易懂的方式解釋 (推薦給小學生)
+                      使用 AI 翻譯 (推薦)
                     </div>
                   </div>
                 </label>

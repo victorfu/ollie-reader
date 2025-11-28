@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import type { ReadingMode } from "../types/pdf";
-import { ARGOS_TRANSLATE_API_URL, TRANSLATE_API_URL } from "../constants/api";
+import { TRANSLATE_API_URL } from "../constants/api";
 import { useSettings } from "./useSettings";
 import { geminiModel } from "../utils/firebaseUtil";
 
@@ -94,12 +94,7 @@ export const useTextSelection = () => {
         const response = result.response;
         translatedResult = response.text().trim();
       } else {
-        // Get the API URL based on user settings
-        const apiUrl =
-          translationApi === "ARGOS_TRANSLATE_API_URL"
-            ? ARGOS_TRANSLATE_API_URL
-            : TRANSLATE_API_URL;
-
+        // Use standard translation API
         const payload = {
           text: selectedText,
           from_lang: "en",
@@ -107,7 +102,7 @@ export const useTextSelection = () => {
           from_code: "en",
           to_code: "zt",
         };
-        const response = await fetch(apiUrl, {
+        const response = await fetch(TRANSLATE_API_URL, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",

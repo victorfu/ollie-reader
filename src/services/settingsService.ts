@@ -58,7 +58,7 @@ export const saveUserSettings = async (
       // Create new settings with defaults
       await setDoc(docRef, {
         userId,
-        translationApi: settings.translationApi || "TRANSLATE_API_URL",
+        translationApi: settings.translationApi || "FIREBASE_AI",
         ttsMode: settings.ttsMode || "browser",
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
