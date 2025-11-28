@@ -50,4 +50,14 @@ export interface VocabularyFilters {
   difficulty?: "easy" | "medium" | "hard";
   sortBy?: "createdAt" | "word" | "reviewCount";
   sortOrder?: "asc" | "desc";
+  limit?: number;
+  cursor?: string; // Last document ID for pagination
 }
+
+export interface VocabularyResult {
+  words: VocabularyWord[];
+  hasMore: boolean;
+  lastDocId?: string;
+}
+
+export const DEFAULT_PAGE_SIZE = 50;

@@ -20,6 +20,14 @@ export const useTextSelection = () => {
   const [toolbarPosition, setToolbarPosition] =
     useState<SelectionToolbarPosition | null>(null);
   const selectedTextRef = useRef<string>("");
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  // Cleanup abort controller on unmount
+  useEffect(() => {
+    return () => {
+      abortControllerRef.current?.abort();
+    };
+  }, []);
 
   const updateToolbarPosition = useCallback(() => {
     const selection = window.getSelection();
@@ -76,6 +84,11 @@ export const useTextSelection = () => {
   const translateText = useCallback(async () => {
     if (!selectedText.trim()) return;
 
+    // Abort any previous translation request
+    abortControllerRef.current?.abort();
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     setIsTranslating(true);
     setTranslateError(null);
 
@@ -83,6 +96,9 @@ export const useTextSelection = () => {
       let translatedResult: string;
 
       if (translationApi === "FIREBASE_AI") {
+        // Check if aborted before making API call
+        if (controller.signal.aborted) return;
+
         // Use Firebase AI (Gemini) for kid-friendly translations
         const prompt = `你是一個幫助國小學生學習英文的翻譯助手。請將以下英文翻譯成繁體中文，使用簡單易懂、適合小朋友理解的詞彙和句子。翻譯要準確但用字要簡單，避免使用艱深的詞彙。
 
@@ -91,9 +107,16 @@ export const useTextSelection = () => {
 請只回覆翻譯後的中文，不要加任何其他說明。`;
 
         const result = await geminiModel.generateContent(prompt);
+
+        // Check if aborted after API call
+        if (controller.signal.aborted) return;
+
         const response = result.response;
         translatedResult = response.text().trim();
       } else {
+        // Check if aborted before making API call
+        if (controller.signal.aborted) return;
+
         // Use standard translation API
         const payload = {
           text: selectedText,
@@ -108,7 +131,11 @@ export const useTextSelection = () => {
             "Content-Type": "application/json",
           },
           body: JSON.stringify(payload),
+          signal: controller.signal,
         });
+
+        // Check if aborted after API call
+        if (controller.signal.aborted) return;
 
         if (!response.ok) {
           throw new Error(`翻譯失敗: ${response.status}`);
@@ -118,16 +145,25 @@ export const useTextSelection = () => {
         translatedResult = result.text || "無翻譯結果";
       }
 
+      // Final abort check before updating state
+      if (controller.signal.aborted) return;
+
       setTranslatedText(translatedResult);
     } catch (err: unknown) {
+      // Ignore abort errors
+      if (err instanceof Error && err.name === "AbortError") return;
+
       const message = err instanceof Error ? err.message : "翻譯時發生未知錯誤";
       setTranslateError(message);
     } finally {
-      setIsTranslating(false);
+      if (!controller.signal.aborted) {
+        setIsTranslating(false);
+      }
     }
   }, [selectedText, translationApi]);
 
   const clearSelection = useCallback(() => {
+    abortControllerRef.current?.abort();
     selectedTextRef.current = "";
     setSelectedText("");
     setTranslatedText("");

@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { useAuth } from "./useAuth";
 import {
   addVocabularyWord,
@@ -17,11 +17,23 @@ export const useVocabulary = () => {
   const [words, setWords] = useState<VocabularyWord[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(false);
+  const [lastDocId, setLastDocId] = useState<string | undefined>(undefined);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const currentFiltersRef = useRef<VocabularyFilters | undefined>(undefined);
+
+  // Cleanup abort controller on unmount
+  useEffect(() => {
+    return () => {
+      abortControllerRef.current?.abort();
+    };
+  }, []);
 
   // Fetch word details using Firebase AI (Gemini) for kid-friendly definitions
-  const fetchWordDetails = useCallback(async (word: string) => {
-    try {
-      const prompt = `你是一個幫助國小學生學習英文的字典助手。請為以下英文單字提供詳細資訊，使用簡單易懂、適合小朋友理解的詞彙。
+  const fetchWordDetails = useCallback(
+    async (word: string, signal?: AbortSignal) => {
+      try {
+        const prompt = `你是一個幫助國小學生學習英文的字典助手。請為以下英文單字提供詳細資訊，使用簡單易懂、適合小朋友理解的詞彙。
 
 單字：${word}
 
@@ -47,33 +59,44 @@ export const useVocabulary = () => {
 請提供 2-3 個定義，2 個例句，最多 5 個同義詞和反義詞。
 只回覆 JSON，不要加任何其他說明。`;
 
-      const result = await geminiModel.generateContent(prompt);
-      const response = result.response;
-      const text = response.text().trim();
+        // Check if aborted before making API call
+        if (signal?.aborted) return null;
 
-      // Parse JSON response, handling potential markdown code blocks
-      let jsonText = text;
-      if (text.startsWith("```")) {
-        jsonText = text
-          .replace(/```json?\n?/g, "")
-          .replace(/```/g, "")
-          .trim();
+        const result = await geminiModel.generateContent(prompt);
+
+        // Check if aborted after API call
+        if (signal?.aborted) return null;
+
+        const response = result.response;
+        const text = response.text().trim();
+
+        // Parse JSON response, handling potential markdown code blocks
+        let jsonText = text;
+        if (text.startsWith("```")) {
+          jsonText = text
+            .replace(/```json?\n?/g, "")
+            .replace(/```/g, "")
+            .trim();
+        }
+
+        const wordData = JSON.parse(jsonText);
+
+        return {
+          ...(wordData.phonetic && { phonetic: wordData.phonetic }),
+          definitions: wordData.definitions || [],
+          examples: wordData.examples || [],
+          synonyms: wordData.synonyms || [],
+          antonyms: wordData.antonyms || [],
+        };
+      } catch (err) {
+        // Ignore abort errors
+        if (err instanceof Error && err.name === "AbortError") return null;
+        console.error("Error fetching word details:", err);
+        return null;
       }
-
-      const wordData = JSON.parse(jsonText);
-
-      return {
-        ...(wordData.phonetic && { phonetic: wordData.phonetic }),
-        definitions: wordData.definitions || [],
-        examples: wordData.examples || [],
-        synonyms: wordData.synonyms || [],
-        antonyms: wordData.antonyms || [],
-      };
-    } catch (err) {
-      console.error("Error fetching word details:", err);
-      return null;
-    }
-  }, []);
+    },
+    [],
+  );
 
   // Add a word to vocabulary
   const addWord = useCallback(
@@ -88,6 +111,11 @@ export const useVocabulary = () => {
       if (!user) {
         return { success: false, message: "User not authenticated" };
       }
+
+      // Abort any previous request
+      abortControllerRef.current?.abort();
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
 
       setLoading(true);
       setError(null);
@@ -106,8 +134,18 @@ export const useVocabulary = () => {
           };
         }
 
+        // Check if aborted
+        if (controller.signal.aborted) {
+          return { success: false, message: "Request cancelled" };
+        }
+
         // Fetch word details from dictionary API
-        const details = await fetchWordDetails(word);
+        const details = await fetchWordDetails(word, controller.signal);
+
+        // Check if aborted
+        if (controller.signal.aborted) {
+          return { success: false, message: "Request cancelled" };
+        }
 
         // Create vocabulary word (ensure no undefined values)
         const newWord: Omit<
@@ -135,18 +173,24 @@ export const useVocabulary = () => {
 
         return { success: true, wordId, message: "Word added successfully" };
       } catch (err) {
+        // Ignore abort errors
+        if (err instanceof Error && err.name === "AbortError") {
+          return { success: false, message: "Request cancelled" };
+        }
         const message =
           err instanceof Error ? err.message : "Failed to add word";
         setError(message);
         return { success: false, message };
       } finally {
-        setLoading(false);
+        if (!controller.signal.aborted) {
+          setLoading(false);
+        }
       }
     },
     [user, fetchWordDetails],
   );
 
-  // Load user's vocabulary
+  // Load user's vocabulary with pagination
   const loadVocabulary = useCallback(
     async (filters?: VocabularyFilters) => {
       if (!user) {
@@ -155,11 +199,16 @@ export const useVocabulary = () => {
 
       setLoading(true);
       setError(null);
+      currentFiltersRef.current = filters;
 
       try {
-        const userWords = await getUserVocabulary(user.uid, filters);
-        setWords(userWords);
+        const result = await getUserVocabulary(user.uid, filters);
+        setWords(result.words);
+        setHasMore(result.hasMore);
+        setLastDocId(result.lastDocId);
       } catch (err) {
+        // Ignore abort errors
+        if (err instanceof Error && err.name === "AbortError") return;
         const message =
           err instanceof Error ? err.message : "Failed to load vocabulary";
         setError(message);
@@ -170,6 +219,35 @@ export const useVocabulary = () => {
     [user],
   );
 
+  // Load more vocabulary words (pagination)
+  const loadMore = useCallback(async () => {
+    if (!user || !hasMore || !lastDocId) {
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const filters = {
+        ...currentFiltersRef.current,
+        cursor: lastDocId,
+      };
+      const result = await getUserVocabulary(user.uid, filters);
+      setWords((prev) => [...prev, ...result.words]);
+      setHasMore(result.hasMore);
+      setLastDocId(result.lastDocId);
+    } catch (err) {
+      // Ignore abort errors
+      if (err instanceof Error && err.name === "AbortError") return;
+      const message =
+        err instanceof Error ? err.message : "Failed to load more vocabulary";
+      setError(message);
+    } finally {
+      setLoading(false);
+    }
+  }, [user, hasMore, lastDocId]);
+
   // Get a single word
   const getWord = useCallback(async (wordId: string) => {
     setLoading(true);
@@ -178,6 +256,8 @@ export const useVocabulary = () => {
     try {
       return await getVocabularyWord(wordId);
     } catch (err) {
+      // Ignore abort errors
+      if (err instanceof Error && err.name === "AbortError") return null;
       const message = err instanceof Error ? err.message : "Failed to get word";
       setError(message);
       return null;
@@ -200,6 +280,10 @@ export const useVocabulary = () => {
         );
         return { success: true };
       } catch (err) {
+        // Ignore abort errors
+        if (err instanceof Error && err.name === "AbortError") {
+          return { success: false, message: "Request cancelled" };
+        }
         const message =
           err instanceof Error ? err.message : "Failed to update word";
         setError(message);
@@ -221,6 +305,10 @@ export const useVocabulary = () => {
       setWords((prev) => prev.filter((w) => w.id !== wordId));
       return { success: true };
     } catch (err) {
+      // Ignore abort errors
+      if (err instanceof Error && err.name === "AbortError") {
+        return { success: false, message: "Request cancelled" };
+      }
       const message =
         err instanceof Error ? err.message : "Failed to delete word";
       setError(message);
@@ -237,6 +325,8 @@ export const useVocabulary = () => {
     try {
       return await getUserTags(user.uid);
     } catch (err) {
+      // Ignore abort errors
+      if (err instanceof Error && err.name === "AbortError") return [];
       console.error("Failed to get tags:", err);
       return [];
     }
@@ -246,8 +336,10 @@ export const useVocabulary = () => {
     words,
     loading,
     error,
+    hasMore,
     addWord,
     loadVocabulary,
+    loadMore,
     getWord,
     updateWord,
     deleteWord,

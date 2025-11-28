@@ -1,14 +1,43 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import type { FormEvent } from "react";
 import { useVocabulary } from "../../hooks/useVocabulary";
 import { useSpeechState } from "../../hooks/useSpeechState";
+import { useDebounce } from "../../hooks/useDebounce";
 import type { VocabularyWord, VocabularyFilters } from "../../types/vocabulary";
 import { WordDetail } from "../Vocabulary/WordDetail";
 import { SimpleTTSControls } from "../common/SimpleTTSControls";
 import { Toast } from "../common/Toast";
+import { ConfirmModal } from "../common/ConfirmModal";
+
+// Move groupWordsByDate outside component to prevent recreation on each render
+const groupWordsByDate = (words: VocabularyWord[]) => {
+  const groups: { [key: string]: VocabularyWord[] } = {};
+
+  words.forEach((word) => {
+    const date = new Date(word.createdAt).toLocaleDateString("zh-TW", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+
+    if (!groups[date]) {
+      groups[date] = [];
+    }
+    groups[date].push(word);
+  });
+
+  return groups;
+};
 export const VocabularyBook = () => {
-  const { words, loading, loadVocabulary, deleteWord, addWord } =
-    useVocabulary();
+  const {
+    words,
+    loading,
+    hasMore,
+    loadVocabulary,
+    loadMore,
+    deleteWord,
+    addWord,
+  } = useVocabulary();
   const {
     speechSupported,
     speechRate,
@@ -25,12 +54,16 @@ export const VocabularyBook = () => {
     sortOrder: "desc",
   });
   const [searchQuery, setSearchQuery] = useState("");
+  const debouncedSearchQuery = useDebounce(searchQuery, 300);
   const [manualWord, setManualWord] = useState("");
   const [isAddingManualWord, setIsAddingManualWord] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [toastMessage, setToastMessage] = useState<{
     message: string;
     type: "success" | "error" | "info";
   } | null>(null);
+  const [deleteWordId, setDeleteWordId] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const manualWordFieldId = "manual-word-input";
 
   // Load vocabulary when component mounts or filters change
@@ -38,10 +71,10 @@ export const VocabularyBook = () => {
     loadVocabulary(filters);
   }, [filters, loadVocabulary]);
 
-  // Immediate search when searchQuery changes
+  // Debounced search - only update filters after user stops typing
   useEffect(() => {
-    setFilters((prev) => ({ ...prev, searchQuery }));
-  }, [searchQuery]);
+    setFilters((prev) => ({ ...prev, searchQuery: debouncedSearchQuery }));
+  }, [debouncedSearchQuery]);
 
   const handleFilterChange = (
     key: keyof VocabularyFilters,
@@ -91,34 +124,49 @@ export const VocabularyBook = () => {
   };
 
   const handleDelete = async (wordId: string) => {
-    if (confirm("確定要刪除這個單字嗎？")) {
-      await deleteWord(wordId);
-      if (selectedWord?.id === wordId) {
+    setDeleteWordId(wordId);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteWordId) return;
+
+    setIsDeleting(true);
+    try {
+      await deleteWord(deleteWordId);
+      if (selectedWord?.id === deleteWordId) {
         setSelectedWord(null);
       }
+      setToastMessage({
+        message: "單字已刪除",
+        type: "success",
+      });
+    } catch (error) {
+      console.error("Error deleting word:", error);
+      setToastMessage({
+        message: "刪除失敗，請稍後再試",
+        type: "error",
+      });
+    } finally {
+      setIsDeleting(false);
+      setDeleteWordId(null);
     }
   };
 
-  const groupWordsByDate = (words: VocabularyWord[]) => {
-    const groups: { [key: string]: VocabularyWord[] } = {};
-
-    words.forEach((word) => {
-      const date = new Date(word.createdAt).toLocaleDateString("zh-TW", {
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-      });
-
-      if (!groups[date]) {
-        groups[date] = [];
-      }
-      groups[date].push(word);
-    });
-
-    return groups;
+  const cancelDelete = () => {
+    setDeleteWordId(null);
   };
 
-  const wordGroups = groupWordsByDate(words);
+  const handleLoadMore = async () => {
+    setIsLoadingMore(true);
+    try {
+      await loadMore();
+    } finally {
+      setIsLoadingMore(false);
+    }
+  };
+
+  // Memoize word groups to prevent recalculation on every render
+  const wordGroups = useMemo(() => groupWordsByDate(words), [words]);
 
   return (
     <div className="container mx-auto max-w-7xl">
@@ -352,6 +400,27 @@ export const VocabularyBook = () => {
               </div>
             </div>
           ))}
+
+          {/* Load More Button */}
+          {hasMore && (
+            <div className="text-center py-6">
+              <button
+                type="button"
+                className="btn btn-outline btn-primary"
+                onClick={handleLoadMore}
+                disabled={isLoadingMore}
+              >
+                {isLoadingMore ? (
+                  <>
+                    <span className="loading loading-spinner loading-sm" />
+                    載入中…
+                  </>
+                ) : (
+                  "載入更多"
+                )}
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -363,6 +432,19 @@ export const VocabularyBook = () => {
           onUpdate={() => loadVocabulary(filters)}
         />
       )}
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmModal
+        isOpen={deleteWordId !== null}
+        title="刪除單字"
+        message="確定要刪除這個單字嗎？此操作無法復原。"
+        onConfirm={confirmDelete}
+        onCancel={cancelDelete}
+        confirmText="刪除"
+        cancelText="取消"
+        confirmVariant="error"
+        isLoading={isDeleting}
+      />
     </div>
   );
 };

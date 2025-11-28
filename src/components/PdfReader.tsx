@@ -30,6 +30,7 @@ function PdfReader() {
     handleFileChange,
     loadPdfFromUrl,
     cancelUpload,
+    clearPdfCache,
   } = usePdfState();
 
   const {
@@ -73,6 +74,7 @@ function PdfReader() {
 
   const [urlInput, setUrlInput] = useState<string>("");
   const [isAddingToVocabulary, setIsAddingToVocabulary] = useState(false);
+  const [isClearingCache, setIsClearingCache] = useState(false);
   const [toastMessage, setToastMessage] = useState<{
     message: string;
     type: "success" | "error" | "info";
@@ -156,6 +158,22 @@ function PdfReader() {
       setToastMessage({ message: "加入生詞本時發生錯誤", type: "error" });
     } finally {
       setIsAddingToVocabulary(false);
+    }
+  };
+
+  const handleClearCache = async () => {
+    setIsClearingCache(true);
+    try {
+      await clearPdfCache();
+      setToastMessage({
+        message: "快取已清除，請重新載入 PDF",
+        type: "success",
+      });
+    } catch (error) {
+      console.error("Error clearing cache:", error);
+      setToastMessage({ message: "清除快取時發生錯誤", type: "error" });
+    } finally {
+      setIsClearingCache(false);
     }
   };
 
@@ -299,7 +317,11 @@ function PdfReader() {
       {result && (
         <div className="space-y-6">
           {/* File Info */}
-          <FileInfo result={result} />
+          <FileInfo
+            result={result}
+            onClearCache={handleClearCache}
+            isClearingCache={isClearingCache}
+          />
 
           {/* PDF Viewer */}
           {pdfUrl && (

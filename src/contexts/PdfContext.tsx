@@ -3,10 +3,12 @@ import {
   useState,
   useCallback,
   useRef,
+  useEffect,
   type ReactNode,
 } from "react";
 import type { ExtractResponse } from "../types/pdf";
 import { API_URL, FETCH_URL_API } from "../constants/api";
+import { pdfSessionCache } from "../services/pdfSessionCache";
 
 interface PdfState {
   selectedFile: File | null;
@@ -15,6 +17,7 @@ interface PdfState {
   result: ExtractResponse | null;
   pdfUrl: string | null;
   isLoadingFromUrl: boolean;
+  isRestoringFromCache: boolean;
 }
 
 interface PdfContextType extends PdfState {
@@ -22,6 +25,7 @@ interface PdfContextType extends PdfState {
   loadPdfFromUrl: (url: string) => Promise<void>;
   cancelUpload: () => void;
   setError: (error: string | null) => void;
+  clearPdfCache: () => Promise<void>;
 }
 
 const PdfContext = createContext<PdfContextType | undefined>(undefined);
@@ -39,7 +43,50 @@ export const PdfProvider = ({ children }: PdfProviderProps) => {
   const [result, setResult] = useState<ExtractResponse | null>(null);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [isLoadingFromUrl, setIsLoadingFromUrl] = useState(false);
+  const [isRestoringFromCache, setIsRestoringFromCache] = useState(true);
   const abortRef = useRef<AbortController | null>(null);
+  const pdfUrlRef = useRef<string | null>(null);
+  const currentBlobRef = useRef<Blob | null>(null);
+
+  // Restore PDF from cache on mount
+  useEffect(() => {
+    const restoreFromCache = async () => {
+      try {
+        const cached = await pdfSessionCache.loadPdfFromCache();
+        if (cached) {
+          const { blob, result: cachedResult, filename } = cached;
+          const objectUrl = URL.createObjectURL(blob);
+          pdfUrlRef.current = objectUrl;
+          currentBlobRef.current = blob;
+          setPdfUrl(objectUrl);
+          setResult(cachedResult);
+          const file = new File([blob], filename, { type: "application/pdf" });
+          setSelectedFile(file);
+        } else {
+          // Mark session as active for future saves
+          pdfSessionCache.markSessionActive();
+        }
+      } catch (err) {
+        console.warn("Failed to restore PDF from cache:", err);
+        // Mark session as active even on error
+        pdfSessionCache.markSessionActive();
+      } finally {
+        setIsRestoringFromCache(false);
+      }
+    };
+
+    void restoreFromCache();
+  }, []);
+
+  // Cleanup object URLs on unmount to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      if (pdfUrlRef.current) {
+        URL.revokeObjectURL(pdfUrlRef.current);
+        pdfUrlRef.current = null;
+      }
+    };
+  }, []);
 
   const uploadAndExtract = useCallback(async (file: File) => {
     setIsUploading(true);
@@ -67,6 +114,17 @@ export const PdfProvider = ({ children }: PdfProviderProps) => {
 
       const data = (await res.json()) as ExtractResponse;
       setResult(data);
+
+      // Save to session cache
+      if (currentBlobRef.current) {
+        void pdfSessionCache.savePdfToCache(
+          currentBlobRef.current,
+          data,
+          currentBlobRef.current instanceof File
+            ? (currentBlobRef.current as File).name
+            : "uploaded.pdf",
+        );
+      }
     } catch (err: unknown) {
       if (err instanceof Error && err.name === "AbortError") return;
       const message = err instanceof Error ? err.message : "發生未知錯誤";
@@ -82,6 +140,12 @@ export const PdfProvider = ({ children }: PdfProviderProps) => {
 
   const handleFileChange = useCallback(
     (file: File | null) => {
+      // Revoke previous object URL to prevent memory leaks
+      if (pdfUrlRef.current) {
+        URL.revokeObjectURL(pdfUrlRef.current);
+        pdfUrlRef.current = null;
+      }
+
       if (!file) {
         setSelectedFile(null);
         setPdfUrl(null);
@@ -96,6 +160,8 @@ export const PdfProvider = ({ children }: PdfProviderProps) => {
       setError(null);
       setSelectedFile(file);
       const url = URL.createObjectURL(file);
+      pdfUrlRef.current = url;
+      currentBlobRef.current = file;
       setPdfUrl(url);
       void uploadAndExtract(file);
     },
@@ -106,6 +172,12 @@ export const PdfProvider = ({ children }: PdfProviderProps) => {
     if (!url.trim()) {
       setError("請輸入有效的 URL");
       return;
+    }
+
+    // Revoke previous object URL to prevent memory leaks
+    if (pdfUrlRef.current) {
+      URL.revokeObjectURL(pdfUrlRef.current);
+      pdfUrlRef.current = null;
     }
 
     setIsLoadingFromUrl(true);
@@ -166,6 +238,8 @@ export const PdfProvider = ({ children }: PdfProviderProps) => {
       const filename = `downloaded_${currentTime}.pdf`;
       const file = new File([blob], filename, { type: "application/pdf" });
       const objectUrl = URL.createObjectURL(blob);
+      pdfUrlRef.current = objectUrl;
+      currentBlobRef.current = blob;
       setPdfUrl(objectUrl);
 
       setIsUploading(true);
@@ -187,6 +261,9 @@ export const PdfProvider = ({ children }: PdfProviderProps) => {
       const data = (await extractRes.json()) as ExtractResponse;
       setResult(data);
       setSelectedFile(file);
+
+      // Save to session cache
+      void pdfSessionCache.savePdfToCache(blob, data, filename);
     } catch (err: unknown) {
       if (err instanceof Error && err.name === "AbortError") return;
       const message =
@@ -206,6 +283,24 @@ export const PdfProvider = ({ children }: PdfProviderProps) => {
     setIsUploading(false);
   }, []);
 
+  const clearPdfCache = useCallback(async () => {
+    // Clear IndexedDB cache
+    await pdfSessionCache.clearPdfCache();
+
+    // Revoke object URL to prevent memory leaks
+    if (pdfUrlRef.current) {
+      URL.revokeObjectURL(pdfUrlRef.current);
+      pdfUrlRef.current = null;
+    }
+
+    // Reset all PDF state to initial values
+    currentBlobRef.current = null;
+    setSelectedFile(null);
+    setPdfUrl(null);
+    setResult(null);
+    setError(null);
+  }, []);
+
   const value: PdfContextType = {
     selectedFile,
     isUploading,
@@ -213,10 +308,12 @@ export const PdfProvider = ({ children }: PdfProviderProps) => {
     result,
     pdfUrl,
     isLoadingFromUrl,
+    isRestoringFromCache,
     handleFileChange,
     loadPdfFromUrl,
     cancelUpload,
     setError,
+    clearPdfCache,
   };
 
   return <PdfContext.Provider value={value}>{children}</PdfContext.Provider>;

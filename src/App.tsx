@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import {
   BrowserRouter,
   Routes,
@@ -5,15 +6,52 @@ import {
   Link,
   useLocation,
 } from "react-router-dom";
-import AuthScreen from "./components/Auth/AuthScreen";
-import PdfReader from "./components/PdfReader";
-import { VocabularyBook } from "./components/Vocabulary/VocabularyBook";
-import { Settings } from "./components/Settings/Settings";
 import { useAuth } from "./hooks/useAuth";
 import { PdfProvider } from "./contexts/PdfContext";
 import { SpeechProvider } from "./contexts/SpeechContext";
 import { SettingsProvider } from "./contexts/SettingsContext";
 import { useWarmServerOnRouteChange } from "./hooks/useWarmServer";
+import { ErrorBoundary } from "./components/common/ErrorBoundary";
+
+// Lazy load route components for code splitting
+const AuthScreen = lazy(() => import("./components/Auth/AuthScreen"));
+const PdfReader = lazy(() => import("./components/PdfReader"));
+const VocabularyBook = lazy(
+  () =>
+    import("./components/Vocabulary/VocabularyBook").then((module) => ({
+      default: module.VocabularyBook,
+    })),
+);
+const Settings = lazy(
+  () =>
+    import("./components/Settings/Settings").then((module) => ({
+      default: module.Settings,
+    })),
+);
+
+// Loading fallback component
+function RouteLoadingFallback() {
+  return (
+    <div className="flex items-center justify-center min-h-[400px]">
+      <span
+        className="loading loading-spinner loading-lg text-primary"
+        aria-label="載入頁面中"
+      />
+    </div>
+  );
+}
+
+// Auth loading fallback component
+function AuthLoadingFallback() {
+  return (
+    <div className="min-h-screen bg-base-200 flex items-center justify-center">
+      <span
+        className="loading loading-spinner loading-lg text-primary"
+        aria-label="載入登入頁面"
+      />
+    </div>
+  );
+}
 
 function AppContent() {
   const { user, loading, authError, signOutUser } = useAuth();
@@ -36,7 +74,9 @@ function AppContent() {
   if (!user) {
     return (
       <div className="min-h-screen bg-base-200 flex items-center justify-center px-4 py-12">
-        <AuthScreen />
+        <Suspense fallback={<AuthLoadingFallback />}>
+          <AuthScreen />
+        </Suspense>
       </div>
     );
   }
@@ -211,11 +251,13 @@ function AppContent() {
         <SettingsProvider>
           <SpeechProvider>
             <PdfProvider>
-              <Routes>
-                <Route path="/" element={<PdfReader />} />
-                <Route path="/vocabulary" element={<VocabularyBook />} />
-                <Route path="/settings" element={<Settings />} />
-              </Routes>
+              <Suspense fallback={<RouteLoadingFallback />}>
+                <Routes>
+                  <Route path="/" element={<PdfReader />} />
+                  <Route path="/vocabulary" element={<VocabularyBook />} />
+                  <Route path="/settings" element={<Settings />} />
+                </Routes>
+              </Suspense>
             </PdfProvider>
           </SpeechProvider>
         </SettingsProvider>
@@ -226,9 +268,11 @@ function AppContent() {
 
 function App() {
   return (
-    <BrowserRouter>
-      <AppContent />
-    </BrowserRouter>
+    <ErrorBoundary>
+      <BrowserRouter>
+        <AppContent />
+      </BrowserRouter>
+    </ErrorBoundary>
   );
 }
 

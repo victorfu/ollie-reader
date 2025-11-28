@@ -2,9 +2,15 @@ import type { ExtractResponse } from "../../types/pdf";
 
 interface FileInfoProps {
   result: ExtractResponse;
+  onClearCache?: () => void;
+  isClearingCache?: boolean;
 }
 
-export const FileInfo = ({ result }: FileInfoProps) => {
+export const FileInfo = ({
+  result,
+  onClearCache,
+  isClearingCache,
+}: FileInfoProps) => {
   return (
     <div className="stats stats-vertical sm:stats-horizontal shadow-xl w-full bg-base-100">
       <div className="stat">
@@ -49,6 +55,45 @@ export const FileInfo = ({ result }: FileInfoProps) => {
         <div className="stat-value text-secondary">{result.total_pages}</div>
         <div className="stat-desc">已成功解析</div>
       </div>
+
+      {onClearCache && (
+        <div className="stat">
+          <div className="stat-figure text-error">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              className="inline-block w-8 h-8 stroke-current"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+              />
+            </svg>
+          </div>
+          <div className="stat-title">快取管理</div>
+          <div className="stat-value">
+            <button
+              onClick={onClearCache}
+              disabled={isClearingCache}
+              className="btn btn-error btn-sm gap-2"
+              title="清除快取後需重新載入 PDF"
+            >
+              {isClearingCache ? (
+                <>
+                  <span className="loading loading-spinner loading-xs"></span>
+                  清除中...
+                </>
+              ) : (
+                <>清除快取</>
+              )}
+            </button>
+          </div>
+          <div className="stat-desc">強制重新載入 PDF</div>
+        </div>
+      )}
     </div>
   );
 };
