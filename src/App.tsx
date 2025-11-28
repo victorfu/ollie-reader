@@ -28,6 +28,9 @@ const Settings = lazy(
       default: module.Settings,
     })),
 );
+const SpeechPractice = lazy(
+  () => import("./components/SpeechPractice/SpeechPractice"),
+);
 
 // Loading fallback component
 function RouteLoadingFallback() {
@@ -87,6 +90,7 @@ function AppContent() {
 
   const isVocabularyPage = location.pathname === "/vocabulary";
   const isSettingsPage = location.pathname === "/settings";
+  const isSpeechPracticePage = location.pathname === "/speech-practice";
   const accountLabel = user.displayName || user.email || "使用者";
   const accountEmail = user.email;
   const accountInitial = accountLabel.charAt(0).toUpperCase();
@@ -95,13 +99,20 @@ function AppContent() {
       to: "/",
       label: "閱讀器",
       icon: "📚",
-      isActive: !isVocabularyPage && !isSettingsPage,
+      isActive:
+        !isVocabularyPage && !isSettingsPage && !isSpeechPracticePage,
     },
     {
       to: "/vocabulary",
       label: "生詞本",
       icon: "📖",
       isActive: isVocabularyPage,
+    },
+    {
+      to: "/speech-practice",
+      label: "演講練習",
+      icon: "🎤",
+      isActive: isSpeechPracticePage,
     },
     {
       to: "/settings",
@@ -255,6 +266,7 @@ function AppContent() {
                 <Routes>
                   <Route path="/" element={<PdfReader />} />
                   <Route path="/vocabulary" element={<VocabularyBook />} />
+                  <Route path="/speech-practice" element={<SpeechPractice />} />
                   <Route path="/settings" element={<Settings />} />
                 </Routes>
               </Suspense>
