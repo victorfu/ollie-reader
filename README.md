@@ -8,6 +8,33 @@ A modern website built with Vite, React, TypeScript, and Tailwind CSS.
 - **React 19** - A JavaScript library for building user interfaces
 - **TypeScript** - JavaScript with syntax for types
 - **Tailwind CSS** - A utility-first CSS framework
+- **Firebase** - Backend-as-a-Service (Auth, Firestore, Storage)
+- **Gemini AI** - AI-powered content generation
+- **Framer Motion** - Production-ready motion library for React
+- **Web Speech API** - Native browser speech recognition and synthesis
+
+## Features
+
+### 📚 Smart Vocabulary Book (生詞本)
+- **Flashcard Review Mode**: Interactive cards with flip animations for effective memorization.
+- **AI Pronunciation Coach**: Practice speaking with real-time feedback using Web Speech API.
+- **Visual Memory**: AI automatically assigns relevant Emojis 🍎 to words for better retention.
+- **Modern UI**: Glassmorphism design, infinite scroll, and smooth transitions.
+- **Smart Dictionary**: Auto-generated definitions, examples, and phonetics.
+
+### 🎤 Speech Practice (演講練習)
+- **Topic Selection**: Choose from various topics to practice speaking.
+- **AI Script Generator**: Generate practice scripts based on topics.
+- **Recording & Timer**: Record your speech and track time.
+- **History**: Review past practice sessions.
+
+### 🎵 Audio Library (音訊庫)
+- **Upload & Manage**: Store and organize audio learning materials.
+- **Playback Control**: Integrated audio player with progress tracking.
+
+### 📖 PDF Reader
+- **Document Reading**: Smooth PDF viewing experience.
+- **Text Selection**: Select text to look up words or add to vocabulary.
 
 ## Getting Started
 
@@ -82,6 +109,8 @@ ollie-reader/
 - 📦 Component-based architecture
 - 🔧 ESLint for code quality
 - 🎯 Type-safe development with TypeScript
+- 🤖 AI-powered learning features
+- 📱 Responsive design for all devices
 
 ## License
 
