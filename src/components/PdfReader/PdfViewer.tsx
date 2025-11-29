@@ -2,6 +2,7 @@ import { memo, useRef, useState, useEffect, useCallback } from "react";
 import { Document, Page } from "react-pdf";
 import type { ExtractedPage, ReadingMode } from "../../types/pdf";
 import { PageTextArea } from "./PageTextArea";
+import { pdfDocumentOptions } from "../../utils/pdfConfig";
 
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
@@ -27,24 +28,29 @@ export const PdfViewer = memo(
     isLoadingAudio,
   }: PdfViewerProps) => {
     const containerRef = useRef<HTMLDivElement | null>(null);
+    const pdfContainerRef = useRef<HTMLDivElement | null>(null);
     const pageRefs = useRef<(HTMLDivElement | null)[]>([]);
     const [numPages, setNumPages] = useState<number>(0);
-    const [containerWidth, setContainerWidth] = useState<number>(800);
+    const [pdfWidth, setPdfWidth] = useState<number>(600);
     const rafIdRef = useRef<number | null>(null);
 
+    // Measure the actual PDF container width (the card-body element)
     useEffect(() => {
-      if (!containerRef.current) return;
+      if (!pdfContainerRef.current) return;
       const ro = new ResizeObserver((entries) => {
         for (const entry of entries) {
           const cr = entry.contentRect;
-          setContainerWidth(Math.max(320, Math.floor(cr.width - 24)));
+          // Subtract padding and cap at reasonable limits
+          const width = Math.floor(cr.width - 16);
+          setPdfWidth(Math.max(300, Math.min(800, width)));
         }
       });
-      ro.observe(containerRef.current);
-      const rect = containerRef.current.getBoundingClientRect();
-      setContainerWidth(Math.max(320, Math.floor(rect.width - 24)));
+      ro.observe(pdfContainerRef.current);
+      const rect = pdfContainerRef.current.getBoundingClientRect();
+      const width = Math.floor(rect.width - 16);
+      setPdfWidth(Math.max(300, Math.min(800, width)));
       return () => ro.disconnect();
-    }, []);
+    }, [numPages]); // Re-run when numPages changes (document loaded)
 
     const handleScroll = useCallback(() => {
       if (!containerRef.current || numPages === 0) return;
@@ -74,6 +80,7 @@ export const PdfViewer = memo(
           <Document
             file={url}
             onLoadSuccess={({ numPages }) => setNumPages(numPages)}
+            options={pdfDocumentOptions}
             loading={
               <div className="w-full h-64 grid place-items-center text-base-content/60">
                 載入 PDF 中...
@@ -94,12 +101,15 @@ export const PdfViewer = memo(
                   >
                     <div className="grid grid-cols-1 xl:grid-cols-5 gap-4 items-start">
                       <div className="xl:col-span-3">
-                        <div className="card bg-base-100 shadow-md max-w-full overflow-hidden">
+                        <div
+                          ref={pageNumber === 1 ? pdfContainerRef : undefined}
+                          className="card bg-base-100 shadow-md max-w-full overflow-hidden"
+                        >
                           <div className="card-body p-2 sm:p-3">
                             {/* Disable the react-pdf text layer to keep the PDF text from duplicating after navigation */}
                             <Page
                               pageNumber={pageNumber}
-                              width={containerWidth}
+                              width={pdfWidth}
                               renderTextLayer={false}
                               renderAnnotationLayer
                               loading={
