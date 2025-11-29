@@ -1,7 +1,10 @@
+import { useState } from "react";
 import { motion } from "framer-motion";
-import { SPIRIT_COMPONENTS } from "../../assets/spirits";
+import { SPIRIT_COMPONENTS, SPIRITS } from "../../assets/spirits";
 import type { PlayerProgress } from "../../types/game";
 import { LEVEL_EXP_TABLE } from "../../services/gameProgressService";
+import { AchievementsPanel } from "./AchievementsPanel";
+import { ACHIEVEMENTS } from "../../constants/achievements";
 
 interface AdventureHomeProps {
   progress: PlayerProgress;
@@ -14,6 +17,8 @@ export function AdventureHome({
   onStartAdventure,
   onOpenCollection,
 }: AdventureHomeProps) {
+  const [showAchievements, setShowAchievements] = useState(false);
+
   // 計算經驗條百分比
   const currentLevelExp = LEVEL_EXP_TABLE[progress.level - 1] || 0;
   const nextLevelExp = LEVEL_EXP_TABLE[progress.level] || progress.exp;
@@ -27,13 +32,51 @@ export function AdventureHome({
   // 取得隨機已解鎖的精靈來展示
   const displaySpiritIds = progress.unlockedSpiritIds.slice(0, 3);
 
+  // 計算已解鎖成就數量
+  const unlockedAchievements = ACHIEVEMENTS.filter((a) =>
+    a.requirement(progress),
+  ).length;
+
   return (
     <div className="min-h-[calc(100vh-8rem)] flex flex-col items-center justify-center p-4">
-      {/* 背景裝飾 */}
+      {/* 成就面板 */}
+      {showAchievements && (
+        <AchievementsPanel
+          progress={progress}
+          onClose={() => setShowAchievements(false)}
+        />
+      )}
+
+      {/* 背景裝飾 - 增強可愛風格 */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none -z-10">
-        <div className="absolute top-20 left-10 w-32 h-32 bg-primary/10 rounded-full blur-3xl" />
-        <div className="absolute bottom-20 right-10 w-40 h-40 bg-secondary/10 rounded-full blur-3xl" />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-accent/5 rounded-full blur-3xl" />
+        <div className="absolute top-20 left-10 w-32 h-32 bg-pink-200/40 rounded-full blur-3xl animate-pulse" />
+        <div className="absolute bottom-20 right-10 w-40 h-40 bg-purple-200/40 rounded-full blur-3xl animate-pulse" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-yellow-100/30 rounded-full blur-3xl" />
+        <div className="absolute top-1/4 right-1/3 w-24 h-24 bg-cyan-200/30 rounded-full blur-2xl animate-pulse" />
+
+        {/* 飄動的可愛裝飾 */}
+        {["🌸", "✨", "💫", "🌟", "💖", "🎀"].map((emoji, i) => (
+          <motion.div
+            key={i}
+            className="absolute text-2xl opacity-30"
+            style={{
+              top: `${15 + i * 15}%`,
+              left: `${10 + i * 15}%`,
+            }}
+            animate={{
+              y: [-10, 10, -10],
+              rotate: [0, 10, -10, 0],
+            }}
+            transition={{
+              duration: 4 + i,
+              repeat: Infinity,
+              ease: "easeInOut",
+              delay: i * 0.5,
+            }}
+          >
+            {emoji}
+          </motion.div>
+        ))}
       </div>
 
       {/* 主卡片 */}
@@ -126,24 +169,39 @@ export function AdventureHome({
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
               onClick={onStartAdventure}
-              className="btn btn-primary btn-lg w-full gap-2"
+              className="btn btn-primary btn-lg w-full gap-2 shadow-lg shadow-primary/30"
             >
               <span className="text-xl">🗺️</span>
               開始冒險
             </motion.button>
 
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={onOpenCollection}
-              className="btn btn-outline btn-secondary w-full gap-2"
-            >
-              <span className="text-xl">📖</span>
-              精靈圖鑑
-              <span className="badge badge-secondary badge-sm">
-                {progress.unlockedSpiritIds.length}/10
-              </span>
-            </motion.button>
+            <div className="grid grid-cols-2 gap-2 w-full">
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={onOpenCollection}
+                className="btn btn-outline btn-secondary gap-1"
+              >
+                <span className="text-lg">📖</span>
+                精靈圖鑑
+                <span className="badge badge-secondary badge-xs">
+                  {progress.unlockedSpiritIds.length}/{SPIRITS.length}
+                </span>
+              </motion.button>
+
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => setShowAchievements(true)}
+                className="btn btn-outline btn-accent gap-1"
+              >
+                <span className="text-lg">🏅</span>
+                成就
+                <span className="badge badge-accent badge-xs">
+                  {unlockedAchievements}/{ACHIEVEMENTS.length}
+                </span>
+              </motion.button>
+            </div>
           </div>
         </div>
       </motion.div>
