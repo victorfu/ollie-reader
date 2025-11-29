@@ -16,20 +16,21 @@ import { ErrorBoundary } from "./components/common/ErrorBoundary";
 // Lazy load route components for code splitting
 const AuthScreen = lazy(() => import("./components/Auth/AuthScreen"));
 const PdfReader = lazy(() => import("./components/PdfReader"));
-const VocabularyBook = lazy(
-  () =>
-    import("./components/Vocabulary/VocabularyBook").then((module) => ({
-      default: module.VocabularyBook,
-    })),
+const VocabularyBook = lazy(() =>
+  import("./components/Vocabulary/VocabularyBook").then((module) => ({
+    default: module.VocabularyBook,
+  })),
 );
-const Settings = lazy(
-  () =>
-    import("./components/Settings/Settings").then((module) => ({
-      default: module.Settings,
-    })),
+const Settings = lazy(() =>
+  import("./components/Settings/Settings").then((module) => ({
+    default: module.Settings,
+  })),
 );
 const SpeechPractice = lazy(
   () => import("./components/SpeechPractice/SpeechPractice"),
+);
+const AudioUploads = lazy(
+  () => import("./components/AudioUploads/AudioUploads"),
 );
 
 // Loading fallback component
@@ -91,6 +92,7 @@ function AppContent() {
   const isVocabularyPage = location.pathname === "/vocabulary";
   const isSettingsPage = location.pathname === "/settings";
   const isSpeechPracticePage = location.pathname === "/speech-practice";
+  const isAudioUploadsPage = location.pathname === "/audio-uploads";
   const accountLabel = user.displayName || user.email || "使用者";
   const accountEmail = user.email;
   const accountInitial = accountLabel.charAt(0).toUpperCase();
@@ -100,7 +102,10 @@ function AppContent() {
       label: "閱讀器",
       icon: "📚",
       isActive:
-        !isVocabularyPage && !isSettingsPage && !isSpeechPracticePage,
+        !isVocabularyPage &&
+        !isSettingsPage &&
+        !isSpeechPracticePage &&
+        !isAudioUploadsPage,
     },
     {
       to: "/vocabulary",
@@ -113,6 +118,12 @@ function AppContent() {
       label: "演講練習",
       icon: "🎤",
       isActive: isSpeechPracticePage,
+    },
+    {
+      to: "/audio-uploads",
+      label: "音訊庫",
+      icon: "🎵",
+      isActive: isAudioUploadsPage,
     },
     {
       to: "/settings",
@@ -267,6 +278,7 @@ function AppContent() {
                   <Route path="/" element={<PdfReader />} />
                   <Route path="/vocabulary" element={<VocabularyBook />} />
                   <Route path="/speech-practice" element={<SpeechPractice />} />
+                  <Route path="/audio-uploads" element={<AudioUploads />} />
                   <Route path="/settings" element={<Settings />} />
                 </Routes>
               </Suspense>
