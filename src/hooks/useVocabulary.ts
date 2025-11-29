@@ -8,6 +8,7 @@ import {
   deleteVocabularyWord,
   checkWordExists,
   getUserTags,
+  incrementReviewCount as incrementReviewCountService,
 } from "../services/vocabularyService";
 import { geminiModel } from "../utils/firebaseUtil";
 import type { VocabularyWord, VocabularyFilters } from "../types/vocabulary";
@@ -16,6 +17,7 @@ export const useVocabulary = () => {
   const { user } = useAuth();
   const [words, setWords] = useState<VocabularyWord[]>([]);
   const [loading, setLoading] = useState(false);
+  const [isAdding, setIsAdding] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
   const [lastDocId, setLastDocId] = useState<string | undefined>(undefined);
@@ -40,6 +42,7 @@ export const useVocabulary = () => {
 請以 JSON 格式回覆，包含以下欄位：
 {
   "phonetic": "音標（如果知道的話）",
+  "emoji": "一個最能代表這個單字的 Emoji（例如 apple -> 🍎, run -> 🏃）",
   "definitions": [
     {
       "partOfSpeech": "詞性（如 noun, verb, adjective 等）",
@@ -83,6 +86,7 @@ export const useVocabulary = () => {
 
         return {
           ...(wordData.phonetic && { phonetic: wordData.phonetic }),
+          ...(wordData.emoji && { emoji: wordData.emoji }),
           definitions: wordData.definitions || [],
           examples: wordData.examples || [],
           synonyms: wordData.synonyms || [],
@@ -117,7 +121,7 @@ export const useVocabulary = () => {
       const controller = new AbortController();
       abortControllerRef.current = controller;
 
-      setLoading(true);
+      setIsAdding(true);
       setError(null);
 
       try {
@@ -155,6 +159,7 @@ export const useVocabulary = () => {
           word: word.toLowerCase(),
           userId: user.uid,
           ...(details?.phonetic && { phonetic: details.phonetic }),
+          ...(details?.emoji && { emoji: details.emoji }),
           definitions: details?.definitions || [],
           examples: details?.examples || [],
           synonyms: details?.synonyms || [],
@@ -183,7 +188,7 @@ export const useVocabulary = () => {
         return { success: false, message };
       } finally {
         if (!controller.signal.aborted) {
-          setLoading(false);
+          setIsAdding(false);
         }
       }
     },
@@ -332,9 +337,33 @@ export const useVocabulary = () => {
     }
   }, [user]);
 
+  // Increment review count
+  const incrementReview = useCallback(async (wordId: string) => {
+    try {
+      await incrementReviewCountService(wordId);
+      // Update local state
+      setWords((prev) =>
+        prev.map((w) =>
+          w.id === wordId
+            ? {
+                ...w,
+                reviewCount: (w.reviewCount || 0) + 1,
+                lastReviewedAt: new Date(),
+              }
+            : w,
+        ),
+      );
+      return { success: true };
+    } catch (err) {
+      console.error("Failed to increment review count:", err);
+      return { success: false };
+    }
+  }, []);
+
   return {
     words,
     loading,
+    isAdding,
     error,
     hasMore,
     addWord,
@@ -344,5 +373,6 @@ export const useVocabulary = () => {
     updateWord,
     deleteWord,
     getTags,
+    incrementReview,
   };
 };

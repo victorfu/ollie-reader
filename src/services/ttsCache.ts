@@ -18,16 +18,30 @@ const STORE_NAME = "audio-blobs";
 const DB_VERSION = 1;
 const MAX_CACHE_SIZE = 50; // Maximum number of cached items in memory
 const CACHE_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+const PRUNE_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 hours
+const MAX_DB_ENTRIES = 200; // Hard cap to avoid unbounded IndexedDB growth
 
 class TTSCacheService {
   private memoryCache = new Map<string, CacheEntry>();
   private pendingRequests = new Map<string, PendingRequest>();
   private db: IDBDatabase | null = null;
+  private pruneTimer: number | null = null;
 
   constructor() {
-    this.initDB().catch((err) => {
-      console.warn("Failed to initialize TTS cache DB:", err);
-    });
+    this.initDB()
+      .then(() => {
+        // Best-effort pruning at startup
+        void this.prune();
+        // Periodic pruning to keep storage bounded
+        if (this.pruneTimer === null) {
+          this.pruneTimer = window.setInterval(() => {
+            void this.prune();
+          }, PRUNE_INTERVAL_MS);
+        }
+      })
+      .catch((err) => {
+        console.warn("Failed to initialize TTS cache DB:", err);
+      });
   }
 
   /**
@@ -196,7 +210,11 @@ class TTSCacheService {
       const store = transaction.objectStore(STORE_NAME);
       const request = store.put(entry);
 
-      request.onsuccess = () => resolve();
+      request.onsuccess = () => {
+        resolve();
+        // Best-effort trim after writing
+        void this.enforceDbLimit();
+      };
       request.onerror = () => reject(request.error);
     });
   }
@@ -242,6 +260,41 @@ class TTSCacheService {
           resolve();
         }
       };
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  /**
+   * Ensure IndexedDB does not exceed hard cap. Deletes oldest entries when necessary.
+   */
+  private async enforceDbLimit(): Promise<void> {
+    if (!this.db) return;
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction([STORE_NAME], "readwrite");
+      const store = transaction.objectStore(STORE_NAME);
+      const request = store.openCursor();
+      const entries: CacheEntry[] = [];
+
+      request.onsuccess = (event) => {
+        const cursor = (event.target as IDBRequest)
+          .result as IDBCursorWithValue | null;
+        if (cursor) {
+          entries.push(cursor.value as CacheEntry);
+          cursor.continue();
+        } else {
+          if (entries.length > MAX_DB_ENTRIES) {
+            entries
+              .sort((a, b) => a.timestamp - b.timestamp)
+              .slice(0, entries.length - MAX_DB_ENTRIES)
+              .forEach((entry) => {
+                void this.deleteFromDB(entry.key);
+              });
+          }
+          resolve();
+        }
+      };
+
       request.onerror = () => reject(request.error);
     });
   }

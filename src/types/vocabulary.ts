@@ -5,6 +5,7 @@ export interface VocabularyWord {
 
   // Word details
   phonetic?: string;
+  emoji?: string;
   definitions: Definition[];
   examples: Example[];
   synonyms: string[];

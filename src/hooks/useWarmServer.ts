@@ -5,15 +5,26 @@ import { VERSION_API_URL } from "../constants/api";
 type Options = {
   enabled?: boolean;
   timeoutMs?: number;
+  /**
+   * When true, ping on every route change; otherwise only once on mount.
+   * Defaults to false to avoid repeated network calls on flaky connections.
+   */
+  triggerOnRouteChange?: boolean;
 };
 
 /**
- * Warm-start the backend by calling /api/version whenever the route changes.
+ * Warm-start the backend by calling /api/version.
+ * By default it runs once on mount; set triggerOnRouteChange to true to run on every navigation.
  * Fire-and-forget; failures are ignored.
  */
 export function useWarmServerOnRouteChange(options: Options = {}) {
-  const { enabled = true, timeoutMs = 5000 } = options;
+  const {
+    enabled = true,
+    timeoutMs = 5000,
+    triggerOnRouteChange = false,
+  } = options;
   const location = useLocation();
+  const triggerKey = triggerOnRouteChange ? location.pathname : "app-mount";
 
   useEffect(() => {
     if (!enabled) return;
@@ -41,5 +52,5 @@ export function useWarmServerOnRouteChange(options: Options = {}) {
       clearTimeout(timer);
       controller.abort();
     };
-  }, [location.pathname, enabled, timeoutMs]);
+  }, [triggerKey, enabled, timeoutMs]);
 }

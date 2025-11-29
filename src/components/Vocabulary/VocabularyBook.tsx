@@ -1,13 +1,17 @@
 import { useEffect, useState, useMemo } from "react";
 import type { FormEvent } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import { useVocabulary } from "../../hooks/useVocabulary";
 import { useSpeechState } from "../../hooks/useSpeechState";
 import { useDebounce } from "../../hooks/useDebounce";
 import type { VocabularyWord, VocabularyFilters } from "../../types/vocabulary";
 import { WordDetail } from "../Vocabulary/WordDetail";
+import { VocabularyCard } from "../Vocabulary/VocabularyCard";
 import { SimpleTTSControls } from "../common/SimpleTTSControls";
 import { Toast } from "../common/Toast";
 import { ConfirmModal } from "../common/ConfirmModal";
+
+import { FlashcardMode } from "./FlashcardMode";
 
 // Move groupWordsByDate outside component to prevent recreation on each render
 const groupWordsByDate = (words: VocabularyWord[]) => {
@@ -32,11 +36,13 @@ export const VocabularyBook = () => {
   const {
     words,
     loading,
+    isAdding,
     hasMore,
     loadVocabulary,
     loadMore,
     deleteWord,
     addWord,
+    incrementReview,
   } = useVocabulary();
   const {
     speechSupported,
@@ -64,6 +70,7 @@ export const VocabularyBook = () => {
   } | null>(null);
   const [deleteWordId, setDeleteWordId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isReviewMode, setIsReviewMode] = useState(false);
   const manualWordFieldId = "manual-word-input";
 
   // Load vocabulary when component mounts or filters change
@@ -168,6 +175,16 @@ export const VocabularyBook = () => {
   // Memoize word groups to prevent recalculation on every render
   const wordGroups = useMemo(() => groupWordsByDate(words), [words]);
 
+  if (isReviewMode) {
+    return (
+      <FlashcardMode
+        words={words}
+        onClose={() => setIsReviewMode(false)}
+        onUpdateReview={incrementReview}
+      />
+    );
+  }
+
   return (
     <div className="container mx-auto max-w-7xl">
       {toastMessage && (
@@ -180,7 +197,7 @@ export const VocabularyBook = () => {
 
       {/* TTS Controls */}
       {speechSupported && (
-        <div className="mb-4">
+        <div className="mb-4 flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
           <SimpleTTSControls
             ttsMode={ttsMode}
             speechRate={speechRate}
@@ -190,6 +207,18 @@ export const VocabularyBook = () => {
             onSpeechRateChange={setSpeechRate}
             onStop={stopSpeaking}
           />
+          
+          {words.length > 0 && (
+            <button
+              className="btn btn-primary gap-2 w-full sm:w-auto shadow-md"
+              onClick={() => setIsReviewMode(true)}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+              </svg>
+              開始複習 ({words.length})
+            </button>
+          )}
         </div>
       )}
 
@@ -220,9 +249,9 @@ export const VocabularyBook = () => {
           <button
             type="submit"
             className="btn btn-primary w-full sm:w-auto sm:min-w-[10rem]"
-            disabled={isAddingManualWord || manualWord.trim().length === 0}
+            disabled={isAddingManualWord || isAdding || manualWord.trim().length === 0}
           >
-            {isAddingManualWord ? (
+            {isAddingManualWord || isAdding ? (
               <>
                 <span className="loading loading-spinner loading-xs" />
                 處理中…
@@ -304,101 +333,37 @@ export const VocabularyBook = () => {
 
       {/* Word Groups */}
       {!loading && Object.keys(wordGroups).length > 0 && (
-        <div className="space-y-5">
+        <div className="space-y-8">
           {Object.entries(wordGroups).map(([date, groupWords]) => (
-            <div key={date}>
-              <h2 className="text-lg font-semibold mb-3 text-base-content/70">
+            <motion.div 
+              key={date}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4 }}
+            >
+              <h2 className="text-lg font-bold mb-4 text-base-content/60 flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-primary/60"></span>
                 {date}
+                <span className="text-xs font-normal bg-base-200 px-2 py-0.5 rounded-full">
+                  {groupWords.length}
+                </span>
               </h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                {groupWords.map((word) => (
-                  <div
-                    key={word.id}
-                    className="card bg-base-100 shadow hover:shadow-lg transition-shadow cursor-pointer"
-                    onClick={() => setSelectedWord(word)}
-                  >
-                    <div className="card-body p-4">
-                      <div className="flex justify-between items-start">
-                        <div className="flex-1 min-w-0">
-                          <h3 className="text-xl font-bold mb-1 truncate">
-                            {word.word}
-                          </h3>
-                          {word.phonetic && (
-                            <p className="text-xs text-base-content/60 mb-2">
-                              {word.phonetic}
-                            </p>
-                          )}
-                        </div>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDelete(word.id!);
-                          }}
-                          className="btn btn-ghost btn-xs btn-circle"
-                        >
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            className="h-4 w-4"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                            />
-                          </svg>
-                        </button>
-                      </div>
-
-                      {word.definitions.length > 0 && (
-                        <p className="text-sm line-clamp-2 text-base-content/80">
-                          {word.definitions[0].definition}
-                        </p>
-                      )}
-
-                      {(word.difficulty || word.tags.length > 0) && (
-                        <div className="flex flex-wrap gap-1.5 mt-2">
-                          {word.difficulty && (
-                            <span
-                              className={`badge badge-xs ${
-                                word.difficulty === "easy"
-                                  ? "badge-success"
-                                  : word.difficulty === "medium"
-                                  ? "badge-warning"
-                                  : "badge-error"
-                              }`}
-                            >
-                              {word.difficulty === "easy"
-                                ? "簡單"
-                                : word.difficulty === "medium"
-                                ? "中等"
-                                : "困難"}
-                            </span>
-                          )}
-                          {word.tags.slice(0, 2).map((tag) => (
-                            <span
-                              key={tag}
-                              className="badge badge-xs badge-outline"
-                            >
-                              {tag}
-                            </span>
-                          ))}
-                          {word.tags.length > 2 && (
-                            <span className="badge badge-xs badge-ghost">
-                              +{word.tags.length - 2}
-                            </span>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                <AnimatePresence mode="popLayout">
+                  {groupWords.map((word) => (
+                    <VocabularyCard
+                      key={word.id}
+                      word={word}
+                      onClick={() => setSelectedWord(word)}
+                      onDelete={(e) => {
+                        e.stopPropagation();
+                        handleDelete(word.id!);
+                      }}
+                    />
+                  ))}
+                </AnimatePresence>
               </div>
-            </div>
+            </motion.div>
           ))}
 
           {/* Load More Button */}
