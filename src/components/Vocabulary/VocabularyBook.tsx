@@ -165,6 +165,7 @@ export const VocabularyBook = () => {
   };
 
   const handleLoadMore = async () => {
+    if (isLoadingMore || !hasMore) return;
     setIsLoadingMore(true);
     try {
       await loadMore();
@@ -172,6 +173,24 @@ export const VocabularyBook = () => {
       setIsLoadingMore(false);
     }
   };
+
+  // Infinite scroll handler
+  useEffect(() => {
+    const handleScroll = () => {
+      if (
+        window.innerHeight + window.scrollY >=
+          document.documentElement.scrollHeight - 100 &&
+        hasMore &&
+        !isLoadingMore &&
+        !loading
+      ) {
+        void handleLoadMore();
+      }
+    };
+
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, [hasMore, isLoadingMore, loading]);
 
   // Memoize word groups to prevent recalculation on every render
   const wordGroups = useMemo(() => groupWordsByDate(words), [words]);
@@ -371,24 +390,14 @@ export const VocabularyBook = () => {
             </motion.div>
           ))}
 
-          {/* Load More Button */}
+          {/* Load More Indicator */}
           {hasMore && (
             <div className="text-center py-6">
-              <button
-                type="button"
-                className="btn btn-outline btn-primary"
-                onClick={handleLoadMore}
-                disabled={isLoadingMore}
-              >
-                {isLoadingMore ? (
-                  <>
-                    <span className="loading loading-spinner loading-sm" />
-                    載入中…
-                  </>
-                ) : (
-                  "載入更多"
-                )}
-              </button>
+              {isLoadingMore ? (
+                <span className="loading loading-spinner loading-md text-primary" />
+              ) : (
+                <div className="h-8" /> // Spacer for scroll trigger
+              )}
             </div>
           )}
         </div>

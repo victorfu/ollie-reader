@@ -1,7 +1,9 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import confetti from "canvas-confetti";
 import type { VocabularyWord } from "../../types/vocabulary";
 import { useSpeechState } from "../../hooks/useSpeechState";
+import { usePronunciation } from "../../hooks/usePronunciation";
 
 interface FlashcardModeProps {
   words: VocabularyWord[];
@@ -19,16 +21,45 @@ export const FlashcardMode = ({
   const [isFlipped, setIsFlipped] = useState(false);
   const [isFinished, setIsFinished] = useState(false);
   const [reviewedCount, setReviewedCount] = useState(0);
+  const [showFeedback, setShowFeedback] = useState<"correct" | "incorrect" | null>(null);
 
   const { speak, stopSpeaking, isSpeaking } = useSpeechState();
+  
+  const currentCard = cards[currentIndex];
+
+  const handlePronunciationMatch = useCallback(() => {
+    setShowFeedback("correct");
+    confetti({
+      particleCount: 100,
+      spread: 70,
+      origin: { y: 0.6 },
+      colors: ["#22c55e", "#3b82f6", "#f59e0b", "#ef4444"],
+    });
+    
+    // Play success sound (optional)
+    // const audio = new Audio("/success.mp3");
+    // audio.play();
+
+    setTimeout(() => {
+      setShowFeedback(null);
+      // Optional: Auto flip or next?
+      // handleFlip(); 
+    }, 2000);
+  }, []);
+
+  const {
+    isListening,
+    transcript,
+    startListening,
+    stopListening,
+    isSupported: isSpeechRecognitionSupported,
+  } = usePronunciation(currentCard?.word || "", handlePronunciationMatch);
 
   // Shuffle words on mount
   useEffect(() => {
     const shuffled = [...initialWords].sort(() => Math.random() - 0.5);
     setCards(shuffled);
   }, [initialWords]);
-
-  const currentCard = cards[currentIndex];
 
   const handleFlip = () => {
     setIsFlipped(!isFlipped);
@@ -45,7 +76,9 @@ export const FlashcardMode = ({
       }
 
       stopSpeaking();
+      stopListening(); // Ensure listening stops
       setIsFlipped(false);
+      setShowFeedback(null);
       setReviewedCount((prev) => prev + 1);
 
       if (currentIndex < cards.length - 1) {
@@ -54,7 +87,7 @@ export const FlashcardMode = ({
         setIsFinished(true);
       }
     },
-    [currentIndex, cards.length, currentCard, onUpdateReview, stopSpeaking],
+    [currentIndex, cards.length, currentCard, onUpdateReview, stopSpeaking, stopListening],
   );
 
   const handleRestart = () => {
@@ -177,6 +210,67 @@ export const FlashcardMode = ({
                 {currentCard.phonetic}
               </p>
             )}
+
+            {/* Pronunciation Practice */}
+            {!isFlipped && isSpeechRecognitionSupported && (
+              <div className="mt-6 flex flex-col items-center gap-3">
+                <button
+                  className={`btn btn-circle btn-lg transition-all duration-300 ${
+                    isListening
+                      ? "btn-error animate-pulse scale-110 shadow-[0_0_15px_rgba(239,68,68,0.5)]"
+                      : "btn-primary shadow-lg"
+                  }`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (isListening) {
+                      stopListening();
+                    } else {
+                      startListening();
+                    }
+                  }}
+                >
+                  {isListening ? (
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z" />
+                      <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z" />
+                    </svg>
+                  ) : (
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z" />
+                      <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z" />
+                    </svg>
+                  )}
+                </button>
+                
+                <div className="h-8 flex items-center justify-center">
+                  {isListening ? (
+                    <span className="text-sm text-base-content/60 animate-pulse">
+                      請大聲唸出單字...
+                    </span>
+                  ) : showFeedback === "correct" ? (
+                    <motion.span
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      className="text-lg font-bold text-success flex items-center gap-1"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      </svg>
+                      太棒了！唸對了！
+                    </motion.span>
+                  ) : transcript ? (
+                    <span className="text-sm text-base-content/40">
+                      聽到: "{transcript}"
+                    </span>
+                  ) : (
+                    <span className="text-sm text-base-content/40">
+                      點擊麥克風練習發音
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+
             <div className="mt-8 text-sm text-base-content/40 flex items-center gap-2">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122" />

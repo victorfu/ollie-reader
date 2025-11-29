@@ -230,7 +230,6 @@ export const useVocabulary = () => {
       return;
     }
 
-    setLoading(true);
     setError(null);
 
     try {
@@ -248,8 +247,6 @@ export const useVocabulary = () => {
       const message =
         err instanceof Error ? err.message : "Failed to load more vocabulary";
       setError(message);
-    } finally {
-      setLoading(false);
     }
   }, [user, hasMore, lastDocId]);
 
