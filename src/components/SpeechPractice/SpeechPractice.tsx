@@ -220,7 +220,7 @@ export function SpeechPractice() {
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
               <h1 className="text-2xl font-bold flex items-center gap-2">
-                🎤 英語演講練習
+                🎤 演講練習
               </h1>
               <p className="text-base-content/60 mt-1">
                 選擇主題、計時練習、錄音回放，追蹤你的進步
