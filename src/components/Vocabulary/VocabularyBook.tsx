@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import type { FormEvent } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useVocabulary } from "../../hooks/useVocabulary";
@@ -42,6 +42,8 @@ export const VocabularyBook = () => {
     loadMore,
     deleteWord,
     addWord,
+    updateWord,
+    regenerateWordDetails,
     incrementReview,
   } = useVocabulary();
   const {
@@ -164,7 +166,7 @@ export const VocabularyBook = () => {
     setDeleteWordId(null);
   };
 
-  const handleLoadMore = async () => {
+  const handleLoadMore = useCallback(async () => {
     if (isLoadingMore || !hasMore) return;
     setIsLoadingMore(true);
     try {
@@ -172,7 +174,7 @@ export const VocabularyBook = () => {
     } finally {
       setIsLoadingMore(false);
     }
-  };
+  }, [isLoadingMore, hasMore, loadMore]);
 
   // Infinite scroll handler
   useEffect(() => {
@@ -190,7 +192,7 @@ export const VocabularyBook = () => {
 
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
-  }, [hasMore, isLoadingMore, loading]);
+  }, [hasMore, isLoadingMore, loading, handleLoadMore]);
 
   // Memoize word groups to prevent recalculation on every render
   const wordGroups = useMemo(() => groupWordsByDate(words), [words]);
@@ -227,14 +229,25 @@ export const VocabularyBook = () => {
             onSpeechRateChange={setSpeechRate}
             onStop={stopSpeaking}
           />
-          
+
           {words.length > 0 && (
             <button
               className="btn btn-primary gap-2 w-full sm:w-auto shadow-md"
               onClick={() => setIsReviewMode(true)}
             >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-5 w-5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"
+                />
               </svg>
               開始複習 ({words.length})
             </button>
@@ -269,7 +282,9 @@ export const VocabularyBook = () => {
           <button
             type="submit"
             className="btn btn-primary w-full sm:w-auto sm:min-w-[10rem]"
-            disabled={isAddingManualWord || isAdding || manualWord.trim().length === 0}
+            disabled={
+              isAddingManualWord || isAdding || manualWord.trim().length === 0
+            }
           >
             {isAddingManualWord || isAdding ? (
               <>
@@ -355,7 +370,7 @@ export const VocabularyBook = () => {
       {!loading && Object.keys(wordGroups).length > 0 && (
         <div className="space-y-8">
           {Object.entries(wordGroups).map(([date, groupWords]) => (
-            <motion.div 
+            <motion.div
               key={date}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -408,7 +423,8 @@ export const VocabularyBook = () => {
         <WordDetail
           word={selectedWord}
           onClose={() => setSelectedWord(null)}
-          onUpdate={() => loadVocabulary(filters)}
+          onUpdateWord={updateWord}
+          onRegenerateWordDetails={regenerateWordDetails}
         />
       )}
 

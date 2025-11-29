@@ -21,10 +21,12 @@ export const FlashcardMode = ({
   const [isFlipped, setIsFlipped] = useState(false);
   const [isFinished, setIsFinished] = useState(false);
   const [reviewedCount, setReviewedCount] = useState(0);
-  const [showFeedback, setShowFeedback] = useState<"correct" | "incorrect" | null>(null);
+  const [showFeedback, setShowFeedback] = useState<
+    "correct" | "incorrect" | null
+  >(null);
 
   const { speak, stopSpeaking, isSpeaking } = useSpeechState();
-  
+
   const currentCard = cards[currentIndex];
 
   const handlePronunciationMatch = useCallback(() => {
@@ -35,7 +37,7 @@ export const FlashcardMode = ({
       origin: { y: 0.6 },
       colors: ["#22c55e", "#3b82f6", "#f59e0b", "#ef4444"],
     });
-    
+
     // Play success sound (optional)
     // const audio = new Audio("/success.mp3");
     // audio.play();
@@ -43,7 +45,7 @@ export const FlashcardMode = ({
     setTimeout(() => {
       setShowFeedback(null);
       // Optional: Auto flip or next?
-      // handleFlip(); 
+      // handleFlip();
     }, 2000);
   }, []);
 
@@ -61,13 +63,9 @@ export const FlashcardMode = ({
     setCards(shuffled);
   }, [initialWords]);
 
-  const handleFlip = () => {
-    setIsFlipped(!isFlipped);
-    if (!isFlipped && currentCard) {
-      // Auto-play audio when flipping to back (optional, maybe better on demand)
-      // speak(currentCard.word); 
-    }
-  };
+  const handleFlip = useCallback(() => {
+    setIsFlipped((prev) => !prev);
+  }, []);
 
   const handleNext = useCallback(
     (remembered: boolean) => {
@@ -87,7 +85,14 @@ export const FlashcardMode = ({
         setIsFinished(true);
       }
     },
-    [currentIndex, cards.length, currentCard, onUpdateReview, stopSpeaking, stopListening],
+    [
+      currentIndex,
+      cards.length,
+      currentCard,
+      onUpdateReview,
+      stopSpeaking,
+      stopListening,
+    ],
   );
 
   const handleRestart = () => {
@@ -103,7 +108,7 @@ export const FlashcardMode = ({
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (isFinished) return;
-      
+
       if (e.code === "Space") {
         e.preventDefault();
         handleFlip();
@@ -116,7 +121,7 @@ export const FlashcardMode = ({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isFlipped, isFinished, handleNext]);
+  }, [isFlipped, isFinished, handleNext, handleFlip]);
 
   if (cards.length === 0) {
     return (
@@ -134,9 +139,7 @@ export const FlashcardMode = ({
       <div className="flex flex-col items-center justify-center min-h-[50vh] text-center p-8 bg-base-100 rounded-xl shadow-lg max-w-2xl mx-auto mt-8">
         <div className="text-6xl mb-6">🎉</div>
         <h2 className="text-3xl font-bold mb-4">複習完成！</h2>
-        <p className="text-xl mb-8">
-          你已經複習了 {reviewedCount} 個單字。
-        </p>
+        <p className="text-xl mb-8">你已經複習了 {reviewedCount} 個單字。</p>
         <div className="flex gap-4">
           <button className="btn btn-outline" onClick={onClose}>
             返回列表
@@ -185,24 +188,27 @@ export const FlashcardMode = ({
       ></progress>
 
       {/* Card Container */}
-      <div className="perspective-1000 w-full max-w-md h-[400px] cursor-pointer group" onClick={handleFlip}>
+      <div
+        className="perspective-1000 w-full max-w-md h-[400px] cursor-pointer group"
+        onClick={handleFlip}
+      >
         <motion.div
           className="relative w-full h-full transition-all duration-500 preserve-3d"
           animate={{ rotateY: isFlipped ? 180 : 0 }}
-          transition={{ duration: 0.6, type: "spring", stiffness: 260, damping: 20 }}
+          transition={{
+            duration: 0.6,
+            type: "spring",
+            stiffness: 260,
+            damping: 20,
+          }}
           style={{ transformStyle: "preserve-3d" }}
         >
           {/* Front */}
-          <div className="absolute inset-0 backface-hidden bg-base-100 rounded-2xl shadow-xl flex flex-col items-center justify-center p-8 border-2 border-base-200">
-            <span className="text-sm uppercase tracking-widest text-base-content/40 mb-4">
+          <div className="absolute inset-0 backface-hidden bg-base-100 rounded-2xl shadow-xl flex flex-col items-center justify-center p-8 border-2 border-base-200 overflow-hidden">
+            <span className="text-sm uppercase tracking-widest text-base-content/40 mb-4 flex-shrink-0">
               單字
             </span>
-            {currentCard?.emoji && (
-              <div className="text-8xl mb-6 animate-bounce-slow">
-                {currentCard.emoji}
-              </div>
-            )}
-            <h2 className="text-4xl font-bold text-center mb-4 break-words w-full">
+            <h2 className="text-4xl font-bold text-center mb-4 break-words w-full flex-shrink-0">
               {currentCard?.word}
             </h2>
             {currentCard?.phonetic && (
@@ -230,18 +236,28 @@ export const FlashcardMode = ({
                   }}
                 >
                   {isListening ? (
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" viewBox="0 0 24 24" fill="currentColor">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="h-8 w-8"
+                      viewBox="0 0 24 24"
+                      fill="currentColor"
+                    >
                       <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z" />
                       <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z" />
                     </svg>
                   ) : (
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" viewBox="0 0 24 24" fill="currentColor">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="h-8 w-8"
+                      viewBox="0 0 24 24"
+                      fill="currentColor"
+                    >
                       <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z" />
                       <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z" />
                     </svg>
                   )}
                 </button>
-                
+
                 <div className="h-8 flex items-center justify-center">
                   {isListening ? (
                     <span className="text-sm text-base-content/60 animate-pulse">
@@ -253,8 +269,17 @@ export const FlashcardMode = ({
                       animate={{ scale: 1 }}
                       className="text-lg font-bold text-success flex items-center gap-1"
                     >
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        className="h-5 w-5"
+                        viewBox="0 0 20 20"
+                        fill="currentColor"
+                      >
+                        <path
+                          fillRule="evenodd"
+                          d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                          clipRule="evenodd"
+                        />
                       </svg>
                       太棒了！唸對了！
                     </motion.span>
@@ -272,8 +297,19 @@ export const FlashcardMode = ({
             )}
 
             <div className="mt-8 text-sm text-base-content/40 flex items-center gap-2">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122" />
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-4 w-4"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122"
+                />
               </svg>
               點擊翻看背面
             </div>
@@ -298,8 +334,19 @@ export const FlashcardMode = ({
                 {isSpeaking ? (
                   <span className="loading loading-spinner loading-xs"></span>
                 ) : (
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-5 w-5"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"
+                    />
                   </svg>
                 )}
               </button>

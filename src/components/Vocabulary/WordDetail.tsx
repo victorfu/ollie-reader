@@ -1,18 +1,39 @@
 import { useState } from "react";
-import { useVocabulary } from "../../hooks/useVocabulary";
 import { useSpeechState } from "../../hooks/useSpeechState";
+import { Toast } from "../common/Toast";
 import type { VocabularyWord } from "../../types/vocabulary";
 
 interface WordDetailProps {
   word: VocabularyWord;
   onClose: () => void;
-  onUpdate: () => void;
+  onUpdateWord: (
+    wordId: string,
+    updates: Partial<VocabularyWord>,
+  ) => Promise<{ success: boolean; message?: string }>;
+  onRegenerateWordDetails: (
+    wordId: string,
+    word: string,
+  ) => Promise<{
+    success: boolean;
+    message?: string;
+    updatedWord?: Partial<VocabularyWord>;
+  }>;
 }
 
-export const WordDetail = ({ word, onClose, onUpdate }: WordDetailProps) => {
-  const { updateWord } = useVocabulary();
+export const WordDetail = ({
+  word: initialWord,
+  onClose,
+  onUpdateWord,
+  onRegenerateWordDetails,
+}: WordDetailProps) => {
   const { speak } = useSpeechState();
+  const [word, setWord] = useState<VocabularyWord>(initialWord);
   const [isEditing, setIsEditing] = useState(false);
+  const [isRegenerating, setIsRegenerating] = useState(false);
+  const [toast, setToast] = useState<{
+    message: string;
+    type: "success" | "error" | "info";
+  } | null>(null);
   const [editedTags, setEditedTags] = useState(word.tags.join(", "));
   const [editedDifficulty, setEditedDifficulty] = useState(
     word.difficulty || "",
@@ -25,13 +46,16 @@ export const WordDetail = ({ word, onClose, onUpdate }: WordDetailProps) => {
       .map((t) => t.trim())
       .filter((t) => t.length > 0);
 
-    await updateWord(word.id!, {
+    const updates = {
       tags,
       difficulty: editedDifficulty as "easy" | "medium" | "hard" | undefined,
-    });
+    };
 
+    await onUpdateWord(word.id!, updates);
+
+    // Update local state to reflect changes
+    setWord((prev) => ({ ...prev, ...updates }));
     setIsEditing(false);
-    onUpdate();
   };
 
   const handleAddTag = () => {
@@ -52,6 +76,32 @@ export const WordDetail = ({ word, onClose, onUpdate }: WordDetailProps) => {
 
   const handleSpeak = () => {
     speak(word.word);
+  };
+
+  const handleRegenerate = async () => {
+    if (!word.id || isRegenerating) return;
+
+    setIsRegenerating(true);
+    setToast(null);
+
+    try {
+      const result = await onRegenerateWordDetails(word.id, word.word);
+
+      if (result.success && result.updatedWord) {
+        // Update local word state with new AI-generated content
+        setWord((prev) => ({ ...prev, ...result.updatedWord }));
+        setToast({ message: "已重新生成解釋！", type: "success" });
+      } else {
+        setToast({
+          message: result.message || "重新生成失敗",
+          type: "error",
+        });
+      }
+    } catch {
+      setToast({ message: "重新生成時發生錯誤", type: "error" });
+    } finally {
+      setIsRegenerating(false);
+    }
   };
 
   return (
@@ -82,6 +132,32 @@ export const WordDetail = ({ word, onClose, onUpdate }: WordDetailProps) => {
                     d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"
                   />
                 </svg>
+              </button>
+              <button
+                type="button"
+                onClick={handleRegenerate}
+                disabled={isRegenerating}
+                className="btn btn-circle btn-sm btn-ghost"
+                title="重新生成解釋"
+              >
+                {isRegenerating ? (
+                  <span className="loading loading-spinner loading-xs"></span>
+                ) : (
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-5 w-5"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                    />
+                  </svg>
+                )}
               </button>
             </div>
             {word.phonetic && (
@@ -312,6 +388,15 @@ export const WordDetail = ({ word, onClose, onUpdate }: WordDetailProps) => {
         </div>
       </div>
       <div className="modal-backdrop" onClick={onClose}></div>
+
+      {/* Toast notification */}
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
     </div>
   );
 };

@@ -32,6 +32,7 @@ const SpeechPractice = lazy(
 const AudioUploads = lazy(
   () => import("./components/AudioUploads/AudioUploads"),
 );
+const SpiritAdventure = lazy(() => import("./components/Game/SpiritAdventure"));
 
 // Loading fallback component
 function RouteLoadingFallback() {
@@ -89,10 +90,12 @@ function AppContent() {
     void signOutUser();
   };
 
+  const isReaderPage = location.pathname === "/";
   const isVocabularyPage = location.pathname === "/vocabulary";
   const isSettingsPage = location.pathname === "/settings";
   const isSpeechPracticePage = location.pathname === "/speech-practice";
   const isAudioUploadsPage = location.pathname === "/audio-uploads";
+  const isGamePage = location.pathname === "/game";
   const accountLabel = user.displayName || user.email || "使用者";
   const accountEmail = user.email;
   const accountInitial = accountLabel.charAt(0).toUpperCase();
@@ -101,11 +104,7 @@ function AppContent() {
       to: "/",
       label: "閱讀器",
       icon: "📚",
-      isActive:
-        !isVocabularyPage &&
-        !isSettingsPage &&
-        !isSpeechPracticePage &&
-        !isAudioUploadsPage,
+      isActive: isReaderPage,
     },
     {
       to: "/vocabulary",
@@ -124,6 +123,12 @@ function AppContent() {
       label: "音訊庫",
       icon: "🎵",
       isActive: isAudioUploadsPage,
+    },
+    {
+      to: "/game",
+      label: "精靈探險",
+      icon: "🎮",
+      isActive: isGamePage,
     },
     {
       to: "/settings",
@@ -279,6 +284,7 @@ function AppContent() {
                   <Route path="/vocabulary" element={<VocabularyBook />} />
                   <Route path="/speech-practice" element={<SpeechPractice />} />
                   <Route path="/audio-uploads" element={<AudioUploads />} />
+                  <Route path="/game" element={<SpiritAdventure />} />
                   <Route path="/settings" element={<Settings />} />
                 </Routes>
               </Suspense>

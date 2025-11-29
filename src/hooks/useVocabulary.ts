@@ -238,7 +238,12 @@ export const useVocabulary = () => {
         cursor: lastDocId,
       };
       const result = await getUserVocabulary(user.uid, filters);
-      setWords((prev) => [...prev, ...result.words]);
+      // Deduplicate words to prevent React key warnings
+      setWords((prev) => {
+        const existingIds = new Set(prev.map((w) => w.id));
+        const newWords = result.words.filter((w) => !existingIds.has(w.id));
+        return [...prev, ...newWords];
+      });
       setHasMore(result.hasMore);
       setLastDocId(result.lastDocId);
     } catch (err) {
@@ -357,6 +362,55 @@ export const useVocabulary = () => {
     }
   }, []);
 
+  // Regenerate word details using AI
+  const regenerateWordDetails = useCallback(
+    async (
+      wordId: string,
+      word: string,
+    ): Promise<{
+      success: boolean;
+      message?: string;
+      updatedWord?: Partial<VocabularyWord>;
+    }> => {
+      try {
+        // Fetch new word details from Gemini AI
+        const details = await fetchWordDetails(word);
+
+        if (!details) {
+          return { success: false, message: "無法取得 AI 生成的內容" };
+        }
+
+        const updates: Partial<VocabularyWord> = {
+          ...(details.phonetic && { phonetic: details.phonetic }),
+          ...(details.emoji && { emoji: details.emoji }),
+          definitions: details.definitions || [],
+          examples: details.examples || [],
+          synonyms: details.synonyms || [],
+          antonyms: details.antonyms || [],
+        };
+
+        // Update in Firestore
+        await updateVocabularyWord(wordId, updates);
+
+        // Update local state
+        setWords((prev) =>
+          prev.map((w) => (w.id === wordId ? { ...w, ...updates } : w)),
+        );
+
+        return {
+          success: true,
+          message: "已重新生成解釋",
+          updatedWord: updates,
+        };
+      } catch (err) {
+        console.error("Failed to regenerate word details:", err);
+        const message = err instanceof Error ? err.message : "重新生成失敗";
+        return { success: false, message };
+      }
+    },
+    [fetchWordDetails],
+  );
+
   return {
     words,
     loading,
@@ -371,5 +425,6 @@ export const useVocabulary = () => {
     deleteWord,
     getTags,
     incrementReview,
+    regenerateWordDetails,
   };
 };

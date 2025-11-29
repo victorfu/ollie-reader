@@ -1,9 +1,13 @@
 import { useState } from "react";
 import { useSettings } from "../../hooks/useSettings";
+import { useAuth } from "../../hooks/useAuth";
+import { resetGameProgress } from "../../services/gameProgressService";
+import { ConfirmModal } from "../common/ConfirmModal";
 import type { TranslationApiType } from "../../types/settings";
 import type { TTSMode } from "../../types/pdf";
 
 export const Settings = () => {
+  const { user } = useAuth();
   const {
     translationApi,
     ttsMode,
@@ -14,6 +18,9 @@ export const Settings = () => {
   } = useSettings();
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [resetting, setResetting] = useState(false);
+  const [resetSuccess, setResetSuccess] = useState(false);
 
   const handleApiChange = async (api: TranslationApiType) => {
     setSaving(true);
@@ -42,6 +49,22 @@ export const Settings = () => {
       console.error("Failed to save settings:", err);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleResetGameProgress = async () => {
+    if (!user) return;
+
+    setResetting(true);
+    try {
+      await resetGameProgress(user.uid);
+      setShowResetModal(false);
+      setResetSuccess(true);
+      setTimeout(() => setResetSuccess(false), 3000);
+    } catch (err) {
+      console.error("Failed to reset game progress:", err);
+    } finally {
+      setResetting(false);
     }
   };
 
@@ -74,6 +97,12 @@ export const Settings = () => {
           {saveSuccess && (
             <div className="alert alert-success mb-4">
               <span>✓ 設定已儲存</span>
+            </div>
+          )}
+
+          {resetSuccess && (
+            <div className="alert alert-success mb-4">
+              <span>✓ 遊戲進度已重設</span>
             </div>
           )}
 
@@ -175,9 +204,51 @@ export const Settings = () => {
                 <span>儲存中...</span>
               </div>
             )}
+
+            {/* Divider */}
+            <div className="divider"></div>
+
+            {/* Game Settings */}
+            <div>
+              <h3 className="text-lg font-semibold mb-3">🎮 遊戲設定</h3>
+              <p className="text-sm text-base-content/70 mb-4">
+                管理精靈冒險遊戲的進度
+              </p>
+
+              <div className="p-4 border border-error/30 rounded-lg bg-error/5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="font-medium text-error">重設遊戲進度</div>
+                    <div className="text-sm text-base-content/60">
+                      清除所有關卡進度、等級和已收集的精靈（不影響單字本）
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    className="btn btn-error btn-outline"
+                    onClick={() => setShowResetModal(true)}
+                    disabled={!user}
+                  >
+                    重設進度
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
+
+      <ConfirmModal
+        isOpen={showResetModal}
+        title="確定要重設遊戲進度嗎？"
+        message="這將會清除所有關卡進度、等級和已收集的精靈。此操作無法復原，但不會影響你的單字本。"
+        confirmText="確定重設"
+        cancelText="取消"
+        confirmVariant="error"
+        isLoading={resetting}
+        onConfirm={handleResetGameProgress}
+        onCancel={() => setShowResetModal(false)}
+      />
     </div>
   );
 };
