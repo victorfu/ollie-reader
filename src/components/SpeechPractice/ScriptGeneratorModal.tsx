@@ -168,36 +168,32 @@ export function ScriptGeneratorModal({
             </div>
           )}
 
-          {/* Generated Script Section */}
-          {(generatedScript || isGenerating) && (
-            <div className="space-y-2">
-              <label className="flex items-center gap-2 text-sm font-medium">
-                <span>📄 生成的講稿</span>
-                {generatedScript && (
-                  <span className="badge badge-ghost badge-sm">可編輯</span>
-                )}
-              </label>
-              {isGenerating ? (
-                <div className="bg-base-200 rounded-lg p-8 flex flex-col items-center justify-center gap-3">
-                  <span className="loading loading-dots loading-lg text-primary" />
-                  <p className="text-base-content/60">AI 正在努力撰寫講稿...</p>
-                </div>
-              ) : (
-                <textarea
-                  className="textarea textarea-bordered w-full text-sm leading-relaxed"
-                  placeholder="生成的講稿會顯示在這裡..."
-                  value={generatedScript}
-                  onChange={(e) => onScriptChange(e.target.value)}
-                  rows={12}
-                />
-              )}
-              {generatedScript && !isGenerating && (
-                <p className="text-xs text-base-content/50">
-                  💡 提示：你可以直接編輯上方的講稿內容
-                </p>
-              )}
-            </div>
-          )}
+          {/* Script Section - Always visible for direct editing */}
+          <div className="space-y-2">
+            <label className="flex items-center gap-2 text-sm font-medium">
+              <span>📄 講稿內容</span>
+              <span className="badge badge-ghost badge-sm">可編輯</span>
+            </label>
+            {isGenerating ? (
+              <div className="bg-base-200 rounded-lg p-8 flex flex-col items-center justify-center gap-3">
+                <span className="loading loading-dots loading-lg text-primary" />
+                <p className="text-base-content/60">AI 正在努力撰寫講稿...</p>
+              </div>
+            ) : (
+              <textarea
+                className="textarea textarea-bordered w-full text-sm leading-relaxed"
+                placeholder="可直接輸入或編輯講稿內容，或使用上方 AI 生成..."
+                value={generatedScript}
+                onChange={(e) => onScriptChange(e.target.value)}
+                rows={12}
+              />
+            )}
+            {!isGenerating && (
+              <p className="text-xs text-base-content/50">
+                💡 提示：你可以直接編輯講稿，或使用 AI 生成後再修改
+              </p>
+            )}
+          </div>
         </div>
 
         <div className="modal-action pt-4 border-t border-base-300 mt-4">
@@ -209,35 +205,33 @@ export function ScriptGeneratorModal({
           >
             取消
           </button>
-          {generatedScript && !isGenerating && (
-            <button
-              type="button"
-              className="btn btn-primary gap-2"
-              onClick={handleUseScript}
-              disabled={isSaving}
-            >
-              {isSaving ? (
-                <>
-                  <span className="loading loading-spinner loading-xs" />
-                  儲存中...
-                </>
-              ) : (
-                <>
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="h-4 w-4"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                  >
-                    <polyline points="20 6 9 17 4 12" />
-                  </svg>
-                  儲存講稿
-                </>
-              )}
-            </button>
-          )}
+          <button
+            type="button"
+            className="btn btn-primary gap-2"
+            onClick={handleUseScript}
+            disabled={isSaving || isGenerating || !generatedScript.trim()}
+          >
+            {isSaving ? (
+              <>
+                <span className="loading loading-spinner loading-xs" />
+                儲存中...
+              </>
+            ) : (
+              <>
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-4 w-4"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+                儲存講稿
+              </>
+            )}
+          </button>
         </div>
       </div>
 

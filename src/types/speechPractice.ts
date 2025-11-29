@@ -91,6 +91,18 @@ export const SPEECH_TOPICS: SpeechPracticeTopic[] = [
     difficulty: "beginner",
     suggestedTimeSeconds: 300,
   },
+  {
+    id: "special-experience-belize-delegate",
+    title: "A Special Experience — A Selected Young Delegate to Belize",
+    titleChinese: "一段特別的經歷——受選為貝里斯青年代表",
+    description:
+      "Share your experience of being selected as a young delegate to Belize. Describe the selection process, your feelings upon receiving the news, and the most memorable moments during your trip. Additionally, discuss how this experience has influenced your perspective on international relations and cultural exchange.",
+    descriptionChinese:
+      "請分享你受選為貝里斯青年代表的經歷。描述選拔過程、收到消息時的心情，以及旅程中最難忘的時刻。此外，討論這段經歷如何影響你對國際關係和文化交流的看法。",
+    category: "academic",
+    difficulty: "advanced",
+    suggestedTimeSeconds: 300,
+  },
 ];
 
 export const DEFAULT_PRACTICE_PAGE_SIZE = 20;
