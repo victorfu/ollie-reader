@@ -53,6 +53,7 @@ export const VocabularyBook = () => {
     setTtsMode,
     isLoadingAudio,
     stopSpeaking,
+    speak,
   } = useSpeechState();
   const [selectedWord, setSelectedWord] = useState<VocabularyWord | null>(null);
   const [filters, setFilters] = useState<VocabularyFilters>({
@@ -355,6 +356,10 @@ export const VocabularyBook = () => {
                       key={word.id}
                       word={word}
                       onClick={() => setSelectedWord(word)}
+                      onPlay={(e) => {
+                        e.stopPropagation();
+                        speak(word.word);
+                      }}
                       onDelete={(e) => {
                         e.stopPropagation();
                         handleDelete(word.id!);

@@ -19,7 +19,8 @@ export function AudioUploadList({
   onRefreshUrl,
 }: AudioUploadListProps) {
   const [audioErrors, setAudioErrors] = useState<Set<string>>(new Set());
-  const [playingId, setPlayingId] = useState<string | null>(null);
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
   const audioRefs = useRef<Map<string, HTMLAudioElement>>(new Map());
 
   const formatDuration = (seconds: number): string => {
@@ -64,23 +65,33 @@ export function AudioUploadList({
     const audio = audioRefs.current.get(uploadId);
     if (!audio) return;
 
-    if (playingId === uploadId) {
-      audio.pause();
-      setPlayingId(null);
+    if (activeId === uploadId) {
+      if (isPlaying) {
+        audio.pause();
+      } else {
+        audio.play().catch((err) => console.error("Playback failed:", err));
+      }
     } else {
       // Pause any currently playing audio
-      if (playingId) {
-        const currentAudio = audioRefs.current.get(playingId);
+      if (activeId) {
+        const currentAudio = audioRefs.current.get(activeId);
         currentAudio?.pause();
       }
-      audio.play();
-      setPlayingId(uploadId);
+      setActiveId(uploadId);
+      // Allow a brief moment for state to update if needed, though refs are immediate
+      setTimeout(() => {
+        const newAudio = audioRefs.current.get(uploadId);
+        newAudio?.play().catch((err) => console.error("Playback failed:", err));
+      }, 0);
     }
   };
 
   const handleAudioEnded = (uploadId: string) => {
-    if (playingId === uploadId) {
-      setPlayingId(null);
+    if (activeId === uploadId) {
+      setIsPlaying(false);
+      // Optional: keep player open or close it. 
+      // Keeping it open allows easy replay.
+      // setActiveId(null); 
     }
   };
 
@@ -144,14 +155,15 @@ export function AudioUploadList({
         {uploads.map((upload) => {
           const hasSignedUrl = upload.id && audioUrls.has(upload.id);
           const hasError = upload.id && audioErrors.has(upload.id);
-          const isPlaying = playingId === upload.id;
+          const isActive = activeId === upload.id;
+          const isCurrentPlaying = isActive && isPlaying;
           const isLoading = !hasSignedUrl && !hasError;
 
           return (
             <div
               key={upload.id}
               className={`group relative bg-base-100 rounded-2xl border transition-all duration-200 ${
-                isPlaying
+                isActive
                   ? "border-primary shadow-lg shadow-primary/10"
                   : "border-base-200 hover:border-base-300 hover:shadow-md"
               }`}
@@ -192,14 +204,14 @@ export function AudioUploadList({
                       <button
                         type="button"
                         className={`w-14 h-14 rounded-xl flex items-center justify-center transition-all duration-200 ${
-                          isPlaying
+                          isCurrentPlaying
                             ? "bg-primary text-primary-content"
                             : "bg-gradient-to-br from-primary/80 to-secondary/80 text-white hover:scale-105"
                         }`}
                         onClick={() => upload.id && handlePlayPause(upload.id)}
-                        title={isPlaying ? "暫停" : "播放"}
+                        title={isCurrentPlaying ? "暫停" : "播放"}
                       >
-                        {isPlaying ? (
+                        {isCurrentPlaying ? (
                           <svg
                             xmlns="http://www.w3.org/2000/svg"
                             className="h-7 w-7"
@@ -290,12 +302,13 @@ export function AudioUploadList({
                   </div>
                 </div>
 
-                {/* Audio Player - only one element, shown when playing */}
+                {/* Audio Player - only one element, shown when active */}
                 {hasSignedUrl && upload.id && (
                   <div
                     className={`mt-3 pt-3 border-t border-base-200 ${
-                      isPlaying ? "" : "hidden"
+                      isActive ? "" : "hidden"
                     }`}
+                    onClick={(e) => e.stopPropagation()} // Prevent clicks from bubbling
                   >
                     <audio
                       ref={(el) => setAudioRef(upload.id!, el)}
@@ -304,10 +317,11 @@ export function AudioUploadList({
                       src={audioUrls.get(upload.id)}
                       preload="metadata"
                       onEnded={() => handleAudioEnded(upload.id!)}
+                      onPlay={() => {
+                        if (activeId === upload.id) setIsPlaying(true);
+                      }}
                       onPause={() => {
-                        if (playingId === upload.id) {
-                          setPlayingId(null);
-                        }
+                        if (activeId === upload.id) setIsPlaying(false);
                       }}
                       onError={() =>
                         handleAudioError(upload.id!, upload.audioUrl)
