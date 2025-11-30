@@ -89,9 +89,9 @@ export function AudioUploadList({
   const handleAudioEnded = (uploadId: string) => {
     if (activeId === uploadId) {
       setIsPlaying(false);
-      // Optional: keep player open or close it. 
+      // Optional: keep player open or close it.
       // Keeping it open allows easy replay.
-      // setActiveId(null); 
+      // setActiveId(null);
     }
   };
 
@@ -162,20 +162,20 @@ export function AudioUploadList({
           return (
             <div
               key={upload.id}
-              className={`group relative bg-base-100 rounded-2xl border transition-all duration-200 ${
+              className={`group relative bg-base-100 rounded-2xl border overflow-hidden transition-all duration-200 ${
                 isActive
                   ? "border-primary shadow-lg shadow-primary/10"
                   : "border-base-200 hover:border-base-300 hover:shadow-md"
               }`}
             >
-              <div className="p-4">
-                <div className="flex items-center gap-4">
+              <div className="p-3 sm:p-4 overflow-hidden">
+                <div className="flex items-start sm:items-center gap-3 sm:gap-4 w-full">
                   {/* Play Button / Album Art */}
-                  <div className="flex-shrink-0">
+                  <div className="shrink-0">
                     {hasError ? (
                       <button
                         type="button"
-                        className="w-14 h-14 rounded-xl bg-error/10 flex items-center justify-center text-error hover:bg-error/20 transition-colors"
+                        className="w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-error/10 flex items-center justify-center text-error hover:bg-error/20 transition-colors"
                         onClick={() =>
                           upload.id && handleRetry(upload.id, upload.audioUrl)
                         }
@@ -183,7 +183,7 @@ export function AudioUploadList({
                       >
                         <svg
                           xmlns="http://www.w3.org/2000/svg"
-                          className="h-6 w-6"
+                          className="h-5 w-5 sm:h-6 sm:w-6"
                           fill="none"
                           viewBox="0 0 24 24"
                           stroke="currentColor"
@@ -197,13 +197,13 @@ export function AudioUploadList({
                         </svg>
                       </button>
                     ) : isLoading ? (
-                      <div className="w-14 h-14 rounded-xl bg-base-200 flex items-center justify-center">
+                      <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-base-200 flex items-center justify-center">
                         <span className="loading loading-spinner loading-sm" />
                       </div>
                     ) : (
                       <button
                         type="button"
-                        className={`w-14 h-14 rounded-xl flex items-center justify-center transition-all duration-200 ${
+                        className={`w-12 h-12 sm:w-14 sm:h-14 rounded-xl flex items-center justify-center transition-all duration-200 ${
                           isCurrentPlaying
                             ? "bg-primary text-primary-content"
                             : "bg-gradient-to-br from-primary/80 to-secondary/80 text-white hover:scale-105"
@@ -214,7 +214,7 @@ export function AudioUploadList({
                         {isCurrentPlaying ? (
                           <svg
                             xmlns="http://www.w3.org/2000/svg"
-                            className="h-7 w-7"
+                            className="h-6 w-6 sm:h-7 sm:w-7"
                             viewBox="0 0 24 24"
                             fill="currentColor"
                           >
@@ -223,7 +223,7 @@ export function AudioUploadList({
                         ) : (
                           <svg
                             xmlns="http://www.w3.org/2000/svg"
-                            className="h-7 w-7 ml-1"
+                            className="h-6 w-6 sm:h-7 sm:w-7 ml-1"
                             viewBox="0 0 24 24"
                             fill="currentColor"
                           >
@@ -235,16 +235,18 @@ export function AudioUploadList({
                   </div>
 
                   {/* Audio Info */}
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-semibold truncate text-base">
+                  <div className="flex-1 min-w-0 overflow-hidden">
+                    <h3 className="font-semibold text-sm sm:text-base truncate">
                       {upload.title}
                     </h3>
-                    <div className="flex items-center gap-2 mt-1 text-sm text-base-content/60">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1 text-xs sm:text-sm text-base-content/60">
                       <span>{formatDuration(upload.durationSeconds)}</span>
                       <span className="w-1 h-1 rounded-full bg-base-content/30" />
                       <span>{formatFileSize(upload.fileSize)}</span>
-                      <span className="w-1 h-1 rounded-full bg-base-content/30" />
-                      <span>{formatDate(upload.createdAt)}</span>
+                      <span className="hidden sm:inline w-1 h-1 rounded-full bg-base-content/30" />
+                      <span className="hidden sm:inline">
+                        {formatDate(upload.createdAt)}
+                      </span>
                     </div>
                     {upload.description && (
                       <p className="text-sm text-base-content/50 mt-1 truncate">
@@ -254,7 +256,7 @@ export function AudioUploadList({
                   </div>
 
                   {/* Actions */}
-                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="flex items-center gap-1 shrink-0 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                     <button
                       type="button"
                       className="btn btn-ghost btn-sm btn-circle"

@@ -216,7 +216,7 @@ export function AudioUploads() {
         <div className="card-body p-0">
           {/* Drag & Drop Zone */}
           <div
-            className={`relative p-8 transition-all duration-300 ${
+            className={`relative p-4 sm:p-6 md:p-8 transition-all duration-300 ${
               isDragging
                 ? "bg-primary/10 border-primary"
                 : selectedFile
@@ -293,7 +293,7 @@ export function AudioUploads() {
               </div>
             ) : (
               // File selected - show preview and title input
-              <div className="max-w-lg mx-auto">
+              <div className="w-full sm:max-w-lg mx-auto">
                 {/* File Preview Card */}
                 <div className="bg-base-100 rounded-2xl p-4 shadow-lg border border-base-300 mb-4">
                   <div className="flex items-center gap-4">

@@ -49,7 +49,7 @@ export function AudioUploadEditModal({
   if (!isOpen || !upload) return null;
 
   return (
-    <dialog className="modal modal-open">
+    <dialog className="modal modal-bottom sm:modal-middle modal-open">
       <div className="modal-box">
         <h3 className="font-bold text-lg mb-4">編輯音訊資訊</h3>
 

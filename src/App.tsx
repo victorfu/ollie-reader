@@ -218,7 +218,16 @@ function AppContent() {
                   key={`mobile-${item.to}`}
                   className={`md:hidden ${item.isActive ? "active" : ""}`}
                 >
-                  <Link to={item.to} className="flex items-center gap-2">
+                  <Link
+                    to={item.to}
+                    className="flex items-center gap-2"
+                    onClick={() => {
+                      // Close dropdown on mobile by removing focus
+                      if (document.activeElement instanceof HTMLElement) {
+                        document.activeElement.blur();
+                      }
+                    }}
+                  >
                     <span>{item.icon}</span>
                     <span>{item.label}</span>
                   </Link>
