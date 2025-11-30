@@ -4,6 +4,7 @@ import confetti from "canvas-confetti";
 import type { QuizState, Stage } from "../../types/game";
 import { SPIRIT_COMPONENTS } from "../../assets/spirits";
 import { playSound } from "../../services/gameService";
+import { SceneBackground } from "./SceneBackground";
 
 interface QuizGameProps {
   stage: Stage;
@@ -86,69 +87,66 @@ export function QuizGame({
   };
 
   return (
-    <div className="min-h-[calc(100vh-8rem)] flex flex-col p-4">
-      {/* 頂部狀態列 */}
-      <div className="flex items-center justify-between mb-4">
-        <button onClick={onQuit} className="btn btn-ghost btn-sm">
-          ✕ 離開
-        </button>
+    <SceneBackground stageId={stage.id}>
+      <div className="min-h-[calc(100vh-8rem)] flex flex-col p-4">
+        {/* 頂部狀態列 */}
+        <div className="flex items-center justify-between mb-4 mt-10">
+          <button
+            onClick={onQuit}
+            className="btn btn-ghost btn-sm bg-white/80 backdrop-blur-sm"
+          >
+            ✕ 離開
+          </button>
 
-        <div className="flex items-center gap-4">
-          {/* 生命值 */}
-          <div className="flex items-center gap-1">
-            {Array.from({ length: quizState.maxLives }).map((_, i) => (
-              <motion.span
-                key={i}
-                initial={false}
-                animate={{
-                  scale: i < quizState.lives ? 1 : 0.8,
-                  opacity: i < quizState.lives ? 1 : 0.3,
-                }}
-                className="text-xl"
+          <div className="flex items-center gap-2 sm:gap-4">
+            {/* 生命值 */}
+            <div className="flex items-center gap-1 bg-white/80 backdrop-blur-sm px-2 py-1 rounded-full">
+              {Array.from({ length: quizState.maxLives }).map((_, i) => (
+                <motion.span
+                  key={i}
+                  initial={false}
+                  animate={{
+                    scale: i < quizState.lives ? 1 : 0.8,
+                    opacity: i < quizState.lives ? 1 : 0.3,
+                  }}
+                  className="text-lg sm:text-xl"
+                >
+                  {i < quizState.lives ? "❤️" : "🖤"}
+                </motion.span>
+              ))}
+            </div>
+
+            {/* 連擊數 */}
+            {quizState.combo > 0 && (
+              <motion.div
+                key={quizState.combo}
+                initial={{ scale: 1.5, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                className="badge badge-warning badge-md sm:badge-lg font-bold shadow-lg"
               >
-                {i < quizState.lives ? "❤️" : "🖤"}
-              </motion.span>
-            ))}
-          </div>
+                🔥 {quizState.combo} 連擊
+              </motion.div>
+            )}
 
-          {/* 連擊數 */}
-          {quizState.combo > 0 && (
-            <motion.div
-              key={quizState.combo}
-              initial={{ scale: 1.5, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              className="badge badge-warning badge-lg font-bold"
-            >
-              🔥 {quizState.combo} 連擊
-            </motion.div>
-          )}
-
-          {/* 分數 */}
-          <div className="badge badge-primary badge-lg">
-            {quizState.score} 分
+            {/* 分數 */}
+            <div className="badge badge-primary badge-md sm:badge-lg shadow-lg">
+              {quizState.score} 分
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* 進度條 */}
-      <div className="w-full bg-base-300 rounded-full h-2 mb-6">
-        <motion.div
-          className="h-full bg-secondary rounded-full"
-          initial={{ width: 0 }}
-          animate={{ width: `${progressPercentage}%` }}
-        />
-      </div>
+        {/* 進度條 */}
+        <div className="w-full bg-white/50 backdrop-blur-sm rounded-full h-3 mb-6 shadow-inner">
+          <motion.div
+            className="h-full bg-gradient-to-r from-secondary to-primary rounded-full"
+            initial={{ width: 0 }}
+            animate={{ width: `${progressPercentage}%` }}
+          />
+        </div>
 
       {/* 主遊戲區 */}
       <div className="flex-1 flex flex-col items-center justify-center">
-        {/* 關卡名稱 */}
-        <div className="text-center mb-4">
-          <span className="badge badge-primary badge-lg text-base px-4 py-3">
-            🗺️ {stage.name}
-          </span>
-        </div>
-
-        {/* 精靈展示 */}
+        {/* 精靈展示 - 增強動畫 */}
         {SpiritComponent && (
           <motion.div
             animate={{
@@ -160,18 +158,24 @@ export function QuizGame({
               y: { duration: 2, repeat: Infinity },
               rotate: { duration: 0.5 },
             }}
-            className="mb-6"
+            className="mb-4 relative"
           >
-            <SpiritComponent size={120} animate />
+            {/* 精靈光環 */}
+            <motion.div
+              className="absolute inset-0 bg-white/30 rounded-full blur-2xl"
+              animate={{ scale: [1, 1.2, 1], opacity: [0.3, 0.5, 0.3] }}
+              transition={{ duration: 2, repeat: Infinity }}
+            />
+            <SpiritComponent size={100} animate />
           </motion.div>
         )}
 
-        {/* 題目卡片 */}
+        {/* 題目卡片 - 增強可愛風格 */}
         <motion.div
           key={quizState.currentIndex}
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="card bg-base-100 shadow-xl w-full max-w-lg"
+          className="card bg-white/95 backdrop-blur-md shadow-xl w-full max-w-lg border-2 border-white/50"
         >
           <div className="card-body">
             {/* 計時器 */}
@@ -282,11 +286,12 @@ export function QuizGame({
 
       {/* 鍵盤提示 */}
       <div className="text-center mt-4">
-        <p className="text-xs text-base-content/40">
+        <p className="text-xs text-base-content/60 bg-white/60 backdrop-blur-sm inline-block px-4 py-2 rounded-full">
           💡 可使用數字鍵 1-4 快速作答
         </p>
       </div>
     </div>
+    </SceneBackground>
   );
 }
 

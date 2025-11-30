@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useAdventure } from "../../hooks/useAdventure";
 import { useVocabulary } from "../../hooks/useVocabulary";
 import { AdventureHome } from "./AdventureHome";
@@ -6,8 +6,11 @@ import { StageMap } from "./StageMap";
 import { QuizGame } from "./QuizGame";
 import { SpiritCollection } from "./SpiritCollection";
 import { RewardModal } from "./RewardModal";
+import { CompanionGuide } from "./CompanionGuide";
 
 export function SpiritAdventure() {
+  const [showCompanion, setShowCompanion] = useState(true);
+
   const {
     progress,
     isLoading,
@@ -84,6 +87,14 @@ export function SpiritAdventure() {
 
   return (
     <div className="relative">
+      {/* 可愛小幫手 - 只在首頁和地圖顯示 */}
+      {showCompanion && (gameView === "home" || gameView === "map") && (
+        <CompanionGuide
+          name="小星星"
+          onDismiss={() => setShowCompanion(false)}
+        />
+      )}
+
       {/* 獎勵彈窗 */}
       {pendingReward && (
         <RewardModal reward={pendingReward} onClaim={claimReward} />
