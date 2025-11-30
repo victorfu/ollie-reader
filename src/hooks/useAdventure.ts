@@ -81,6 +81,18 @@ export function useAdventure(): UseAdventureReturn {
   const progressRef = useRef<PlayerProgress | null>(null);
   const currentStageIndexRef = useRef<number>(0);
 
+  // Track timeouts for cleanup
+  const timeoutRefs = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
+
+  // Cleanup timeouts on unmount
+  useEffect(() => {
+    const timeouts = timeoutRefs.current;
+    return () => {
+      timeouts.forEach((timeoutId) => clearTimeout(timeoutId));
+      timeouts.clear();
+    };
+  }, []);
+
   // 同步 refs
   useEffect(() => {
     progressRef.current = progress;
@@ -321,7 +333,8 @@ export function useAdventure(): UseAdventureReturn {
       });
 
       // 延遲後進入下一題或結束
-      setTimeout(() => {
+      const timeoutId = setTimeout(() => {
+        timeoutRefs.current.delete(timeoutId);
         setQuizState((prev) => {
           if (!prev) return prev;
 
@@ -344,6 +357,7 @@ export function useAdventure(): UseAdventureReturn {
           };
         });
       }, 1500);
+      timeoutRefs.current.add(timeoutId);
     },
     [quizState, handleQuizEnd],
   );
@@ -359,7 +373,8 @@ export function useAdventure(): UseAdventureReturn {
         // 時間到，視為答錯
         const newLives = prev.lives - 1;
 
-        setTimeout(() => {
+        const timeoutId = setTimeout(() => {
+          timeoutRefs.current.delete(timeoutId);
           setQuizState((p) => {
             if (!p) return p;
 
@@ -383,6 +398,7 @@ export function useAdventure(): UseAdventureReturn {
             };
           });
         }, 1000);
+        timeoutRefs.current.add(timeoutId);
 
         return {
           ...prev,

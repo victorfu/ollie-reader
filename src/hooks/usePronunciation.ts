@@ -32,6 +32,18 @@ export const usePronunciation = (
       recognitionRef.current.interimResults = true;
       recognitionRef.current.lang = "en-US";
     }
+
+    // Cleanup on unmount
+    return () => {
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.abort();
+        } catch {
+          // Ignore errors during cleanup
+        }
+        recognitionRef.current = null;
+      }
+    };
   }, []);
 
   const cleanText = (text: string) => {

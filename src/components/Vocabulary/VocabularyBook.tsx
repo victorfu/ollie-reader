@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useCallback } from "react";
+import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import type { FormEvent } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useVocabulary } from "../../hooks/useVocabulary";
@@ -75,6 +75,7 @@ export const VocabularyBook = () => {
   const [isDeleting, setIsDeleting] = useState(false);
   const [isReviewMode, setIsReviewMode] = useState(false);
   const manualWordFieldId = "manual-word-input";
+  const loadMoreRef = useRef<HTMLDivElement>(null);
 
   // Load vocabulary when component mounts or filters change
   useEffect(() => {
@@ -176,22 +177,26 @@ export const VocabularyBook = () => {
     }
   }, [isLoadingMore, hasMore, loadMore]);
 
-  // Infinite scroll handler
+  // Infinite scroll using IntersectionObserver (more efficient than scroll events)
   useEffect(() => {
-    const handleScroll = () => {
-      if (
-        window.innerHeight + window.scrollY >=
-          document.documentElement.scrollHeight - 100 &&
-        hasMore &&
-        !isLoadingMore &&
-        !loading
-      ) {
-        void handleLoadMore();
-      }
-    };
+    const element = loadMoreRef.current;
+    if (!element) return;
 
-    window.addEventListener("scroll", handleScroll);
-    return () => window.removeEventListener("scroll", handleScroll);
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const [entry] = entries;
+        if (entry.isIntersecting && hasMore && !isLoadingMore && !loading) {
+          void handleLoadMore();
+        }
+      },
+      {
+        rootMargin: "100px",
+        threshold: 0,
+      }
+    );
+
+    observer.observe(element);
+    return () => observer.disconnect();
   }, [hasMore, isLoadingMore, loading, handleLoadMore]);
 
   // Memoize word groups to prevent recalculation on every render
@@ -406,15 +411,11 @@ export const VocabularyBook = () => {
           ))}
 
           {/* Load More Indicator */}
-          {hasMore && (
-            <div className="text-center py-6">
-              {isLoadingMore ? (
-                <span className="loading loading-spinner loading-md text-primary" />
-              ) : (
-                <div className="h-8" /> // Spacer for scroll trigger
-              )}
-            </div>
-          )}
+          <div ref={loadMoreRef} className="text-center py-6">
+            {hasMore && isLoadingMore && (
+              <span className="loading loading-spinner loading-md text-primary" />
+            )}
+          </div>
         </div>
       )}
 
