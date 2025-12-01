@@ -1,4 +1,4 @@
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useState, useEffect } from "react";
 import {
   BrowserRouter,
   Routes,
@@ -61,9 +61,15 @@ function AuthLoadingFallback() {
 function AppContent() {
   const { user, loading, authError, signOutUser } = useAuth();
   const location = useLocation();
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   // Warm-start backend on each route change
   useWarmServerOnRouteChange();
+
+  // Close mobile menu on route change
+  useEffect(() => {
+    setIsMobileMenuOpen(false);
+  }, [location.pathname]);
 
   if (loading) {
     return (
@@ -168,11 +174,12 @@ function AppContent() {
           </div>
 
           {/* Right: Account Menu */}
-          <div className="dropdown dropdown-end">
+          {/* Desktop: Dropdown */}
+          <div className="hidden md:block dropdown dropdown-end">
             <button
               type="button"
               tabIndex={0}
-              className="btn btn-ghost btn-xs sm:btn-sm gap-2 px-2 sm:px-3"
+              className="btn btn-ghost btn-sm gap-2 px-3"
               title="帳號選單"
             >
               <div className="avatar placeholder">
@@ -180,7 +187,7 @@ function AppContent() {
                   {accountInitial}
                 </div>
               </div>
-              <div className="hidden sm:flex flex-col items-start leading-tight max-w-[12rem]">
+              <div className="flex flex-col items-start leading-tight max-w-[12rem]">
                 <span className="text-xs font-semibold truncate">
                   {accountLabel}
                 </span>
@@ -210,29 +217,6 @@ function AppContent() {
               tabIndex={0}
               className="menu menu-sm dropdown-content mt-2 w-56 rounded-box bg-base-100 p-2 shadow"
             >
-              <li className="menu-title px-3 text-xs text-base-content/60 md:hidden">
-                快速導覽
-              </li>
-              {navItems.map((item) => (
-                <li
-                  key={`mobile-${item.to}`}
-                  className={`md:hidden ${item.isActive ? "active" : ""}`}
-                >
-                  <Link
-                    to={item.to}
-                    className="flex items-center gap-2"
-                    onClick={() => {
-                      // Close dropdown on mobile by removing focus
-                      if (document.activeElement instanceof HTMLElement) {
-                        document.activeElement.blur();
-                      }
-                    }}
-                  >
-                    <span>{item.icon}</span>
-                    <span>{item.label}</span>
-                  </Link>
-                </li>
-              ))}
               <li className="menu-title px-3 text-xs text-base-content/60">
                 登入帳號
               </li>
@@ -272,8 +256,124 @@ function AppContent() {
               </li>
             </ul>
           </div>
+
+          {/* Mobile: Avatar button that opens bottom drawer */}
+          <button
+            type="button"
+            className="md:hidden btn btn-ghost btn-xs gap-1 px-2"
+            onClick={() => setIsMobileMenuOpen(true)}
+            title="選單"
+          >
+            <div className="avatar placeholder">
+              <div className="bg-primary text-primary-content rounded-full w-7 h-7 text-xs flex items-center justify-center">
+                {accountInitial}
+              </div>
+            </div>
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-4 w-4 text-base-content/70"
+              fill="none"
+              viewBox="0 0 24 24"
+              strokeWidth={2}
+              stroke="currentColor"
+              aria-hidden="true"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M8.25 9.75L12 13.5l3.75-3.75"
+              />
+            </svg>
+          </button>
         </div>
       </header>
+
+      {/* Mobile Top Drawer */}
+      {isMobileMenuOpen && (
+        <div className="md:hidden fixed inset-0 z-50">
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-black/50 transition-opacity"
+            onClick={() => setIsMobileMenuOpen(false)}
+          />
+          {/* Drawer */}
+          <div className="absolute top-0 left-0 right-0 bg-base-100 rounded-b-3xl shadow-xl max-h-[85vh] overflow-y-auto animate-slide-down">
+            <div className="px-4 pt-4 pb-3">
+              {/* User info */}
+              <div className="flex items-center gap-3 p-4 bg-base-200/50 rounded-2xl mb-4">
+                <div className="avatar placeholder">
+                  <div className="bg-primary text-primary-content rounded-full w-12 h-12 text-lg flex items-center justify-center">
+                    {accountInitial}
+                  </div>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-semibold truncate">{accountLabel}</div>
+                  {accountEmail && (
+                    <div className="text-sm text-base-content/60 truncate">
+                      {accountEmail}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Navigation */}
+              <div className="mb-4">
+                <div className="text-xs font-semibold text-base-content/50 uppercase tracking-wider px-2 mb-2">
+                  導覽
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  {navItems.map((item) => (
+                    <Link
+                      key={`mobile-nav-${item.to}`}
+                      to={item.to}
+                      className={`flex flex-col items-center gap-1.5 p-3 rounded-xl transition-colors ${
+                        item.isActive
+                          ? "bg-primary/10 text-primary"
+                          : "bg-base-200/50 hover:bg-base-200"
+                      }`}
+                      onClick={() => setIsMobileMenuOpen(false)}
+                    >
+                      <span className="text-2xl">{item.icon}</span>
+                      <span className="text-xs font-medium">{item.label}</span>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+
+              {/* Sign out button */}
+              <button
+                type="button"
+                className="w-full btn btn-outline btn-error gap-2"
+                onClick={() => {
+                  setIsMobileMenuOpen(false);
+                  handleSignOut();
+                }}
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-5 w-5"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                  <polyline points="16 17 21 12 16 7" />
+                  <line x1="21" y1="12" x2="9" y2="12" />
+                </svg>
+                登出
+              </button>
+            </div>
+            {/* Handle bar at bottom */}
+            <div className="sticky bottom-0 bg-base-100 pt-2 pb-3 flex justify-center rounded-b-3xl">
+              <div className="w-10 h-1 bg-base-300 rounded-full" />
+            </div>
+          </div>
+        </div>
+      )}
 
       {authError && (
         <div className="mx-auto px-4">

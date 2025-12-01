@@ -27,3 +27,31 @@
 .animate-float {
   animation: float ease-in-out infinite;
 }
+
+/* Mobile bottom drawer slide-up animation */
+@keyframes slide-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+.animate-slide-up {
+  animation: slide-up 0.3s ease-out;
+}
+
+/* Mobile top drawer slide-down animation */
+@keyframes slide-down {
+  from {
+    transform: translateY(-100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+.animate-slide-down {
+  animation: slide-down 0.3s ease-out;
+}
