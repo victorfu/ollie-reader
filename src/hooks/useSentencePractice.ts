@@ -6,6 +6,7 @@ import {
   updateSentence,
   deleteSentence as deleteSentenceService,
   clearAllSentences,
+  updateSentenceOrders,
 } from "../services/sentencePracticeService";
 import { geminiModel } from "../utils/firebaseUtil";
 import type {
@@ -130,7 +131,7 @@ ${text}
           return { success: false, message: "無法解析句子" };
         }
 
-        // Save sentences to Firestore
+        // Save sentences to Firestore (order is auto-assigned in service layer)
         const sentencesToSave = parsedSentences.map((s) => ({
           english: s.english,
           chinese: s.chinese,
@@ -140,12 +141,14 @@ ${text}
         const docIds = await addSentences(sentencesToSave);
 
         // Update local state with new sentences
+        const currentLength = sentences.length;
         const newSentences: PracticeSentence[] = parsedSentences.map(
           (s, index) => ({
             id: docIds[index],
             english: s.english,
             chinese: s.chinese,
             userId: user.uid,
+            order: currentLength + index, // Assign order based on current list length
             createdAt: new Date(),
             updatedAt: new Date(),
           }),
@@ -167,7 +170,7 @@ ${text}
         setIsProcessing(false);
       }
     },
-    [user],
+    [user, sentences.length],
   );
 
   // Translate a single sentence (for editing)
@@ -293,6 +296,40 @@ ${text}
     }
   }, [user]);
 
+  // Reorder sentences (for drag-and-drop)
+  const reorderSentences = useCallback(
+    async (
+      reorderedList: PracticeSentence[],
+    ): Promise<{ success: boolean; message?: string }> => {
+      if (!user) {
+        return { success: false, message: "使用者未登入" };
+      }
+
+      // Optimistic update - immediately update local state
+      setSentences(reorderedList);
+
+      try {
+        // Prepare batch update with new order values
+        const updates = reorderedList.map((sentence, index) => ({
+          id: sentence.id!,
+          order: index,
+        }));
+
+        await updateSentenceOrders(updates);
+
+        return { success: true };
+      } catch (err) {
+        console.error("Failed to reorder sentences:", err);
+        // Revert on error - reload from server
+        await loadSentences();
+        const message = err instanceof Error ? err.message : "排序失敗";
+        setError(message);
+        return { success: false, message };
+      }
+    },
+    [user, loadSentences],
+  );
+
   // Get word definition with caching
   const getWordDefinition = useCallback(
     async (word: string): Promise<string | null> => {
@@ -335,6 +372,7 @@ ${text}
 
   return {
     sentences,
+    setSentences,
     loading,
     isProcessing,
     error,
@@ -347,5 +385,6 @@ ${text}
     deleteSentence,
     clearAll,
     getWordDefinition,
+    reorderSentences,
   };
 };

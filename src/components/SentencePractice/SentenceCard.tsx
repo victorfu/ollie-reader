@@ -74,6 +74,27 @@ export const SentenceCard = ({
       <div className="card-body p-4">
         {/* English sentence */}
         <div className="flex items-start gap-2">
+          {/* Drag handle */}
+          <div
+            className="shrink-0 mt-0.5 cursor-grab active:cursor-grabbing text-base-content/40 hover:text-base-content/60 touch-none"
+            title="拖曳排序"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-5 w-5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M4 8h16M4 16h16"
+              />
+            </svg>
+          </div>
+
           {/* Speak button */}
           <button
             type="button"
@@ -203,7 +224,7 @@ export const SentenceCard = ({
 
         {/* Chinese translation */}
         {!isEditing && (
-          <p className="text-base text-base-content/70 mt-2 ml-10 border-l-2 border-primary/30 pl-3">
+          <p className="text-base text-base-content/70 mt-2 ml-16 border-l-2 border-primary/30 pl-3">
             {sentence.chinese}
           </p>
         )}

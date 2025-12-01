@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Reorder } from "framer-motion";
 import { useSentencePractice } from "../../hooks/useSentencePractice";
 import { useSpeechState } from "../../hooks/useSpeechState";
 import { SentenceInput } from "./SentenceInput";
@@ -6,10 +7,12 @@ import { SentenceCard } from "./SentenceCard";
 import { SimpleTTSControls } from "../common/SimpleTTSControls";
 import { Toast } from "../common/Toast";
 import { ConfirmModal } from "../common/ConfirmModal";
+import type { PracticeSentence } from "../../types/sentencePractice";
 
 export const SentencePractice = () => {
   const {
     sentences,
+    setSentences,
     loading,
     isProcessing,
     hasMore,
@@ -19,6 +22,7 @@ export const SentencePractice = () => {
     deleteSentence,
     clearAll,
     getWordDefinition,
+    reorderSentences,
   } = useSentencePractice();
 
   const {
@@ -38,6 +42,23 @@ export const SentencePractice = () => {
   } | null>(null);
 
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+
+  // Handle reorder with optimistic update and Firestore persistence
+  const handleReorder = async (reorderedList: PracticeSentence[]) => {
+    // Update local state immediately for smooth drag experience
+    setSentences(reorderedList);
+  };
+
+  // Save order to Firestore when drag ends
+  const handleReorderComplete = async () => {
+    const result = await reorderSentences(sentences);
+    if (!result.success) {
+      setToastMessage({
+        message: result.message || "排序儲存失敗",
+        type: "error",
+      });
+    }
+  };
 
   const handleSubmit = async (text: string) => {
     const result = await parseAndTranslate(text);
@@ -209,16 +230,29 @@ export const SentencePractice = () => {
           </div>
         ) : (
           <>
-            {sentences.map((sentence) => (
-              <SentenceCard
-                key={sentence.id}
-                sentence={sentence}
-                onEdit={handleEdit}
-                onDelete={handleDelete}
-                getWordDefinition={getWordDefinition}
-                isProcessing={isProcessing}
-              />
-            ))}
+            <Reorder.Group
+              axis="y"
+              values={sentences}
+              onReorder={handleReorder}
+              className="space-y-4"
+            >
+              {sentences.map((sentence) => (
+                <Reorder.Item
+                  key={sentence.id}
+                  value={sentence}
+                  onDragEnd={handleReorderComplete}
+                  className="cursor-grab active:cursor-grabbing"
+                >
+                  <SentenceCard
+                    sentence={sentence}
+                    onEdit={handleEdit}
+                    onDelete={handleDelete}
+                    getWordDefinition={getWordDefinition}
+                    isProcessing={isProcessing}
+                  />
+                </Reorder.Item>
+              ))}
+            </Reorder.Group>
 
             {/* Load More Button */}
             {hasMore && (

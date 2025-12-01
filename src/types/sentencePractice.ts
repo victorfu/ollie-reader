@@ -3,12 +3,13 @@ export interface PracticeSentence {
   english: string;
   chinese: string;
   userId: string;
+  order?: number;
   createdAt: Date;
   updatedAt: Date;
 }
 
 export interface SentencePracticeFilters {
-  sortBy?: "createdAt";
+  sortBy?: "createdAt" | "order";
   sortOrder?: "asc" | "desc";
   limit?: number;
   cursor?: string; // Last document ID for pagination
