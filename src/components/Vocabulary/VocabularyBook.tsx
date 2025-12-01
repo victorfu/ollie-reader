@@ -4,7 +4,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useVocabulary } from "../../hooks/useVocabulary";
 import { useSpeechState } from "../../hooks/useSpeechState";
 import { useDebounce } from "../../hooks/useDebounce";
-import type { VocabularyWord, VocabularyFilters } from "../../types/vocabulary";
+import type { VocabularyWord, VocabularyFilters, ReviewSettings } from "../../types/vocabulary";
 import { WordDetail } from "../Vocabulary/WordDetail";
 import { VocabularyCard } from "../Vocabulary/VocabularyCard";
 import { SimpleTTSControls } from "../common/SimpleTTSControls";
@@ -12,6 +12,7 @@ import { Toast } from "../common/Toast";
 import { ConfirmModal } from "../common/ConfirmModal";
 
 import { FlashcardMode } from "./FlashcardMode";
+import { ReviewSettingsModal } from "./ReviewSettingsModal";
 
 // Move groupWordsByDate outside component to prevent recreation on each render
 const groupWordsByDate = (words: VocabularyWord[]) => {
@@ -44,7 +45,7 @@ export const VocabularyBook = () => {
     addWord,
     updateWord,
     regenerateWordDetails,
-    incrementReview,
+    updateReview,
     loadWordsForReview,
   } = useVocabulary();
   const {
@@ -77,6 +78,8 @@ export const VocabularyBook = () => {
   const [isReviewMode, setIsReviewMode] = useState(false);
   const [reviewWords, setReviewWords] = useState<VocabularyWord[]>([]);
   const [isLoadingReview, setIsLoadingReview] = useState(false);
+  const [showReviewSettings, setShowReviewSettings] = useState(false);
+  const [totalWordCount, setTotalWordCount] = useState(0);
   const manualWordFieldId = "manual-word-input";
   const loadMoreRef = useRef<HTMLDivElement>(null);
 
@@ -205,18 +208,34 @@ export const VocabularyBook = () => {
   // Memoize word groups to prevent recalculation on every render
   const wordGroups = useMemo(() => groupWordsByDate(words), [words]);
 
-  // Handle starting review mode - load random words
-  const handleStartReview = useCallback(async () => {
-    setIsLoadingReview(true);
-    const randomWords = await loadWordsForReview(50);
-    setReviewWords(randomWords);
-    setIsLoadingReview(false);
-    if (randomWords.length > 0) {
-      setIsReviewMode(true);
-    } else {
-      setToastMessage({ message: "沒有單字可以複習", type: "info" });
-    }
+  // Fetch total word count for review settings
+  const fetchTotalWordCount = useCallback(async () => {
+    const allWords = await loadWordsForReview(9999, "random");
+    setTotalWordCount(allWords.length);
   }, [loadWordsForReview]);
+
+  // Handle opening review settings modal
+  const handleOpenReviewSettings = useCallback(async () => {
+    await fetchTotalWordCount();
+    setShowReviewSettings(true);
+  }, [fetchTotalWordCount]);
+
+  // Handle starting review with settings
+  const handleStartReview = useCallback(
+    async (settings: ReviewSettings) => {
+      setShowReviewSettings(false);
+      setIsLoadingReview(true);
+      const selectedWords = await loadWordsForReview(settings.wordCount, settings.mode);
+      setReviewWords(selectedWords);
+      setIsLoadingReview(false);
+      if (selectedWords.length > 0) {
+        setIsReviewMode(true);
+      } else {
+        setToastMessage({ message: "沒有單字可以複習", type: "info" });
+      }
+    },
+    [loadWordsForReview],
+  );
 
   if (isReviewMode && reviewWords.length > 0) {
     return (
@@ -226,7 +245,7 @@ export const VocabularyBook = () => {
           setIsReviewMode(false);
           setReviewWords([]);
         }}
-        onUpdateReview={incrementReview}
+        onUpdateReview={updateReview}
       />
     );
   }
@@ -240,6 +259,15 @@ export const VocabularyBook = () => {
           onClose={() => setToastMessage(null)}
         />
       )}
+
+      {/* Review Settings Modal */}
+      <ReviewSettingsModal
+        isOpen={showReviewSettings}
+        onClose={() => setShowReviewSettings(false)}
+        onStart={handleStartReview}
+        totalWords={totalWordCount}
+        isLoading={isLoadingReview}
+      />
 
       {/* TTS Controls */}
       {speechSupported && (
@@ -257,7 +285,7 @@ export const VocabularyBook = () => {
           {words.length > 0 && !loading && (
             <button
               className="btn btn-primary gap-2 w-full sm:w-auto shadow-md"
-              onClick={handleStartReview}
+              onClick={handleOpenReviewSettings}
               disabled={isLoadingReview}
             >
               {isLoadingReview ? (

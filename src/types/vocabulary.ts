@@ -25,6 +25,18 @@ export interface VocabularyWord {
   updatedAt: Date;
   reviewCount: number;
   lastReviewedAt?: Date;
+
+  // Review statistics for smart selection
+  forgotCount?: number;
+  rememberedCount?: number;
+}
+
+// Review mode types
+export type ReviewMode = "smart" | "random";
+
+export interface ReviewSettings {
+  wordCount: number;
+  mode: ReviewMode;
 }
 
 export interface Definition {

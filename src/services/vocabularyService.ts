@@ -21,6 +21,7 @@ import type {
   VocabularyWord,
   VocabularyFilters,
   VocabularyResult,
+  ReviewMode,
 } from "../types/vocabulary";
 import { DEFAULT_PAGE_SIZE } from "../types/vocabulary";
 
@@ -170,10 +171,38 @@ export const getUserVocabulary = async (
   }
 };
 
-// Get all vocabulary words for review (no pagination, random order)
-export const getAllVocabularyForReview = async (
+/**
+ * Calculate review priority score for a word
+ * Higher score = more urgent to review
+ */
+const calculateReviewPriority = (word: VocabularyWord): number => {
+  let score = 0;
+
+  // Never reviewed: highest priority
+  if (!word.lastReviewedAt) {
+    score += 100;
+  } else {
+    // Days since last review (more days = higher priority)
+    const daysSinceReview = Math.floor(
+      (Date.now() - new Date(word.lastReviewedAt).getTime()) / (1000 * 60 * 60 * 24)
+    );
+    score += daysSinceReview * 5;
+  }
+
+  // Forgot count increases priority
+  score += (word.forgotCount || 0) * 20;
+
+  // Remembered count decreases priority
+  score -= (word.rememberedCount || 0) * 10;
+
+  return score;
+};
+
+// Get vocabulary words for review with smart or random selection
+export const getVocabularyForReview = async (
   userId: string,
-  maxWords: number = 50,
+  maxWords: number = 10,
+  mode: ReviewMode = "smart",
 ): Promise<VocabularyWord[]> => {
   try {
     const q = query(
@@ -189,12 +218,56 @@ export const getAllVocabularyForReview = async (
       },
     );
 
-    // Shuffle using Fisher-Yates algorithm and return up to maxWords
-    return shuffleArray(words).slice(0, maxWords);
+    if (words.length === 0) return [];
+
+    if (mode === "smart") {
+      // Sort by priority score (highest first) and take top N
+      const sorted = words
+        .map((word) => ({ word, score: calculateReviewPriority(word) }))
+        .sort((a, b) => b.score - a.score)
+        .slice(0, maxWords)
+        .map((item) => item.word);
+
+      // Shuffle the selected words so they don't always appear in same order
+      return shuffleArray(sorted);
+    } else {
+      // Random mode: just shuffle and take
+      return shuffleArray(words).slice(0, maxWords);
+    }
   } catch (error) {
     console.error("Error getting vocabulary for review:", error);
     throw error;
   }
+};
+
+// Update review statistics for a word
+export const updateReviewStats = async (
+  wordId: string,
+  remembered: boolean,
+): Promise<void> => {
+  const docRef = doc(db, COLLECTION_NAME, wordId);
+
+  const updates: Record<string, unknown> = {
+    lastReviewedAt: Timestamp.now(),
+    updatedAt: Timestamp.now(),
+  };
+
+  // Get current values to increment
+  const docSnap = await getDoc(docRef);
+  if (docSnap.exists()) {
+    const data = docSnap.data();
+    const currentReviewCount = data.reviewCount || 0;
+
+    updates.reviewCount = currentReviewCount + 1;
+
+    if (remembered) {
+      updates.rememberedCount = (data.rememberedCount || 0) + 1;
+    } else {
+      updates.forgotCount = (data.forgotCount || 0) + 1;
+    }
+  }
+
+  await updateDoc(docRef, updates);
 };
 
 // Get a single vocabulary word

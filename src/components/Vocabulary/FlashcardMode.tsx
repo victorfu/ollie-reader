@@ -9,7 +9,13 @@ import { shuffleArray } from "../../utils/arrayUtils";
 interface FlashcardModeProps {
   words: VocabularyWord[];
   onClose: () => void;
-  onUpdateReview: (wordId: string) => void;
+  onUpdateReview: (wordId: string, remembered: boolean) => void;
+}
+
+interface ReviewStats {
+  remembered: number;
+  forgot: number;
+  skipped: number;
 }
 
 export const FlashcardMode = ({
@@ -21,7 +27,11 @@ export const FlashcardMode = ({
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
   const [isFinished, setIsFinished] = useState(false);
-  const [reviewedCount, setReviewedCount] = useState(0);
+  const [stats, setStats] = useState<ReviewStats>({
+    remembered: 0,
+    forgot: 0,
+    skipped: 0,
+  });
   const [showFeedback, setShowFeedback] = useState<
     "correct" | "incorrect" | null
   >(null);
@@ -39,14 +49,8 @@ export const FlashcardMode = ({
       colors: ["#22c55e", "#3b82f6", "#f59e0b", "#ef4444"],
     });
 
-    // Play success sound (optional)
-    // const audio = new Audio("/success.mp3");
-    // audio.play();
-
     setTimeout(() => {
       setShowFeedback(null);
-      // Optional: Auto flip or next?
-      // handleFlip();
     }, 2000);
   }, []);
 
@@ -67,40 +71,50 @@ export const FlashcardMode = ({
     setIsFlipped((prev) => !prev);
   }, []);
 
+  const goToNext = useCallback(() => {
+    stopSpeaking();
+    stopListening();
+    setIsFlipped(false);
+    setShowFeedback(null);
+
+    if (currentIndex < cards.length - 1) {
+      setTimeout(() => setCurrentIndex((prev) => prev + 1), 200);
+    } else {
+      setIsFinished(true);
+    }
+  }, [currentIndex, cards.length, stopSpeaking, stopListening]);
+
   const handleNext = useCallback(
     (remembered: boolean) => {
-      if (remembered && currentCard?.id) {
-        onUpdateReview(currentCard.id);
+      if (currentCard?.id) {
+        onUpdateReview(currentCard.id, remembered);
       }
 
-      stopSpeaking();
-      stopListening(); // Ensure listening stops
-      setIsFlipped(false);
-      setShowFeedback(null);
-      setReviewedCount((prev) => prev + 1);
+      setStats((prev) => ({
+        ...prev,
+        remembered: remembered ? prev.remembered + 1 : prev.remembered,
+        forgot: !remembered ? prev.forgot + 1 : prev.forgot,
+      }));
 
-      if (currentIndex < cards.length - 1) {
-        setTimeout(() => setCurrentIndex((prev) => prev + 1), 200);
-      } else {
-        setIsFinished(true);
-      }
+      goToNext();
     },
-    [
-      currentIndex,
-      cards.length,
-      currentCard,
-      onUpdateReview,
-      stopSpeaking,
-      stopListening,
-    ],
+    [currentCard, onUpdateReview, goToNext],
   );
+
+  const handleSkip = useCallback(() => {
+    setStats((prev) => ({
+      ...prev,
+      skipped: prev.skipped + 1,
+    }));
+    goToNext();
+  }, [goToNext]);
 
   const handleRestart = () => {
     setCards(shuffleArray(initialWords));
     setCurrentIndex(0);
     setIsFlipped(false);
     setIsFinished(false);
-    setReviewedCount(0);
+    setStats({ remembered: 0, forgot: 0, skipped: 0 });
   };
 
   // Keyboard shortcuts
@@ -112,15 +126,17 @@ export const FlashcardMode = ({
         e.preventDefault();
         handleFlip();
       } else if (e.code === "ArrowRight" && isFlipped) {
-        handleNext(true); // Treat right arrow as "Remembered" for quick nav
+        handleNext(true);
       } else if (e.code === "ArrowLeft" && isFlipped) {
-        handleNext(false); // Treat left arrow as "Forgot"
+        handleNext(false);
+      } else if (e.code === "KeyS" && !isFlipped) {
+        handleSkip();
       }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isFlipped, isFinished, handleNext, handleFlip]);
+  }, [isFlipped, isFinished, handleNext, handleFlip, handleSkip]);
 
   if (cards.length === 0) {
     return (
@@ -133,19 +149,54 @@ export const FlashcardMode = ({
     );
   }
 
+  const totalReviewed = stats.remembered + stats.forgot;
+
   if (isFinished) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[50vh] text-center p-8 bg-base-100 rounded-xl shadow-lg max-w-2xl mx-auto mt-8">
-        <div className="text-6xl mb-6">🎉</div>
-        <h2 className="text-3xl font-bold mb-4">複習完成！</h2>
-        <p className="text-xl mb-8">你已經複習了 {reviewedCount} 個單字。</p>
-        <div className="flex gap-4">
-          <button className="btn btn-outline" onClick={onClose}>
-            返回列表
-          </button>
-          <button className="btn btn-primary" onClick={handleRestart}>
-            再次複習
-          </button>
+      <div className="fixed inset-0 z-50 bg-base-200/95 flex items-center justify-center p-4">
+        <div className="bg-base-100 rounded-2xl shadow-xl max-w-md w-full p-8 text-center">
+          <div className="text-6xl mb-6">🎉</div>
+          <h2 className="text-2xl font-bold mb-6">複習完成！</h2>
+
+          {/* Stats */}
+          <div className="grid grid-cols-3 gap-4 mb-8">
+            <div className="bg-success/10 rounded-xl p-4">
+              <div className="text-3xl font-bold text-success">
+                {stats.remembered}
+              </div>
+              <div className="text-sm text-base-content/60">記住了</div>
+            </div>
+            <div className="bg-error/10 rounded-xl p-4">
+              <div className="text-3xl font-bold text-error">{stats.forgot}</div>
+              <div className="text-sm text-base-content/60">忘記了</div>
+            </div>
+            <div className="bg-base-200 rounded-xl p-4">
+              <div className="text-3xl font-bold text-base-content/50">
+                {stats.skipped}
+              </div>
+              <div className="text-sm text-base-content/60">跳過</div>
+            </div>
+          </div>
+
+          {/* Encouragement based on performance */}
+          <p className="text-base-content/70 mb-8">
+            {totalReviewed === 0
+              ? "下次試著多複習幾個單字吧！"
+              : stats.remembered >= totalReviewed * 0.8
+              ? "太棒了！你記得大部分的單字 👏"
+              : stats.remembered >= totalReviewed * 0.5
+              ? "做得不錯！繼續加油 💪"
+              : "沒關係，多練習幾次就會記住了！"}
+          </p>
+
+          <div className="flex gap-3">
+            <button className="btn btn-outline flex-1" onClick={onClose}>
+              返回列表
+            </button>
+            <button className="btn btn-primary flex-1" onClick={handleRestart}>
+              再次複習
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -207,57 +258,91 @@ export const FlashcardMode = ({
             <span className="text-sm uppercase tracking-widest text-base-content/40 mb-4 flex-shrink-0">
               單字
             </span>
-            <h2 className="text-4xl font-bold text-center mb-4 break-words w-full flex-shrink-0">
+            <h2 className="text-4xl font-bold text-center mb-2 break-words w-full flex-shrink-0">
               {currentCard?.word}
             </h2>
             {currentCard?.phonetic && (
-              <p className="text-xl text-base-content/60 font-serif">
+              <p className="text-xl text-base-content/60 font-serif mb-4">
                 {currentCard.phonetic}
               </p>
             )}
 
+            {/* Play pronunciation button */}
+            {!isFlipped && (
+              <button
+                className="btn btn-circle btn-ghost btn-lg mb-4"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  speak(currentCard?.word || "");
+                }}
+                title="播放發音"
+              >
+                {isSpeaking ? (
+                  <span className="loading loading-spinner loading-md" />
+                ) : (
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-8 w-8 text-primary"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"
+                    />
+                  </svg>
+                )}
+              </button>
+            )}
+
             {/* Pronunciation Practice */}
             {!isFlipped && isSpeechRecognitionSupported && (
-              <div className="mt-6 flex flex-col items-center gap-3">
-                <button
-                  className={`btn btn-circle btn-lg transition-all duration-300 ${
-                    isListening
-                      ? "btn-error animate-pulse scale-110 shadow-[0_0_15px_rgba(239,68,68,0.5)]"
-                      : "btn-primary shadow-lg"
-                  }`}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (isListening) {
-                      stopListening();
-                    } else {
-                      startListening();
-                    }
-                  }}
-                >
-                  {isListening ? (
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      className="h-8 w-8"
-                      viewBox="0 0 24 24"
-                      fill="currentColor"
-                    >
-                      <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z" />
-                      <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z" />
-                    </svg>
-                  ) : (
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      className="h-8 w-8"
-                      viewBox="0 0 24 24"
-                      fill="currentColor"
-                    >
-                      <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z" />
-                      <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z" />
-                    </svg>
-                  )}
-                </button>
+              <div className="flex flex-col items-center gap-3">
+                <div className="flex items-center gap-3">
+                  <button
+                    className={`btn btn-circle btn-lg transition-all duration-300 ${
+                      isListening
+                        ? "btn-error animate-pulse scale-110 shadow-[0_0_15px_rgba(239,68,68,0.5)]"
+                        : "btn-secondary shadow-lg"
+                    }`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (isListening) {
+                        stopListening();
+                      } else {
+                        startListening();
+                      }
+                    }}
+                    title="錄音練習"
+                  >
+                    {isListening ? (
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        className="h-7 w-7"
+                        viewBox="0 0 24 24"
+                        fill="currentColor"
+                      >
+                        <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z" />
+                        <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z" />
+                      </svg>
+                    ) : (
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        className="h-7 w-7"
+                        viewBox="0 0 24 24"
+                        fill="currentColor"
+                      >
+                        <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z" />
+                        <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z" />
+                      </svg>
+                    )}
+                  </button>
+                </div>
 
-                <div className="h-8 flex items-center justify-center">
+                <div className="h-6 flex items-center justify-center">
                   {isListening ? (
                     <span className="text-sm text-base-content/60 animate-pulse">
                       請大聲唸出單字...
@@ -280,14 +365,14 @@ export const FlashcardMode = ({
                           clipRule="evenodd"
                         />
                       </svg>
-                      太棒了！唸對了！
+                      太棒了！
                     </motion.span>
                   ) : transcript ? (
                     <span className="text-sm text-base-content/40">
                       聽到: "{transcript}"
                     </span>
                   ) : (
-                    <span className="text-sm text-base-content/40">
+                    <span className="text-xs text-base-content/40">
                       點擊麥克風練習發音
                     </span>
                   )}
@@ -382,43 +467,95 @@ export const FlashcardMode = ({
       </div>
 
       {/* Controls */}
-      <div className="mt-8 flex gap-4 w-full max-w-md justify-center h-16">
+      <div className="mt-8 w-full max-w-md">
         <AnimatePresence mode="wait">
           {!isFlipped ? (
-            <motion.button
-              key="flip-btn"
+            <motion.div
+              key="front-btns"
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
-              className="btn btn-wide btn-lg shadow-lg"
-              onClick={handleFlip}
+              className="flex flex-col gap-3"
             >
-              翻看背面 (Space)
-            </motion.button>
+              <button
+                className="btn btn-primary btn-lg w-full shadow-lg gap-2"
+                onClick={handleFlip}
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-5 w-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                  />
+                </svg>
+                翻看答案
+              </button>
+              <button
+                className="btn btn-ghost btn-sm text-base-content/50"
+                onClick={handleSkip}
+              >
+                跳過這個單字
+              </button>
+            </motion.div>
           ) : (
             <motion.div
               key="action-btns"
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
-              className="flex gap-4 w-full"
+              className="flex gap-3"
             >
               <button
-                className="btn btn-error btn-outline flex-1 btn-lg"
+                className="btn btn-outline flex-1 btn-lg gap-2 border-error/50 text-error hover:bg-error hover:text-white hover:border-error"
                 onClick={(e) => {
                   e.stopPropagation();
                   handleNext(false);
                 }}
               >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-5 w-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
                 忘記了
               </button>
               <button
-                className="btn btn-success flex-1 btn-lg text-white"
+                className="btn btn-success flex-1 btn-lg text-white gap-2"
                 onClick={(e) => {
                   e.stopPropagation();
                   handleNext(true);
                 }}
               >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-5 w-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M5 13l4 4L19 7"
+                  />
+                </svg>
                 記住了
               </button>
             </motion.div>

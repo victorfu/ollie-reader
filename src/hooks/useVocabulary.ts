@@ -8,11 +8,11 @@ import {
   deleteVocabularyWord,
   checkWordExists,
   getUserTags,
-  incrementReviewCount as incrementReviewCountService,
-  getAllVocabularyForReview,
+  getVocabularyForReview,
+  updateReviewStats,
 } from "../services/vocabularyService";
 import { geminiModel } from "../utils/firebaseUtil";
-import type { VocabularyWord, VocabularyFilters } from "../types/vocabulary";
+import type { VocabularyWord, VocabularyFilters, ReviewMode } from "../types/vocabulary";
 
 export const useVocabulary = () => {
   const { user } = useAuth();
@@ -340,28 +340,37 @@ export const useVocabulary = () => {
     }
   }, [user]);
 
-  // Increment review count
-  const incrementReview = useCallback(async (wordId: string) => {
-    try {
-      await incrementReviewCountService(wordId);
-      // Update local state
-      setWords((prev) =>
-        prev.map((w) =>
-          w.id === wordId
-            ? {
-                ...w,
-                reviewCount: (w.reviewCount || 0) + 1,
-                lastReviewedAt: new Date(),
-              }
-            : w,
-        ),
-      );
-      return { success: true };
-    } catch (err) {
-      console.error("Failed to increment review count:", err);
-      return { success: false };
-    }
-  }, []);
+  // Update review statistics (remembered or forgot)
+  const updateReview = useCallback(
+    async (wordId: string, remembered: boolean) => {
+      try {
+        await updateReviewStats(wordId, remembered);
+        // Update local state
+        setWords((prev) =>
+          prev.map((w) =>
+            w.id === wordId
+              ? {
+                  ...w,
+                  reviewCount: (w.reviewCount || 0) + 1,
+                  lastReviewedAt: new Date(),
+                  rememberedCount: remembered
+                    ? (w.rememberedCount || 0) + 1
+                    : w.rememberedCount,
+                  forgotCount: !remembered
+                    ? (w.forgotCount || 0) + 1
+                    : w.forgotCount,
+                }
+              : w,
+          ),
+        );
+        return { success: true };
+      } catch (err) {
+        console.error("Failed to update review stats:", err);
+        return { success: false };
+      }
+    },
+    [],
+  );
 
   // Regenerate word details using AI
   const regenerateWordDetails = useCallback(
@@ -412,13 +421,16 @@ export const useVocabulary = () => {
     [fetchWordDetails],
   );
 
-  // Load random words for review mode
+  // Load words for review mode with smart or random selection
   const loadWordsForReview = useCallback(
-    async (maxWords: number = 50): Promise<VocabularyWord[]> => {
+    async (
+      maxWords: number = 10,
+      mode: ReviewMode = "smart",
+    ): Promise<VocabularyWord[]> => {
       if (!user) return [];
 
       try {
-        return await getAllVocabularyForReview(user.uid, maxWords);
+        return await getVocabularyForReview(user.uid, maxWords, mode);
       } catch (err) {
         console.error("Failed to load words for review:", err);
         return [];
@@ -440,7 +452,7 @@ export const useVocabulary = () => {
     updateWord,
     deleteWord,
     getTags,
-    incrementReview,
+    updateReview,
     regenerateWordDetails,
     loadWordsForReview,
   };
