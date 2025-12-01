@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import confetti from "canvas-confetti";
 import type { VocabularyWord } from "../../types/vocabulary";
@@ -15,7 +15,6 @@ interface FlashcardModeProps {
 interface ReviewStats {
   remembered: number;
   forgot: number;
-  skipped: number;
 }
 
 export const FlashcardMode = ({
@@ -30,11 +29,13 @@ export const FlashcardMode = ({
   const [stats, setStats] = useState<ReviewStats>({
     remembered: 0,
     forgot: 0,
-    skipped: 0,
   });
   const [showFeedback, setShowFeedback] = useState<
     "correct" | "incorrect" | null
   >(null);
+  const [isAutoPlaying, setIsAutoPlaying] = useState(false);
+  const autoPlayIndexRef = useRef<number>(0);
+  const wasPlayingRef = useRef(false);
 
   const { speak, stopSpeaking, isSpeaking } = useSpeechState();
 
@@ -66,6 +67,53 @@ export const FlashcardMode = ({
   useEffect(() => {
     setCards(initialWords);
   }, [initialWords]);
+
+  // Auto-play: speak words one by one
+  useEffect(() => {
+    if (!isAutoPlaying) return;
+
+    // Detect when speech ends (isSpeaking transitions from true to false)
+    if (wasPlayingRef.current && !isSpeaking) {
+      // Speech just ended, move to next word after a short delay
+      const nextIndex = autoPlayIndexRef.current + 1;
+      if (nextIndex < cards.length) {
+        const timer = setTimeout(() => {
+          autoPlayIndexRef.current = nextIndex;
+          setCurrentIndex(nextIndex);
+          setIsFlipped(false);
+          // Speak the next word
+          if (cards[nextIndex]) {
+            speak(cards[nextIndex].word);
+          }
+        }, 500); // 500ms delay between words
+        return () => clearTimeout(timer);
+      } else {
+        // Finished all words
+        setIsAutoPlaying(false);
+      }
+    }
+
+    wasPlayingRef.current = isSpeaking;
+  }, [isSpeaking, isAutoPlaying, cards, speak]);
+
+  const handleStartAutoPlay = useCallback(() => {
+    if (cards.length === 0) return;
+    stopListening();
+    setIsAutoPlaying(true);
+    autoPlayIndexRef.current = 0;
+    setCurrentIndex(0);
+    setIsFlipped(false);
+    wasPlayingRef.current = false;
+    // Start speaking the first word
+    if (cards[0]) {
+      speak(cards[0].word);
+    }
+  }, [cards, speak, stopListening]);
+
+  const handleStopAutoPlay = useCallback(() => {
+    setIsAutoPlaying(false);
+    stopSpeaking();
+  }, [stopSpeaking]);
 
   const handleFlip = useCallback(() => {
     setIsFlipped((prev) => !prev);
@@ -101,20 +149,32 @@ export const FlashcardMode = ({
     [currentCard, onUpdateReview, goToNext],
   );
 
-  const handleSkip = useCallback(() => {
-    setStats((prev) => ({
-      ...prev,
-      skipped: prev.skipped + 1,
-    }));
-    goToNext();
-  }, [goToNext]);
+  const handlePrev = useCallback(() => {
+    if (currentIndex > 0) {
+      stopSpeaking();
+      stopListening();
+      setIsFlipped(false);
+      setShowFeedback(null);
+      setCurrentIndex((prev) => prev - 1);
+    }
+  }, [currentIndex, stopSpeaking, stopListening]);
+
+  const handleNextCard = useCallback(() => {
+    if (currentIndex < cards.length - 1) {
+      stopSpeaking();
+      stopListening();
+      setIsFlipped(false);
+      setShowFeedback(null);
+      setCurrentIndex((prev) => prev + 1);
+    }
+  }, [currentIndex, cards.length, stopSpeaking, stopListening]);
 
   const handleRestart = () => {
     setCards(shuffleArray(initialWords));
     setCurrentIndex(0);
     setIsFlipped(false);
     setIsFinished(false);
-    setStats({ remembered: 0, forgot: 0, skipped: 0 });
+    setStats({ remembered: 0, forgot: 0 });
   };
 
   // Keyboard shortcuts
@@ -129,14 +189,23 @@ export const FlashcardMode = ({
         handleNext(true);
       } else if (e.code === "ArrowLeft" && isFlipped) {
         handleNext(false);
-      } else if (e.code === "KeyS" && !isFlipped) {
-        handleSkip();
+      } else if (e.code === "ArrowUp" && !isFlipped) {
+        handlePrev();
+      } else if (e.code === "ArrowDown" && !isFlipped) {
+        handleNextCard();
       }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isFlipped, isFinished, handleNext, handleFlip, handleSkip]);
+  }, [
+    isFlipped,
+    isFinished,
+    handleNext,
+    handleFlip,
+    handlePrev,
+    handleNextCard,
+  ]);
 
   if (cards.length === 0) {
     return (
@@ -159,7 +228,7 @@ export const FlashcardMode = ({
           <h2 className="text-2xl font-bold mb-6">複習完成！</h2>
 
           {/* Stats */}
-          <div className="grid grid-cols-3 gap-4 mb-8">
+          <div className="grid grid-cols-2 gap-4 mb-8">
             <div className="bg-success/10 rounded-xl p-4">
               <div className="text-3xl font-bold text-success">
                 {stats.remembered}
@@ -167,14 +236,10 @@ export const FlashcardMode = ({
               <div className="text-sm text-base-content/60">記住了</div>
             </div>
             <div className="bg-error/10 rounded-xl p-4">
-              <div className="text-3xl font-bold text-error">{stats.forgot}</div>
-              <div className="text-sm text-base-content/60">忘記了</div>
-            </div>
-            <div className="bg-base-200 rounded-xl p-4">
-              <div className="text-3xl font-bold text-base-content/50">
-                {stats.skipped}
+              <div className="text-3xl font-bold text-error">
+                {stats.forgot}
               </div>
-              <div className="text-sm text-base-content/60">跳過</div>
+              <div className="text-sm text-base-content/60">忘記了</div>
             </div>
           </div>
 
@@ -205,7 +270,36 @@ export const FlashcardMode = ({
   return (
     <div className="fixed inset-0 z-50 bg-base-200/95 flex flex-col items-center justify-center p-4">
       {/* Header */}
-      <div className="absolute top-4 right-4">
+      <div className="absolute top-4 right-4 flex items-center gap-2">
+        {/* Auto-play button */}
+        <button
+          className={`btn btn-circle ${
+            isAutoPlaying ? "btn-error" : "btn-ghost"
+          }`}
+          onClick={isAutoPlaying ? handleStopAutoPlay : handleStartAutoPlay}
+          title={isAutoPlaying ? "停止自動播放" : "自動播放全部單字"}
+        >
+          {isAutoPlaying ? (
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-5 w-5"
+              fill="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <rect x="6" y="4" width="4" height="16" rx="1" />
+              <rect x="14" y="4" width="4" height="16" rx="1" />
+            </svg>
+          ) : (
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-5 w-5"
+              fill="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path d="M3 22v-20l18 10-18 10z" />
+            </svg>
+          )}
+        </button>
         <button className="btn btn-circle btn-ghost" onClick={onClose}>
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -497,12 +591,50 @@ export const FlashcardMode = ({
                 </svg>
                 翻看答案
               </button>
-              <button
-                className="btn btn-ghost btn-sm text-base-content/50"
-                onClick={handleSkip}
-              >
-                跳過這個單字
-              </button>
+              <div className="flex gap-2 justify-center">
+                <button
+                  className="btn btn-ghost btn-sm text-base-content/50 gap-1"
+                  onClick={handlePrev}
+                  disabled={currentIndex === 0}
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-4 w-4"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M15 19l-7-7 7-7"
+                    />
+                  </svg>
+                  上一個
+                </button>
+                <button
+                  className="btn btn-ghost btn-sm text-base-content/50 gap-1"
+                  onClick={handleNextCard}
+                  disabled={currentIndex === cards.length - 1}
+                >
+                  下一個
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-4 w-4"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M9 5l7 7-7 7"
+                    />
+                  </svg>
+                </button>
+              </div>
             </motion.div>
           ) : (
             <motion.div

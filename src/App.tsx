@@ -29,6 +29,9 @@ const Settings = lazy(() =>
 const SpeechPractice = lazy(
   () => import("./components/SpeechPractice/SpeechPractice"),
 );
+const SentencePractice = lazy(
+  () => import("./components/SentencePractice/SentencePractice"),
+);
 const AudioUploads = lazy(
   () => import("./components/AudioUploads/AudioUploads"),
 );
@@ -113,6 +116,7 @@ function AppContent() {
   const isVocabularyPage = location.pathname === "/vocabulary";
   const isSettingsPage = location.pathname === "/settings";
   const isSpeechPracticePage = location.pathname === "/speech-practice";
+  const isSentencePracticePage = location.pathname === "/sentence-practice";
   const isAudioUploadsPage = location.pathname === "/audio-uploads";
   const isGamePage = location.pathname === "/game";
   const accountLabel = user.displayName || user.email || "使用者";
@@ -136,6 +140,12 @@ function AppContent() {
       label: "演講練習",
       icon: "🎤",
       isActive: isSpeechPracticePage,
+    },
+    {
+      to: "/sentence-practice",
+      label: "句子練習",
+      icon: "✍️",
+      isActive: isSentencePracticePage,
     },
     {
       to: "/audio-uploads",
@@ -405,6 +415,10 @@ function AppContent() {
                   <Route path="/" element={<PdfReader />} />
                   <Route path="/vocabulary" element={<VocabularyBook />} />
                   <Route path="/speech-practice" element={<SpeechPractice />} />
+                  <Route
+                    path="/sentence-practice"
+                    element={<SentencePractice />}
+                  />
                   <Route path="/audio-uploads" element={<AudioUploads />} />
                   <Route path="/game" element={<SpiritAdventure />} />
                   <Route path="/settings" element={<Settings />} />
