@@ -16,6 +16,7 @@ import {
   type QueryDocumentSnapshot,
 } from "firebase/firestore";
 import { db } from "../utils/firebaseUtil";
+import { shuffleArray } from "../utils/arrayUtils";
 import type {
   VocabularyWord,
   VocabularyFilters,
@@ -188,15 +189,8 @@ export const getAllVocabularyForReview = async (
       },
     );
 
-    // Shuffle using Fisher-Yates algorithm
-    const shuffled = [...words];
-    for (let i = shuffled.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-    }
-
-    // Return up to maxWords
-    return shuffled.slice(0, maxWords);
+    // Shuffle using Fisher-Yates algorithm and return up to maxWords
+    return shuffleArray(words).slice(0, maxWords);
   } catch (error) {
     console.error("Error getting vocabulary for review:", error);
     throw error;

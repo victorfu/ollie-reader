@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useAuth } from "./useAuth";
 import type { AudioUpload, AudioUploadUpdateInput } from "../types/audioUpload";
 import {
@@ -45,6 +45,12 @@ export function useAudioUploads() {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [audioUrls, setAudioUrls] = useState<Map<string, string>>(new Map());
+  const audioUrlsRef = useRef<Map<string, string>>(audioUrls);
+
+  // Keep ref in sync with state
+  useEffect(() => {
+    audioUrlsRef.current = audioUrls;
+  }, [audioUrls]);
 
   /**
    * Load all audio uploads for the current user
@@ -71,8 +77,8 @@ export function useAudioUploads() {
    */
   const getSignedUrl = useCallback(
     async (uploadId: string, audioUrl: string): Promise<string | null> => {
-      // Check cache first
-      const cached = audioUrls.get(uploadId);
+      // Check cache first (read from ref to avoid stale closure)
+      const cached = audioUrlsRef.current.get(uploadId);
       if (cached) return cached;
 
       try {
@@ -88,7 +94,7 @@ export function useAudioUploads() {
         return null;
       }
     },
-    [audioUrls],
+    [],
   );
 
   /**
@@ -273,8 +279,6 @@ export function useAudioUploads() {
       void loadUploads();
     }
   }, [user, loadUploads]);
-
-
 
   return {
     uploads,

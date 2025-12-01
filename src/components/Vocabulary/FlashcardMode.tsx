@@ -4,6 +4,7 @@ import confetti from "canvas-confetti";
 import type { VocabularyWord } from "../../types/vocabulary";
 import { useSpeechState } from "../../hooks/useSpeechState";
 import { usePronunciation } from "../../hooks/usePronunciation";
+import { shuffleArray } from "../../utils/arrayUtils";
 
 interface FlashcardModeProps {
   words: VocabularyWord[];
@@ -57,10 +58,9 @@ export const FlashcardMode = ({
     isSupported: isSpeechRecognitionSupported,
   } = usePronunciation(currentCard?.word || "", handlePronunciationMatch);
 
-  // Shuffle words on mount
+  // Set cards on mount (already shuffled by service layer)
   useEffect(() => {
-    const shuffled = [...initialWords].sort(() => Math.random() - 0.5);
-    setCards(shuffled);
+    setCards(initialWords);
   }, [initialWords]);
 
   const handleFlip = useCallback(() => {
@@ -96,8 +96,7 @@ export const FlashcardMode = ({
   );
 
   const handleRestart = () => {
-    const shuffled = [...initialWords].sort(() => Math.random() - 0.5);
-    setCards(shuffled);
+    setCards(shuffleArray(initialWords));
     setCurrentIndex(0);
     setIsFlipped(false);
     setIsFinished(false);
