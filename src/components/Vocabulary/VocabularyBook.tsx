@@ -195,7 +195,7 @@ export const VocabularyBook = () => {
       {
         rootMargin: "100px",
         threshold: 0,
-      }
+      },
     );
 
     observer.observe(element);
@@ -254,7 +254,7 @@ export const VocabularyBook = () => {
             onStop={stopSpeaking}
           />
 
-          {words.length > 0 && (
+          {words.length > 0 && !loading && (
             <button
               className="btn btn-primary gap-2 w-full sm:w-auto shadow-md"
               onClick={handleStartReview}

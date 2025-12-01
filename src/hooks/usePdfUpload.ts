@@ -139,7 +139,7 @@ export const usePdfUpload = () => {
       const objectUrl = URL.createObjectURL(blob);
       setPdfUrl(objectUrl);
 
-      if (redirectCount && parseInt(redirectCount) > 0) {
+      if (import.meta.env.DEV && redirectCount && parseInt(redirectCount) > 0) {
         console.log(`✓ PDF 已載入 (經過 ${redirectCount} 次重定向)`);
       }
 
