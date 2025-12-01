@@ -12,6 +12,7 @@ interface SentenceCardProps {
   onDelete: (id: string) => Promise<{ success: boolean; message?: string }>;
   getWordDefinition: (word: string) => Promise<string | null>;
   isProcessing: boolean;
+  isCurrentlyPlaying?: boolean;
 }
 
 export const SentenceCard = ({
@@ -20,6 +21,7 @@ export const SentenceCard = ({
   onDelete,
   getWordDefinition,
   isProcessing,
+  isCurrentlyPlaying = false,
 }: SentenceCardProps) => {
   const { speak, isSpeaking, isLoadingAudio } = useSpeechState();
   const [isEditing, setIsEditing] = useState(false);
@@ -70,7 +72,11 @@ export const SentenceCard = ({
   };
 
   return (
-    <div className="card bg-base-100 shadow-md hover:shadow-lg transition-shadow">
+    <div
+      className={`card bg-base-100 shadow-md hover:shadow-lg transition-shadow ${
+        isCurrentlyPlaying ? "ring-2 ring-primary ring-offset-2" : ""
+      }`}
+    >
       <div className="card-body p-4">
         {/* English sentence */}
         <div className="flex items-start gap-2">
@@ -162,12 +168,12 @@ export const SentenceCard = ({
                 </div>
               </div>
             ) : (
-              <p className="text-lg font-medium text-base-content leading-relaxed">
+              <div className="text-lg font-medium text-base-content leading-relaxed">
                 <ClickableWords
                   text={sentence.english}
                   getWordDefinition={getWordDefinition}
                 />
-              </p>
+              </div>
             )}
           </div>
 

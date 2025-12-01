@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { Reorder } from "framer-motion";
 import { useSentencePractice } from "../../hooks/useSentencePractice";
 import { useSpeechState } from "../../hooks/useSpeechState";
@@ -34,6 +34,7 @@ export const SentencePractice = () => {
     setTtsMode,
     isLoadingAudio,
     stopSpeaking,
+    speak,
   } = useSpeechState();
 
   const [toastMessage, setToastMessage] = useState<{
@@ -42,6 +43,74 @@ export const SentencePractice = () => {
   } | null>(null);
 
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+
+  // Play all sentences state
+  const [isPlayingAll, setIsPlayingAll] = useState(false);
+  const [currentPlayingIndex, setCurrentPlayingIndex] = useState(-1);
+  const playAllRef = useRef<{ cancelled: boolean }>({ cancelled: false });
+
+  // Play all sentences sequentially
+  const handlePlayAll = useCallback(async () => {
+    if (sentences.length === 0) return;
+
+    // If already playing, stop
+    if (isPlayingAll) {
+      playAllRef.current.cancelled = true;
+      stopSpeaking();
+      setIsPlayingAll(false);
+      setCurrentPlayingIndex(-1);
+      return;
+    }
+
+    setIsPlayingAll(true);
+    playAllRef.current.cancelled = false;
+
+    for (let i = 0; i < sentences.length; i++) {
+      if (playAllRef.current.cancelled) break;
+
+      setCurrentPlayingIndex(i);
+      speak(sentences[i].english);
+
+      // Wait for the current sentence to finish
+      await new Promise<void>((resolve) => {
+        const checkInterval = setInterval(() => {
+          if (playAllRef.current.cancelled) {
+            clearInterval(checkInterval);
+            resolve();
+            return;
+          }
+          // Check if speaking has stopped (isSpeaking becomes false)
+          // We need to wait a bit after speak() is called before checking
+        }, 100);
+
+        // Also set a timeout based on text length as a fallback
+        const estimatedDuration = Math.max(
+          2000,
+          sentences[i].english.length * 80,
+        );
+        setTimeout(() => {
+          clearInterval(checkInterval);
+          resolve();
+        }, estimatedDuration);
+      });
+
+      // Small pause between sentences
+      if (!playAllRef.current.cancelled && i < sentences.length - 1) {
+        await new Promise((resolve) => setTimeout(resolve, 500));
+      }
+    }
+
+    setIsPlayingAll(false);
+    setCurrentPlayingIndex(-1);
+  }, [sentences, isPlayingAll, speak, stopSpeaking]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    const ref = playAllRef.current;
+    return () => {
+      ref.cancelled = true;
+    };
+  }, []);
 
   // Handle reorder with optimistic update and Firestore persistence
   const handleReorder = async (reorderedList: PracticeSentence[]) => {
@@ -153,27 +222,87 @@ export const SentencePractice = () => {
               </p>
             </div>
             {sentences.length > 0 && (
-              <button
-                type="button"
-                onClick={() => setShowClearConfirm(true)}
-                className="btn btn-outline btn-error btn-sm"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="h-4 w-4"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={handlePlayAll}
+                  disabled={isLoadingAudio}
+                  className={`btn btn-sm ${
+                    isPlayingAll ? "btn-warning" : "btn-primary"
+                  }`}
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                  />
-                </svg>
-                清除全部
-              </button>
+                  {isPlayingAll ? (
+                    <>
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        className="h-4 w-4"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                        />
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"
+                        />
+                      </svg>
+                      停止播放
+                    </>
+                  ) : (
+                    <>
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        className="h-4 w-4"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"
+                        />
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                        />
+                      </svg>
+                      播放全部
+                    </>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowClearConfirm(true)}
+                  className="btn btn-outline btn-error btn-sm"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-4 w-4"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                    />
+                  </svg>
+                  清除全部
+                </button>
+              </div>
             )}
           </div>
         </div>
@@ -236,7 +365,7 @@ export const SentencePractice = () => {
               onReorder={handleReorder}
               className="space-y-4"
             >
-              {sentences.map((sentence) => (
+              {sentences.map((sentence, index) => (
                 <Reorder.Item
                   key={sentence.id}
                   value={sentence}
@@ -249,6 +378,9 @@ export const SentencePractice = () => {
                     onDelete={handleDelete}
                     getWordDefinition={getWordDefinition}
                     isProcessing={isProcessing}
+                    isCurrentlyPlaying={
+                      isPlayingAll && currentPlayingIndex === index
+                    }
                   />
                 </Reorder.Item>
               ))}

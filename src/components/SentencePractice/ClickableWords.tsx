@@ -114,13 +114,13 @@ export const ClickableWords = ({
                         查詢中...
                       </div>
                     ) : definition ? (
-                      <p className="text-sm text-base-content/80">
+                      <span className="text-sm text-base-content/80">
                         {definition}
-                      </p>
+                      </span>
                     ) : (
-                      <p className="text-sm text-base-content/60">
+                      <span className="text-sm text-base-content/60">
                         無法取得解釋
-                      </p>
+                      </span>
                     )}
                   </div>
                 </div>
