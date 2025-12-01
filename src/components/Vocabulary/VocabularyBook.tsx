@@ -45,6 +45,7 @@ export const VocabularyBook = () => {
     updateWord,
     regenerateWordDetails,
     incrementReview,
+    loadWordsForReview,
   } = useVocabulary();
   const {
     speechSupported,
@@ -74,6 +75,8 @@ export const VocabularyBook = () => {
   const [deleteWordId, setDeleteWordId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isReviewMode, setIsReviewMode] = useState(false);
+  const [reviewWords, setReviewWords] = useState<VocabularyWord[]>([]);
+  const [isLoadingReview, setIsLoadingReview] = useState(false);
   const manualWordFieldId = "manual-word-input";
   const loadMoreRef = useRef<HTMLDivElement>(null);
 
@@ -202,11 +205,27 @@ export const VocabularyBook = () => {
   // Memoize word groups to prevent recalculation on every render
   const wordGroups = useMemo(() => groupWordsByDate(words), [words]);
 
-  if (isReviewMode) {
+  // Handle starting review mode - load random words
+  const handleStartReview = useCallback(async () => {
+    setIsLoadingReview(true);
+    const randomWords = await loadWordsForReview(50);
+    setReviewWords(randomWords);
+    setIsLoadingReview(false);
+    if (randomWords.length > 0) {
+      setIsReviewMode(true);
+    } else {
+      setToastMessage({ message: "沒有單字可以複習", type: "info" });
+    }
+  }, [loadWordsForReview]);
+
+  if (isReviewMode && reviewWords.length > 0) {
     return (
       <FlashcardMode
-        words={words}
-        onClose={() => setIsReviewMode(false)}
+        words={reviewWords}
+        onClose={() => {
+          setIsReviewMode(false);
+          setReviewWords([]);
+        }}
         onUpdateReview={incrementReview}
       />
     );
@@ -238,23 +257,28 @@ export const VocabularyBook = () => {
           {words.length > 0 && (
             <button
               className="btn btn-primary gap-2 w-full sm:w-auto shadow-md"
-              onClick={() => setIsReviewMode(true)}
+              onClick={handleStartReview}
+              disabled={isLoadingReview}
             >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-5 w-5"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"
-                />
-              </svg>
-              開始複習 ({words.length})
+              {isLoadingReview ? (
+                <span className="loading loading-spinner loading-sm" />
+              ) : (
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-5 w-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"
+                  />
+                </svg>
+              )}
+              開始複習
             </button>
           )}
         </div>

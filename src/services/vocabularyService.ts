@@ -169,6 +169,40 @@ export const getUserVocabulary = async (
   }
 };
 
+// Get all vocabulary words for review (no pagination, random order)
+export const getAllVocabularyForReview = async (
+  userId: string,
+  maxWords: number = 50,
+): Promise<VocabularyWord[]> => {
+  try {
+    const q = query(
+      collection(db, COLLECTION_NAME),
+      where("userId", "==", userId),
+    );
+
+    const querySnapshot = await getDocs(q);
+
+    const words = querySnapshot.docs.map(
+      (doc: QueryDocumentSnapshot<DocumentData>) => {
+        return convertToVocabularyWord(doc.id, doc.data());
+      },
+    );
+
+    // Shuffle using Fisher-Yates algorithm
+    const shuffled = [...words];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+
+    // Return up to maxWords
+    return shuffled.slice(0, maxWords);
+  } catch (error) {
+    console.error("Error getting vocabulary for review:", error);
+    throw error;
+  }
+};
+
 // Get a single vocabulary word
 export const getVocabularyWord = async (
   wordId: string,

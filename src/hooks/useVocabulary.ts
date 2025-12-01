@@ -9,6 +9,7 @@ import {
   checkWordExists,
   getUserTags,
   incrementReviewCount as incrementReviewCountService,
+  getAllVocabularyForReview,
 } from "../services/vocabularyService";
 import { geminiModel } from "../utils/firebaseUtil";
 import type { VocabularyWord, VocabularyFilters } from "../types/vocabulary";
@@ -411,6 +412,21 @@ export const useVocabulary = () => {
     [fetchWordDetails],
   );
 
+  // Load random words for review mode
+  const loadWordsForReview = useCallback(
+    async (maxWords: number = 50): Promise<VocabularyWord[]> => {
+      if (!user) return [];
+
+      try {
+        return await getAllVocabularyForReview(user.uid, maxWords);
+      } catch (err) {
+        console.error("Failed to load words for review:", err);
+        return [];
+      }
+    },
+    [user],
+  );
+
   return {
     words,
     loading,
@@ -426,5 +442,6 @@ export const useVocabulary = () => {
     getTags,
     incrementReview,
     regenerateWordDetails,
+    loadWordsForReview,
   };
 };
