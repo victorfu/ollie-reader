@@ -274,16 +274,7 @@ export function useAudioUploads() {
     }
   }, [user, loadUploads]);
 
-  // Fetch signed URLs for all uploads when they change
-  useEffect(() => {
-    if (uploads.length === 0) return;
 
-    uploads.forEach((upload) => {
-      if (upload.id && upload.audioUrl && !audioUrls.has(upload.id)) {
-        void getSignedUrl(upload.id, upload.audioUrl);
-      }
-    });
-  }, [uploads, audioUrls, getSignedUrl]);
 
   return {
     uploads,

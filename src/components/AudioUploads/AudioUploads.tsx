@@ -43,6 +43,7 @@ export function AudioUploads() {
     updateUpload,
     deleteUpload,
     refreshSignedUrl,
+    getSignedUrl,
   } = useAudioUploads();
 
   const handleFileSelect = useCallback((file: File) => {
@@ -413,6 +414,7 @@ export function AudioUploads() {
             onEdit={handleEdit}
             onDelete={handleDelete}
             onRefreshUrl={handleRefreshUrl}
+            onLoadUrl={getSignedUrl}
           />
         </div>
       </div>

@@ -8,6 +8,7 @@ interface AudioUploadListProps {
   onEdit: (upload: AudioUpload) => void;
   onDelete: (uploadId: string, audioUrl: string) => void;
   onRefreshUrl: (uploadId: string, audioUrl: string) => void;
+  onLoadUrl: (uploadId: string, audioUrl: string) => Promise<string | null>;
 }
 
 export function AudioUploadList({
@@ -17,8 +18,10 @@ export function AudioUploadList({
   onEdit,
   onDelete,
   onRefreshUrl,
+  onLoadUrl,
 }: AudioUploadListProps) {
   const [audioErrors, setAudioErrors] = useState<Set<string>>(new Set());
+  const [loadingUrls, setLoadingUrls] = useState<Set<string>>(new Set());
   const [activeId, setActiveId] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const audioRefs = useRef<Map<string, HTMLAudioElement>>(new Map());
@@ -61,7 +64,29 @@ export function AudioUploadList({
     onRefreshUrl(uploadId, audioUrl);
   };
 
-  const handlePlayPause = (uploadId: string) => {
+  const handlePlayPause = async (uploadId: string, audioUrl: string) => {
+    // If URL not loaded yet, load it first
+    if (!audioUrls.has(uploadId)) {
+      setLoadingUrls((prev) => new Set(prev).add(uploadId));
+      const url = await onLoadUrl(uploadId, audioUrl);
+      setLoadingUrls((prev) => {
+        const next = new Set(prev);
+        next.delete(uploadId);
+        return next;
+      });
+      if (!url) {
+        setAudioErrors((prev) => new Set(prev).add(uploadId));
+        return;
+      }
+      // Set active and wait for audio element to render
+      setActiveId(uploadId);
+      setTimeout(() => {
+        const audio = audioRefs.current.get(uploadId);
+        audio?.play().catch((err) => console.error("Playback failed:", err));
+      }, 50);
+      return;
+    }
+
     const audio = audioRefs.current.get(uploadId);
     if (!audio) return;
 
@@ -157,7 +182,7 @@ export function AudioUploadList({
           const hasError = upload.id && audioErrors.has(upload.id);
           const isActive = activeId === upload.id;
           const isCurrentPlaying = isActive && isPlaying;
-          const isLoading = !hasSignedUrl && !hasError;
+          const isUrlLoading = upload.id && loadingUrls.has(upload.id);
 
           return (
             <div
@@ -196,7 +221,7 @@ export function AudioUploadList({
                           />
                         </svg>
                       </button>
-                    ) : isLoading ? (
+                    ) : isUrlLoading ? (
                       <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-base-200 flex items-center justify-center">
                         <span className="loading loading-spinner loading-sm" />
                       </div>
@@ -208,7 +233,7 @@ export function AudioUploadList({
                             ? "bg-primary text-primary-content"
                             : "bg-gradient-to-br from-primary/80 to-secondary/80 text-white hover:scale-105"
                         }`}
-                        onClick={() => upload.id && handlePlayPause(upload.id)}
+                        onClick={() => upload.id && handlePlayPause(upload.id, upload.audioUrl)}
                         title={isCurrentPlaying ? "暫停" : "播放"}
                       >
                         {isCurrentPlaying ? (
