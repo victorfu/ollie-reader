@@ -20,7 +20,6 @@ if (!getApps().length) {
   firebaseApp = initializeApp(firebaseConfig);
 
   if (import.meta.env.DEV) {
-    console.log("Enabling Firebase App Check debug mode");
     // @ts-expect-error app-check debug token
     self.FIREBASE_APPCHECK_DEBUG_TOKEN =
       import.meta.env.VITE_FIREBASE_APPCHECK_DEBUG_TOKEN || true;

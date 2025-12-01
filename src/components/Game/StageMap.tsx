@@ -20,7 +20,9 @@ export function StageMap({
   onBack,
 }: StageMapProps) {
   const completedCount = stages.filter((_, i) => isStageCompleted(i)).length;
-  const progressPercent = Math.round((completedCount / stages.length) * 100);
+  const progressPercent = Math.round(
+    (completedCount / (stages.length || 1)) * 100,
+  );
 
   return (
     <div className="min-h-[calc(100vh-8rem)] flex flex-col">
@@ -115,7 +117,11 @@ export function StageMap({
                   disabled={locked}
                   className={`
                     relative w-full text-left rounded-2xl transition-all duration-200
-                    ${locked ? "opacity-60 cursor-not-allowed" : "active:scale-[0.98]"}
+                    ${
+                      locked
+                        ? "opacity-60 cursor-not-allowed"
+                        : "active:scale-[0.98]"
+                    }
                     ${
                       completed
                         ? "bg-success/10 border-2 border-success/30 hover:border-success/50"
@@ -131,7 +137,9 @@ export function StageMap({
                         ? "bg-base-100 border-2 border-base-300 hover:border-primary/50 hover:shadow-md"
                         : ""
                     }
-                    ${locked ? "bg-base-200/50 border-2 border-base-300/30" : ""}
+                    ${
+                      locked ? "bg-base-200/50 border-2 border-base-300/30" : ""
+                    }
                   `}
                 >
                   <div className="p-4">
@@ -142,7 +150,11 @@ export function StageMap({
                           relative shrink-0 w-14 h-14 sm:w-16 sm:h-16 rounded-xl flex items-center justify-center
                           ${completed ? "bg-success text-success-content" : ""}
                           ${isCurrent ? "bg-primary text-primary-content" : ""}
-                          ${playable && !completed && !isCurrent ? "bg-base-200" : ""}
+                          ${
+                            playable && !completed && !isCurrent
+                              ? "bg-base-200"
+                              : ""
+                          }
                           ${locked ? "bg-base-300/50" : ""}
                           ${stage.isBoss ? "ring-2 ring-error/50" : ""}
                         `}
@@ -233,7 +245,9 @@ export function StageMap({
                                 <div className="w-5 h-5">
                                   <SpiritComponent size={20} animate={false} />
                                 </div>
-                                <span className="text-xs">{rewardSpirit.name}</span>
+                                <span className="text-xs">
+                                  {rewardSpirit.name}
+                                </span>
                               </span>
                             )}
                         </div>
