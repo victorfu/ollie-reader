@@ -184,7 +184,8 @@ const calculateReviewPriority = (word: VocabularyWord): number => {
   } else {
     // Days since last review (more days = higher priority)
     const daysSinceReview = Math.floor(
-      (Date.now() - new Date(word.lastReviewedAt).getTime()) / (1000 * 60 * 60 * 24)
+      (Date.now() - new Date(word.lastReviewedAt).getTime()) /
+        (1000 * 60 * 60 * 24),
     );
     score += daysSinceReview * 5;
   }
@@ -346,4 +347,61 @@ export const getUserTags = async (userId: string): Promise<string[]> => {
   });
 
   return Array.from(tagsSet).sort();
+};
+
+// Search all vocabulary words for a user (no pagination, for search functionality)
+export const searchUserVocabulary = async (
+  userId: string,
+  searchQuery: string,
+): Promise<VocabularyWord[]> => {
+  try {
+    if (!searchQuery.trim()) {
+      return [];
+    }
+
+    const searchLower = searchQuery.toLowerCase().trim();
+
+    // Query all words for this user
+    const q = query(
+      collection(db, COLLECTION_NAME),
+      where("userId", "==", userId),
+    );
+
+    const querySnapshot = await getDocs(q);
+
+    const words = querySnapshot.docs.map(
+      (doc: QueryDocumentSnapshot<DocumentData>) => {
+        return convertToVocabularyWord(doc.id, doc.data());
+      },
+    );
+
+    // Filter by search query on client side
+    const filteredWords = words.filter((word) =>
+      word.word.toLowerCase().includes(searchLower),
+    );
+
+    // Sort by relevance: exact match first, then starts with, then contains
+    filteredWords.sort((a, b) => {
+      const aWord = a.word.toLowerCase();
+      const bWord = b.word.toLowerCase();
+
+      // Exact match gets highest priority
+      if (aWord === searchLower && bWord !== searchLower) return -1;
+      if (bWord === searchLower && aWord !== searchLower) return 1;
+
+      // Starts with gets second priority
+      const aStartsWith = aWord.startsWith(searchLower);
+      const bStartsWith = bWord.startsWith(searchLower);
+      if (aStartsWith && !bStartsWith) return -1;
+      if (bStartsWith && !aStartsWith) return 1;
+
+      // Alphabetical order for same relevance
+      return aWord.localeCompare(bWord);
+    });
+
+    return filteredWords;
+  } catch (error) {
+    console.error("Error searching user vocabulary:", error);
+    throw error;
+  }
 };

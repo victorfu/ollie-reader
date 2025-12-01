@@ -4,7 +4,11 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useVocabulary } from "../../hooks/useVocabulary";
 import { useSpeechState } from "../../hooks/useSpeechState";
 import { useDebounce } from "../../hooks/useDebounce";
-import type { VocabularyWord, VocabularyFilters, ReviewSettings } from "../../types/vocabulary";
+import type {
+  VocabularyWord,
+  VocabularyFilters,
+  ReviewSettings,
+} from "../../types/vocabulary";
 import { WordDetail } from "../Vocabulary/WordDetail";
 import { VocabularyCard } from "../Vocabulary/VocabularyCard";
 import { SimpleTTSControls } from "../common/SimpleTTSControls";
@@ -47,6 +51,7 @@ export const VocabularyBook = () => {
     regenerateWordDetails,
     updateReview,
     loadWordsForReview,
+    searchWords,
   } = useVocabulary();
   const {
     speechSupported,
@@ -66,6 +71,10 @@ export const VocabularyBook = () => {
   });
   const [searchQuery, setSearchQuery] = useState("");
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
+  const [searchResults, setSearchResults] = useState<VocabularyWord[] | null>(
+    null,
+  );
+  const [isSearching, setIsSearching] = useState(false);
   const [manualWord, setManualWord] = useState("");
   const [isAddingManualWord, setIsAddingManualWord] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -88,10 +97,27 @@ export const VocabularyBook = () => {
     loadVocabulary(filters);
   }, [filters, loadVocabulary]);
 
-  // Debounced search - only update filters after user stops typing
+  // Debounced search - search all words in Firestore
   useEffect(() => {
-    setFilters((prev) => ({ ...prev, searchQuery: debouncedSearchQuery }));
-  }, [debouncedSearchQuery]);
+    const performSearch = async () => {
+      if (debouncedSearchQuery.trim()) {
+        setIsSearching(true);
+        try {
+          const results = await searchWords(debouncedSearchQuery);
+          setSearchResults(results);
+        } catch (error) {
+          console.error("Search failed:", error);
+          setSearchResults([]);
+        } finally {
+          setIsSearching(false);
+        }
+      } else {
+        setSearchResults(null);
+      }
+    };
+
+    performSearch();
+  }, [debouncedSearchQuery, searchWords]);
 
   const handleFilterChange = (
     key: keyof VocabularyFilters,
@@ -225,7 +251,10 @@ export const VocabularyBook = () => {
     async (settings: ReviewSettings) => {
       setShowReviewSettings(false);
       setIsLoadingReview(true);
-      const selectedWords = await loadWordsForReview(settings.wordCount, settings.mode);
+      const selectedWords = await loadWordsForReview(
+        settings.wordCount,
+        settings.mode,
+      );
       setReviewWords(selectedWords);
       setIsLoadingReview(false);
       if (selectedWords.length > 0) {
@@ -404,14 +433,17 @@ export const VocabularyBook = () => {
       </div>
 
       {/* Loading State */}
-      {loading && (
+      {(loading || isSearching) && (
         <div className="text-center py-12">
           <span className="loading loading-spinner loading-lg"></span>
+          {isSearching && (
+            <p className="mt-2 text-base-content/60">搜尋中...</p>
+          )}
         </div>
       )}
 
-      {/* Empty State */}
-      {!loading && words.length === 0 && (
+      {/* Empty State - No words at all */}
+      {!loading && !isSearching && !searchResults && words.length === 0 && (
         <div className="card bg-base-100 shadow-xl">
           <div className="card-body text-center py-12">
             <div className="text-6xl mb-4">📖</div>
@@ -423,53 +455,124 @@ export const VocabularyBook = () => {
         </div>
       )}
 
-      {/* Word Groups */}
-      {!loading && Object.keys(wordGroups).length > 0 && (
-        <div className="space-y-8">
-          {Object.entries(wordGroups).map(([date, groupWords]) => (
-            <motion.div
-              key={date}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4 }}
+      {/* Search Results */}
+      {!loading && !isSearching && searchResults !== null && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-bold text-base-content/60 flex items-center gap-2">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-5 w-5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                />
+              </svg>
+              搜尋結果
+              <span className="text-xs font-normal bg-base-200 px-2 py-0.5 rounded-full">
+                {searchResults.length}
+              </span>
+            </h2>
+            <button
+              className="btn btn-ghost btn-sm"
+              onClick={() => {
+                setSearchQuery("");
+                setSearchResults(null);
+              }}
             >
-              <h2 className="text-lg font-bold mb-4 text-base-content/60 flex items-center gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-primary/60"></span>
-                {date}
-                <span className="text-xs font-normal bg-base-200 px-2 py-0.5 rounded-full">
-                  {groupWords.length}
-                </span>
-              </h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-                <AnimatePresence mode="popLayout">
-                  {groupWords.map((word) => (
-                    <VocabularyCard
-                      key={word.id}
-                      word={word}
-                      onClick={() => setSelectedWord(word)}
-                      onPlay={(e) => {
-                        e.stopPropagation();
-                        speak(word.word);
-                      }}
-                      onDelete={(e) => {
-                        e.stopPropagation();
-                        handleDelete(word.id!);
-                      }}
-                    />
-                  ))}
-                </AnimatePresence>
-              </div>
-            </motion.div>
-          ))}
-
-          {/* Load More Indicator */}
-          <div ref={loadMoreRef} className="text-center py-6">
-            {hasMore && isLoadingMore && (
-              <span className="loading loading-spinner loading-md text-primary" />
-            )}
+              清除搜尋
+            </button>
           </div>
+
+          {searchResults.length === 0 ? (
+            <div className="card bg-base-100 shadow-md">
+              <div className="card-body text-center py-8">
+                <div className="text-4xl mb-2">🔍</div>
+                <p className="text-base-content/60">
+                  找不到符合「{debouncedSearchQuery}」的單字
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+              <AnimatePresence mode="popLayout">
+                {searchResults.map((word) => (
+                  <VocabularyCard
+                    key={word.id}
+                    word={word}
+                    onClick={() => setSelectedWord(word)}
+                    onPlay={(e) => {
+                      e.stopPropagation();
+                      speak(word.word);
+                    }}
+                    onDelete={(e) => {
+                      e.stopPropagation();
+                      handleDelete(word.id!);
+                    }}
+                  />
+                ))}
+              </AnimatePresence>
+            </div>
+          )}
         </div>
       )}
+
+      {/* Word Groups - Only show when not searching */}
+      {!loading &&
+        !isSearching &&
+        searchResults === null &&
+        Object.keys(wordGroups).length > 0 && (
+          <div className="space-y-8">
+            {Object.entries(wordGroups).map(([date, groupWords]) => (
+              <motion.div
+                key={date}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4 }}
+              >
+                <h2 className="text-lg font-bold mb-4 text-base-content/60 flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-primary/60"></span>
+                  {date}
+                  <span className="text-xs font-normal bg-base-200 px-2 py-0.5 rounded-full">
+                    {groupWords.length}
+                  </span>
+                </h2>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                  <AnimatePresence mode="popLayout">
+                    {groupWords.map((word) => (
+                      <VocabularyCard
+                        key={word.id}
+                        word={word}
+                        onClick={() => setSelectedWord(word)}
+                        onPlay={(e) => {
+                          e.stopPropagation();
+                          speak(word.word);
+                        }}
+                        onDelete={(e) => {
+                          e.stopPropagation();
+                          handleDelete(word.id!);
+                        }}
+                      />
+                    ))}
+                  </AnimatePresence>
+                </div>
+              </motion.div>
+            ))}
+
+            {/* Load More Indicator */}
+            <div ref={loadMoreRef} className="text-center py-6">
+              {hasMore && isLoadingMore && (
+                <span className="loading loading-spinner loading-md text-primary" />
+              )}
+            </div>
+          </div>
+        )}
 
       {/* Word Detail Modal */}
       {selectedWord && (

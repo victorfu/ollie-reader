@@ -13,6 +13,7 @@ interface SentenceCardProps {
   getWordDefinition: (word: string) => Promise<string | null>;
   isProcessing: boolean;
   isCurrentlyPlaying?: boolean;
+  onEditingChange?: (isEditing: boolean) => void;
 }
 
 export const SentenceCard = ({
@@ -22,6 +23,7 @@ export const SentenceCard = ({
   getWordDefinition,
   isProcessing,
   isCurrentlyPlaying = false,
+  onEditingChange,
 }: SentenceCardProps) => {
   const { speak, isSpeaking, isLoadingAudio } = useSpeechState();
   const [isEditing, setIsEditing] = useState(false);
@@ -35,11 +37,13 @@ export const SentenceCard = ({
   const handleEdit = () => {
     setIsEditing(true);
     setEditedEnglish(sentence.english);
+    onEditingChange?.(true);
   };
 
   const handleCancelEdit = () => {
     setIsEditing(false);
     setEditedEnglish(sentence.english);
+    onEditingChange?.(false);
   };
 
   const handleSaveEdit = async () => {
@@ -54,6 +58,7 @@ export const SentenceCard = ({
 
     if (result.success) {
       setIsEditing(false);
+      onEditingChange?.(false);
     }
   };
 

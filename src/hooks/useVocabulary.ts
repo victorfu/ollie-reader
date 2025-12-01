@@ -10,9 +10,14 @@ import {
   getUserTags,
   getVocabularyForReview,
   updateReviewStats,
+  searchUserVocabulary,
 } from "../services/vocabularyService";
 import { geminiModel } from "../utils/firebaseUtil";
-import type { VocabularyWord, VocabularyFilters, ReviewMode } from "../types/vocabulary";
+import type {
+  VocabularyWord,
+  VocabularyFilters,
+  ReviewMode,
+} from "../types/vocabulary";
 
 export const useVocabulary = () => {
   const { user } = useAuth();
@@ -439,6 +444,21 @@ export const useVocabulary = () => {
     [user],
   );
 
+  // Search all vocabulary words (not just loaded ones)
+  const searchWords = useCallback(
+    async (searchQuery: string): Promise<VocabularyWord[]> => {
+      if (!user) return [];
+
+      try {
+        return await searchUserVocabulary(user.uid, searchQuery);
+      } catch (err) {
+        console.error("Failed to search words:", err);
+        return [];
+      }
+    },
+    [user],
+  );
+
   return {
     words,
     loading,
@@ -455,5 +475,6 @@ export const useVocabulary = () => {
     updateReview,
     regenerateWordDetails,
     loadWordsForReview,
+    searchWords,
   };
 };

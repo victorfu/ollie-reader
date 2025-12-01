@@ -44,6 +44,11 @@ export const SentencePractice = () => {
 
   const [showClearConfirm, setShowClearConfirm] = useState(false);
 
+  // Track which sentence is being edited to disable drag
+  const [editingSentenceId, setEditingSentenceId] = useState<string | null>(
+    null,
+  );
+
   // Play all sentences state
   const [isPlayingAll, setIsPlayingAll] = useState(false);
   const [currentPlayingIndex, setCurrentPlayingIndex] = useState(-1);
@@ -370,7 +375,12 @@ export const SentencePractice = () => {
                   key={sentence.id}
                   value={sentence}
                   onDragEnd={handleReorderComplete}
-                  className="cursor-grab active:cursor-grabbing"
+                  drag={editingSentenceId !== sentence.id}
+                  className={
+                    editingSentenceId === sentence.id
+                      ? ""
+                      : "cursor-grab active:cursor-grabbing"
+                  }
                 >
                   <SentenceCard
                     sentence={sentence}
@@ -380,6 +390,9 @@ export const SentencePractice = () => {
                     isProcessing={isProcessing}
                     isCurrentlyPlaying={
                       isPlayingAll && currentPlayingIndex === index
+                    }
+                    onEditingChange={(isEditing) =>
+                      setEditingSentenceId(isEditing ? sentence.id! : null)
                     }
                   />
                 </Reorder.Item>
