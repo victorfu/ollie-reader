@@ -71,6 +71,19 @@ function AppContent() {
     setIsMobileMenuOpen(false);
   }, [location.pathname]);
 
+  // Prevent background scroll when mobile menu is open
+  useEffect(() => {
+    if (isMobileMenuOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [isMobileMenuOpen]);
+
   if (loading) {
     return (
       <div className="min-h-screen bg-base-200 flex items-center justify-center">
