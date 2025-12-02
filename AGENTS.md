@@ -2,20 +2,22 @@
 
 This document is intended for AI coding agents to understand the project's architecture, patterns, and current state.
 
-<last_updated>2025-11-29T11:43:23.771Z</last_updated>
+<last_updated>2025-12-02T04:54:21.323Z</last_updated>
 
 ## Project Overview
-**Ollie Reader** is a modern web application built with React 19, TypeScript, and Vite, designed for English learning (PDF reading, vocabulary building, speech practice). It uses Firebase for backend services (Auth, Firestore, Storage) and Gemini AI for content generation.
+**Ollie Reader** is a modern web application built with React 19, TypeScript, and Vite, designed for English learning (PDF reading, vocabulary building, speech practice, games). It uses Firebase for backend services (Auth, Firestore, Storage) and Gemini AI for content generation.
 
 ## Key Architectural Patterns
 
 ### 1. State Management
 - **Context API**: Used for global state like Authentication (`AuthContext`), PDF state (`PdfContext`), Speech settings (`SpeechContext`), and App Settings (`SettingsContext`).
 - **Custom Hooks**: Logic is encapsulated in `src/hooks/`.
-  - `useVocabulary`: Manages vocabulary CRUD, pagination, and AI generation.
+  - `useVocabulary`: Manages vocabulary CRUD, pagination, review modes, and AI generation.
   - `useSpeechState`: Abstraction over `SpeechContext`.
   - `usePronunciation`: Wrapper around Web Speech API for speech recognition.
   - `useAudioUploads`: Manages audio file uploads and playback state.
+  - `useChat`: Manages AI chat sessions with PDF context.
+  - `useAdventure`, `useMagicBattle`: Game state management.
 
 ### 2. UI/UX Patterns
 - **Styling**: Tailwind CSS with DaisyUI components.
@@ -23,30 +25,75 @@ This document is intended for AI coding agents to understand the project's archi
 - **Components**:
   - Functional components with strict TypeScript typing.
   - **Glassmorphism**: Used in cards and overlays (backdrop-blur).
-  - **Infinite Scroll**: Implemented in `VocabularyBook` using scroll event listeners. *Note: Do not use global loading state for pagination to avoid full re-renders.*
+  - **Infinite Scroll**: Implemented in `VocabularyBook` using IntersectionObserver. *Note: Do not use global loading state for single-item updates to avoid full re-renders.*
 
-### 3. Feature Implementation Details
+### 3. Services Layer (`src/services/`)
+- **aiService.ts**: Centralized Gemini AI interactions (word details, translations, chat sessions, game words).
+- **vocabularyService.ts**: Firestore CRUD for vocabulary, review selection (smart/tag-based), tag management.
+- **audioUploadService.ts**, **audioStorageService.ts**: Audio file management.
+- **speechPracticeService.ts**, **sentencePracticeService.ts**: Practice session data.
+- **gameService.ts**, **gameProgressService.ts**: Game data and progress tracking.
+
+### 4. Utilities (`src/utils/`)
+- **logger.ts**: Centralized logging utility; auto-disables debug logs in production.
+- **textUtils.ts**: Text manipulation functions (e.g., `cleanText` for pronunciation matching).
+- **firebaseUtil.ts**: Firebase initialization and Gemini AI model setup.
+- **arrayUtils.ts**: Array helpers (e.g., `shuffleArray`).
+
+### 5. Feature Implementation Details
 
 #### Vocabulary System (`src/components/Vocabulary/`)
-- **Data Model**: `VocabularyWord` includes `emoji` (visual cue), `phonetic`, `definitions`, and `reviewCount`.
-- **AI Integration**: Gemini AI generates definitions, examples, phonetics, and selects relevant Emojis upon word addition.
-- **Flashcard Mode**:
-  - Full-screen review interface.
-  - **Pronunciation Coach**: Uses Web Speech API (`SpeechRecognition`) to verify spoken words against the target word (fuzzy matching).
-  - **Visual Feedback**: Confetti animation (`canvas-confetti`) on success.
-- **List View**:
-  - **VocabularyCard**: Compact design with hover effects, direct play button, and emoji display.
-  - **Infinite Scroll**: Automatically loads more items when scrolling to the bottom.
+- **Data Model**: `VocabularyWord` includes `emoji`, `phonetic`, `definitions`, `tags`, `reviewCount`, `forgotCount`, `rememberedCount`.
+- **AI Integration**: Gemini AI generates definitions, examples, phonetics, and selects relevant Emojis via `aiService.ts`.
+- **Review Modes** (`ReviewMode` type):
+  - `smart`: Priority-based selection (forgotten words, not recently reviewed).
+  - `tag`: All words with a specific tag.
+- **Tag System**: 
+  - Tags stored as array on each word.
+  - `getUserTags()` fetches all unique tags efficiently (direct Firestore query).
+  - Tag suggestions shown when editing (filters existing tags).
+- **Flashcard Mode** (`FlashcardMode.tsx`):
+  - Full-screen review interface with large word display.
+  - **Pronunciation Coach**: Uses Web Speech API to verify spoken words.
+  - **Visual Feedback**: Confetti animation on correct pronunciation.
+  - **Auto-play**: Speaks all words sequentially.
+- **List View** (`VocabularyBook.tsx`):
+  - **VocabularyCard**: Compact design with hover effects, emoji, play button.
+  - **Infinite Scroll**: Uses IntersectionObserver for efficient pagination.
+  - **Word Detail Modal**: Edit tags (with suggestions), difficulty, view definitions.
 
 #### Audio System (`src/components/AudioUploads/`)
 - **Playback**: Custom audio player controls.
-- **State Handling**: Separates `activeId` (player visible) from `isPlaying` (audio running) to allow UI interaction (like seeking) without hiding the player.
-- **Event Propagation**: `stopPropagation` is crucial on player controls to prevent bubbling to parent containers.
+- **State Handling**: Separates `activeId` (player visible) from `isPlaying` (audio running).
+- **Event Propagation**: `stopPropagation` on player controls to prevent bubbling.
+
+#### Game System (`src/components/Game/`)
+- **Spirit Adventure**: RPG-style vocabulary game with battles.
+- **AI Word Generation**: Uses `generateGameWords()` from `aiService.ts`.
 
 ## Project Structure & Module Organization
-- `src/` holds the TypeScript application. Use `components/` for UI building blocks, `hooks/` for reusable state logic, `contexts/` for providers, `services/` for Firebase and network calls, `utils/` for shared helpers, and `constants/` for configuration tokens.
-- Keep assets like icons and sample documents in `src/assets/`; static files that must ship untouched belong in `public/`. Production builds emit to `dist/`.
-- Vite entry points live in `index.html`, `main.tsx`, and `App.tsx`. Tailwind configuration is centralized in `tailwind.config.js` and consumed via `index.css`.
+```
+src/
+├── components/          # React UI components
+│   ├── AudioUploads/    # Audio library feature
+│   ├── Auth/            # Authentication screens
+│   ├── Game/            # Vocabulary games
+│   ├── PdfReader/       # PDF viewer & chat
+│   ├── SentencePractice/ # Sentence practice
+│   ├── Settings/        # App settings
+│   ├── SpeechPractice/  # Speech practice
+│   ├── Vocabulary/      # Vocabulary book, flashcards, review
+│   ├── common/          # Shared UI (Toast, ConfirmModal, etc.)
+│   └── icons/           # Icon components
+├── contexts/            # React Context providers
+├── hooks/               # Custom React hooks
+├── services/            # Firebase & API services
+├── types/               # TypeScript type definitions
+├── utils/               # Utility functions
+├── App.tsx              # Main app component
+├── main.tsx             # Entry point
+└── index.css            # Global styles
+```
 
 ## Build, Test, and Development Commands
 - `npm install` installs dependencies; run it anytime `package.json` changes.
@@ -60,6 +107,13 @@ This document is intended for AI coding agents to understand the project's archi
 - Prefer functional React components. Component files are `PascalCase.tsx`; hooks use the `useName.ts` pattern. Shared utilities stay `camelCase.ts`.
 - Use Tailwind utility classes in JSX; avoid ad-hoc inline styles unless absolutely necessary.
 - ESLint enforces React hooks rules and general style. Format imports and spacing to satisfy the linter; default indentation is two spaces.
+- Use `logger` from `src/utils/logger.ts` instead of direct `console.log` calls.
+
+## Performance Considerations
+- **Avoid global loading state for item updates**: When updating/deleting single items, don't set global `loading` state as it triggers full page re-renders.
+- **Use IntersectionObserver**: For infinite scroll instead of scroll event listeners.
+- **Memoize expensive computations**: Use `useMemo` for computed values like word groupings.
+- **Efficient tag queries**: `getUserTags()` queries Firestore directly without loading full word objects.
 
 ## Testing Guidelines
 - Automated tests are not yet scaffolded. When adding them, adopt Vitest + React Testing Library to align with the Vite toolchain.
