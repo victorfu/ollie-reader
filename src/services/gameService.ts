@@ -1,14 +1,21 @@
-import { geminiModel } from "../utils/firebaseUtil";
+import { generateGameWords as generateGameWordsAI, type GameWord } from "./aiService";
 import type { VocabularyWord } from "../types/vocabulary";
 
 // ============ 音效系統 ============
 
 type SoundEffect = "correct" | "wrong" | "levelup" | "unlock" | "click";
 
-// 使用 Web Audio API 生成簡單音效
-const audioContext = new (window.AudioContext ||
-  (window as typeof window & { webkitAudioContext: typeof AudioContext })
-    .webkitAudioContext)();
+// Lazy initialization of AudioContext to avoid browser warnings
+let audioContext: AudioContext | null = null;
+
+function getAudioContext(): AudioContext {
+  if (!audioContext) {
+    audioContext = new (window.AudioContext ||
+      (window as typeof window & { webkitAudioContext: typeof AudioContext })
+        .webkitAudioContext)();
+  }
+  return audioContext;
+}
 
 const soundConfigs: Record<
   SoundEffect,
@@ -40,17 +47,19 @@ const soundConfigs: Record<
 
 export function playSound(effect: SoundEffect): void {
   try {
+    const ctx = getAudioContext();
+    
     // Resume audio context if suspended (browser autoplay policy)
-    if (audioContext.state === "suspended") {
-      audioContext.resume();
+    if (ctx.state === "suspended") {
+      ctx.resume();
     }
 
     const config = soundConfigs[effect];
-    let startTime = audioContext.currentTime;
+    let startTime = ctx.currentTime;
 
     config.forEach(({ frequency, duration, type, gain: gainValue }) => {
-      const oscillator = audioContext.createOscillator();
-      const gainNode = audioContext.createGain();
+      const oscillator = ctx.createOscillator();
+      const gainNode = ctx.createGain();
 
       oscillator.type = type;
       oscillator.frequency.setValueAtTime(frequency, startTime);
@@ -59,7 +68,7 @@ export function playSound(effect: SoundEffect): void {
       gainNode.gain.exponentialRampToValueAtTime(0.01, startTime + duration);
 
       oscillator.connect(gainNode);
-      gainNode.connect(audioContext.destination);
+      gainNode.connect(ctx.destination);
 
       oscillator.start(startTime);
       oscillator.stop(startTime + duration);
@@ -74,7 +83,7 @@ export function playSound(effect: SoundEffect): void {
 // ============ 單字池系統 ============
 
 // Fallback words with higher difficulty (middle school level) if AI fails or is slow
-const FALLBACK_WORDS = [
+const FALLBACK_WORDS: GameWord[] = [
   { word: "Magnificent", def: "壯麗的、華麗的", emoji: "✨" },
   { word: "Perseverance", def: "毅力、堅持不懈", emoji: "💪" },
   { word: "Hypothesis", def: "假設、假說", emoji: "🔬" },
@@ -97,54 +106,19 @@ const FALLBACK_WORDS = [
   { word: "Appreciate", def: "感激、欣賞", emoji: "💝" },
 ];
 
-export interface GameWord {
-  word: string;
-  def: string;
-  emoji: string;
-}
+// Re-export GameWord type from aiService
+export type { GameWord };
 
 export const generateGameWords = async (
   count: number = 10,
 ): Promise<GameWord[]> => {
-  try {
-    const prompt = `
-      Generate ${count} English vocabulary words suitable for a 6th grade to middle school student (approx. 12-14 years old).
-      Choose words that are challenging but learnable, such as academic vocabulary, descriptive adjectives, or useful verbs.
-      Return ONLY a valid JSON array of objects.
-      Each object must have:
-      - "word": The English word (string)
-      - "def": The Traditional Chinese definition (string, simple and direct)
-      - "emoji": A relevant emoji (string)
-      
-      Example format:
-      [
-        {"word": "Magnificent", "def": "壯麗的", "emoji": "✨"},
-        {"word": "Persevere", "def": "堅持不懈", "emoji": "💪"}
-      ]
-      
-      Do not include markdown formatting like \`\`\`json. Just the raw JSON string.
-    `;
-
-    const result = await geminiModel.generateContent(prompt);
-    const text = result.response
-      .text()
-      .trim()
-      .replace(/```json|```/g, "");
-
-    try {
-      const words = JSON.parse(text) as GameWord[];
-      if (Array.isArray(words) && words.length > 0) {
-        return words;
-      }
-    } catch (e) {
-      console.error("Failed to parse AI response:", e);
-    }
-
-    return FALLBACK_WORDS.slice(0, count);
-  } catch (error) {
-    console.error("Error generating game words:", error);
-    return FALLBACK_WORDS.slice(0, count);
+  const words = await generateGameWordsAI(count);
+  
+  if (words.length > 0) {
+    return words;
   }
+  
+  return FALLBACK_WORDS.slice(0, count);
 };
 
 export const prepareGamePool = async (

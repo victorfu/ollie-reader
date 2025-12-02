@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef } from "react";
-import { geminiModel } from "../utils/firebaseUtil";
+import { createChatSession } from "../services/aiService";
 import type { ChatMessage } from "../types/chat";
 import { useAsyncState } from "./useAsyncState";
 import type { ChatSession, Content } from "firebase/ai";
@@ -70,20 +70,13 @@ export function useChat(pdfContext: string) {
             parts: [{ text: msg.content }],
           }));
 
-          chatSessionRef.current = geminiModel.startChat({
+          chatSessionRef.current = createChatSession({
             history,
-            systemInstruction: {
-              role: "user",
-              parts: [
-                {
-                  text: `你是一個 PDF 閱讀助手。以下是 PDF 的內容：
+            systemInstruction: `你是一個 PDF 閱讀助手。以下是 PDF 的內容：
 
 ${pdfContext}
 
 請根據上述 PDF 內容回答使用者的問題。如果問題與 PDF 內容無關，請禮貌地告知使用者。`,
-                },
-              ],
-            },
           });
           contextSentRef.current = true;
         }

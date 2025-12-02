@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from "react";
-import { geminiModel } from "../utils/firebaseUtil";
+import { generateSpeechScript } from "../services/aiService";
 import type { SpeechPracticeTopic, ScriptState } from "../types/speechPractice";
 import { getDefaultScriptPrompt } from "../types/speechPractice";
 
@@ -49,21 +49,24 @@ export function useScriptGenerator(topic: SpeechPracticeTopic | null) {
       }));
 
       try {
-        // Check if aborted before making API call
-        if (controller.signal.aborted) return;
-
-        const result = await geminiModel.generateContent(promptToUse);
+        const text = await generateSpeechScript(promptToUse, controller.signal);
 
         // Check if aborted after API call
         if (controller.signal.aborted) return;
 
-        const text = result.response.text();
-
-        setState((prev) => ({
-          ...prev,
-          generatedScript: text,
-          isGenerating: false,
-        }));
+        if (text) {
+          setState((prev) => ({
+            ...prev,
+            generatedScript: text,
+            isGenerating: false,
+          }));
+        } else {
+          setState((prev) => ({
+            ...prev,
+            isGenerating: false,
+            error: "產生講稿時發生錯誤，請稍後再試",
+          }));
+        }
       } catch (err) {
         // Ignore abort errors
         if (err instanceof Error && err.name === "AbortError") return;

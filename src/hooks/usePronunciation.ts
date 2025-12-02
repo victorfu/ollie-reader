@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { cleanText } from "../utils/textUtils";
 
 interface UsePronunciationResult {
   isListening: boolean;
@@ -45,10 +46,6 @@ export const usePronunciation = (
       }
     };
   }, []);
-
-  const cleanText = (text: string) => {
-    return text.toLowerCase().replace(/[^a-z0-9\s]/g, "");
-  };
 
   const checkMatch = useCallback(
     (spokenText: string) => {

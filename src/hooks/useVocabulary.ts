@@ -190,9 +190,8 @@ export const useVocabulary = () => {
     }
   }, [user, hasMore, lastDocId]);
 
-  // Get a single word
+  // Get a single word (does not affect global loading state)
   const getWord = useCallback(async (wordId: string) => {
-    setLoading(true);
     setError(null);
 
     try {
@@ -203,20 +202,17 @@ export const useVocabulary = () => {
       const message = err instanceof Error ? err.message : "Failed to get word";
       setError(message);
       return null;
-    } finally {
-      setLoading(false);
     }
   }, []);
 
-  // Update a word
+  // Update a word (does not affect global loading state)
   const updateWord = useCallback(
     async (wordId: string, updates: Partial<VocabularyWord>) => {
-      setLoading(true);
       setError(null);
 
       try {
         await updateVocabularyWord(wordId, updates);
-        // Reload the word in the list
+        // Update only the specific word in the list
         setWords((prev) =>
           prev.map((w) => (w.id === wordId ? { ...w, ...updates } : w)),
         );
@@ -230,16 +226,13 @@ export const useVocabulary = () => {
           err instanceof Error ? err.message : "Failed to update word";
         setError(message);
         return { success: false, message };
-      } finally {
-        setLoading(false);
       }
     },
     [],
   );
 
-  // Delete a word
+  // Delete a word (does not affect global loading state)
   const deleteWord = useCallback(async (wordId: string) => {
-    setLoading(true);
     setError(null);
 
     try {
@@ -255,8 +248,6 @@ export const useVocabulary = () => {
         err instanceof Error ? err.message : "Failed to delete word";
       setError(message);
       return { success: false, message };
-    } finally {
-      setLoading(false);
     }
   }, []);
 

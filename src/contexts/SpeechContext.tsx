@@ -16,6 +16,53 @@ interface SpeechProviderProps {
   children: ReactNode;
 }
 
+/**
+ * Fetch TTS audio blob from API or cache
+ */
+async function fetchTTSBlob(text: string, speechRate: number): Promise<Blob> {
+  const cacheKey = ttsCache.getCacheKey(text, speechRate);
+
+  // Check for pending request
+  const pendingRequest = ttsCache.getPendingRequest(cacheKey);
+  if (pendingRequest) {
+    return pendingRequest;
+  }
+
+  // Check cache
+  const cachedBlob = await ttsCache.get(cacheKey);
+  if (cachedBlob) {
+    return cachedBlob;
+  }
+
+  // Cache miss - fetch from API
+  const fetchPromise = (async () => {
+    const response = await apiFetch(TTS_API_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      includeAuthToken: true,
+      body: JSON.stringify({
+        text,
+        language_code: "en-US",
+        speaking_rate: speechRate,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`TTS API 錯誤: ${response.status}`);
+    }
+
+    return await response.blob();
+  })();
+
+  // Register pending request
+  ttsCache.setPendingRequest(cacheKey, fetchPromise);
+
+  const blob = await fetchPromise;
+  await ttsCache.set(cacheKey, blob);
+
+  return blob;
+}
+
 export const SpeechProvider = ({ children }: SpeechProviderProps) => {
   const {
     ttsMode: settingsTtsMode,
@@ -73,6 +120,14 @@ export const SpeechProvider = ({ children }: SpeechProviderProps) => {
     return en ?? null;
   }, [speechSupported]);
 
+  // Cleanup audio URL helper
+  const cleanupAudioUrl = useCallback(() => {
+    if (currentAudioUrl.current) {
+      URL.revokeObjectURL(currentAudioUrl.current);
+      currentAudioUrl.current = null;
+    }
+  }, []);
+
   const stopSpeaking = useCallback(() => {
     if (speechSupported) {
       window.speechSynthesis.cancel();
@@ -84,12 +139,53 @@ export const SpeechProvider = ({ children }: SpeechProviderProps) => {
       currentAudio.currentTime = 0;
       setCurrentAudio(null);
     }
-    // Revoke object URL but keep blob in cache
-    if (currentAudioUrl.current) {
-      URL.revokeObjectURL(currentAudioUrl.current);
-      currentAudioUrl.current = null;
-    }
-  }, [speechSupported, currentAudio]);
+    cleanupAudioUrl();
+  }, [speechSupported, currentAudio, cleanupAudioUrl]);
+
+  /**
+   * Play audio blob and return a promise that resolves when playback ends
+   * @param blob - The audio blob to play
+   * @param onEnd - Optional callback when audio ends (for async mode)
+   * @param onError - Optional callback when audio errors (for async mode)
+   */
+  const playAudioBlob = useCallback(
+    async (
+      blob: Blob,
+      onEnd?: () => void,
+      onError?: (err: Error) => void,
+    ): Promise<void> => {
+      const audioUrl = URL.createObjectURL(blob);
+      currentAudioUrl.current = audioUrl;
+      setIsLoadingAudio(false);
+
+      const audio = new Audio(audioUrl);
+      setCurrentAudio(audio);
+      setIsSpeaking(true);
+
+      audio.onended = () => {
+        setIsSpeaking(false);
+        setCurrentAudio(null);
+        cleanupAudioUrl();
+        onEnd?.();
+      };
+
+      audio.onerror = () => {
+        setIsSpeaking(false);
+        setIsLoadingAudio(false);
+        setCurrentAudio(null);
+        cleanupAudioUrl();
+        const error = new Error("音訊播放失敗");
+        if (onError) {
+          onError(error);
+        } else {
+          throw error;
+        }
+      };
+
+      await audio.play();
+    },
+    [cleanupAudioUrl],
+  );
 
   const speakWithAPI = useCallback(
     async (text: string) => {
@@ -97,142 +193,8 @@ export const SpeechProvider = ({ children }: SpeechProviderProps) => {
         setIsLoadingAudio(true);
         setIsSpeaking(false);
 
-        // Generate cache key
-        const cacheKey = ttsCache.getCacheKey(text, speechRate);
-
-        // Check for pending request
-        const pendingRequest = ttsCache.getPendingRequest(cacheKey);
-        if (pendingRequest) {
-          // Wait for the existing request to complete
-          const blob = await pendingRequest;
-          const audioUrl = URL.createObjectURL(blob);
-          currentAudioUrl.current = audioUrl;
-          setIsLoadingAudio(false);
-
-          const audio = new Audio(audioUrl);
-          setCurrentAudio(audio);
-          setIsSpeaking(true);
-
-          audio.onended = () => {
-            setIsSpeaking(false);
-            setCurrentAudio(null);
-            if (currentAudioUrl.current) {
-              URL.revokeObjectURL(currentAudioUrl.current);
-              currentAudioUrl.current = null;
-            }
-          };
-
-          audio.onerror = () => {
-            setIsSpeaking(false);
-            setIsLoadingAudio(false);
-            setCurrentAudio(null);
-            if (currentAudioUrl.current) {
-              URL.revokeObjectURL(currentAudioUrl.current);
-              currentAudioUrl.current = null;
-            }
-            throw new Error("音訊播放失敗");
-          };
-
-          await audio.play();
-          return;
-        }
-
-        // Check cache
-        const cachedBlob = await ttsCache.get(cacheKey);
-        if (cachedBlob) {
-          // Cache hit - use cached blob
-          const audioUrl = URL.createObjectURL(cachedBlob);
-          currentAudioUrl.current = audioUrl;
-          setIsLoadingAudio(false);
-
-          const audio = new Audio(audioUrl);
-          setCurrentAudio(audio);
-          setIsSpeaking(true);
-
-          audio.onended = () => {
-            setIsSpeaking(false);
-            setCurrentAudio(null);
-            if (currentAudioUrl.current) {
-              URL.revokeObjectURL(currentAudioUrl.current);
-              currentAudioUrl.current = null;
-            }
-          };
-
-          audio.onerror = () => {
-            setIsSpeaking(false);
-            setIsLoadingAudio(false);
-            setCurrentAudio(null);
-            if (currentAudioUrl.current) {
-              URL.revokeObjectURL(currentAudioUrl.current);
-              currentAudioUrl.current = null;
-            }
-            throw new Error("音訊播放失敗");
-          };
-
-          await audio.play();
-          return;
-        }
-
-        // Cache miss - fetch from API
-        const fetchPromise = (async () => {
-          const response = await apiFetch(TTS_API_URL, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            includeAuthToken: true,
-            body: JSON.stringify({
-              text: text,
-              language_code: "en-US",
-              speaking_rate: speechRate,
-            }),
-          });
-
-          if (!response.ok) {
-            throw new Error(`TTS API 錯誤: ${response.status}`);
-          }
-
-          return await response.blob();
-        })();
-
-        // Register pending request
-        ttsCache.setPendingRequest(cacheKey, fetchPromise);
-
-        const blob = await fetchPromise;
-
-        // Save to cache
-        await ttsCache.set(cacheKey, blob);
-
-        const audioUrl = URL.createObjectURL(blob);
-        currentAudioUrl.current = audioUrl;
-
-        setIsLoadingAudio(false);
-
-        const audio = new Audio(audioUrl);
-        setCurrentAudio(audio);
-        setIsSpeaking(true);
-
-        audio.onended = () => {
-          setIsSpeaking(false);
-          setCurrentAudio(null);
-          if (currentAudioUrl.current) {
-            URL.revokeObjectURL(currentAudioUrl.current);
-            currentAudioUrl.current = null;
-          }
-        };
-
-        audio.onerror = () => {
-          setIsSpeaking(false);
-          setIsLoadingAudio(false);
-          setCurrentAudio(null);
-          if (currentAudioUrl.current) {
-            URL.revokeObjectURL(currentAudioUrl.current);
-            currentAudioUrl.current = null;
-          }
-          throw new Error("音訊播放失敗");
-        };
-
-        await audio.play();
+        const blob = await fetchTTSBlob(text, speechRate);
+        await playAudioBlob(blob);
       } catch (err: unknown) {
         setIsSpeaking(false);
         setIsLoadingAudio(false);
@@ -240,7 +202,7 @@ export const SpeechProvider = ({ children }: SpeechProviderProps) => {
         throw new Error(message);
       }
     },
-    [speechRate],
+    [speechRate, playAudioBlob],
   );
 
   const speak = useCallback(
@@ -297,73 +259,19 @@ export const SpeechProvider = ({ children }: SpeechProviderProps) => {
               setIsLoadingAudio(true);
               setIsSpeaking(false);
 
-              const cacheKey = ttsCache.getCacheKey(text, speechRate);
+              const blob = await fetchTTSBlob(text, speechRate);
 
-              let blob: Blob;
-
-              const pendingRequest = ttsCache.getPendingRequest(cacheKey);
-              if (pendingRequest) {
-                blob = await pendingRequest;
-              } else {
-                const cachedBlob = await ttsCache.get(cacheKey);
-                if (cachedBlob) {
-                  blob = cachedBlob;
-                } else {
-                  const fetchPromise = (async () => {
-                    const response = await apiFetch(TTS_API_URL, {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      includeAuthToken: true,
-                      body: JSON.stringify({
-                        text,
-                        language_code: "en-US",
-                        speaking_rate: speechRate,
-                      }),
-                    });
-                    if (!response.ok) {
-                      throw new Error(`TTS API 錯誤: ${response.status}`);
-                    }
-                    return await response.blob();
-                  })();
-
-                  ttsCache.setPendingRequest(cacheKey, fetchPromise);
-                  blob = await fetchPromise;
-                  await ttsCache.set(cacheKey, blob);
-                }
-              }
-
-              const audioUrl = URL.createObjectURL(blob);
-              currentAudioUrl.current = audioUrl;
-              setIsLoadingAudio(false);
-
-              const audio = new Audio(audioUrl);
-              setCurrentAudio(audio);
-              setIsSpeaking(true);
-
-              audio.onended = () => {
-                clearTimeout(timeoutId);
-                setIsSpeaking(false);
-                setCurrentAudio(null);
-                if (currentAudioUrl.current) {
-                  URL.revokeObjectURL(currentAudioUrl.current);
-                  currentAudioUrl.current = null;
-                }
-                resolve();
-              };
-
-              audio.onerror = () => {
-                clearTimeout(timeoutId);
-                setIsSpeaking(false);
-                setIsLoadingAudio(false);
-                setCurrentAudio(null);
-                if (currentAudioUrl.current) {
-                  URL.revokeObjectURL(currentAudioUrl.current);
-                  currentAudioUrl.current = null;
-                }
-                reject(new Error("音訊播放失敗"));
-              };
-
-              await audio.play();
+              await playAudioBlob(
+                blob,
+                () => {
+                  clearTimeout(timeoutId);
+                  resolve();
+                },
+                (err) => {
+                  clearTimeout(timeoutId);
+                  reject(err);
+                },
+              );
             } catch (err) {
               clearTimeout(timeoutId);
               setIsSpeaking(false);
@@ -404,7 +312,7 @@ export const SpeechProvider = ({ children }: SpeechProviderProps) => {
         });
       }
     },
-    [pickEnglishVoice, speechRate, speechSupported, ttsMode, stopSpeaking],
+    [pickEnglishVoice, speechRate, speechSupported, ttsMode, stopSpeaking, playAudioBlob],
   );
 
   const value: SpeechContextType = {

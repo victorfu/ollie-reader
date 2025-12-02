@@ -8,16 +8,15 @@ import {
   clearAllSentences,
   updateSentenceOrders,
 } from "../services/sentencePracticeService";
-import { geminiModel } from "../utils/firebaseUtil";
+import {
+  parseAndTranslateSentences,
+  translateWithAI,
+  getWordDefinition as getWordDefinitionAI,
+} from "../services/aiService";
 import type {
   PracticeSentence,
   SentencePracticeFilters,
 } from "../types/sentencePractice";
-
-interface ParsedSentence {
-  english: string;
-  chinese: string;
-}
 
 export const useSentencePractice = () => {
   const { user } = useAuth();
@@ -73,7 +72,7 @@ export const useSentencePractice = () => {
     }
   }, [user, hasMore, lastDocId, loading]);
 
-  // Parse and translate text using Gemini (one API call for both splitting and translation)
+  // Parse and translate text using AI service
   const parseAndTranslate = useCallback(
     async (
       text: string,
@@ -90,42 +89,7 @@ export const useSentencePractice = () => {
       setError(null);
 
       try {
-        const prompt = `你是一個幫助學生學習英文的助手。請將以下英文文字分句，並翻譯成繁體中文。
-
-英文文字：
-${text}
-
-請以 JSON 格式回覆，格式如下：
-{
-  "sentences": [
-    {
-      "english": "完整的英文句子",
-      "chinese": "對應的繁體中文翻譯"
-    }
-  ]
-}
-
-注意事項：
-1. 根據英文標點符號（句號、問號、驚嘆號等）正確分句
-2. 保持每個句子的完整性，不要拆散句子
-3. 翻譯要準確、通順，使用簡單易懂的中文
-4. 只回覆 JSON，不要加任何其他說明`;
-
-        const result = await geminiModel.generateContent(prompt);
-        const response = result.response;
-        const responseText = response.text().trim();
-
-        // Parse JSON response, handling potential markdown code blocks
-        let jsonText = responseText;
-        if (responseText.startsWith("```")) {
-          jsonText = responseText
-            .replace(/```json?\n?/g, "")
-            .replace(/```/g, "")
-            .trim();
-        }
-
-        const parsed = JSON.parse(jsonText);
-        const parsedSentences: ParsedSentence[] = parsed.sentences || [];
+        const parsedSentences = await parseAndTranslateSentences(text);
 
         if (parsedSentences.length === 0) {
           return { success: false, message: "無法解析句子" };
@@ -176,20 +140,7 @@ ${text}
   // Translate a single sentence (for editing)
   const translateSingle = useCallback(
     async (english: string): Promise<string | null> => {
-      try {
-        const prompt = `你是一個幫助學生學習英文的翻譯助手。請將以下英文翻譯成繁體中文，使用簡單易懂的詞彙。
-
-英文原文：${english}
-
-請只回覆翻譯後的中文，不要加任何其他說明。`;
-
-        const result = await geminiModel.generateContent(prompt);
-        const response = result.response;
-        return response.text().trim();
-      } catch (err) {
-        console.error("Failed to translate:", err);
-        return null;
-      }
+      return translateWithAI(english);
     },
     [],
   );
@@ -340,25 +291,14 @@ ${text}
         return wordDefinitionCache.current.get(normalizedWord) || null;
       }
 
-      try {
-        const prompt = `你是一個幫助學生學習英文的字典助手。請提供這個英文單字的簡短中文解釋。
+      const definition = await getWordDefinitionAI(word);
 
-單字：${word}
-
-請用一句簡短的中文說明這個單字的意思，適合學生理解。只回覆中文解釋，不要加其他說明。`;
-
-        const result = await geminiModel.generateContent(prompt);
-        const response = result.response;
-        const definition = response.text().trim();
-
+      if (definition) {
         // Cache the result
         wordDefinitionCache.current.set(normalizedWord, definition);
-
-        return definition;
-      } catch (err) {
-        console.error("Failed to get word definition:", err);
-        return null;
       }
+
+      return definition;
     },
     [],
   );

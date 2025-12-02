@@ -337,16 +337,29 @@ export const checkWordExists = async (
   return null;
 };
 
-// Get all unique tags for a user
+// Get all unique tags for a user (optimized: only fetches tags field)
 export const getUserTags = async (userId: string): Promise<string[]> => {
-  const result = await getUserVocabulary(userId);
-  const tagsSet = new Set<string>();
+  try {
+    const q = query(
+      collection(db, COLLECTION_NAME),
+      where("userId", "==", userId),
+    );
 
-  result.words.forEach((word) => {
-    word.tags.forEach((tag) => tagsSet.add(tag));
-  });
+    const querySnapshot = await getDocs(q);
+    const tagsSet = new Set<string>();
 
-  return Array.from(tagsSet).sort();
+    querySnapshot.docs.forEach((doc) => {
+      const tags = doc.data().tags;
+      if (Array.isArray(tags)) {
+        tags.forEach((tag: string) => tagsSet.add(tag));
+      }
+    });
+
+    return Array.from(tagsSet).sort();
+  } catch (error) {
+    console.error("Error getting user tags:", error);
+    return [];
+  }
 };
 
 // Search all vocabulary words for a user (no pagination, for search functionality)

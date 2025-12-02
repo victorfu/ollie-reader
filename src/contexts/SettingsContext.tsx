@@ -1,8 +1,8 @@
-import { useState, useEffect, type ReactNode } from "react";
+import { useState, useEffect, useCallback, type ReactNode } from "react";
 import { useAuth } from "../hooks/useAuth";
 import { getUserSettings, saveUserSettings } from "../services/settingsService";
 import { SettingsContext } from "./SettingsContextType";
-import type { TranslationApiType } from "../types/settings";
+import type { TranslationApiType, UserSettings } from "../types/settings";
 import type { TTSMode } from "../types/pdf";
 
 interface SettingsProviderProps {
@@ -57,62 +57,47 @@ export const SettingsProvider = ({ children }: SettingsProviderProps) => {
     void loadSettings();
   }, [user]);
 
-  const updateTranslationApi = async (api: TranslationApiType) => {
-    if (!user) {
-      setError("User not authenticated");
-      return;
-    }
+  // Generic setting update helper
+  const updateSetting = useCallback(
+    async <K extends keyof Pick<UserSettings, "translationApi" | "ttsMode" | "speechRate">>(
+      key: K,
+      value: UserSettings[K],
+      setter: (value: UserSettings[K]) => void,
+    ): Promise<void> => {
+      if (!user) {
+        setError("User not authenticated");
+        return;
+      }
 
-    setError(null);
+      setError(null);
 
-    try {
-      await saveUserSettings(user.uid, { translationApi: api });
-      setTranslationApi(api);
-    } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Failed to update settings";
-      setError(message);
-      throw err;
-    }
-  };
+      try {
+        await saveUserSettings(user.uid, { [key]: value });
+        setter(value);
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : "Failed to update settings";
+        setError(message);
+        throw err;
+      }
+    },
+    [user],
+  );
 
-  const updateTtsMode = async (mode: TTSMode) => {
-    if (!user) {
-      setError("User not authenticated");
-      return;
-    }
+  const updateTranslationApi = useCallback(
+    (api: TranslationApiType) => updateSetting("translationApi", api, setTranslationApi),
+    [updateSetting],
+  );
 
-    setError(null);
+  const updateTtsMode = useCallback(
+    (mode: TTSMode) => updateSetting("ttsMode", mode, setTtsMode),
+    [updateSetting],
+  );
 
-    try {
-      await saveUserSettings(user.uid, { ttsMode: mode });
-      setTtsMode(mode);
-    } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Failed to update settings";
-      setError(message);
-      throw err;
-    }
-  };
-
-  const updateSpeechRate = async (rate: number) => {
-    if (!user) {
-      setError("User not authenticated");
-      return;
-    }
-
-    setError(null);
-
-    try {
-      await saveUserSettings(user.uid, { speechRate: rate });
-      setSpeechRate(rate);
-    } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Failed to update settings";
-      setError(message);
-      throw err;
-    }
-  };
+  const updateSpeechRate = useCallback(
+    (rate: number) => updateSetting("speechRate", rate, setSpeechRate as (value: number | undefined) => void),
+    [updateSetting],
+  );
 
   return (
     <SettingsContext.Provider
