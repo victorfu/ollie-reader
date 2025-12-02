@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, forwardRef } from "react";
 import { Reorder, useDragControls } from "framer-motion";
 import { useSentencePractice } from "../../hooks/useSentencePractice";
 import { useSpeechState } from "../../hooks/useSpeechState";
@@ -24,41 +24,51 @@ interface ReorderableSentenceCardProps {
   onDragEnd: () => void;
 }
 
-const ReorderableSentenceCard = ({
-  sentence,
-  onEdit,
-  onDelete,
-  getWordDefinition,
-  isProcessing,
-  isCurrentlyPlaying,
-  isEditing,
-  onEditingChange,
-  onDragEnd,
-}: ReorderableSentenceCardProps) => {
-  const dragControls = useDragControls();
+const ReorderableSentenceCard = forwardRef<
+  HTMLDivElement,
+  ReorderableSentenceCardProps
+>(
+  (
+    {
+      sentence,
+      onEdit,
+      onDelete,
+      getWordDefinition,
+      isProcessing,
+      isCurrentlyPlaying,
+      isEditing,
+      onEditingChange,
+      onDragEnd,
+    },
+    ref,
+  ) => {
+    const dragControls = useDragControls();
 
-  return (
-    <Reorder.Item
-      key={sentence.id}
-      value={sentence}
-      onDragEnd={onDragEnd}
-      dragListener={false}
-      dragControls={dragControls}
-      drag={!isEditing}
-    >
-      <SentenceCard
-        sentence={sentence}
-        onEdit={onEdit}
-        onDelete={onDelete}
-        getWordDefinition={getWordDefinition}
-        isProcessing={isProcessing}
-        isCurrentlyPlaying={isCurrentlyPlaying}
-        onEditingChange={onEditingChange}
-        dragControls={dragControls}
-      />
-    </Reorder.Item>
-  );
-};
+    return (
+      <div ref={ref}>
+        <Reorder.Item
+          key={sentence.id}
+          value={sentence}
+          onDragEnd={onDragEnd}
+          dragListener={false}
+          dragControls={dragControls}
+          drag={!isEditing}
+        >
+          <SentenceCard
+            sentence={sentence}
+            onEdit={onEdit}
+            onDelete={onDelete}
+            getWordDefinition={getWordDefinition}
+            isProcessing={isProcessing}
+            isCurrentlyPlaying={isCurrentlyPlaying}
+            onEditingChange={onEditingChange}
+            dragControls={dragControls}
+          />
+        </Reorder.Item>
+      </div>
+    );
+  },
+);
 
 export const SentencePractice = () => {
   const {
@@ -95,6 +105,19 @@ export const SentencePractice = () => {
   const [isPlayingAll, setIsPlayingAll] = useState(false);
   const [currentPlayingIndex, setCurrentPlayingIndex] = useState(-1);
   const playAllRef = useRef<{ cancelled: boolean }>({ cancelled: false });
+
+  // Refs for sentence cards (for auto-scroll)
+  const sentenceRefs = useRef<(HTMLDivElement | null)[]>([]);
+
+  // Auto-scroll to currently playing sentence
+  useEffect(() => {
+    if (isPlayingAll && currentPlayingIndex >= 0) {
+      sentenceRefs.current[currentPlayingIndex]?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+    }
+  }, [isPlayingAll, currentPlayingIndex]);
 
   // Play all sentences sequentially
   const handlePlayAll = useCallback(async () => {
@@ -446,9 +469,13 @@ export const SentencePractice = () => {
               onReorder={handleReorder}
               className="space-y-4"
             >
+              {(sentenceRefs.current.length = sentences.length) && null}
               {sentences.map((sentence, index) => (
                 <ReorderableSentenceCard
                   key={sentence.id}
+                  ref={(el) => {
+                    sentenceRefs.current[index] = el;
+                  }}
                   sentence={sentence}
                   onEdit={handleEdit}
                   onDelete={handleDelete}
