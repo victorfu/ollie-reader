@@ -36,8 +36,7 @@ const convertToPracticeSentence = (
     english: data.english,
     chinese: data.chinese,
     userId: data.userId,
-    // Fallback to createdAt timestamp for migration of existing data without order field
-    order: data.order ?? data.createdAt?.toMillis() ?? Date.now(),
+    order: data.order,
     createdAt: data.createdAt?.toDate() || new Date(),
     updatedAt: data.updatedAt?.toDate() || new Date(),
   };
@@ -45,27 +44,19 @@ const convertToPracticeSentence = (
 
 // Get the maximum order value for a user's sentences
 export const getMaxOrder = async (userId: string): Promise<number> => {
-  // Query all sentences for this user to find max order
-  // We use createdAt ordering since old docs may not have order field
+  // Query to find the max order value using descending order
   const q = query(
     collection(db, COLLECTION_NAME),
     where("userId", "==", userId),
+    orderBy("order", "desc"),
+    limit(1),
   );
 
   const snapshot = await getDocs(q);
   if (snapshot.empty) return -1;
 
-  // Find max order value, treating missing order as createdAt timestamp
-  let maxOrder = -1;
-  snapshot.docs.forEach((doc) => {
-    const data = doc.data();
-    const order = data.order ?? data.createdAt?.toMillis() ?? 0;
-    if (order > maxOrder) {
-      maxOrder = order;
-    }
-  });
-
-  return maxOrder;
+  const data = snapshot.docs[0].data();
+  return data.order ?? -1;
 };
 
 // Add multiple sentences at once (batch write)
@@ -130,12 +121,11 @@ export const getUserSentences = async (
     const pageSize = filters?.limit || DEFAULT_SENTENCE_PAGE_SIZE;
     const sortDirection = filters?.sortOrder || "asc";
 
-    // Query by createdAt first to include old documents without order field
-    // Then sort by order on client side
+    // Query by order field for consistent pagination
     let q = query(
       collection(db, COLLECTION_NAME),
       where("userId", "==", userId),
-      orderBy("createdAt", sortDirection),
+      orderBy("order", sortDirection),
       limit(pageSize + 1), // Fetch one extra to check if more exist
     );
 
@@ -146,7 +136,7 @@ export const getUserSentences = async (
         q = query(
           collection(db, COLLECTION_NAME),
           where("userId", "==", userId),
-          orderBy("createdAt", sortDirection),
+          orderBy("order", sortDirection),
           startAfter(cursorDoc),
           limit(pageSize + 1),
         );
@@ -161,15 +151,8 @@ export const getUserSentences = async (
       ? querySnapshot.docs.slice(0, pageSize)
       : querySnapshot.docs;
 
-    let sentences = docs.map((doc: QueryDocumentSnapshot<DocumentData>) => {
+    const sentences = docs.map((doc: QueryDocumentSnapshot<DocumentData>) => {
       return convertToPracticeSentence(doc.id, doc.data());
-    });
-
-    // Sort by order field on client side (handles both old and new documents)
-    sentences = sentences.sort((a, b) => {
-      const orderA = a.order ?? a.createdAt.getTime();
-      const orderB = b.order ?? b.createdAt.getTime();
-      return sortDirection === "asc" ? orderA - orderB : orderB - orderA;
     });
 
     // Get last document ID for cursor-based pagination
@@ -226,13 +209,21 @@ export const clearAllSentences = async (userId: string): Promise<void> => {
   );
 
   const querySnapshot = await getDocs(q);
+  const docs = querySnapshot.docs;
 
-  const batch = writeBatch(db);
-  querySnapshot.docs.forEach((doc) => {
-    batch.delete(doc.ref);
-  });
+  // Firestore batch write has a limit of 500 operations
+  const BATCH_SIZE = 500;
 
-  await batch.commit();
+  for (let i = 0; i < docs.length; i += BATCH_SIZE) {
+    const batch = writeBatch(db);
+    const chunk = docs.slice(i, i + BATCH_SIZE);
+
+    chunk.forEach((doc) => {
+      batch.delete(doc.ref);
+    });
+
+    await batch.commit();
+  }
 };
 
 // Update the order of multiple sentences (batch write)

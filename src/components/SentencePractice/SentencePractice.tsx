@@ -11,7 +11,6 @@ import type { PracticeSentence } from "../../types/sentencePractice";
 // Wrapper component to handle individual drag controls for each sentence
 interface ReorderableSentenceCardProps {
   sentence: PracticeSentence;
-  index: number;
   onEdit: (
     id: string,
     newEnglish: string,
@@ -77,7 +76,7 @@ export const SentencePractice = () => {
     reorderSentences,
   } = useSentencePractice();
 
-  const { isLoadingAudio, stopSpeaking, speak } = useSpeechState();
+  const { isLoadingAudio, stopSpeaking, speakAsync } = useSpeechState();
 
   const [toastMessage, setToastMessage] = useState<{
     message: string;
@@ -117,30 +116,13 @@ export const SentencePractice = () => {
       if (playAllRef.current.cancelled) break;
 
       setCurrentPlayingIndex(i);
-      speak(sentences[i].english);
 
-      // Wait for the current sentence to finish
-      await new Promise<void>((resolve) => {
-        const checkInterval = setInterval(() => {
-          if (playAllRef.current.cancelled) {
-            clearInterval(checkInterval);
-            resolve();
-            return;
-          }
-          // Check if speaking has stopped (isSpeaking becomes false)
-          // We need to wait a bit after speak() is called before checking
-        }, 100);
-
-        // Also set a timeout based on text length as a fallback
-        const estimatedDuration = Math.max(
-          2000,
-          sentences[i].english.length * 80,
-        );
-        setTimeout(() => {
-          clearInterval(checkInterval);
-          resolve();
-        }, estimatedDuration);
-      });
+      try {
+        // Use speakAsync to wait for the actual speech to finish
+        await speakAsync(sentences[i].english);
+      } catch (err) {
+        console.error("Speech error:", err);
+      }
 
       // Small pause between sentences
       if (!playAllRef.current.cancelled && i < sentences.length - 1) {
@@ -150,7 +132,7 @@ export const SentencePractice = () => {
 
     setIsPlayingAll(false);
     setCurrentPlayingIndex(-1);
-  }, [sentences, isPlayingAll, speak, stopSpeaking]);
+  }, [sentences, isPlayingAll, speakAsync, stopSpeaking]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -468,7 +450,6 @@ export const SentencePractice = () => {
                 <ReorderableSentenceCard
                   key={sentence.id}
                   sentence={sentence}
-                  index={index}
                   onEdit={handleEdit}
                   onDelete={handleDelete}
                   getWordDefinition={getWordDefinition}

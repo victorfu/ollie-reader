@@ -10,6 +10,7 @@ export interface SpeechContextType {
   isLoadingAudio: boolean;
   speechSupported: boolean;
   speak: (text: string) => void;
+  speakAsync: (text: string) => Promise<void>;
   stopSpeaking: () => void;
 }
 

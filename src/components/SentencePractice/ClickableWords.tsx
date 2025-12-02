@@ -11,7 +11,7 @@ export const ClickableWords = ({
   getWordDefinition,
 }: ClickableWordsProps) => {
   const { speak } = useSpeechState();
-  const [activeWord, setActiveWord] = useState<string | null>(null);
+  const [activeWordIndex, setActiveWordIndex] = useState<number | null>(null);
   const [definition, setDefinition] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -27,7 +27,7 @@ export const ClickableWords = ({
   };
 
   const handleWordClick = useCallback(
-    async (word: string, event: React.MouseEvent) => {
+    async (word: string, index: number, event: React.MouseEvent) => {
       event.stopPropagation();
 
       const clean = cleanWord(word);
@@ -36,14 +36,14 @@ export const ClickableWords = ({
       // Speak the word
       speak(clean);
 
-      // If clicking the same word, toggle off
-      if (activeWord === word) {
-        setActiveWord(null);
+      // If clicking the same word index, toggle off
+      if (activeWordIndex === index) {
+        setActiveWordIndex(null);
         setDefinition(null);
         return;
       }
 
-      setActiveWord(word);
+      setActiveWordIndex(index);
       setDefinition(null);
       setIsLoading(true);
 
@@ -57,11 +57,11 @@ export const ClickableWords = ({
         setIsLoading(false);
       }
     },
-    [speak, getWordDefinition, activeWord],
+    [speak, getWordDefinition, activeWordIndex],
   );
 
   const handleCloseDropdown = useCallback(() => {
-    setActiveWord(null);
+    setActiveWordIndex(null);
     setDefinition(null);
   }, []);
 
@@ -70,7 +70,7 @@ export const ClickableWords = ({
   return (
     <span className="inline">
       {words.map((word, index) => {
-        const isActive = activeWord === word;
+        const isActive = activeWordIndex === index;
         const clean = cleanWord(word);
         const isClickable = clean.length > 0;
 
@@ -78,7 +78,7 @@ export const ClickableWords = ({
           <span key={index} className="relative inline-block">
             <span
               onClick={
-                isClickable ? (e) => handleWordClick(word, e) : undefined
+                isClickable ? (e) => handleWordClick(word, index, e) : undefined
               }
               className={`
                 ${

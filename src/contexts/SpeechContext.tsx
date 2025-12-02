@@ -270,6 +270,138 @@ export const SpeechProvider = ({ children }: SpeechProviderProps) => {
     ],
   );
 
+  // Async version of speak that returns a Promise resolving when speech ends
+  const speakAsync = useCallback(
+    async (text: string): Promise<void> => {
+      if (!text.trim()) return;
+
+      stopSpeaking();
+
+      const TIMEOUT_MS = 30000; // 30 second fallback timeout
+
+      if (ttsMode === "api") {
+        // For API mode, we need to wait for the audio to finish
+        return new Promise((resolve, reject) => {
+          const timeoutId = setTimeout(() => {
+            resolve();
+          }, TIMEOUT_MS);
+
+          (async () => {
+            try {
+              setIsLoadingAudio(true);
+              setIsSpeaking(false);
+
+              const cacheKey = ttsCache.getCacheKey(text, speechRate, "0");
+
+              let blob: Blob;
+
+              const pendingRequest = ttsCache.getPendingRequest(cacheKey);
+              if (pendingRequest) {
+                blob = await pendingRequest;
+              } else {
+                const cachedBlob = await ttsCache.get(cacheKey);
+                if (cachedBlob) {
+                  blob = cachedBlob;
+                } else {
+                  const fetchPromise = (async () => {
+                    const response = await fetch(TTS_API_URL, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        text,
+                        speaker: "0",
+                        length_scale: speechRate.toString(),
+                        noise_scale: "0.667",
+                        noise_w: "0.8",
+                      }),
+                    });
+                    if (!response.ok) {
+                      throw new Error(`TTS API 錯誤: ${response.status}`);
+                    }
+                    return await response.blob();
+                  })();
+
+                  ttsCache.setPendingRequest(cacheKey, fetchPromise);
+                  blob = await fetchPromise;
+                  await ttsCache.set(cacheKey, blob);
+                }
+              }
+
+              const audioUrl = URL.createObjectURL(blob);
+              currentAudioUrl.current = audioUrl;
+              setIsLoadingAudio(false);
+
+              const audio = new Audio(audioUrl);
+              setCurrentAudio(audio);
+              setIsSpeaking(true);
+
+              audio.onended = () => {
+                clearTimeout(timeoutId);
+                setIsSpeaking(false);
+                setCurrentAudio(null);
+                if (currentAudioUrl.current) {
+                  URL.revokeObjectURL(currentAudioUrl.current);
+                  currentAudioUrl.current = null;
+                }
+                resolve();
+              };
+
+              audio.onerror = () => {
+                clearTimeout(timeoutId);
+                setIsSpeaking(false);
+                setIsLoadingAudio(false);
+                setCurrentAudio(null);
+                if (currentAudioUrl.current) {
+                  URL.revokeObjectURL(currentAudioUrl.current);
+                  currentAudioUrl.current = null;
+                }
+                reject(new Error("音訊播放失敗"));
+              };
+
+              await audio.play();
+            } catch (err) {
+              clearTimeout(timeoutId);
+              setIsSpeaking(false);
+              setIsLoadingAudio(false);
+              reject(err);
+            }
+          })();
+        });
+      } else {
+        // Browser speech synthesis mode
+        if (!speechSupported) return;
+
+        return new Promise((resolve) => {
+          const timeoutId = setTimeout(() => {
+            resolve();
+          }, TIMEOUT_MS);
+
+          const voice = pickEnglishVoice();
+          const utterance = new SpeechSynthesisUtterance(text);
+          utterance.lang = voice?.lang || "en-US";
+          utterance.voice = voice || null;
+          utterance.rate = speechRate;
+
+          utterance.onend = () => {
+            clearTimeout(timeoutId);
+            setIsSpeaking(false);
+            resolve();
+          };
+
+          utterance.onerror = () => {
+            clearTimeout(timeoutId);
+            setIsSpeaking(false);
+            resolve(); // Resolve instead of reject to continue playback
+          };
+
+          setIsSpeaking(true);
+          window.speechSynthesis.speak(utterance);
+        });
+      }
+    },
+    [pickEnglishVoice, speechRate, speechSupported, ttsMode, stopSpeaking],
+  );
+
   const value: SpeechContextType = {
     speechRate,
     setSpeechRate,
@@ -279,6 +411,7 @@ export const SpeechProvider = ({ children }: SpeechProviderProps) => {
     isLoadingAudio,
     speechSupported,
     speak,
+    speakAsync,
     stopSpeaking,
   };
 
