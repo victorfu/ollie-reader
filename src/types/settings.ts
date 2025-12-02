@@ -6,6 +6,7 @@ export interface UserSettings {
   userId: string;
   translationApi: TranslationApiType;
   ttsMode: TTSMode;
+  speechRate?: number;
   createdAt?: Date;
   updatedAt?: Date;
 }

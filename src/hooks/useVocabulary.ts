@@ -12,7 +12,7 @@ import {
   updateReviewStats,
   searchUserVocabulary,
 } from "../services/vocabularyService";
-import { geminiModel } from "../utils/firebaseUtil";
+import { generateWordDetails } from "../services/aiService";
 import type {
   VocabularyWord,
   VocabularyFilters,
@@ -36,77 +36,6 @@ export const useVocabulary = () => {
       abortControllerRef.current?.abort();
     };
   }, []);
-
-  // Fetch word details using Firebase AI (Gemini) for kid-friendly definitions
-  const fetchWordDetails = useCallback(
-    async (word: string, signal?: AbortSignal) => {
-      try {
-        const prompt = `你是一個幫助國小學生學習英文的字典助手。請為以下英文單字提供詳細資訊，使用簡單易懂、適合小朋友理解的詞彙。
-
-單字：${word}
-
-請以 JSON 格式回覆，包含以下欄位：
-{
-  "phonetic": "音標（如果知道的話）",
-  "emoji": "一個最能代表這個單字的 Emoji（例如 apple -> 🍎, run -> 🏃）",
-  "definitions": [
-    {
-      "partOfSpeech": "詞性（如 noun, verb, adjective 等）",
-      "definition": "英文定義（簡單易懂）",
-      "definitionChinese": "中文解釋（用小朋友能懂的方式說明）"
-    }
-  ],
-  "examples": [
-    {
-      "sentence": "簡單的例句"
-    }
-  ],
-  "synonyms": ["同義詞1", "同義詞2"],
-  "antonyms": ["反義詞1", "反義詞2"]
-}
-
-請提供 2-3 個定義，2 個例句，最多 5 個同義詞和反義詞。
-只回覆 JSON，不要加任何其他說明。`;
-
-        // Check if aborted before making API call
-        if (signal?.aborted) return null;
-
-        const result = await geminiModel.generateContent(prompt);
-
-        // Check if aborted after API call
-        if (signal?.aborted) return null;
-
-        const response = result.response;
-        const text = response.text().trim();
-
-        // Parse JSON response, handling potential markdown code blocks
-        let jsonText = text;
-        if (text.startsWith("```")) {
-          jsonText = text
-            .replace(/```json?\n?/g, "")
-            .replace(/```/g, "")
-            .trim();
-        }
-
-        const wordData = JSON.parse(jsonText);
-
-        return {
-          ...(wordData.phonetic && { phonetic: wordData.phonetic }),
-          ...(wordData.emoji && { emoji: wordData.emoji }),
-          definitions: wordData.definitions || [],
-          examples: wordData.examples || [],
-          synonyms: wordData.synonyms || [],
-          antonyms: wordData.antonyms || [],
-        };
-      } catch (err) {
-        // Ignore abort errors
-        if (err instanceof Error && err.name === "AbortError") return null;
-        console.error("Error fetching word details:", err);
-        return null;
-      }
-    },
-    [],
-  );
 
   // Add a word to vocabulary
   const addWord = useCallback(
@@ -149,8 +78,8 @@ export const useVocabulary = () => {
           return { success: false, message: "Request cancelled" };
         }
 
-        // Fetch word details from dictionary API
-        const details = await fetchWordDetails(word, controller.signal);
+        // Fetch word details from AI service
+        const details = await generateWordDetails(word, controller.signal);
 
         // Check if aborted
         if (controller.signal.aborted) {
@@ -198,7 +127,7 @@ export const useVocabulary = () => {
         }
       }
     },
-    [user, fetchWordDetails],
+    [user],
   );
 
   // Load user's vocabulary with pagination
@@ -388,8 +317,8 @@ export const useVocabulary = () => {
       updatedWord?: Partial<VocabularyWord>;
     }> => {
       try {
-        // Fetch new word details from Gemini AI
-        const details = await fetchWordDetails(word);
+        // Fetch new word details from AI service
+        const details = await generateWordDetails(word);
 
         if (!details) {
           return { success: false, message: "無法取得 AI 生成的內容" };
@@ -423,7 +352,7 @@ export const useVocabulary = () => {
         return { success: false, message };
       }
     },
-    [fetchWordDetails],
+    [],
   );
 
   // Load words for review mode with smart or random selection

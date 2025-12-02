@@ -21,6 +21,7 @@ export const getUserSettings = async (
         userId,
         translationApi: data.translationApi as TranslationApiType,
         ttsMode: (data.ttsMode as TTSMode) || "browser",
+        speechRate: (data.speechRate as number) ?? 1,
         createdAt: data.createdAt?.toDate(),
         updatedAt: data.updatedAt?.toDate(),
       };
@@ -38,7 +39,9 @@ export const getUserSettings = async (
  */
 export const saveUserSettings = async (
   userId: string,
-  settings: Partial<Pick<UserSettings, "translationApi" | "ttsMode">>,
+  settings: Partial<
+    Pick<UserSettings, "translationApi" | "ttsMode" | "speechRate">
+  >,
 ): Promise<void> => {
   try {
     const docRef = doc(db, SETTINGS_COLLECTION, userId);
@@ -60,6 +63,7 @@ export const saveUserSettings = async (
         userId,
         translationApi: settings.translationApi || "FIREBASE_AI",
         ttsMode: settings.ttsMode || "browser",
+        speechRate: settings.speechRate ?? 1,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });

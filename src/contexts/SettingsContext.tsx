@@ -14,6 +14,7 @@ export const SettingsProvider = ({ children }: SettingsProviderProps) => {
   const [translationApi, setTranslationApi] =
     useState<TranslationApiType>("FIREBASE_AI");
   const [ttsMode, setTtsMode] = useState<TTSMode>("browser");
+  const [speechRate, setSpeechRate] = useState<number>(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -23,6 +24,7 @@ export const SettingsProvider = ({ children }: SettingsProviderProps) => {
       if (!user) {
         setTranslationApi("FIREBASE_AI"); // Default when logged out
         setTtsMode("browser"); // Default when logged out
+        setSpeechRate(1); // Default when logged out
         setLoading(false);
         return;
       }
@@ -35,10 +37,12 @@ export const SettingsProvider = ({ children }: SettingsProviderProps) => {
         if (settings) {
           setTranslationApi(settings.translationApi);
           setTtsMode(settings.ttsMode);
+          setSpeechRate(settings.speechRate ?? 1);
         } else {
           // No settings found, use defaults
           setTranslationApi("FIREBASE_AI");
           setTtsMode("browser");
+          setSpeechRate(1);
         }
       } catch (err) {
         const message =
@@ -91,15 +95,36 @@ export const SettingsProvider = ({ children }: SettingsProviderProps) => {
     }
   };
 
+  const updateSpeechRate = async (rate: number) => {
+    if (!user) {
+      setError("User not authenticated");
+      return;
+    }
+
+    setError(null);
+
+    try {
+      await saveUserSettings(user.uid, { speechRate: rate });
+      setSpeechRate(rate);
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Failed to update settings";
+      setError(message);
+      throw err;
+    }
+  };
+
   return (
     <SettingsContext.Provider
       value={{
         translationApi,
         ttsMode,
+        speechRate,
         loading,
         error,
         updateTranslationApi,
         updateTtsMode,
+        updateSpeechRate,
       }}
     >
       {children}

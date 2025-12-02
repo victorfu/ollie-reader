@@ -35,7 +35,6 @@ function PdfReader() {
 
   const {
     speechRate,
-    setSpeechRate,
     isSpeaking,
     ttsMode,
     setTtsMode,
@@ -271,7 +270,6 @@ function PdfReader() {
           isLoadingAudio={isLoadingAudio}
           onTtsModeChange={setTtsMode}
           onReadingModeChange={setReadingMode}
-          onSpeechRateChange={setSpeechRate}
           onStop={stopSpeaking}
         />
       )}

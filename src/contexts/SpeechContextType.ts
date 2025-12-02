@@ -3,7 +3,6 @@ import type { TTSMode } from "../types/pdf";
 
 export interface SpeechContextType {
   speechRate: number;
-  setSpeechRate: (rate: number) => void;
   isSpeaking: boolean;
   ttsMode: TTSMode;
   setTtsMode: (mode: TTSMode) => void;

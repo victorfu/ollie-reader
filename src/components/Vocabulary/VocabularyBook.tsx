@@ -56,7 +56,6 @@ export const VocabularyBook = () => {
   const {
     speechSupported,
     speechRate,
-    setSpeechRate,
     isSpeaking,
     ttsMode,
     setTtsMode,
@@ -307,7 +306,6 @@ export const VocabularyBook = () => {
             isSpeaking={isSpeaking}
             isLoadingAudio={isLoadingAudio}
             onTtsModeChange={setTtsMode}
-            onSpeechRateChange={setSpeechRate}
             onStop={stopSpeaking}
           />
 

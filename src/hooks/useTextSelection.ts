@@ -2,7 +2,7 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import type { ReadingMode } from "../types/pdf";
 import { TRANSLATE_API_URL } from "../constants/api";
 import { useSettings } from "./useSettings";
-import { geminiModel } from "../utils/firebaseUtil";
+import { translateWithAI } from "../services/aiService";
 
 export type SelectionToolbarPosition = {
   top: number;
@@ -99,20 +99,16 @@ export const useTextSelection = () => {
         // Check if aborted before making API call
         if (controller.signal.aborted) return;
 
-        // Use Firebase AI (Gemini) for kid-friendly translations
-        const prompt = `你是一個幫助國小學生學習英文的翻譯助手。請將以下英文翻譯成繁體中文，使用簡單易懂、適合小朋友理解的詞彙和句子。翻譯要準確但用字要簡單，避免使用艱深的詞彙。
-
-英文原文：${selectedText}
-
-請只回覆翻譯後的中文，不要加任何其他說明。`;
-
-        const result = await geminiModel.generateContent(prompt);
+        // Use AI service for kid-friendly translations
+        const result = await translateWithAI(selectedText, controller.signal);
 
         // Check if aborted after API call
         if (controller.signal.aborted) return;
 
-        const response = result.response;
-        translatedResult = response.text().trim();
+        if (!result) {
+          throw new Error("翻譯失敗");
+        }
+        translatedResult = result;
       } else {
         // Check if aborted before making API call
         if (controller.signal.aborted) return;

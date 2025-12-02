@@ -11,10 +11,12 @@ export const Settings = () => {
   const {
     translationApi,
     ttsMode,
+    speechRate,
     loading,
     error,
     updateTranslationApi,
     updateTtsMode,
+    updateSpeechRate,
   } = useSettings();
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -43,6 +45,21 @@ export const Settings = () => {
 
     try {
       await updateTtsMode(mode);
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 3000);
+    } catch (err) {
+      console.error("Failed to save settings:", err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSpeechRateChange = async (rate: number) => {
+    setSaving(true);
+    setSaveSuccess(false);
+
+    try {
+      await updateSpeechRate(rate);
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
     } catch (err) {
@@ -195,6 +212,39 @@ export const Settings = () => {
                     </div>
                   </div>
                 </label>
+              </div>
+            </div>
+
+            {/* Divider */}
+            <div className="divider"></div>
+
+            {/* Speech Rate Setting */}
+            <div>
+              <h3 className="text-lg font-semibold mb-3">語速設定</h3>
+              <p className="text-sm text-base-content/70 mb-4">
+                調整語音播放的速度
+              </p>
+
+              <div className="p-4 border border-base-300 rounded-lg">
+                <div className="flex items-center gap-4">
+                  <span className="text-sm whitespace-nowrap">慢</span>
+                  <input
+                    type="range"
+                    min={0.5}
+                    max={2}
+                    step={0.1}
+                    value={speechRate}
+                    onChange={(e) =>
+                      handleSpeechRateChange(Number(e.target.value))
+                    }
+                    className="range range-primary flex-1"
+                    disabled={saving}
+                  />
+                  <span className="text-sm whitespace-nowrap">快</span>
+                  <span className="badge badge-primary min-w-[4rem] justify-center">
+                    {speechRate.toFixed(1)}x
+                  </span>
+                </div>
               </div>
             </div>
 

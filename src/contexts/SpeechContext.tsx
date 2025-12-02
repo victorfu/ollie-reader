@@ -17,8 +17,11 @@ interface SpeechProviderProps {
 }
 
 export const SpeechProvider = ({ children }: SpeechProviderProps) => {
-  const { ttsMode: settingsTtsMode, updateTtsMode } = useSettings();
-  const [speechRate, setSpeechRate] = useState(1);
+  const {
+    ttsMode: settingsTtsMode,
+    speechRate: settingsSpeechRate,
+    updateTtsMode,
+  } = useSettings();
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [ttsMode, setTtsMode] = useState<TTSMode>(settingsTtsMode);
   const [currentAudio, setCurrentAudio] = useState<HTMLAudioElement | null>(
@@ -26,6 +29,9 @@ export const SpeechProvider = ({ children }: SpeechProviderProps) => {
   );
   const [isLoadingAudio, setIsLoadingAudio] = useState(false);
   const currentAudioUrl = useRef<string | null>(null);
+
+  // Use speechRate from settings
+  const speechRate = settingsSpeechRate;
 
   // Sync local ttsMode with settings
   useEffect(() => {
@@ -403,7 +409,6 @@ export const SpeechProvider = ({ children }: SpeechProviderProps) => {
 
   const value: SpeechContextType = {
     speechRate,
-    setSpeechRate,
     isSpeaking,
     ttsMode,
     setTtsMode: handleSetTtsMode,

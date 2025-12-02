@@ -1,5 +1,6 @@
 import { motion } from "framer-motion";
 import type { VocabularyWord } from "../../types/vocabulary";
+import { SpeakerIcon, TrashIcon, ClockIcon } from "../icons";
 
 interface VocabularyCardProps {
   word: VocabularyWord;
@@ -41,9 +42,7 @@ export const VocabularyCard = ({ word, onClick, onPlay, onDelete }: VocabularyCa
                 className="btn btn-ghost btn-xs btn-circle text-primary/70 hover:text-primary hover:bg-primary/10 ml-1"
                 title="播放發音"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
-                </svg>
+                <SpeakerIcon />
               </button>
             </div>
             {word.phonetic && (
@@ -59,20 +58,7 @@ export const VocabularyCard = ({ word, onClick, onPlay, onDelete }: VocabularyCa
             aria-label="刪除"
             title="刪除單字"
           >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="h-4 w-4 text-error/70 hover:text-error"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-              />
-            </svg>
+            <TrashIcon className="h-4 w-4 text-error/70 hover:text-error" />
           </button>
         </div>
 
@@ -125,9 +111,7 @@ export const VocabularyCard = ({ word, onClick, onPlay, onDelete }: VocabularyCa
 
           {word.reviewCount > 0 && (
              <div className="ml-auto flex items-center gap-1 text-xs text-base-content/40" title={`已複習 ${word.reviewCount} 次`}>
-               <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
-                 <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
-               </svg>
+               <ClockIcon />
                {word.reviewCount}
              </div>
           )}
