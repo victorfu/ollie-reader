@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useSpeechState } from "../../hooks/useSpeechState";
 import { Toast } from "../common/Toast";
 import type { VocabularyWord } from "../../types/vocabulary";
@@ -18,6 +18,7 @@ interface WordDetailProps {
     message?: string;
     updatedWord?: Partial<VocabularyWord>;
   }>;
+  availableTags?: string[];
 }
 
 export const WordDetail = ({
@@ -25,6 +26,7 @@ export const WordDetail = ({
   onClose,
   onUpdateWord,
   onRegenerateWordDetails,
+  availableTags = [],
 }: WordDetailProps) => {
   const { speak } = useSpeechState();
   const [word, setWord] = useState<VocabularyWord>(initialWord);
@@ -34,20 +36,15 @@ export const WordDetail = ({
     message: string;
     type: "success" | "error" | "info";
   } | null>(null);
-  const [editedTags, setEditedTags] = useState(word.tags.join(", "));
+  const [editedTags, setEditedTags] = useState<string[]>([...word.tags]);
   const [editedDifficulty, setEditedDifficulty] = useState(
     word.difficulty || "",
   );
   const [newTag, setNewTag] = useState("");
 
   const handleSave = async () => {
-    const tags = editedTags
-      .split(",")
-      .map((t) => t.trim())
-      .filter((t) => t.length > 0);
-
     const updates = {
-      tags,
+      tags: editedTags,
       difficulty: editedDifficulty as "easy" | "medium" | "hard" | undefined,
     };
 
@@ -58,21 +55,28 @@ export const WordDetail = ({
     setIsEditing(false);
   };
 
-  const handleAddTag = () => {
-    if (!newTag.trim()) return;
+  const handleAddTag = (tag?: string) => {
+    const trimmedTag = (tag ?? newTag).trim();
+    if (!trimmedTag) return;
 
-    const currentTags = editedTags
-      .split(",")
-      .map((t) => t.trim())
-      .filter((t) => t.length > 0);
-
-    if (!currentTags.includes(newTag.trim())) {
-      currentTags.push(newTag.trim());
-      setEditedTags(currentTags.join(", "));
+    if (!editedTags.includes(trimmedTag)) {
+      setEditedTags((prev) => [...prev, trimmedTag]);
     }
 
     setNewTag("");
   };
+
+  const handleRemoveTag = (tagToRemove: string) => {
+    setEditedTags((prev) => prev.filter((t) => t !== tagToRemove));
+  };
+
+  // Filter suggestions: show available tags not already selected
+  const tagSuggestions = useMemo(() => {
+    return availableTags.filter(
+      (tag) => !editedTags.includes(tag) && 
+        (newTag.trim() === "" || tag.toLowerCase().includes(newTag.toLowerCase()))
+    );
+  }, [availableTags, editedTags, newTag]);
 
   const handleSpeak = () => {
     speak(word.word);
@@ -179,24 +183,35 @@ export const WordDetail = ({
             <div className="space-y-3">
               <div>
                 <label className="label">
-                  <span className="label-text">標籤（用逗號分隔）</span>
+                  <span className="label-text">標籤</span>
                 </label>
+                {/* Display current tags as removable badges */}
+                {editedTags.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    {editedTags.map((tag) => (
+                      <span
+                        key={tag}
+                        className="badge badge-primary gap-1"
+                      >
+                        {tag}
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveTag(tag)}
+                          className="hover:text-error"
+                        >
+                          ✕
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
                 <div className="flex gap-2">
-                  <input
-                    type="text"
-                    className="input input-bordered flex-1"
-                    value={editedTags}
-                    onChange={(e) => setEditedTags(e.target.value)}
-                    placeholder="例如：學校, 科技, 日常"
-                  />
-                </div>
-                <div className="flex gap-2 mt-2">
                   <input
                     type="text"
                     className="input input-bordered input-sm flex-1"
                     value={newTag}
                     onChange={(e) => setNewTag(e.target.value)}
-                    placeholder="快速新增標籤"
+                    placeholder="輸入標籤後按 Enter 或點擊新增"
                     onKeyDown={(e) => {
                       if (e.key === "Enter") {
                         e.preventDefault();
@@ -206,12 +221,31 @@ export const WordDetail = ({
                   />
                   <button
                     type="button"
-                    onClick={handleAddTag}
+                    onClick={() => handleAddTag()}
                     className="btn btn-sm btn-primary"
+                    disabled={!newTag.trim()}
                   >
                     新增
                   </button>
                 </div>
+                {/* Tag suggestions */}
+                {tagSuggestions.length > 0 && (
+                  <div className="mt-2">
+                    <span className="text-xs text-base-content/60 mb-1 block">快速選擇：</span>
+                    <div className="flex flex-wrap gap-1">
+                      {tagSuggestions.slice(0, 10).map((tag) => (
+                        <button
+                          key={tag}
+                          type="button"
+                          onClick={() => handleAddTag(tag)}
+                          className="badge badge-outline badge-sm cursor-pointer hover:badge-primary transition-colors"
+                        >
+                          + {tag}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
               <div>
                 <label className="label">
@@ -240,7 +274,7 @@ export const WordDetail = ({
                   type="button"
                   onClick={() => {
                     setIsEditing(false);
-                    setEditedTags(word.tags.join(", "));
+                    setEditedTags([...word.tags]);
                     setEditedDifficulty(word.difficulty || "");
                   }}
                   className="btn btn-ghost btn-sm"

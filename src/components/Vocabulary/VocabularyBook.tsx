@@ -52,6 +52,7 @@ export const VocabularyBook = () => {
     updateReview,
     loadWordsForReview,
     searchWords,
+    getTags,
   } = useVocabulary();
   const {
     speechSupported,
@@ -88,6 +89,7 @@ export const VocabularyBook = () => {
   const [isLoadingReview, setIsLoadingReview] = useState(false);
   const [showReviewSettings, setShowReviewSettings] = useState(false);
   const [totalWordCount, setTotalWordCount] = useState(0);
+  const [availableTags, setAvailableTags] = useState<string[]>([]);
   const manualWordFieldId = "manual-word-input";
   const loadMoreRef = useRef<HTMLDivElement>(null);
 
@@ -95,6 +97,15 @@ export const VocabularyBook = () => {
   useEffect(() => {
     loadVocabulary(filters);
   }, [filters, loadVocabulary]);
+
+  // Load available tags when words change
+  useEffect(() => {
+    const loadTags = async () => {
+      const tags = await getTags();
+      setAvailableTags(tags);
+    };
+    loadTags();
+  }, [getTags, words]);
 
   // Debounced search - search all words in Firestore
   useEffect(() => {
@@ -579,6 +590,7 @@ export const VocabularyBook = () => {
           onClose={() => setSelectedWord(null)}
           onUpdateWord={updateWord}
           onRegenerateWordDetails={regenerateWordDetails}
+          availableTags={availableTags}
         />
       )}
 
