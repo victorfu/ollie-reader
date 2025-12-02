@@ -1,4 +1,5 @@
 import { useState } from "react";
+import type { DragControls } from "framer-motion";
 import { useSpeechState } from "../../hooks/useSpeechState";
 import { ClickableWords } from "./ClickableWords";
 import type { PracticeSentence } from "../../types/sentencePractice";
@@ -14,6 +15,7 @@ interface SentenceCardProps {
   isProcessing: boolean;
   isCurrentlyPlaying?: boolean;
   onEditingChange?: (isEditing: boolean) => void;
+  dragControls?: DragControls;
 }
 
 export const SentenceCard = ({
@@ -24,6 +26,7 @@ export const SentenceCard = ({
   isProcessing,
   isCurrentlyPlaying = false,
   onEditingChange,
+  dragControls,
 }: SentenceCardProps) => {
   const { speak, isSpeaking, isLoadingAudio } = useSpeechState();
   const [isEditing, setIsEditing] = useState(false);
@@ -85,14 +88,18 @@ export const SentenceCard = ({
       <div className="card-body p-4">
         {/* English sentence */}
         <div className="flex items-start gap-2">
-          {/* Drag handle */}
+          {/* Drag handle - only this element triggers drag */}
           <div
-            className="shrink-0 mt-0.5 cursor-grab active:cursor-grabbing text-base-content/40 hover:text-base-content/60 touch-none"
+            className="shrink-0 mt-0.5 cursor-grab active:cursor-grabbing text-base-content/40 hover:text-base-content/60 touch-none select-none"
             title="拖曳排序"
+            onPointerDown={(e) => {
+              e.preventDefault();
+              dragControls?.start(e);
+            }}
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
-              className="h-5 w-5"
+              className="h-6 w-6 md:h-5 md:w-5"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"

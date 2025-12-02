@@ -1,13 +1,65 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Reorder } from "framer-motion";
+import { Reorder, useDragControls } from "framer-motion";
 import { useSentencePractice } from "../../hooks/useSentencePractice";
 import { useSpeechState } from "../../hooks/useSpeechState";
 import { SentenceInput } from "./SentenceInput";
 import { SentenceCard } from "./SentenceCard";
-import { SimpleTTSControls } from "../common/SimpleTTSControls";
 import { Toast } from "../common/Toast";
 import { ConfirmModal } from "../common/ConfirmModal";
 import type { PracticeSentence } from "../../types/sentencePractice";
+
+// Wrapper component to handle individual drag controls for each sentence
+interface ReorderableSentenceCardProps {
+  sentence: PracticeSentence;
+  index: number;
+  onEdit: (
+    id: string,
+    newEnglish: string,
+  ) => Promise<{ success: boolean; message?: string }>;
+  onDelete: (id: string) => Promise<{ success: boolean; message?: string }>;
+  getWordDefinition: (word: string) => Promise<string | null>;
+  isProcessing: boolean;
+  isCurrentlyPlaying: boolean;
+  isEditing: boolean;
+  onEditingChange: (isEditing: boolean) => void;
+  onDragEnd: () => void;
+}
+
+const ReorderableSentenceCard = ({
+  sentence,
+  onEdit,
+  onDelete,
+  getWordDefinition,
+  isProcessing,
+  isCurrentlyPlaying,
+  isEditing,
+  onEditingChange,
+  onDragEnd,
+}: ReorderableSentenceCardProps) => {
+  const dragControls = useDragControls();
+
+  return (
+    <Reorder.Item
+      key={sentence.id}
+      value={sentence}
+      onDragEnd={onDragEnd}
+      dragListener={false}
+      dragControls={dragControls}
+      drag={!isEditing}
+    >
+      <SentenceCard
+        sentence={sentence}
+        onEdit={onEdit}
+        onDelete={onDelete}
+        getWordDefinition={getWordDefinition}
+        isProcessing={isProcessing}
+        isCurrentlyPlaying={isCurrentlyPlaying}
+        onEditingChange={onEditingChange}
+        dragControls={dragControls}
+      />
+    </Reorder.Item>
+  );
+};
 
 export const SentencePractice = () => {
   const {
@@ -25,17 +77,7 @@ export const SentencePractice = () => {
     reorderSentences,
   } = useSentencePractice();
 
-  const {
-    speechSupported,
-    speechRate,
-    setSpeechRate,
-    isSpeaking,
-    ttsMode,
-    setTtsMode,
-    isLoadingAudio,
-    stopSpeaking,
-    speak,
-  } = useSpeechState();
+  const { isLoadingAudio, stopSpeaking, speak } = useSpeechState();
 
   const [toastMessage, setToastMessage] = useState<{
     message: string;
@@ -43,6 +85,7 @@ export const SentencePractice = () => {
   } | null>(null);
 
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [showInputPanel, setShowInputPanel] = useState(false);
 
   // Track which sentence is being edited to disable drag
   const [editingSentenceId, setEditingSentenceId] = useState<string | null>(
@@ -217,8 +260,8 @@ export const SentencePractice = () => {
       {/* Header */}
       <div className="card bg-base-100 shadow-xl mb-6">
         <div className="card-body">
-          <div className="flex justify-between items-start">
-            <div>
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
+            <div className="flex-1 min-w-0">
               <h1 className="text-2xl font-bold flex items-center gap-2">
                 ✍️ 句子練習
               </h1>
@@ -227,7 +270,39 @@ export const SentencePractice = () => {
               </p>
             </div>
             {sentences.length > 0 && (
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const allSentences = sentences
+                      .map((s) => s.english)
+                      .join("\n");
+                    navigator.clipboard.writeText(allSentences).then(() => {
+                      setToastMessage({
+                        message: "已複製所有句子",
+                        type: "success",
+                      });
+                    });
+                  }}
+                  className="btn btn-sm btn-outline btn-secondary"
+                  title="複製全部"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-4 w-4"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+                    />
+                  </svg>
+                  <span className="hidden sm:inline">複製全部</span>
+                </button>
                 <button
                   type="button"
                   onClick={handlePlayAll}
@@ -235,6 +310,7 @@ export const SentencePractice = () => {
                   className={`btn btn-sm ${
                     isPlayingAll ? "btn-warning" : "btn-primary"
                   }`}
+                  title={isPlayingAll ? "停止播放" : "播放全部"}
                 >
                   {isPlayingAll ? (
                     <>
@@ -258,7 +334,7 @@ export const SentencePractice = () => {
                           d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"
                         />
                       </svg>
-                      停止播放
+                      <span className="hidden sm:inline">停止播放</span>
                     </>
                   ) : (
                     <>
@@ -282,7 +358,7 @@ export const SentencePractice = () => {
                           d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
                         />
                       </svg>
-                      播放全部
+                      <span className="hidden sm:inline">播放全部</span>
                     </>
                   )}
                 </button>
@@ -290,6 +366,7 @@ export const SentencePractice = () => {
                   type="button"
                   onClick={() => setShowClearConfirm(true)}
                   className="btn btn-outline btn-error btn-sm"
+                  title="清除全部"
                 >
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
@@ -305,7 +382,7 @@ export const SentencePractice = () => {
                       d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
                     />
                   </svg>
-                  清除全部
+                  <span className="hidden sm:inline">清除全部</span>
                 </button>
               </div>
             )}
@@ -313,23 +390,40 @@ export const SentencePractice = () => {
         </div>
       </div>
 
-      {/* TTS Controls */}
-      {speechSupported && (
+      {/* Add Sentence Button */}
+      {!showInputPanel && (
         <div className="mb-6">
-          <SimpleTTSControls
-            ttsMode={ttsMode}
-            speechRate={speechRate}
-            isSpeaking={isSpeaking}
-            isLoadingAudio={isLoadingAudio}
-            onTtsModeChange={setTtsMode}
-            onSpeechRateChange={setSpeechRate}
-            onStop={stopSpeaking}
-          />
+          <button
+            type="button"
+            onClick={() => setShowInputPanel(true)}
+            className="btn btn-primary w-full"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-5 w-5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 4v16m8-8H4"
+              />
+            </svg>
+            新增句子
+          </button>
         </div>
       )}
 
       {/* Input Area */}
-      <SentenceInput onSubmit={handleSubmit} isProcessing={isProcessing} />
+      <SentenceInput
+        onSubmit={handleSubmit}
+        isProcessing={isProcessing}
+        isOpen={showInputPanel}
+        onClose={() => setShowInputPanel(false)}
+      />
 
       {/* Sentence List */}
       <div className="space-y-4">
@@ -371,31 +465,23 @@ export const SentencePractice = () => {
               className="space-y-4"
             >
               {sentences.map((sentence, index) => (
-                <Reorder.Item
+                <ReorderableSentenceCard
                   key={sentence.id}
-                  value={sentence}
-                  onDragEnd={handleReorderComplete}
-                  drag={editingSentenceId !== sentence.id}
-                  className={
-                    editingSentenceId === sentence.id
-                      ? ""
-                      : "cursor-grab active:cursor-grabbing"
+                  sentence={sentence}
+                  index={index}
+                  onEdit={handleEdit}
+                  onDelete={handleDelete}
+                  getWordDefinition={getWordDefinition}
+                  isProcessing={isProcessing}
+                  isCurrentlyPlaying={
+                    isPlayingAll && currentPlayingIndex === index
                   }
-                >
-                  <SentenceCard
-                    sentence={sentence}
-                    onEdit={handleEdit}
-                    onDelete={handleDelete}
-                    getWordDefinition={getWordDefinition}
-                    isProcessing={isProcessing}
-                    isCurrentlyPlaying={
-                      isPlayingAll && currentPlayingIndex === index
-                    }
-                    onEditingChange={(isEditing) =>
-                      setEditingSentenceId(isEditing ? sentence.id! : null)
-                    }
-                  />
-                </Reorder.Item>
+                  isEditing={editingSentenceId === sentence.id}
+                  onEditingChange={(isEditing) =>
+                    setEditingSentenceId(isEditing ? sentence.id! : null)
+                  }
+                  onDragEnd={handleReorderComplete}
+                />
               ))}
             </Reorder.Group>
 

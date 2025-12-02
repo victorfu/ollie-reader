@@ -1,21 +1,34 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 
 interface SentenceInputProps {
   onSubmit: (text: string) => Promise<void>;
   isProcessing: boolean;
+  isOpen: boolean;
+  onClose: () => void;
 }
 
 export const SentenceInput = ({
   onSubmit,
   isProcessing,
+  isOpen,
+  onClose,
 }: SentenceInputProps) => {
   const [text, setText] = useState("");
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Focus textarea when opened
+  useEffect(() => {
+    if (isOpen && textareaRef.current) {
+      textareaRef.current.focus();
+    }
+  }, [isOpen]);
 
   const handleSubmit = async () => {
     if (!text.trim() || isProcessing) return;
 
     await onSubmit(text.trim());
     setText("");
+    onClose();
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -24,32 +37,63 @@ export const SentenceInput = ({
       e.preventDefault();
       handleSubmit();
     }
+    // Close on Escape
+    if (e.key === "Escape" && !isProcessing) {
+      onClose();
+    }
   };
+
+  if (!isOpen) return null;
 
   return (
     <div className="card bg-base-100 shadow-xl mb-6">
       <div className="card-body">
-        <h2 className="card-title text-lg">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            className="h-5 w-5"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
+        <div className="flex items-center justify-between">
+          <h2 className="card-title text-lg">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-5 w-5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+              />
+            </svg>
+            輸入英文文字
+          </h2>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={isProcessing}
+            className="btn btn-ghost btn-sm btn-circle"
+            title="關閉"
           >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-            />
-          </svg>
-          輸入英文文字
-        </h2>
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-5 w-5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M6 18L18 6M6 6l12 12"
+              />
+            </svg>
+          </button>
+        </div>
         <p className="text-sm text-base-content/60 mb-2">
           貼上英文段落或句子，系統會自動分句並翻譯成中文
         </p>
         <textarea
+          ref={textareaRef}
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={handleKeyDown}
@@ -59,7 +103,7 @@ export const SentenceInput = ({
         />
         <div className="card-actions justify-between items-center mt-2">
           <span className="text-xs text-base-content/50">
-            按 Ctrl + Enter 快速提交
+            按 Ctrl + Enter 快速提交，Esc 關閉
           </span>
           <button
             type="button"
