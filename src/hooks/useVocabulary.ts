@@ -346,16 +346,17 @@ export const useVocabulary = () => {
     [],
   );
 
-  // Load words for review mode with smart or random selection
+  // Load words for review mode with smart or tag-based selection
   const loadWordsForReview = useCallback(
     async (
       maxWords: number = 10,
       mode: ReviewMode = "smart",
+      selectedTag?: string,
     ): Promise<VocabularyWord[]> => {
       if (!user) return [];
 
       try {
-        return await getVocabularyForReview(user.uid, maxWords, mode);
+        return await getVocabularyForReview(user.uid, maxWords, mode, selectedTag);
       } catch (err) {
         console.error("Failed to load words for review:", err);
         return [];

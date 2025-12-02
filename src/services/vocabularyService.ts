@@ -199,11 +199,12 @@ const calculateReviewPriority = (word: VocabularyWord): number => {
   return score;
 };
 
-// Get vocabulary words for review with smart or random selection
+// Get vocabulary words for review with smart or tag-based selection
 export const getVocabularyForReview = async (
   userId: string,
   maxWords: number = 10,
   mode: ReviewMode = "smart",
+  selectedTag?: string,
 ): Promise<VocabularyWord[]> => {
   try {
     const q = query(
@@ -221,20 +222,21 @@ export const getVocabularyForReview = async (
 
     if (words.length === 0) return [];
 
-    if (mode === "smart") {
-      // Sort by priority score (highest first) and take top N
-      const sorted = words
-        .map((word) => ({ word, score: calculateReviewPriority(word) }))
-        .sort((a, b) => b.score - a.score)
-        .slice(0, maxWords)
-        .map((item) => item.word);
-
-      // Shuffle the selected words so they don't always appear in same order
-      return shuffleArray(sorted);
-    } else {
-      // Random mode: just shuffle and take
-      return shuffleArray(words).slice(0, maxWords);
+    // Tag mode: filter by tag and return all matching words
+    if (mode === "tag" && selectedTag) {
+      const taggedWords = words.filter((word) => word.tags.includes(selectedTag));
+      return shuffleArray(taggedWords);
     }
+
+    // Smart mode: Sort by priority score (highest first) and take top N
+    const sorted = words
+      .map((word) => ({ word, score: calculateReviewPriority(word) }))
+      .sort((a, b) => b.score - a.score)
+      .slice(0, maxWords)
+      .map((item) => item.word);
+
+    // Shuffle the selected words so they don't always appear in same order
+    return shuffleArray(sorted);
   } catch (error) {
     console.error("Error getting vocabulary for review:", error);
     throw error;

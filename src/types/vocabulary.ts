@@ -32,11 +32,12 @@ export interface VocabularyWord {
 }
 
 // Review mode types
-export type ReviewMode = "smart" | "random";
+export type ReviewMode = "smart" | "tag";
 
 export interface ReviewSettings {
   wordCount: number;
   mode: ReviewMode;
+  selectedTag?: string;
 }
 
 export interface Definition {

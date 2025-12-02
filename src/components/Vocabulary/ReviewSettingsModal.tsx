@@ -7,6 +7,7 @@ interface ReviewSettingsModalProps {
   onClose: () => void;
   onStart: (settings: ReviewSettings) => void;
   totalWords: number;
+  availableTags?: string[];
   isLoading?: boolean;
 }
 
@@ -22,16 +23,23 @@ export function ReviewSettingsModal({
   onClose,
   onStart,
   totalWords,
+  availableTags = [],
   isLoading = false,
 }: ReviewSettingsModalProps) {
   const [wordCount, setWordCount] = useState(10);
   const [mode, setMode] = useState<ReviewMode>("smart");
+  const [selectedTag, setSelectedTag] = useState<string>("");
 
   const handleStart = () => {
-    onStart({ wordCount: Math.min(wordCount, totalWords), mode });
+    if (mode === "tag") {
+      onStart({ wordCount: 0, mode, selectedTag });
+    } else {
+      onStart({ wordCount: Math.min(wordCount, totalWords), mode });
+    }
   };
 
   const actualWordCount = Math.min(wordCount, totalWords);
+  const canStart = mode === "tag" ? !!selectedTag : totalWords > 0;
 
   return (
     <AnimatePresence>
@@ -84,41 +92,6 @@ export function ReviewSettingsModal({
 
             {/* Content */}
             <div className="px-6 pb-6 space-y-6">
-              {/* Word Count Selection */}
-              <div>
-                <label className="text-sm font-medium mb-3 block">
-                  複習數量
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  {WORD_COUNT_OPTIONS.map((option) => {
-                    const isDisabled = option.value > totalWords;
-                    const isSelected = wordCount === option.value;
-
-                    return (
-                      <button
-                        key={option.value}
-                        type="button"
-                        disabled={isDisabled}
-                        onClick={() => setWordCount(option.value)}
-                        className={`
-                          p-3 rounded-xl border-2 text-left transition-all
-                          ${isSelected
-                            ? "border-primary bg-primary/10"
-                            : "border-base-300 hover:border-primary/50"
-                          }
-                          ${isDisabled ? "opacity-40 cursor-not-allowed" : ""}
-                        `}
-                      >
-                        <div className="font-semibold">{option.label}</div>
-                        <div className="text-xs text-base-content/60">
-                          {option.description}
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
               {/* Mode Selection */}
               <div>
                 <label className="text-sm font-medium mb-3 block">
@@ -147,25 +120,96 @@ export function ReviewSettingsModal({
 
                   <button
                     type="button"
-                    onClick={() => setMode("random")}
+                    onClick={() => setMode("tag")}
+                    disabled={availableTags.length === 0}
                     className={`
                       w-full p-4 rounded-xl border-2 text-left transition-all flex items-start gap-3
-                      ${mode === "random"
+                      ${mode === "tag"
                         ? "border-primary bg-primary/10"
                         : "border-base-300 hover:border-primary/50"
                       }
+                      ${availableTags.length === 0 ? "opacity-40 cursor-not-allowed" : ""}
                     `}
                   >
-                    <span className="text-2xl">🎲</span>
+                    <span className="text-2xl">🏷️</span>
                     <div>
-                      <div className="font-semibold">隨機選字</div>
+                      <div className="font-semibold">標籤選字</div>
                       <div className="text-xs text-base-content/60">
-                        從所有單字中隨機抽選
+                        選擇特定標籤的所有單字
                       </div>
                     </div>
                   </button>
                 </div>
               </div>
+
+              {/* Word Count Selection - only show for smart mode */}
+              {mode === "smart" && (
+                <div>
+                  <label className="text-sm font-medium mb-3 block">
+                    複習數量
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {WORD_COUNT_OPTIONS.map((option) => {
+                      const isDisabled = option.value > totalWords;
+                      const isSelected = wordCount === option.value;
+
+                      return (
+                        <button
+                          key={option.value}
+                          type="button"
+                          disabled={isDisabled}
+                          onClick={() => setWordCount(option.value)}
+                          className={`
+                            p-3 rounded-xl border-2 text-left transition-all
+                            ${isSelected
+                              ? "border-primary bg-primary/10"
+                              : "border-base-300 hover:border-primary/50"
+                            }
+                            ${isDisabled ? "opacity-40 cursor-not-allowed" : ""}
+                          `}
+                        >
+                          <div className="font-semibold">{option.label}</div>
+                          <div className="text-xs text-base-content/60">
+                            {option.description}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Tag Selection - only show for tag mode */}
+              {mode === "tag" && (
+                <div>
+                  <label className="text-sm font-medium mb-3 block">
+                    選擇標籤
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {availableTags.map((tag) => (
+                      <button
+                        key={tag}
+                        type="button"
+                        onClick={() => setSelectedTag(tag)}
+                        className={`
+                          badge badge-lg cursor-pointer transition-all
+                          ${selectedTag === tag
+                            ? "badge-primary"
+                            : "badge-outline hover:badge-primary"
+                          }
+                        `}
+                      >
+                        {tag}
+                      </button>
+                    ))}
+                  </div>
+                  {availableTags.length === 0 && (
+                    <p className="text-sm text-base-content/60">
+                      還沒有標籤，請先為單字加上標籤
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Footer */}
@@ -173,7 +217,7 @@ export function ReviewSettingsModal({
               <button
                 className="btn btn-primary w-full gap-2"
                 onClick={handleStart}
-                disabled={isLoading || totalWords === 0}
+                disabled={isLoading || !canStart}
               >
                 {isLoading ? (
                   <span className="loading loading-spinner loading-sm" />
@@ -199,7 +243,10 @@ export function ReviewSettingsModal({
                     />
                   </svg>
                 )}
-                開始複習 {actualWordCount} 個單字
+                {mode === "tag" 
+                  ? `開始複習「${selectedTag || "..."}」標籤`
+                  : `開始複習 ${actualWordCount} 個單字`
+                }
               </button>
             </div>
           </motion.div>

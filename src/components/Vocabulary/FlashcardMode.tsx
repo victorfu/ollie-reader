@@ -352,7 +352,7 @@ export const FlashcardMode = ({
             <span className="text-sm uppercase tracking-widest text-base-content/40 mb-4 flex-shrink-0">
               單字
             </span>
-            <h2 className="text-4xl font-bold text-center mb-2 break-words w-full flex-shrink-0">
+            <h2 className="text-5xl sm:text-6xl font-bold text-center mb-2 break-words w-full flex-shrink-0">
               {currentCard?.word}
             </h2>
             {currentCard?.phonetic && (

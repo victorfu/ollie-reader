@@ -246,7 +246,7 @@ export const VocabularyBook = () => {
 
   // Fetch total word count for review settings
   const fetchTotalWordCount = useCallback(async () => {
-    const allWords = await loadWordsForReview(9999, "random");
+    const allWords = await loadWordsForReview(9999, "smart");
     setTotalWordCount(allWords.length);
   }, [loadWordsForReview]);
 
@@ -264,6 +264,7 @@ export const VocabularyBook = () => {
       const selectedWords = await loadWordsForReview(
         settings.wordCount,
         settings.mode,
+        settings.selectedTag,
       );
       setReviewWords(selectedWords);
       setIsLoadingReview(false);
@@ -305,6 +306,7 @@ export const VocabularyBook = () => {
         onClose={() => setShowReviewSettings(false)}
         onStart={handleStartReview}
         totalWords={totalWordCount}
+        availableTags={availableTags}
         isLoading={isLoadingReview}
       />
 
