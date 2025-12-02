@@ -69,8 +69,8 @@ class TTSCacheService {
   /**
    * Generate cache key from TTS parameters
    */
-  getCacheKey(text: string, speechRate: number, speaker: string = "0"): string {
-    return JSON.stringify({ text, speechRate, speaker });
+  getCacheKey(text: string, speakingRate: number): string {
+    return JSON.stringify({ text, speakingRate });
   }
 
   /**

@@ -10,6 +10,7 @@ import { SpeechContext, type SpeechContextType } from "./SpeechContextType";
 import { TTS_API_URL } from "../constants/api";
 import { useSettings } from "../hooks/useSettings";
 import { ttsCache } from "../services/ttsCache";
+import { apiFetch } from "../utils/apiUtil";
 
 interface SpeechProviderProps {
   children: ReactNode;
@@ -91,7 +92,7 @@ export const SpeechProvider = ({ children }: SpeechProviderProps) => {
         setIsSpeaking(false);
 
         // Generate cache key
-        const cacheKey = ttsCache.getCacheKey(text, speechRate, "0");
+        const cacheKey = ttsCache.getCacheKey(text, speechRate);
 
         // Check for pending request
         const pendingRequest = ttsCache.getPendingRequest(cacheKey);
@@ -168,17 +169,16 @@ export const SpeechProvider = ({ children }: SpeechProviderProps) => {
 
         // Cache miss - fetch from API
         const fetchPromise = (async () => {
-          const response = await fetch(TTS_API_URL, {
+          const response = await apiFetch(TTS_API_URL, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
             },
+            includeAuthToken: true,
             body: JSON.stringify({
               text: text,
-              speaker: "0",
-              length_scale: speechRate.toString(),
-              noise_scale: "0.667",
-              noise_w: "0.8",
+              language_code: "en-US",
+              speaking_rate: speechRate,
             }),
           });
 
@@ -291,7 +291,7 @@ export const SpeechProvider = ({ children }: SpeechProviderProps) => {
               setIsLoadingAudio(true);
               setIsSpeaking(false);
 
-              const cacheKey = ttsCache.getCacheKey(text, speechRate, "0");
+              const cacheKey = ttsCache.getCacheKey(text, speechRate);
 
               let blob: Blob;
 
@@ -304,15 +304,14 @@ export const SpeechProvider = ({ children }: SpeechProviderProps) => {
                   blob = cachedBlob;
                 } else {
                   const fetchPromise = (async () => {
-                    const response = await fetch(TTS_API_URL, {
+                    const response = await apiFetch(TTS_API_URL, {
                       method: "POST",
                       headers: { "Content-Type": "application/json" },
+                      includeAuthToken: true,
                       body: JSON.stringify({
                         text,
-                        speaker: "0",
-                        length_scale: speechRate.toString(),
-                        noise_scale: "0.667",
-                        noise_w: "0.8",
+                        language_code: "en-US",
+                        speaking_rate: speechRate,
                       }),
                     });
                     if (!response.ok) {

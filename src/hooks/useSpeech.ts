@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from "react";
 import type { TTSMode } from "../types/pdf";
 import { TTS_API_URL } from "../constants/api";
+import { apiFetch } from "../utils/apiUtil";
 
 export const useSpeech = () => {
   const [speechRate, setSpeechRate] = useState(1);
@@ -54,17 +55,16 @@ export const useSpeech = () => {
         setIsLoadingAudio(true);
         setIsSpeaking(false);
 
-        const response = await fetch(TTS_API_URL, {
+        const response = await apiFetch(TTS_API_URL, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
           },
+          includeAuthToken: true,
           body: JSON.stringify({
             text: text,
-            speaker: "0",
-            length_scale: speechRate.toString(),
-            noise_scale: "0.667",
-            noise_w: "0.8",
+            language_code: "en-US",
+            speaking_rate: speechRate,
           }),
         });
 
