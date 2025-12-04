@@ -1,9 +1,15 @@
 import { useState, useRef, useEffect, useCallback, forwardRef } from "react";
-import { Reorder, useDragControls } from "framer-motion";
+import {
+  Reorder,
+  useDragControls,
+  AnimatePresence,
+  motion,
+} from "framer-motion";
 import { useSentencePractice } from "../../hooks/useSentencePractice";
 import { useSpeechState } from "../../hooks/useSpeechState";
 import { SentenceInput } from "./SentenceInput";
 import { SentenceCard } from "./SentenceCard";
+import { ClickableWords } from "./ClickableWords";
 import { Toast } from "../common/Toast";
 import { ConfirmModal } from "../common/ConfirmModal";
 import type { PracticeSentence } from "../../types/sentencePractice";
@@ -156,6 +162,23 @@ export const SentencePractice = () => {
     setIsPlayingAll(false);
     setCurrentPlayingIndex(-1);
   }, [sentences, isPlayingAll, speakAsync, stopSpeaking]);
+
+  // Manual navigation during playback
+  const handlePrevSentence = useCallback(() => {
+    if (!isPlayingAll || currentPlayingIndex <= 0) return;
+    stopSpeaking();
+    const newIndex = currentPlayingIndex - 1;
+    setCurrentPlayingIndex(newIndex);
+    speakAsync(sentences[newIndex].english);
+  }, [isPlayingAll, currentPlayingIndex, sentences, stopSpeaking, speakAsync]);
+
+  const handleNextSentence = useCallback(() => {
+    if (!isPlayingAll || currentPlayingIndex >= sentences.length - 1) return;
+    stopSpeaking();
+    const newIndex = currentPlayingIndex + 1;
+    setCurrentPlayingIndex(newIndex);
+    speakAsync(sentences[newIndex].english);
+  }, [isPlayingAll, currentPlayingIndex, sentences, stopSpeaking, speakAsync]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -528,6 +551,160 @@ export const SentencePractice = () => {
         onConfirm={handleClearAll}
         onCancel={() => setShowClearConfirm(false)}
       />
+
+      {/* Fullscreen Playback Overlay */}
+      <AnimatePresence>
+        {isPlayingAll &&
+          currentPlayingIndex >= 0 &&
+          sentences[currentPlayingIndex] && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.3 }}
+              className="fixed inset-0 z-50 bg-base-200/95 backdrop-blur-sm flex flex-col"
+            >
+              {/* Header with progress */}
+              <div className="flex justify-between items-center p-4 sm:p-6">
+                <div className="text-lg sm:text-xl font-medium text-base-content/70">
+                  {currentPlayingIndex + 1} / {sentences.length}
+                </div>
+                <button
+                  type="button"
+                  onClick={handlePlayAll}
+                  className="btn btn-circle btn-ghost btn-lg"
+                  title="關閉"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-6 w-6"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M6 18L18 6M6 6l12 12"
+                    />
+                  </svg>
+                </button>
+              </div>
+
+              {/* Main content - centered sentence */}
+              <div className="flex-1 flex items-center justify-center px-4 sm:px-8 md:px-16">
+                <motion.div
+                  key={currentPlayingIndex}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  transition={{ duration: 0.3 }}
+                  className="text-center max-w-4xl w-full"
+                >
+                  {/* English sentence - maximized */}
+                  <div className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-base-content leading-relaxed mb-6 sm:mb-8">
+                    <ClickableWords
+                      text={sentences[currentPlayingIndex].english}
+                      getWordDefinition={getWordDefinition}
+                    />
+                  </div>
+                  {/* Chinese translation */}
+                  <p className="text-lg sm:text-xl md:text-2xl text-base-content/60">
+                    {sentences[currentPlayingIndex].chinese}
+                  </p>
+                </motion.div>
+              </div>
+
+              {/* Navigation controls */}
+              <div className="flex justify-center items-center gap-4 p-6 sm:p-8">
+                {/* Previous button */}
+                <button
+                  type="button"
+                  onClick={handlePrevSentence}
+                  disabled={currentPlayingIndex <= 0}
+                  className="btn btn-circle btn-ghost btn-lg disabled:opacity-30"
+                  title="上一句"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-8 w-8"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M15 19l-7-7 7-7"
+                    />
+                  </svg>
+                </button>
+
+                {/* Stop button (center) */}
+                <button
+                  type="button"
+                  onClick={handlePlayAll}
+                  className="btn btn-circle btn-warning btn-xl shadow-xl"
+                  title="停止播放"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-10 w-10"
+                    fill="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <rect x="6" y="6" width="12" height="12" rx="1" />
+                  </svg>
+                </button>
+
+                {/* Next button */}
+                <button
+                  type="button"
+                  onClick={handleNextSentence}
+                  disabled={currentPlayingIndex >= sentences.length - 1}
+                  className="btn btn-circle btn-ghost btn-lg disabled:opacity-30"
+                  title="下一句"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-8 w-8"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M9 5l7 7-7 7"
+                    />
+                  </svg>
+                </button>
+              </div>
+            </motion.div>
+          )}
+      </AnimatePresence>
+
+      {/* Fixed floating stop button (fallback for when overlay isn't visible) */}
+      {isPlayingAll && (
+        <button
+          type="button"
+          onClick={handlePlayAll}
+          className="fixed bottom-6 right-6 btn btn-circle btn-lg btn-warning shadow-2xl z-40 sm:hidden"
+          title="停止播放"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            className="h-6 w-6"
+            fill="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <rect x="6" y="6" width="12" height="12" rx="1" />
+          </svg>
+        </button>
+      )}
     </div>
   );
 };
