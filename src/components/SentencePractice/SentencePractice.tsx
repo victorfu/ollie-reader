@@ -112,18 +112,8 @@ export const SentencePractice = () => {
   const [currentPlayingIndex, setCurrentPlayingIndex] = useState(-1);
   const playAllRef = useRef<{ cancelled: boolean }>({ cancelled: false });
 
-  // Refs for sentence cards (for auto-scroll)
+  // Refs for sentence cards
   const sentenceRefs = useRef<(HTMLDivElement | null)[]>([]);
-
-  // Auto-scroll to currently playing sentence
-  useEffect(() => {
-    if (isPlayingAll && currentPlayingIndex >= 0) {
-      sentenceRefs.current[currentPlayingIndex]?.scrollIntoView({
-        behavior: "smooth",
-        block: "center",
-      });
-    }
-  }, [isPlayingAll, currentPlayingIndex]);
 
   // Play all sentences sequentially
   const handlePlayAll = useCallback(async () => {

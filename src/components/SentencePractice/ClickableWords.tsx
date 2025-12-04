@@ -91,7 +91,7 @@ export const ClickableWords = ({
             >
               {word}
             </span>
-            {index < words.length - 1 && " "}
+            {index < words.length - 1 && <span className="whitespace-pre"> </span>}
 
             {/* DaisyUI Dropdown for definition */}
             {isActive && (
