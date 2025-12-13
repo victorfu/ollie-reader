@@ -36,6 +36,7 @@ export const SUPPORTED_AUDIO_TYPES = [
   "audio/webm",
   "audio/ogg",
   "audio/aac",
+  "video/mp4", // mp4
 ];
 
-export const SUPPORTED_AUDIO_EXTENSIONS = ".mp3,.wav,.m4a,.webm,.ogg,.aac";
+export const SUPPORTED_AUDIO_EXTENSIONS = ".mp3,.wav,.m4a,.webm,.ogg,.aac,.mp4";

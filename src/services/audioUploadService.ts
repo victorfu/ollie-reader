@@ -55,6 +55,7 @@ function getExtensionFromMimeType(mimeType: string): string {
     "audio/webm": "webm",
     "audio/ogg": "ogg",
     "audio/aac": "aac",
+    "video/mp4": "mp4",
   };
   return mimeToExt[mimeType] || "audio";
 }
@@ -97,7 +98,7 @@ export async function uploadAudioFile(
   // Validate file type
   if (!SUPPORTED_AUDIO_TYPES.includes(mimeType)) {
     throw new Error(
-      `不支援的音訊格式。支援格式：MP3, WAV, M4A, WebM, OGG, AAC`,
+      `不支援的音訊格式。支援格式：MP3, WAV, M4A, WebM, OGG, AAC, MP4`,
     );
   }
 

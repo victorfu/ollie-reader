@@ -80,7 +80,10 @@ export function AudioUploads() {
       setIsDragging(false);
 
       const file = e.dataTransfer.files?.[0];
-      if (file && file.type.startsWith("audio/")) {
+      if (
+        file &&
+        (file.type.startsWith("audio/") || file.type === "video/mp4")
+      ) {
         handleFileSelect(file);
       } else {
         setToastMessage({ message: "請上傳音訊檔案", type: "error" });
@@ -268,7 +271,7 @@ export function AudioUploads() {
                   {isDragging ? "放開以上傳檔案" : "拖放音訊檔案到這裡"}
                 </h3>
                 <p className="text-base-content/60 text-sm mb-4">
-                  支援 MP3, WAV, M4A, WebM, OGG, AAC（最大 {MAX_UPLOAD_SIZE_MB}
+                  支援 MP3, WAV, M4A, WebM, OGG, AAC, MP4（最大 {MAX_UPLOAD_SIZE_MB}
                   MB）
                 </p>
                 <label
