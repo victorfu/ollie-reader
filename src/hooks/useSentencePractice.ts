@@ -120,9 +120,16 @@ export const useSentencePractice = () => {
 
         setSentences((prev) => [...prev, ...newSentences]);
 
+        // Check if any sentences have fallback translation (AI failed)
+        const hasFailedTranslation = parsedSentences.some(
+          (s) => s.chinese.includes("翻譯失敗")
+        );
+
         return {
           success: true,
-          message: `成功新增 ${parsedSentences.length} 個句子`,
+          message: hasFailedTranslation
+            ? `已新增 ${parsedSentences.length} 個句子（翻譯暫時無法使用）`
+            : `成功新增 ${parsedSentences.length} 個句子`,
           count: parsedSentences.length,
         };
       } catch (err) {

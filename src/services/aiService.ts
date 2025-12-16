@@ -180,6 +180,20 @@ export async function translateWithAI(
 }
 
 /**
+ * Basic sentence splitter as fallback when AI fails
+ * Splits text by common sentence-ending punctuation
+ */
+function splitIntoSentences(text: string): string[] {
+  // Split by sentence-ending punctuation, keeping the punctuation
+  const sentences = text
+    .split(/(?<=[.!?])\s+/)
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+
+  return sentences;
+}
+
+/**
  * Parse English text into sentences and translate each to Chinese
  * @param text - The English text to parse and translate
  * @returns Array of parsed sentences with English and Chinese
@@ -213,10 +227,20 @@ ${text}
     const responseText = result.response.text().trim();
     const parsed = parseJsonResponse(responseText) as { sentences: ParsedSentence[] };
 
-    return parsed.sentences || [];
+    if (parsed.sentences && parsed.sentences.length > 0) {
+      return parsed.sentences;
+    }
+
+    // AI returned empty result, use fallback
+    throw new Error("AI returned empty sentences");
   } catch (err) {
     console.error("Error parsing and translating sentences:", err);
-    return [];
+    // Fallback: use basic sentence splitting without translation
+    const sentences = splitIntoSentences(text);
+    return sentences.map((english) => ({
+      english,
+      chinese: "(翻譯失敗，請稍後重試)",
+    }));
   }
 }
 
