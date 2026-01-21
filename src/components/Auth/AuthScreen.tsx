@@ -8,30 +8,31 @@ export default function AuthScreen() {
   };
 
   return (
-    <div className="w-full max-w-md">
-      <div className="card bg-base-100 shadow-xl">
-        <div className="card-body space-y-6">
+    <div className="w-full max-w-md px-4">
+      {/* Glass card with macOS HIG styling */}
+      <div className="rounded-2xl border border-black/5 dark:border-white/10 bg-base-100/70 backdrop-blur-xl shadow-lg">
+        <div className="p-8 space-y-8">
+          {/* Header */}
           <div className="text-center space-y-3">
-            <h2 className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
-              📚 Ollie Reader
-            </h2>
-            <p className="text-base sm:text-lg text-base-content/70">
-              上傳 PDF 文件,選取文字即可朗讀或翻譯
-            </p>
-            <p className="text-sm text-base-content/60">
-              使用 Google 帳號登入即可開始使用
+            <h1 className="text-3xl font-semibold tracking-tight text-base-content">
+              Ollie Reader
+            </h1>
+            <p className="text-base text-base-content/70">
+              上傳 PDF 文件，選取文字即可朗讀或翻譯
             </p>
           </div>
 
+          {/* Error alert */}
           {authError && (
-            <div className="alert alert-error text-sm">
-              <span>{authError}</span>
+            <div className="rounded-lg bg-error/10 border border-error/20 px-4 py-3">
+              <p className="text-sm text-error">{authError}</p>
             </div>
           )}
 
+          {/* Sign in button - macOS secondary button style */}
           <button
             type="button"
-            className="btn btn-primary w-full gap-2"
+            className="w-full flex items-center justify-center gap-3 h-11 px-4 rounded-lg bg-base-100 border border-black/10 dark:border-white/10 shadow-sm text-sm font-medium text-base-content transition-all duration-200 hover:bg-black/5 dark:hover:bg-white/5 active:scale-[0.98] active:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
             onClick={handleGoogleSignIn}
           >
             <svg
@@ -58,6 +59,11 @@ export default function AuthScreen() {
             </svg>
             使用 Google 登入
           </button>
+
+          {/* Footer hint */}
+          <p className="text-xs text-center text-base-content/50">
+            使用 Google 帳號登入即可開始使用
+          </p>
         </div>
       </div>
     </div>
