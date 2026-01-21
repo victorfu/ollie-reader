@@ -4,7 +4,7 @@ import { useSpeechState } from "../hooks/useSpeechState";
 import { useTextSelection } from "../hooks/useTextSelection";
 import { usePdfWorker } from "../hooks/usePdfWorker";
 import { useChat } from "../hooks/useChat";
-import { useVocabulary } from "../hooks/useVocabulary";
+import { useVocabulary, formatDefinitionsForDisplay } from "../hooks/useVocabulary";
 import { UploadArea } from "./PdfReader/UploadArea";
 import { TTSControls } from "./PdfReader/TTSControls";
 import { FileInfo } from "./PdfReader/FileInfo";
@@ -81,7 +81,7 @@ function PdfReader() {
   } | null>(null);
 
   // Vocabulary hook
-  const { addWord } = useVocabulary();
+  const { lookupOrAddWord } = useVocabulary();
 
   const pagesByNumber = useMemo(() => {
     const map = new Map();
@@ -128,34 +128,48 @@ function PdfReader() {
     }
   };
 
-  const handleAddToVocabulary = async () => {
-    if (!selectedText.trim()) return;
+  // Combined lookup and add to vocabulary - also shows definition
+  const handleLookupWord = async () => {
+    const trimmedText = selectedText.trim();
+    if (!trimmedText) return;
 
     // Extract the first word if multiple words are selected
-    const word = selectedText.trim().split(/\s+/)[0];
+    const word = trimmedText.split(/\s+/)[0];
 
     setIsAddingToVocabulary(true);
     try {
-      const response = await addWord(word, {
-        sourceContext: selectedText,
+      const response = await lookupOrAddWord(word, {
+        sourceContext: trimmedText,
         sourcePdfName: selectedFile?.name,
-        sourcePage: undefined, // You can track current page if needed
+        sourcePage: undefined,
       });
 
-      if (response.success) {
-        setToastMessage({
-          message: `"${word}" 已加入生詞本！`,
-          type: "success",
-        });
+      if (response.success && response.existingWord) {
+        // Format and display the definition
+        const formattedDef = formatDefinitionsForDisplay(response.existingWord);
+        setTranslatedText(formattedDef || "無定義資料");
+
+        // Show toast message
+        if (response.isNew) {
+          setToastMessage({
+            message: `「${word}」已加入生詞本！`,
+            type: "success",
+          });
+        } else {
+          setToastMessage({
+            message: `「${word}」已在生詞本中`,
+            type: "info",
+          });
+        }
       } else {
         setToastMessage({
-          message: response.message || "加入失敗",
+          message: response.message || "查詢失敗",
           type: "error",
         });
       }
     } catch (error) {
-      console.error("Error adding to vocabulary:", error);
-      setToastMessage({ message: "加入生詞本時發生錯誤", type: "error" });
+      console.error("Error looking up word:", error);
+      setToastMessage({ message: "查詢單字時發生錯誤", type: "error" });
     } finally {
       setIsAddingToVocabulary(false);
     }
@@ -259,7 +273,7 @@ function PdfReader() {
           onTranslate={translateText}
           onClear={clearSelection}
           onClearTranslation={() => setTranslatedText("")}
-          onAddToVocabulary={handleAddToVocabulary}
+          onAddToVocabulary={handleLookupWord}
           isAddingToVocabulary={isAddingToVocabulary}
           position={toolbarPosition}
         />

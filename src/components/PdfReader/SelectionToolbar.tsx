@@ -15,6 +15,12 @@ interface SelectionToolbarProps {
   position?: SelectionToolbarPosition | null;
 }
 
+// Check if selected text is a single word (for vocabulary lookup)
+const isSingleWord = (text: string): boolean => {
+  const trimmed = text.trim();
+  return trimmed.length > 0 && !trimmed.includes(" ");
+};
+
 export const SelectionToolbar = memo(
   ({
     selectedText,
@@ -45,27 +51,50 @@ export const SelectionToolbar = memo(
 
   const renderFeedback = () => {
     if (!translatedText && !translateError) return null;
+
+    // Determine if this is a word definition (has numbered lines) or translation
+    const isWordDefinition = translatedText && /^\d+\./.test(translatedText.split("\n").find(line => /^\d+\./.test(line)) || "");
+    const feedbackTitle = isWordDefinition ? "單字解釋" : "翻譯結果";
+    const feedbackIcon = isWordDefinition ? (
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        className="h-4 w-4"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={2}
+          d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
+        />
+      </svg>
+    ) : (
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        className="h-4 w-4"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={2}
+          d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129"
+        />
+      </svg>
+    );
+
     return (
       <div className="w-full max-w-md space-y-3 text-left">
         {translatedText && (
           <div className="bg-base-100 rounded-lg shadow-2xl p-4 animate-in slide-in-from-bottom-2">
             <div className="flex items-start justify-between gap-2 mb-2">
               <h4 className="font-semibold text-sm flex items-center gap-1">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="h-4 w-4"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129"
-                  />
-                </svg>
-                翻譯結果
+                {feedbackIcon}
+                {feedbackTitle}
               </h4>
               <button
                 type="button"
@@ -75,7 +104,7 @@ export const SelectionToolbar = memo(
                 ✕
               </button>
             </div>
-            <p className="text-sm leading-relaxed">{translatedText}</p>
+            <p className="text-sm leading-relaxed whitespace-pre-line">{translatedText}</p>
           </div>
         )}
 
@@ -95,6 +124,7 @@ export const SelectionToolbar = memo(
 
         <div className="bg-accent text-accent-content rounded-full shadow-2xl px-6 py-3 flex items-center gap-3 backdrop-blur-md">
           <div className="flex gap-2">
+            {/* Speak button */}
             <button
               type="button"
               onClick={onSpeak}
@@ -116,39 +146,15 @@ export const SelectionToolbar = memo(
                 />
               </svg>
             </button>
-            <button
-              type="button"
-              onClick={onTranslate}
-              disabled={isTranslating}
-              className="btn btn-sm btn-circle bg-accent-content text-accent hover:bg-accent-content/90 border-0 tooltip tooltip-top"
-              data-tip="翻譯"
-            >
-              {isTranslating ? (
-                <span className="loading loading-spinner loading-sm"></span>
-              ) : (
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="h-5 w-5"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129"
-                  />
-                </svg>
-              )}
-            </button>
-            {onAddToVocabulary && (
+
+            {/* Single word: Vocabulary lookup button (查詢/加入生詞本) */}
+            {isSingleWord(selectedText) && onAddToVocabulary && (
               <button
                 type="button"
                 onClick={onAddToVocabulary}
                 disabled={isAddingToVocabulary}
                 className="btn btn-sm btn-circle bg-accent-content text-accent hover:bg-accent-content/90 border-0 tooltip tooltip-top"
-                data-tip="加入生詞本"
+                data-tip="查詢單字"
               >
                 {isAddingToVocabulary ? (
                   <span className="loading loading-spinner loading-sm"></span>
@@ -164,12 +170,44 @@ export const SelectionToolbar = memo(
                       strokeLinecap="round"
                       strokeLinejoin="round"
                       strokeWidth={2}
-                      d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"
+                      d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
                     />
                   </svg>
                 )}
               </button>
             )}
+
+            {/* Multiple words / sentence: Translate button */}
+            {!isSingleWord(selectedText) && (
+              <button
+                type="button"
+                onClick={onTranslate}
+                disabled={isTranslating}
+                className="btn btn-sm btn-circle bg-accent-content text-accent hover:bg-accent-content/90 border-0 tooltip tooltip-top"
+                data-tip="翻譯"
+              >
+                {isTranslating ? (
+                  <span className="loading loading-spinner loading-sm"></span>
+                ) : (
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-5 w-5"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129"
+                    />
+                  </svg>
+                )}
+              </button>
+            )}
+
+            {/* Clear button */}
             <button
               type="button"
               onClick={onClear}

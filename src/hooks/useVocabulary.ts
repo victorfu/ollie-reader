@@ -17,7 +17,34 @@ import type {
   VocabularyWord,
   VocabularyFilters,
   ReviewMode,
+  Definition,
 } from "../types/vocabulary";
+
+// Helper to format definitions for display
+export const formatDefinitionsForDisplay = (
+  word: VocabularyWord,
+): string => {
+  if (!word.definitions || word.definitions.length === 0) {
+    return "";
+  }
+
+  const lines: string[] = [];
+
+  // Add emoji and phonetic if available
+  const header = [word.emoji, word.phonetic].filter(Boolean).join(" ");
+  if (header) {
+    lines.push(header);
+  }
+
+  // Add definitions
+  word.definitions.forEach((def: Definition, index: number) => {
+    const partOfSpeech = def.partOfSpeech ? `(${def.partOfSpeech}) ` : "";
+    const chineseDef = def.definitionChinese || def.definition || "";
+    lines.push(`${index + 1}. ${partOfSpeech}${chineseDef}`);
+  });
+
+  return lines.join("\n");
+};
 
 export const useVocabulary = () => {
   const { user } = useAuth();
@@ -51,6 +78,11 @@ export const useVocabulary = () => {
         return { success: false, message: "User not authenticated" };
       }
 
+      const trimmedWord = word.trim();
+      if (!trimmedWord) {
+        return { success: false, message: "Word cannot be empty" };
+      }
+
       // Abort any previous request
       abortControllerRef.current?.abort();
       const controller = new AbortController();
@@ -63,7 +95,7 @@ export const useVocabulary = () => {
         // Check if word already exists
         const existingWord = await checkWordExists(
           user.uid,
-          word.toLowerCase(),
+          trimmedWord.toLowerCase(),
         );
         if (existingWord) {
           return {
@@ -79,7 +111,7 @@ export const useVocabulary = () => {
         }
 
         // Fetch word details from AI service
-        const details = await generateWordDetails(word, controller.signal);
+        const details = await generateWordDetails(trimmedWord, controller.signal);
 
         // Check if aborted
         if (controller.signal.aborted) {
@@ -91,7 +123,7 @@ export const useVocabulary = () => {
           VocabularyWord,
           "id" | "createdAt" | "updatedAt" | "reviewCount"
         > = {
-          word: word.toLowerCase(),
+          word: trimmedWord.toLowerCase(),
           userId: user.uid,
           ...(details?.phonetic && { phonetic: details.phonetic }),
           ...(details?.emoji && { emoji: details.emoji }),
@@ -100,10 +132,10 @@ export const useVocabulary = () => {
           synonyms: details?.synonyms || [],
           antonyms: details?.antonyms || [],
           ...(context?.sourceContext && {
-            sourceContext: context.sourceContext,
+            sourceContext: context.sourceContext.trim(),
           }),
           ...(context?.sourcePdfName && {
-            sourcePdfName: context.sourcePdfName,
+            sourcePdfName: context.sourcePdfName.trim(),
           }),
           ...(context?.sourcePage && { sourcePage: context.sourcePage }),
           tags: [],
@@ -121,6 +153,125 @@ export const useVocabulary = () => {
           err instanceof Error ? err.message : "Failed to add word";
         setError(message);
         return { success: false, message };
+      } finally {
+        if (!controller.signal.aborted) {
+          setIsAdding(false);
+        }
+      }
+    },
+    [user],
+  );
+
+  // Lookup word in vocabulary, add if not exists, return definition either way
+  const lookupOrAddWord = useCallback(
+    async (
+      word: string,
+      context?: {
+        sourceContext?: string;
+        sourcePdfName?: string;
+        sourcePage?: number;
+      },
+    ): Promise<{
+      success: boolean;
+      existingWord?: VocabularyWord;
+      isNew: boolean;
+      message?: string;
+    }> => {
+      if (!user) {
+        return { success: false, isNew: false, message: "User not authenticated" };
+      }
+
+      const trimmedWord = word.trim();
+      if (!trimmedWord) {
+        return { success: false, isNew: false, message: "Word cannot be empty" };
+      }
+
+      // Abort any previous request
+      abortControllerRef.current?.abort();
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
+
+      setIsAdding(true);
+      setError(null);
+
+      try {
+        // Check if word already exists
+        const existingWord = await checkWordExists(
+          user.uid,
+          trimmedWord.toLowerCase(),
+        );
+        if (existingWord) {
+          // Word exists, return its definition
+          return {
+            success: true,
+            existingWord,
+            isNew: false,
+            message: "Word found in vocabulary",
+          };
+        }
+
+        // Check if aborted
+        if (controller.signal.aborted) {
+          return { success: false, isNew: false, message: "Request cancelled" };
+        }
+
+        // Word doesn't exist, fetch details and add it
+        const details = await generateWordDetails(trimmedWord, controller.signal);
+
+        // Check if aborted
+        if (controller.signal.aborted) {
+          return { success: false, isNew: false, message: "Request cancelled" };
+        }
+
+        // Create vocabulary word
+        const newWord: Omit<
+          VocabularyWord,
+          "id" | "createdAt" | "updatedAt" | "reviewCount"
+        > = {
+          word: trimmedWord.toLowerCase(),
+          userId: user.uid,
+          ...(details?.phonetic && { phonetic: details.phonetic }),
+          ...(details?.emoji && { emoji: details.emoji }),
+          definitions: details?.definitions || [],
+          examples: details?.examples || [],
+          synonyms: details?.synonyms || [],
+          antonyms: details?.antonyms || [],
+          ...(context?.sourceContext && {
+            sourceContext: context.sourceContext.trim(),
+          }),
+          ...(context?.sourcePdfName && {
+            sourcePdfName: context.sourcePdfName.trim(),
+          }),
+          ...(context?.sourcePage && { sourcePage: context.sourcePage }),
+          tags: [],
+        };
+
+        const wordId = await addVocabularyWord(newWord);
+
+        // Return the newly created word with its details
+        const createdWord: VocabularyWord = {
+          ...newWord,
+          id: wordId,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          reviewCount: 0,
+        };
+
+        return {
+          success: true,
+          existingWord: createdWord,
+          isNew: true,
+          message: "Word added to vocabulary",
+        };
+      } catch (err) {
+        // Ignore abort errors
+        if (err instanceof Error && err.name === "AbortError") {
+          return { success: false, isNew: false, message: "Request cancelled" };
+        }
+        const message =
+          err instanceof Error ? err.message : "Failed to lookup word";
+        setError(message);
+        return { success: false, isNew: false, message };
       } finally {
         if (!controller.signal.aborted) {
           setIsAdding(false);
@@ -387,6 +538,7 @@ export const useVocabulary = () => {
     error,
     hasMore,
     addWord,
+    lookupOrAddWord,
     loadVocabulary,
     loadMore,
     getWord,
