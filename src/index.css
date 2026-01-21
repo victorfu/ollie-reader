@@ -53,5 +53,11 @@
 }
 
 .animate-slide-down {
-  animation: slide-down 0.3s ease-out;
+  animation: slide-down 0.2s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-slide-down {
+    animation: none;
+  }
 }

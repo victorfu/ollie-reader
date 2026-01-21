@@ -251,23 +251,10 @@ function PdfReader() {
         />
       )}
 
-      {/* Error Alert */}
+      {/* Error Alert - macOS HIG style */}
       {error && (
-        <div className="alert alert-error shadow-lg mb-6">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            className="stroke-current shrink-0 h-6 w-6"
-            fill="none"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth="2"
-              d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"
-            />
-          </svg>
-          <span>{error}</span>
+        <div className="rounded-lg bg-error/10 border border-error/20 px-4 py-3 mb-6">
+          <p className="text-sm text-error">{error}</p>
         </div>
       )}
 
@@ -298,10 +285,10 @@ function PdfReader() {
             isClearingCache={isClearingCache}
           />
 
-          {/* PDF Viewer */}
+          {/* PDF Viewer - Glass card with macOS HIG styling */}
           {pdfUrl && (
-            <div className="card bg-base-100 shadow-xl h-full">
-              <div className="card-body p-0">
+            <div className="rounded-xl border border-black/5 dark:border-white/10 bg-base-100/80 backdrop-blur-xl shadow-lg overflow-hidden">
+              <div className="p-0">
                 <PdfViewer
                   url={pdfUrl}
                   pagesByNumber={pagesByNumber}

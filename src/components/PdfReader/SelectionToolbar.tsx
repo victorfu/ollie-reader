@@ -90,27 +90,29 @@ export const SelectionToolbar = memo(
     return (
       <div className="w-full max-w-md space-y-3 text-left">
         {translatedText && (
-          <div className="bg-base-100 rounded-lg shadow-2xl p-4 animate-in slide-in-from-bottom-2">
+          <div className="bg-base-100/95 backdrop-blur-xl rounded-xl border border-black/5 dark:border-white/10 shadow-lg p-4 animate-in slide-in-from-bottom-2">
             <div className="flex items-start justify-between gap-2 mb-2">
-              <h4 className="font-semibold text-sm flex items-center gap-1">
+              <h4 className="font-semibold text-sm flex items-center gap-1 text-base-content">
                 {feedbackIcon}
                 {feedbackTitle}
               </h4>
               <button
                 type="button"
                 onClick={onClearTranslation}
-                className="btn btn-ghost btn-xs btn-circle"
+                className="btn btn-ghost btn-xs btn-circle hover:bg-black/5 dark:hover:bg-white/10"
               >
-                ✕
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" />
+                </svg>
               </button>
             </div>
-            <p className="text-sm leading-relaxed whitespace-pre-line">{translatedText}</p>
+            <p className="text-sm leading-relaxed whitespace-pre-line text-base-content/80">{translatedText}</p>
           </div>
         )}
 
         {translateError && (
-          <div className="bg-error/10 text-error rounded-lg shadow-2xl p-3 text-xs">
-            <p>{translateError}</p>
+          <div className="bg-error/10 border border-error/20 rounded-lg shadow-lg p-3">
+            <p className="text-xs text-error">{translateError}</p>
           </div>
         )}
       </div>
@@ -122,7 +124,7 @@ export const SelectionToolbar = memo(
       <div className="flex flex-col items-center gap-3">
         {placement === "above" && renderFeedback()}
 
-        <div className="bg-accent text-accent-content rounded-full shadow-2xl px-6 py-3 flex items-center gap-3 backdrop-blur-md">
+        <div className="bg-accent text-accent-content rounded-full shadow-lg px-6 py-3 flex items-center gap-3 backdrop-blur-md border border-accent/20">
           <div className="flex gap-2">
             {/* Speak button */}
             <button

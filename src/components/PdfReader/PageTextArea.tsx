@@ -83,11 +83,11 @@ export const PageTextArea = memo(
     );
 
     return (
-      <div className="card bg-base-100 shadow-md">
-        <div className="card-body p-4 sm:p-6">
+      <div className="rounded-xl border border-black/5 dark:border-white/10 bg-base-100/80 backdrop-blur-xl shadow-sm">
+        <div className="p-4 sm:p-6">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
-            <h3 className="card-title text-xl sm:text-2xl">
-              <span className="badge badge-primary badge-lg">
+            <h3 className="text-xl sm:text-2xl font-semibold">
+              <span className="px-3 py-1 rounded-lg bg-primary/10 text-primary text-base font-medium">
                 Page {pageNumber}
               </span>
             </h3>
@@ -95,7 +95,7 @@ export const PageTextArea = memo(
               <button
                 type="button"
                 onClick={() => onSpeak(text)}
-                className="btn btn-success btn-sm sm:btn-md gap-2"
+                className="flex items-center gap-2 h-9 sm:h-10 px-4 rounded-lg text-sm font-medium bg-success text-success-content shadow-sm hover:bg-success/90 active:scale-[0.98] transition-all duration-200 disabled:opacity-50"
                 disabled={isLoadingAudio}
               >
                 {isLoadingAudio ? (
@@ -115,13 +115,13 @@ export const PageTextArea = memo(
                       <path
                         strokeLinecap="round"
                         strokeLinejoin="round"
-                        strokeWidth={2}
+                        strokeWidth={1.5}
                         d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"
                       />
                       <path
                         strokeLinecap="round"
                         strokeLinejoin="round"
-                        strokeWidth={2}
+                        strokeWidth={1.5}
                         d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
                       />
                     </svg>
@@ -132,13 +132,13 @@ export const PageTextArea = memo(
               <button
                 type="button"
                 onClick={onStopSpeaking}
-                className="btn btn-ghost btn-sm sm:btn-md"
+                className="flex items-center h-9 sm:h-10 px-4 rounded-lg text-sm font-medium bg-base-100 border border-black/10 dark:border-white/10 shadow-sm hover:bg-black/5 dark:hover:bg-white/5 active:scale-[0.98] transition-all duration-200"
               >
                 停止
               </button>
             </div>
           </div>
-          <div className="divider my-2"></div>
+          <div className="h-px bg-black/5 dark:bg-white/10 my-4"></div>
           <div
             className="prose prose-lg sm:prose-xl lg:prose-2xl max-w-none overflow-auto"
             style={{ maxHeight: "750px" }}
