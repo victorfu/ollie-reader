@@ -30,7 +30,11 @@ export const Toast = ({
   const alertClass = typeConfig[type] ?? typeConfig.info;
 
   return (
-    <div className="toast toast-top toast-center z-50 pointer-events-none">
+    <div
+      role="alert"
+      aria-live="polite"
+      className="toast toast-top toast-center z-50 pointer-events-none"
+    >
       <div
         className={`alert ${alertClass} pointer-events-auto flex items-center gap-3 shadow-lg`}
       >

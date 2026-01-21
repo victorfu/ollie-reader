@@ -1,3 +1,4 @@
+import { memo } from "react";
 import type { TTSMode, ReadingMode } from "../../types/pdf";
 
 interface TTSControlsProps {
@@ -11,17 +12,18 @@ interface TTSControlsProps {
   onStop: () => void;
 }
 
-export const TTSControls = ({
-  ttsMode,
-  readingMode,
-  speechRate,
-  isSpeaking,
-  isLoadingAudio,
-  onTtsModeChange,
-  onReadingModeChange,
-  onStop,
-}: TTSControlsProps) => {
-  return (
+export const TTSControls = memo(
+  ({
+    ttsMode,
+    readingMode,
+    speechRate,
+    isSpeaking,
+    isLoadingAudio,
+    onTtsModeChange,
+    onReadingModeChange,
+    onStop,
+  }: TTSControlsProps) => {
+    return (
     <div className="card bg-base-100 shadow-md mb-6">
       <div className="card-body p-4">
         <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
@@ -186,5 +188,8 @@ export const TTSControls = ({
         </div>
       </div>
     </div>
-  );
-};
+    );
+  }
+);
+
+TTSControls.displayName = "TTSControls";

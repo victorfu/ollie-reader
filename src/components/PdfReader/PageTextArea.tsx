@@ -2,6 +2,9 @@ import { memo, useCallback } from "react";
 import type { ReactNode } from "react";
 import type { ReadingMode } from "../../types/pdf";
 
+// Regex defined outside component to avoid recreation on each render
+const WORD_REGEX = /[A-Za-z]+(?:[''-][A-Za-z]+)*/g;
+
 interface PageTextAreaProps {
   pageNumber: number;
   text: string;
@@ -25,12 +28,13 @@ export const PageTextArea = memo(
     const renderTextWithClickableWords = useCallback(
       (text: string) => {
         const nodes: ReactNode[] = [];
-        const wordRegex = /[A-Za-z]+(?:[''-][A-Za-z]+)*/g;
         let lastIndex = 0;
         let match: RegExpExecArray | null;
         let key = 0;
 
-        while ((match = wordRegex.exec(text)) !== null) {
+        // Reset regex lastIndex since it's stateful
+        WORD_REGEX.lastIndex = 0;
+        while ((match = WORD_REGEX.exec(text)) !== null) {
           const [word] = match;
           const start = match.index;
           const end = start + word.length;

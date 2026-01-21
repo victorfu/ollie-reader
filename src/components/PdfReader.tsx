@@ -13,6 +13,7 @@ import { PageTextArea } from "./PdfReader/PageTextArea";
 import { SelectionToolbar } from "./PdfReader/SelectionToolbar";
 import { ChatPanel } from "./PdfReader/ChatPanel";
 import { Toast } from "./common/Toast";
+import { BookingRecordsDrawer } from "./PdfReader/BookingRecordsDrawer";
 import { useBookingRecords } from "../hooks/useBookingRecords";
 
 function PdfReader() {
@@ -149,7 +150,7 @@ function PdfReader() {
       } else {
         setToastMessage({
           message: response.message || "加入失敗",
-          type: "info",
+          type: "error",
         });
       }
     } catch (error) {
@@ -204,61 +205,14 @@ function PdfReader() {
         />
       </div>
 
-      {/* Drawer：右側浮出，不遮住主畫面，可互動 */}
-      {drawerOpen && (
-        <div className="fixed top-0 right-0 h-full z-50 flex flex-col pointer-events-none">
-          <div
-            className="absolute top-0 right-0 h-full w-80 bg-white shadow-2xl border-l border-gray-200 p-6 overflow-y-auto z-50 pointer-events-auto"
-            style={{ maxWidth: 320 }}
-          >
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold">課程預約紀錄</h2>
-              <button
-                className="text-gray-500 hover:text-gray-700"
-                onClick={() => setDrawerOpen(false)}
-                aria-label="關閉"
-              >
-                ✕
-              </button>
-            </div>
-            {bookingRecords.length === 0 ? (
-              <div className="text-gray-500">目前沒有課程紀錄</div>
-            ) : (
-              <ul className="space-y-3">
-                {bookingRecords.map((record) => (
-                  <li key={record.id}>
-                    <button
-                      className={`w-full text-left p-3 rounded border flex flex-col hover:bg-blue-50 transition ${
-                        loadingCourseId === record.id
-                          ? "opacity-60 pointer-events-none"
-                          : ""
-                      }`}
-                      onClick={() => handleLoadBookingPdf(record)}
-                      disabled={loadingCourseId === record.id}
-                    >
-                      <span className="font-semibold text-base">
-                        Lv{record.Level}
-                      </span>
-                      <span className="font-semibold text-base">
-                        {record.CoursesName || record.OpenName}
-                      </span>
-                      <span className="text-sm text-gray-600">
-                        {record.ClassTime}
-                      </span>
-                      <span className="text-sm text-gray-500">
-                        教師：{record.TeacherName}
-                      </span>
-                      {loadingCourseId === record.id && (
-                        <span className="text-blue-600 mt-1">載入中...</span>
-                      )}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </div>
-      )}
+      {/* Booking Records Drawer */}
+      <BookingRecordsDrawer
+        isOpen={drawerOpen}
+        bookingRecords={bookingRecords}
+        loadingCourseId={loadingCourseId}
+        onClose={() => setDrawerOpen(false)}
+        onSelectRecord={handleLoadBookingPdf}
+      />
 
       {/* TTS Controls */}
       {result && (

@@ -1,3 +1,4 @@
+import { memo } from "react";
 import type { ExtractResponse } from "../../types/pdf";
 
 interface FileInfoProps {
@@ -6,12 +7,9 @@ interface FileInfoProps {
   isClearingCache?: boolean;
 }
 
-export const FileInfo = ({
-  result,
-  onClearCache,
-  isClearingCache,
-}: FileInfoProps) => {
-  return (
+export const FileInfo = memo(
+  ({ result, onClearCache, isClearingCache }: FileInfoProps) => {
+    return (
     <div className="stats stats-vertical sm:stats-horizontal shadow-xl w-full bg-base-100">
       <div className="stat">
         <div className="stat-figure text-primary">
@@ -95,5 +93,8 @@ export const FileInfo = ({
         </div>
       )}
     </div>
-  );
-};
+    );
+  }
+);
+
+FileInfo.displayName = "FileInfo";

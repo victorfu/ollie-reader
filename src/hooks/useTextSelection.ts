@@ -171,7 +171,11 @@ export const useTextSelection = () => {
   useEffect(() => {
     if (!selectedText) return;
 
-    const handleReposition = () => updateToolbarPosition();
+    let rafId: number | null = null;
+    const handleReposition = () => {
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(updateToolbarPosition);
+    };
 
     window.addEventListener("scroll", handleReposition, true);
     window.addEventListener("resize", handleReposition);
@@ -179,6 +183,7 @@ export const useTextSelection = () => {
     return () => {
       window.removeEventListener("scroll", handleReposition, true);
       window.removeEventListener("resize", handleReposition);
+      if (rafId !== null) cancelAnimationFrame(rafId);
     };
   }, [selectedText, updateToolbarPosition]);
 

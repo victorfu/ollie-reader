@@ -1,3 +1,4 @@
+import { memo } from "react";
 import type { ChangeEventHandler, DragEventHandler } from "react";
 
 interface UploadAreaProps {
@@ -15,21 +16,22 @@ interface UploadAreaProps {
   onOpenBookingDrawer?: () => void;
 }
 
-export const UploadArea = ({
-  selectedFile,
-  isUploading,
-  isLoadingFromUrl,
-  urlInput,
-  speechSupported,
-  onFileChange,
-  onDrop,
-  onDragOver,
-  onUrlChange,
-  onUrlLoad,
-  onCancel,
-  onOpenBookingDrawer,
-}: UploadAreaProps) => {
-  return (
+export const UploadArea = memo(
+  ({
+    selectedFile,
+    isUploading,
+    isLoadingFromUrl,
+    urlInput,
+    speechSupported,
+    onFileChange,
+    onDrop,
+    onDragOver,
+    onUrlChange,
+    onUrlLoad,
+    onCancel,
+    onOpenBookingDrawer,
+  }: UploadAreaProps) => {
+    return (
     <div className="card bg-base-100 shadow-xl mb-6">
       <div className="card-body p-4">
         {/* Compact single row layout */}
@@ -163,5 +165,8 @@ export const UploadArea = ({
         )}
       </div>
     </div>
-  );
-};
+    );
+  }
+);
+
+UploadArea.displayName = "UploadArea";

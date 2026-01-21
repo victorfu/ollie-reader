@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, memo } from "react";
 import type { ChatMessage } from "../../types/chat";
 
 type ChatPanelProps = {
@@ -10,7 +10,7 @@ type ChatPanelProps = {
   disabled?: boolean;
 };
 
-export function ChatPanel({
+export const ChatPanel = memo(function ChatPanel({
   messages,
   isLoading,
   error,
@@ -418,4 +418,6 @@ export function ChatPanel({
       )}
     </>
   );
-}
+});
+
+ChatPanel.displayName = "ChatPanel";

@@ -1,3 +1,4 @@
+import { memo } from "react";
 import type { SelectionToolbarPosition } from "../../hooks/useTextSelection";
 
 interface SelectionToolbarProps {
@@ -14,19 +15,20 @@ interface SelectionToolbarProps {
   position?: SelectionToolbarPosition | null;
 }
 
-export const SelectionToolbar = ({
-  selectedText,
-  translatedText,
-  isTranslating,
-  translateError,
-  onSpeak,
-  onTranslate,
-  onClear,
-  onClearTranslation,
-  onAddToVocabulary,
-  isAddingToVocabulary = false,
-  position = null,
-}: SelectionToolbarProps) => {
+export const SelectionToolbar = memo(
+  ({
+    selectedText,
+    translatedText,
+    isTranslating,
+    translateError,
+    onSpeak,
+    onTranslate,
+    onClear,
+    onClearTranslation,
+    onAddToVocabulary,
+    isAddingToVocabulary = false,
+    position = null,
+  }: SelectionToolbarProps) => {
   if (!selectedText) return null;
 
   const isFloating = Boolean(position);
@@ -196,4 +198,7 @@ export const SelectionToolbar = ({
       </div>
     </div>
   );
-};
+  }
+);
+
+SelectionToolbar.displayName = "SelectionToolbar";
