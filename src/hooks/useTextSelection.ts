@@ -1,7 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import type { ReadingMode } from "../types/pdf";
-import { TRANSLATE_API_URL } from "../constants/api";
-import { useSettings } from "./useSettings";
 import { translateWithAI } from "../services/aiService";
 
 export type SelectionToolbarPosition = {
@@ -11,7 +9,6 @@ export type SelectionToolbarPosition = {
 };
 
 export const useTextSelection = () => {
-  const { translationApi } = useSettings();
   const [readingMode, setReadingMode] = useState<ReadingMode>("selection");
   const [selectedText, setSelectedText] = useState<string>("");
   const [translatedText, setTranslatedText] = useState<string>("");
@@ -93,58 +90,20 @@ export const useTextSelection = () => {
     setTranslateError(null);
 
     try {
-      let translatedResult: string;
-
-      if (translationApi === "FIREBASE_AI") {
-        // Check if aborted before making API call
-        if (controller.signal.aborted) return;
-
-        // Use AI service for kid-friendly translations
-        const result = await translateWithAI(selectedText, controller.signal);
-
-        // Check if aborted after API call
-        if (controller.signal.aborted) return;
-
-        if (!result) {
-          throw new Error("翻譯失敗");
-        }
-        translatedResult = result;
-      } else {
-        // Check if aborted before making API call
-        if (controller.signal.aborted) return;
-
-        // Use standard translation API
-        const payload = {
-          text: selectedText,
-          from_lang: "en",
-          to_lang: "zh-TW",
-          from_code: "en",
-          to_code: "zt",
-        };
-        const response = await fetch(TRANSLATE_API_URL, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(payload),
-          signal: controller.signal,
-        });
-
-        // Check if aborted after API call
-        if (controller.signal.aborted) return;
-
-        if (!response.ok) {
-          throw new Error(`翻譯失敗: ${response.status}`);
-        }
-
-        const result = await response.json();
-        translatedResult = result.text || "無翻譯結果";
-      }
-
-      // Final abort check before updating state
+      // Check if aborted before making API call
       if (controller.signal.aborted) return;
 
-      setTranslatedText(translatedResult);
+      // Use AI service for kid-friendly translations
+      const result = await translateWithAI(selectedText, controller.signal);
+
+      // Check if aborted after API call
+      if (controller.signal.aborted) return;
+
+      if (!result) {
+        throw new Error("翻譯失敗");
+      }
+
+      setTranslatedText(result);
     } catch (err: unknown) {
       // Ignore abort errors
       if (err instanceof Error && err.name === "AbortError") return;
@@ -156,7 +115,7 @@ export const useTextSelection = () => {
         setIsTranslating(false);
       }
     }
-  }, [selectedText, translationApi]);
+  }, [selectedText]);
 
   const clearSelection = useCallback(() => {
     abortControllerRef.current?.abort();

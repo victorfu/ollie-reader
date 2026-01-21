@@ -3,18 +3,15 @@ import { useSettings } from "../../hooks/useSettings";
 import { useAuth } from "../../hooks/useAuth";
 import { resetGameProgress } from "../../services/gameProgressService";
 import { ConfirmModal } from "../common/ConfirmModal";
-import type { TranslationApiType } from "../../types/settings";
 import type { TTSMode } from "../../types/pdf";
 
 export const Settings = () => {
   const { user } = useAuth();
   const {
-    translationApi,
     ttsMode,
     speechRate,
     loading,
     error,
-    updateTranslationApi,
     updateTtsMode,
     updateSpeechRate,
   } = useSettings();
@@ -23,21 +20,6 @@ export const Settings = () => {
   const [showResetModal, setShowResetModal] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [resetSuccess, setResetSuccess] = useState(false);
-
-  const handleApiChange = async (api: TranslationApiType) => {
-    setSaving(true);
-    setSaveSuccess(false);
-
-    try {
-      await updateTranslationApi(api);
-      setSaveSuccess(true);
-      setTimeout(() => setSaveSuccess(false), 3000);
-    } catch (err) {
-      console.error("Failed to save settings:", err);
-    } finally {
-      setSaving(false);
-    }
-  };
 
   const handleTtsModeChange = async (mode: TTSMode) => {
     setSaving(true);
@@ -124,53 +106,6 @@ export const Settings = () => {
           )}
 
           <div className="space-y-6">
-            {/* Translation API Selection */}
-            <div>
-              <h3 className="text-lg font-semibold mb-3">翻譯 API 選擇</h3>
-              <p className="text-sm text-base-content/70 mb-4">
-                選擇用於文字翻譯的 API 服務
-              </p>
-
-              <div className="space-y-3">
-                <label className="flex items-start gap-3 p-4 border border-base-300 rounded-lg cursor-pointer hover:bg-base-200 transition-colors">
-                  <input
-                    type="radio"
-                    name="translationApi"
-                    className="radio radio-primary mt-1"
-                    checked={translationApi === "TRANSLATE_API_URL"}
-                    onChange={() => handleApiChange("TRANSLATE_API_URL")}
-                    disabled={saving}
-                  />
-                  <div className="flex-1">
-                    <div className="font-medium">標準翻譯 API</div>
-                    <div className="text-sm text-base-content/60">
-                      使用標準翻譯服務
-                    </div>
-                  </div>
-                </label>
-
-                <label className="flex items-start gap-3 p-4 border border-base-300 rounded-lg cursor-pointer hover:bg-base-200 transition-colors">
-                  <input
-                    type="radio"
-                    name="translationApi"
-                    className="radio radio-primary mt-1"
-                    checked={translationApi === "FIREBASE_AI"}
-                    onChange={() => handleApiChange("FIREBASE_AI")}
-                    disabled={saving}
-                  />
-                  <div className="flex-1">
-                    <div className="font-medium">🤖 AI 智慧翻譯</div>
-                    <div className="text-sm text-base-content/60">
-                      使用 AI 翻譯 (推薦)
-                    </div>
-                  </div>
-                </label>
-              </div>
-            </div>
-
-            {/* Divider */}
-            <div className="divider"></div>
-
             {/* TTS Mode Selection */}
             <div>
               <h3 className="text-lg font-semibold mb-3">語音模式選擇</h3>

@@ -1,6 +1,6 @@
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "../utils/firebaseUtil";
-import type { UserSettings, TranslationApiType } from "../types/settings";
+import type { UserSettings } from "../types/settings";
 import type { TTSMode } from "../types/pdf";
 
 const SETTINGS_COLLECTION = "userSettings";
@@ -19,7 +19,6 @@ export const getUserSettings = async (
       const data = docSnap.data();
       return {
         userId,
-        translationApi: data.translationApi as TranslationApiType,
         ttsMode: (data.ttsMode as TTSMode) || "browser",
         speechRate: (data.speechRate as number) ?? 1,
         createdAt: data.createdAt?.toDate(),
@@ -39,9 +38,7 @@ export const getUserSettings = async (
  */
 export const saveUserSettings = async (
   userId: string,
-  settings: Partial<
-    Pick<UserSettings, "translationApi" | "ttsMode" | "speechRate">
-  >,
+  settings: Partial<Pick<UserSettings, "ttsMode" | "speechRate">>,
 ): Promise<void> => {
   try {
     const docRef = doc(db, SETTINGS_COLLECTION, userId);
@@ -61,7 +58,6 @@ export const saveUserSettings = async (
       // Create new settings with defaults
       await setDoc(docRef, {
         userId,
-        translationApi: settings.translationApi || "FIREBASE_AI",
         ttsMode: settings.ttsMode || "browser",
         speechRate: settings.speechRate ?? 1,
         createdAt: serverTimestamp(),
