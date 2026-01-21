@@ -18,8 +18,8 @@ export interface WordDetails {
   examples: Array<{
     sentence: string;
   }>;
-  synonyms: string[];
-  antonyms: string[];
+  synonyms?: string[];
+  antonyms?: string[];
 }
 
 /**
@@ -89,32 +89,9 @@ export async function generateWordDetails(
   signal?: AbortSignal,
 ): Promise<WordDetails | null> {
   try {
-    const prompt = `你是一個幫助國小學生學習英文的字典助手。請為以下英文單字提供詳細資訊，使用簡單易懂、適合小朋友理解的詞彙。
-
-單字：${word}
-
-請以 JSON 格式回覆，包含以下欄位：
-{
-  "phonetic": "音標（如果知道的話）",
-  "emoji": "一個最能代表這個單字的 Emoji（例如 apple -> 🍎, run -> 🏃）",
-  "definitions": [
-    {
-      "partOfSpeech": "詞性（如 noun, verb, adjective 等）",
-      "definition": "英文定義（簡單易懂）",
-      "definitionChinese": "中文解釋（用小朋友能懂的方式說明）"
-    }
-  ],
-  "examples": [
-    {
-      "sentence": "簡單的例句"
-    }
-  ],
-  "synonyms": ["同義詞1", "同義詞2"],
-  "antonyms": ["反義詞1", "反義詞2"]
-}
-
-請提供 2-3 個定義，2 個例句，最多 5 個同義詞和反義詞。
-只回覆 JSON，不要加任何其他說明。`;
+    const prompt = `給小朋友解釋「${word}」這個英文單字，回覆 JSON：
+{"phonetic":"音標","definitions":[{"partOfSpeech":"詞性","definition":"簡單英文定義","definitionChinese":"中文解釋"}],"examples":[{"sentence":"例句"}]}
+2-3個定義、1個例句。只回覆JSON。`;
 
     if (signal?.aborted) return null;
 
@@ -129,8 +106,6 @@ export async function generateWordDetails(
     const details: WordDetails = {
       definitions: (wordData.definitions as WordDetails["definitions"]) || [],
       examples: (wordData.examples as WordDetails["examples"]) || [],
-      synonyms: (wordData.synonyms as string[]) || [],
-      antonyms: (wordData.antonyms as string[]) || [],
     };
 
     if (wordData.phonetic) {
@@ -225,7 +200,9 @@ ${text}
 
     const result = await geminiModel.generateContent(prompt);
     const responseText = result.response.text().trim();
-    const parsed = parseJsonResponse(responseText) as { sentences: ParsedSentence[] };
+    const parsed = parseJsonResponse(responseText) as {
+      sentences: ParsedSentence[];
+    };
 
     if (parsed.sentences && parsed.sentences.length > 0) {
       return parsed.sentences;
@@ -295,7 +272,9 @@ export async function generateSpeechScript(
  * @param count - Number of words to generate
  * @returns Array of game words
  */
-export async function generateGameWords(count: number = 10): Promise<GameWord[]> {
+export async function generateGameWords(
+  count: number = 10,
+): Promise<GameWord[]> {
   try {
     const prompt = `
       Generate ${count} English vocabulary words suitable for a 6th grade to middle school student (approx. 12-14 years old).
