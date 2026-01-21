@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef } from "react";
 import { createChatSession } from "../services/aiService";
+import { isAbortError } from "../utils/errorUtils";
 import type { ChatMessage } from "../types/chat";
 import { useAsyncState } from "./useAsyncState";
 import type { ChatSession, Content } from "firebase/ai";
@@ -18,9 +19,7 @@ export function useChat(pdfContext: string) {
   const abortControllerRef = useRef<AbortController | null>(null);
   const chatSessionRef = useRef<ChatSession | null>(null);
   const pdfContextRef = useRef<string>(pdfContext);
-
-  // Track if PDF context has been sent in this session
-  const contextSentRef = useRef<boolean>(false);
+  const messagesRef = useRef<ChatMessage[]>([]);
 
   // Cleanup abort controller on unmount
   useEffect(() => {
@@ -29,12 +28,16 @@ export function useChat(pdfContext: string) {
     };
   }, []);
 
+  // Keep messagesRef in sync with messages state
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+
   // Reset chat session when the underlying PDF content changes
   useEffect(() => {
     if (pdfContextRef.current !== pdfContext) {
       abortControllerRef.current?.abort();
       chatSessionRef.current = null;
-      contextSentRef.current = false;
       pdfContextRef.current = pdfContext;
       reset();
     }
@@ -65,7 +68,7 @@ export function useChat(pdfContext: string) {
         // Initialize chat session if not exists
         if (!chatSessionRef.current) {
           // Build history from existing messages for session continuity
-          const history: Content[] = messages.map((msg) => ({
+          const history: Content[] = messagesRef.current.map((msg) => ({
             role: msg.role === "assistant" ? "model" : "user",
             parts: [{ text: msg.content }],
           }));
@@ -74,11 +77,10 @@ export function useChat(pdfContext: string) {
             history,
             systemInstruction: `你是一個 PDF 閱讀助手。以下是 PDF 的內容：
 
-${pdfContext}
+${pdfContextRef.current}
 
 請根據上述 PDF 內容回答使用者的問題。如果問題與 PDF 內容無關，請禮貌地告知使用者。`,
           });
-          contextSentRef.current = true;
         }
 
         // Check if aborted before making API call
@@ -104,27 +106,25 @@ ${pdfContext}
         setMessages((prev) => [...prev, assistantMsg]);
       } catch (err) {
         // Ignore abort errors
-        if (err instanceof Error && err.name === "AbortError") return;
+        if (isAbortError(err)) return;
 
         console.error("Error calling Gemini API:", err);
         setError(err instanceof Error ? err.message : "發生錯誤，請稍後再試");
 
         // Reset chat session on error so it can be re-initialized
         chatSessionRef.current = null;
-        contextSentRef.current = false;
       } finally {
         if (!controller.signal.aborted) {
           setLoading(false);
         }
       }
     },
-    [pdfContext, messages, setMessages, setLoading, setError],
+    [setMessages, setLoading, setError],
   );
 
   const clearMessages = useCallback(() => {
     abortControllerRef.current?.abort();
     chatSessionRef.current = null;
-    contextSentRef.current = false;
     setMessages([]);
     setError(null);
   }, [setMessages, setError]);

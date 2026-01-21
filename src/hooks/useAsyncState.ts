@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from "react";
+import { isAbortError } from "../utils/errorUtils";
 
 export interface AsyncState<T> {
   data: T;
@@ -73,7 +74,7 @@ export function useAsyncState<T>(initialData: T): AsyncState<T> & AsyncActions<T
         return result;
       } catch (err) {
         // Ignore abort errors
-        if (err instanceof Error && err.name === "AbortError") {
+        if (isAbortError(err)) {
           return undefined;
         }
 

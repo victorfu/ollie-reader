@@ -9,6 +9,7 @@ import {
 import type { ExtractResponse } from "../types/pdf";
 import { API_URL, FETCH_URL_API } from "../constants/api";
 import { pdfSessionCache } from "../services/pdfSessionCache";
+import { isAbortError } from "../utils/errorUtils";
 
 interface PdfState {
   selectedFile: File | null;
@@ -17,14 +18,12 @@ interface PdfState {
   result: ExtractResponse | null;
   pdfUrl: string | null;
   isLoadingFromUrl: boolean;
-  isRestoringFromCache: boolean;
 }
 
 interface PdfContextType extends PdfState {
   handleFileChange: (file: File | null) => void;
   loadPdfFromUrl: (url: string) => Promise<void>;
   cancelUpload: () => void;
-  setError: (error: string | null) => void;
   clearPdfCache: () => Promise<void>;
 }
 
@@ -43,7 +42,6 @@ export const PdfProvider = ({ children }: PdfProviderProps) => {
   const [result, setResult] = useState<ExtractResponse | null>(null);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [isLoadingFromUrl, setIsLoadingFromUrl] = useState(false);
-  const [isRestoringFromCache, setIsRestoringFromCache] = useState(true);
   const abortRef = useRef<AbortController | null>(null);
   const pdfUrlRef = useRef<string | null>(null);
   const currentBlobRef = useRef<Blob | null>(null);
@@ -70,8 +68,6 @@ export const PdfProvider = ({ children }: PdfProviderProps) => {
         console.warn("Failed to restore PDF from cache:", err);
         // Mark session as active even on error
         pdfSessionCache.markSessionActive();
-      } finally {
-        setIsRestoringFromCache(false);
       }
     };
 
@@ -126,7 +122,7 @@ export const PdfProvider = ({ children }: PdfProviderProps) => {
         );
       }
     } catch (err: unknown) {
-      if (err instanceof Error && err.name === "AbortError") return;
+      if (isAbortError(err)) return;
       const message = err instanceof Error ? err.message : "發生未知錯誤";
       if (/Failed to fetch|CORS/i.test(message)) {
         setError("連線失敗或 CORS 問題，請稍後再試。");
@@ -265,7 +261,7 @@ export const PdfProvider = ({ children }: PdfProviderProps) => {
       // Save to session cache
       void pdfSessionCache.savePdfToCache(blob, data, filename);
     } catch (err: unknown) {
-      if (err instanceof Error && err.name === "AbortError") return;
+      if (isAbortError(err)) return;
       const message =
         err instanceof Error ? err.message : "載入 PDF 時發生未知錯誤";
       setError(message);
@@ -308,11 +304,9 @@ export const PdfProvider = ({ children }: PdfProviderProps) => {
     result,
     pdfUrl,
     isLoadingFromUrl,
-    isRestoringFromCache,
     handleFileChange,
     loadPdfFromUrl,
     cancelUpload,
-    setError,
     clearPdfCache,
   };
 

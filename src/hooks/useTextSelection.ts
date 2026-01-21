@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import type { ReadingMode } from "../types/pdf";
 import { translateWithAI } from "../services/aiService";
+import { isAbortError } from "../utils/errorUtils";
 
 export type SelectionToolbarPosition = {
   top: number;
@@ -106,7 +107,7 @@ export const useTextSelection = () => {
       setTranslatedText(result);
     } catch (err: unknown) {
       // Ignore abort errors
-      if (err instanceof Error && err.name === "AbortError") return;
+      if (isAbortError(err)) return;
 
       const message = err instanceof Error ? err.message : "翻譯時發生未知錯誤";
       setTranslateError(message);

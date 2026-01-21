@@ -2,6 +2,7 @@
  * AI Service - Centralized service for all Gemini AI interactions
  */
 import { geminiModel } from "../utils/firebaseUtil";
+import { isAbortError } from "../utils/errorUtils";
 import type { ChatSession, Content } from "firebase/ai";
 
 /**
@@ -117,7 +118,7 @@ export async function generateWordDetails(
 
     return details;
   } catch (err) {
-    if (err instanceof Error && err.name === "AbortError") return null;
+    if (isAbortError(err)) return null;
     console.error("Error generating word details:", err);
     return null;
   }
@@ -148,7 +149,7 @@ export async function translateWithAI(
 
     return result.response.text().trim();
   } catch (err) {
-    if (err instanceof Error && err.name === "AbortError") return null;
+    if (isAbortError(err)) return null;
     console.error("Error translating with AI:", err);
     return null;
   }
@@ -261,7 +262,7 @@ export async function generateSpeechScript(
 
     return result.response.text();
   } catch (err) {
-    if (err instanceof Error && err.name === "AbortError") return null;
+    if (isAbortError(err)) return null;
     console.error("Error generating speech script:", err);
     return null;
   }

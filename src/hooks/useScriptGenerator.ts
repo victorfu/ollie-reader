@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { generateSpeechScript } from "../services/aiService";
+import { isAbortError } from "../utils/errorUtils";
 import type { SpeechPracticeTopic, ScriptState } from "../types/speechPractice";
 import { getDefaultScriptPrompt } from "../types/speechPractice";
 
@@ -69,7 +70,7 @@ export function useScriptGenerator(topic: SpeechPracticeTopic | null) {
         }
       } catch (err) {
         // Ignore abort errors
-        if (err instanceof Error && err.name === "AbortError") return;
+        if (isAbortError(err)) return;
 
         console.error("Error generating script:", err);
 

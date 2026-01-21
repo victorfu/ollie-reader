@@ -1,4 +1,4 @@
-import { memo, useRef, useState, useEffect, useCallback } from "react";
+import { memo, useRef, useState, useEffect } from "react";
 import { Document, Page } from "react-pdf";
 import type { ExtractedPage, ReadingMode } from "../../types/pdf";
 import { PageTextArea } from "./PageTextArea";
@@ -32,7 +32,6 @@ export const PdfViewer = memo(
     const pageRefs = useRef<(HTMLDivElement | null)[]>([]);
     const [numPages, setNumPages] = useState<number>(0);
     const [pdfWidth, setPdfWidth] = useState<number>(600);
-    const rafIdRef = useRef<number | null>(null);
 
     // Measure the actual PDF container width (the card-body element)
     useEffect(() => {
@@ -52,20 +51,6 @@ export const PdfViewer = memo(
       return () => ro.disconnect();
     }, [numPages]); // Re-run when numPages changes (document loaded)
 
-    const handleScroll = useCallback(() => {
-      if (!containerRef.current || numPages === 0) return;
-      if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current);
-      rafIdRef.current = requestAnimationFrame(() => {
-        /* noop: keep for future metrics or lazy-loading hooks */
-      });
-    }, [numPages]);
-
-    useEffect(() => {
-      return () => {
-        if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current);
-      };
-    }, []);
-
     return (
       <div className="w-full h-full flex flex-col">
         <div className="flex items-center justify-between p-3 bg-base-200 rounded-t-lg sticky top-0 z-10">
@@ -75,7 +60,6 @@ export const PdfViewer = memo(
           ref={containerRef}
           className="w-full flex-1 overflow-y-auto overflow-x-hidden rounded-b-lg p-3"
           style={{ minHeight: "800px", height: "800px" }}
-          onScroll={handleScroll}
         >
           <Document
             file={url}

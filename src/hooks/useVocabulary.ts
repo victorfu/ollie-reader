@@ -13,6 +13,7 @@ import {
   searchUserVocabulary,
 } from "../services/vocabularyService";
 import { generateWordDetails } from "../services/aiService";
+import { isAbortError } from "../utils/errorUtils";
 import type {
   VocabularyWord,
   VocabularyFilters,
@@ -146,7 +147,7 @@ export const useVocabulary = () => {
         return { success: true, wordId, message: "Word added successfully" };
       } catch (err) {
         // Ignore abort errors
-        if (err instanceof Error && err.name === "AbortError") {
+        if (isAbortError(err)) {
           return { success: false, message: "Request cancelled" };
         }
         const message =
@@ -265,7 +266,7 @@ export const useVocabulary = () => {
         };
       } catch (err) {
         // Ignore abort errors
-        if (err instanceof Error && err.name === "AbortError") {
+        if (isAbortError(err)) {
           return { success: false, isNew: false, message: "Request cancelled" };
         }
         const message =
@@ -299,7 +300,7 @@ export const useVocabulary = () => {
         setLastDocId(result.lastDocId);
       } catch (err) {
         // Ignore abort errors
-        if (err instanceof Error && err.name === "AbortError") return;
+        if (isAbortError(err)) return;
         const message =
           err instanceof Error ? err.message : "Failed to load vocabulary";
         setError(message);
@@ -334,7 +335,7 @@ export const useVocabulary = () => {
       setLastDocId(result.lastDocId);
     } catch (err) {
       // Ignore abort errors
-      if (err instanceof Error && err.name === "AbortError") return;
+      if (isAbortError(err)) return;
       const message =
         err instanceof Error ? err.message : "Failed to load more vocabulary";
       setError(message);
@@ -349,7 +350,7 @@ export const useVocabulary = () => {
       return await getVocabularyWord(wordId);
     } catch (err) {
       // Ignore abort errors
-      if (err instanceof Error && err.name === "AbortError") return null;
+      if (isAbortError(err)) return null;
       const message = err instanceof Error ? err.message : "Failed to get word";
       setError(message);
       return null;
@@ -370,7 +371,7 @@ export const useVocabulary = () => {
         return { success: true };
       } catch (err) {
         // Ignore abort errors
-        if (err instanceof Error && err.name === "AbortError") {
+        if (isAbortError(err)) {
           return { success: false, message: "Request cancelled" };
         }
         const message =
@@ -392,7 +393,7 @@ export const useVocabulary = () => {
       return { success: true };
     } catch (err) {
       // Ignore abort errors
-      if (err instanceof Error && err.name === "AbortError") {
+      if (isAbortError(err)) {
         return { success: false, message: "Request cancelled" };
       }
       const message =
@@ -410,7 +411,7 @@ export const useVocabulary = () => {
       return await getUserTags(user.uid);
     } catch (err) {
       // Ignore abort errors
-      if (err instanceof Error && err.name === "AbortError") return [];
+      if (isAbortError(err)) return [];
       console.error("Failed to get tags:", err);
       return [];
     }
