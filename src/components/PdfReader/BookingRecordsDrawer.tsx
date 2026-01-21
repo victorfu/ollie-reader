@@ -5,8 +5,11 @@ interface BookingRecordsDrawerProps {
   isOpen: boolean;
   bookingRecords: BookingRecord[];
   loadingCourseId: string | null;
+  isLoading: boolean;
+  error: string | null;
   onClose: () => void;
   onSelectRecord: (record: BookingRecord) => void;
+  onRetry: () => void;
 }
 
 export const BookingRecordsDrawer = memo(
@@ -14,8 +17,11 @@ export const BookingRecordsDrawer = memo(
     isOpen,
     bookingRecords,
     loadingCourseId,
+    isLoading,
+    error,
     onClose,
     onSelectRecord,
+    onRetry,
   }: BookingRecordsDrawerProps) => {
     // ESC key to close
     useEffect(() => {
@@ -51,8 +57,25 @@ export const BookingRecordsDrawer = memo(
               ✕
             </button>
           </div>
-          {bookingRecords.length === 0 ? (
-            <div className="text-gray-500">目前沒有課程紀錄</div>
+          {isLoading ? (
+            <div className="flex flex-col items-center justify-center py-8">
+              <span className="loading loading-spinner loading-md"></span>
+              <span className="mt-2 text-gray-500">載入課程紀錄中...</span>
+            </div>
+          ) : error ? (
+            <div className="flex flex-col items-center py-8">
+              <p className="text-red-500 mb-4">{error}</p>
+              <button className="btn btn-sm btn-outline" onClick={onRetry}>
+                重新載入
+              </button>
+            </div>
+          ) : bookingRecords.length === 0 ? (
+            <div className="flex flex-col items-center py-8">
+              <p className="text-gray-500 mb-4">目前沒有課程紀錄</p>
+              <button className="btn btn-sm btn-outline" onClick={onRetry}>
+                重新載入
+              </button>
+            </div>
           ) : (
             <ul className="space-y-3">
               {bookingRecords.map((record) => (

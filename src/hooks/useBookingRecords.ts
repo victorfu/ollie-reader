@@ -18,10 +18,17 @@ interface UseBookingRecordsReturn {
   clearError: () => void;
 }
 
+const RETRY_CONFIG = {
+  maxRetries: 3,
+  initialDelay: 1000, // 1 秒
+  maxDelay: 5000, // 最大 5 秒
+};
+
 /**
  * OiKID 預約記錄 Hook
  *
  * 使用 Firebase ID Token 驗證並取得使用者的課程預約記錄
+ * 包含自動重試機制以處理 serverless cold start
  *
  * @example
  * ```tsx
@@ -53,30 +60,58 @@ export function useBookingRecords(): UseBookingRecordsReturn {
     setIsLoading(true);
     setError(null);
 
-    try {
-      // 使用 apiFetch 並帶上 Firebase ID Token
-      const response = await apiFetch(OIKID_BOOKING_RECORDS_API_URL, {
-        method: "GET",
-        includeAuthToken: true,
-      });
+    for (let attempt = 0; attempt <= RETRY_CONFIG.maxRetries; attempt++) {
+      try {
+        const response = await apiFetch(OIKID_BOOKING_RECORDS_API_URL, {
+          method: "GET",
+          includeAuthToken: true,
+        });
 
-      if (!response.ok) {
-        throw new Error(`取得預約記錄失敗: ${response.status}`);
+        if (!response.ok) {
+          throw new Error(`取得預約記錄失敗: ${response.status}`);
+        }
+
+        const data: BookingRecordsResponse = await response.json();
+
+        // 成功且有資料
+        if (data.Data && data.Data.length > 0) {
+          setToken(data.Token || null);
+          setBookingRecords(data.Data);
+          setIsLoading(false);
+          return;
+        }
+
+        // 空資料，可能是 cold start，進行重試
+        if (attempt < RETRY_CONFIG.maxRetries) {
+          const delay = Math.min(
+            RETRY_CONFIG.initialDelay * Math.pow(2, attempt),
+            RETRY_CONFIG.maxDelay,
+          );
+          await new Promise((resolve) => setTimeout(resolve, delay));
+          continue;
+        }
+
+        // 重試完畢仍為空
+        setToken(data.Token || null);
+        setBookingRecords([]);
+      } catch (err: unknown) {
+        if (attempt < RETRY_CONFIG.maxRetries) {
+          const delay = Math.min(
+            RETRY_CONFIG.initialDelay * Math.pow(2, attempt),
+            RETRY_CONFIG.maxDelay,
+          );
+          await new Promise((resolve) => setTimeout(resolve, delay));
+          continue;
+        }
+        // 所有重試都失敗
+        const message =
+          err instanceof Error ? err.message : "取得預約記錄時發生未知錯誤";
+        setError(message);
+        console.error("Error fetching booking records:", err);
       }
-
-      const data: BookingRecordsResponse = await response.json();
-
-      // 設定 Token 和預約記錄
-      setToken(data.Token || null);
-      setBookingRecords(data.Data || []);
-    } catch (err: unknown) {
-      const message =
-        err instanceof Error ? err.message : "取得預約記錄時發生未知錯誤";
-      setError(message);
-      console.error("Error fetching booking records:", err);
-    } finally {
-      setIsLoading(false);
     }
+
+    setIsLoading(false);
   }, []);
 
   const clearError = useCallback(() => {

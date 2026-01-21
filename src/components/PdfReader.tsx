@@ -59,7 +59,13 @@ function PdfReader() {
     toolbarPosition,
   } = useTextSelection();
 
-  const { bookingRecords, token: bookingToken } = useBookingRecords();
+  const {
+    bookingRecords,
+    token: bookingToken,
+    isLoading: isLoadingBookingRecords,
+    error: bookingRecordsError,
+    fetchBookingRecords,
+  } = useBookingRecords();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [loadingCourseId, setLoadingCourseId] = useState<string | null>(null);
 
@@ -224,8 +230,11 @@ function PdfReader() {
         isOpen={drawerOpen}
         bookingRecords={bookingRecords}
         loadingCourseId={loadingCourseId}
+        isLoading={isLoadingBookingRecords}
+        error={bookingRecordsError}
         onClose={() => setDrawerOpen(false)}
         onSelectRecord={handleLoadBookingPdf}
+        onRetry={fetchBookingRecords}
       />
 
       {/* TTS Controls */}
