@@ -44,5 +44,5 @@ const ai = getAI(firebaseApp, { backend: new GoogleAIBackend() });
 
 // Create a GenerativeModel instance
 export const geminiModel = getGenerativeModel(ai, {
-  model: "gemini-2.5-flash",
+  model: "gemini-3-flash-preview",
 });
