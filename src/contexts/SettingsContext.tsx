@@ -85,7 +85,11 @@ export const SettingsProvider = ({ children }: SettingsProviderProps) => {
   );
 
   const updateSpeechRate = useCallback(
-    (rate: number) => updateSetting("speechRate", rate, setSpeechRate as (value: number | undefined) => void),
+    (rate: number) => updateSetting("speechRate", rate, (value) => {
+      if (value !== undefined) {
+        setSpeechRate(value);
+      }
+    }),
     [updateSetting],
   );
 

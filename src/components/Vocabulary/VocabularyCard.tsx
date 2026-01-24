@@ -94,9 +94,9 @@ export const VocabularyCard = ({ word, onClick, onPlay, onDelete }: VocabularyCa
             </span>
           )}
           
-          {word.tags.slice(0, 2).map((tag) => (
+          {word.tags.slice(0, 2).map((tag, index) => (
             <span
-              key={tag}
+              key={`${index}-${tag}`}
               className="badge badge-xs badge-ghost bg-base-200/60 text-base-content/70"
             >
               #{tag}

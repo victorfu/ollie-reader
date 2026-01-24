@@ -1,10 +1,26 @@
-import type { ReactNode } from "react";
+import { useMemo, type ReactNode } from "react";
 
 interface GameLayoutProps {
   children: ReactNode;
 }
 
+const PARTICLE_EMOJIS = ["🌸", "✨", "💫", "🌟", "💖", "🎀", "🦋", "🌷"];
+
 export function GameLayout({ children }: GameLayoutProps) {
+  // Memoize particle positions to prevent recalculation on re-renders
+  const particles = useMemo(
+    () =>
+      PARTICLE_EMOJIS.map((emoji, i) => ({
+        id: i,
+        emoji,
+        top: Math.random() * 100,
+        left: Math.random() * 100,
+        duration: Math.random() * 10 + 10,
+        delay: Math.random() * 5,
+      })),
+    [],
+  );
+
   return (
     <div className="h-[calc(100vh-7rem)] sm:h-[calc(100vh-8rem)] w-full bg-gradient-to-b from-pink-100 via-purple-100 to-indigo-100 rounded-2xl shadow-2xl border border-pink-200 p-4 flex flex-col items-center justify-center relative overflow-hidden">
       {/* Background Elements - Soft pastel glows */}
@@ -17,18 +33,18 @@ export function GameLayout({ children }: GameLayoutProps) {
 
       {/* Floating Kawaii Particles */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        {[...Array(8)].map((_, i) => (
+        {particles.map((particle) => (
           <div
-            key={i}
+            key={particle.id}
             className="absolute text-2xl animate-float opacity-30"
             style={{
-              top: Math.random() * 100 + "%",
-              left: Math.random() * 100 + "%",
-              animationDuration: Math.random() * 10 + 10 + "s",
-              animationDelay: Math.random() * 5 + "s",
+              top: `${particle.top}%`,
+              left: `${particle.left}%`,
+              animationDuration: `${particle.duration}s`,
+              animationDelay: `${particle.delay}s`,
             }}
           >
-            {["🌸", "✨", "💫", "🌟", "💖", "🎀", "🦋", "🌷"][i]}
+            {particle.emoji}
           </div>
         ))}
       </div>

@@ -49,7 +49,6 @@ export const ChatPanel = memo(function ChatPanel({
     if (input.trim() && !isLoading && !disabled) {
       onSendMessage(input);
       setInput("");
-      setTimeout(() => adjustTextareaHeight(), 0);
     }
   };
 
@@ -59,7 +58,6 @@ export const ChatPanel = memo(function ChatPanel({
       if (input.trim() && !isLoading && !disabled) {
         onSendMessage(input);
         setInput("");
-        setTimeout(() => adjustTextareaHeight(), 0);
       }
     }
   };

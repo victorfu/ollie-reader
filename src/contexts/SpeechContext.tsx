@@ -66,30 +66,20 @@ async function fetchTTSBlob(text: string, speechRate: number): Promise<Blob> {
 
 export const SpeechProvider = ({ children }: SpeechProviderProps) => {
   const {
-    ttsMode: settingsTtsMode,
-    speechRate: settingsSpeechRate,
+    ttsMode,
+    speechRate,
     updateTtsMode,
   } = useSettings();
   const [isSpeaking, setIsSpeaking] = useState(false);
-  const [ttsMode, setTtsMode] = useState<TTSMode>(settingsTtsMode);
   const [currentAudio, setCurrentAudio] = useState<HTMLAudioElement | null>(
     null,
   );
   const [isLoadingAudio, setIsLoadingAudio] = useState(false);
   const currentAudioUrl = useRef<string | null>(null);
 
-  // Use speechRate from settings
-  const speechRate = settingsSpeechRate;
-
-  // Sync local ttsMode with settings
-  useEffect(() => {
-    setTtsMode(settingsTtsMode);
-  }, [settingsTtsMode]);
-
   // Update settings when ttsMode changes
   const handleSetTtsMode = useCallback(
     (mode: TTSMode) => {
-      setTtsMode(mode);
       updateTtsMode(mode).catch((err) => {
         console.error("Failed to save TTS mode:", err);
       });
