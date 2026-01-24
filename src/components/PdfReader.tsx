@@ -303,6 +303,7 @@ function PdfReader() {
                   onStopSpeaking={stopSpeaking}
                   onTextSelection={handleTextSelection}
                   isLoadingAudio={isLoadingAudio}
+                  isSpeaking={isSpeaking}
                   initialScrollPosition={initialScrollPosition}
                   onScrollPositionChange={saveScrollPosition}
                 />

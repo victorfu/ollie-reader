@@ -15,8 +15,10 @@ interface PdfViewerProps {
   onStopSpeaking: () => void;
   onTextSelection: () => void;
   isLoadingAudio?: boolean;
+  isSpeaking?: boolean;
   initialScrollPosition?: number | null;
   onScrollPositionChange?: (position: number) => void;
+  onPageTextExtracted?: (pageNumber: number, text: string) => void;
 }
 
 export const PdfViewer = memo(
@@ -28,8 +30,10 @@ export const PdfViewer = memo(
     onStopSpeaking,
     onTextSelection,
     isLoadingAudio,
+    isSpeaking,
     initialScrollPosition,
     onScrollPositionChange,
+    onPageTextExtracted,
   }: PdfViewerProps) => {
     const containerRef = useRef<HTMLDivElement | null>(null);
     const pdfContainerRef = useRef<HTMLDivElement | null>(null);
@@ -160,17 +164,109 @@ export const PdfViewer = memo(
                       <div className="xl:col-span-1">
                         <div
                           ref={pageNumber === 1 ? pdfContainerRef : undefined}
-                          className="rounded-lg border border-black/5 dark:border-white/10 bg-base-100 shadow-sm max-w-full overflow-hidden"
+                          className="relative rounded-lg border border-black/5 dark:border-white/10 bg-base-100 shadow-sm max-w-full overflow-hidden"
                         >
+                          {/* Speak/Stop page buttons overlay */}
+                          <div className="absolute top-3 left-3 z-10 flex gap-1.5">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const text = pagesByNumber.get(pageNumber)?.text;
+                                if (text) onSpeak(text);
+                              }}
+                              disabled={isLoadingAudio || isSpeaking}
+                              className={`w-8 h-8 rounded-lg shadow-md flex items-center justify-center transition-all hover:scale-105 active:scale-95 disabled:opacity-50 ${
+                                isSpeaking
+                                  ? "bg-base-300/90 text-base-content"
+                                  : "bg-success/90 hover:bg-success text-success-content"
+                              }`}
+                              title={`朗讀第 ${pageNumber} 頁`}
+                            >
+                              {isLoadingAudio ? (
+                                <span className="loading loading-spinner loading-xs"></span>
+                              ) : (
+                                <svg
+                                  xmlns="http://www.w3.org/2000/svg"
+                                  className="h-4 w-4"
+                                  fill="none"
+                                  viewBox="0 0 24 24"
+                                  stroke="currentColor"
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"
+                                  />
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                                  />
+                                </svg>
+                              )}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onStopSpeaking();
+                              }}
+                              className={`w-8 h-8 rounded-lg shadow-md flex items-center justify-center transition-all hover:scale-105 active:scale-95 ${
+                                isSpeaking
+                                  ? "bg-error/90 hover:bg-error text-error-content animate-pulse"
+                                  : "bg-base-300/90 hover:bg-base-300 text-base-content opacity-50"
+                              }`}
+                              title="停止朗讀"
+                            >
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                className="h-4 w-4"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                                />
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M9 10h6v4H9z"
+                                />
+                              </svg>
+                            </button>
+                          </div>
                           <div className="p-2 sm:p-3">
-                            {/* Disable the react-pdf text layer to keep the PDF text from duplicating after navigation */}
                             <Page
                               pageNumber={pageNumber}
                               width={pdfWidth}
-                              renderTextLayer={false}
+                              renderTextLayer={true}
                               renderAnnotationLayer
+                              onGetTextSuccess={({ items }) => {
+                                const pageText = items
+                                  .map((item) => {
+                                    if (!("str" in item)) return "";
+                                    // 使用 hasEOL 判斷是否加換行，否則加空格
+                                    return item.str + (item.hasEOL ? "\n" : " ");
+                                  })
+                                  .join("")
+                                  .trim();
+
+                                console.log(`[PDF Page ${pageNumber}]`, pageText);
+
+                                if (onPageTextExtracted) {
+                                  onPageTextExtracted(pageNumber, pageText);
+                                }
+                              }}
                               loading={
-                                <div className="skeleton w-full h-[600px] rounded-lg" />
+                                <div className="skeleton w-full h-150 rounded-lg" />
                               }
                             />
                           </div>
