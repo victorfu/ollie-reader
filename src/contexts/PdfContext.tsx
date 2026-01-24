@@ -19,6 +19,7 @@ interface PdfState {
   result: ExtractResponse | null;
   pdfUrl: string | null;
   isLoadingFromUrl: boolean;
+  initialScrollPosition: number | null;
 }
 
 interface PdfContextType extends PdfState {
@@ -26,6 +27,7 @@ interface PdfContextType extends PdfState {
   loadPdfFromUrl: (url: string) => Promise<void>;
   cancelUpload: () => void;
   clearPdfCache: () => Promise<void>;
+  saveScrollPosition: (position: number) => void;
 }
 
 const PdfContext = createContext<PdfContextType | undefined>(undefined);
@@ -43,6 +45,7 @@ export const PdfProvider = ({ children }: PdfProviderProps) => {
   const [result, setResult] = useState<ExtractResponse | null>(null);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [isLoadingFromUrl, setIsLoadingFromUrl] = useState(false);
+  const [initialScrollPosition, setInitialScrollPosition] = useState<number | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const pdfUrlRef = useRef<string | null>(null);
   const currentBlobRef = useRef<Blob | null>(null);
@@ -53,7 +56,7 @@ export const PdfProvider = ({ children }: PdfProviderProps) => {
       try {
         const cached = await pdfSessionCache.loadPdfFromCache();
         if (cached) {
-          const { blob, result: cachedResult, filename } = cached;
+          const { blob, result: cachedResult, filename, scrollPosition } = cached;
           const objectUrl = URL.createObjectURL(blob);
           pdfUrlRef.current = objectUrl;
           currentBlobRef.current = blob;
@@ -61,6 +64,10 @@ export const PdfProvider = ({ children }: PdfProviderProps) => {
           setResult(cachedResult);
           const file = new File([blob], filename, { type: "application/pdf" });
           setSelectedFile(file);
+          // Restore scroll position if available
+          if (scrollPosition !== undefined) {
+            setInitialScrollPosition(scrollPosition);
+          }
         } else {
           // Mark session as active for future saves
           pdfSessionCache.markSessionActive();
@@ -298,6 +305,12 @@ export const PdfProvider = ({ children }: PdfProviderProps) => {
     setPdfUrl(null);
     setResult(null);
     setError(null);
+    setInitialScrollPosition(null);
+  }, []);
+
+  // Save scroll position to cache (debounced by caller)
+  const saveScrollPosition = useCallback((position: number) => {
+    void pdfSessionCache.saveScrollPosition(position);
   }, []);
 
   const value: PdfContextType = useMemo(
@@ -308,10 +321,12 @@ export const PdfProvider = ({ children }: PdfProviderProps) => {
       result,
       pdfUrl,
       isLoadingFromUrl,
+      initialScrollPosition,
       handleFileChange,
       loadPdfFromUrl,
       cancelUpload,
       clearPdfCache,
+      saveScrollPosition,
     }),
     [
       selectedFile,
@@ -320,10 +335,12 @@ export const PdfProvider = ({ children }: PdfProviderProps) => {
       result,
       pdfUrl,
       isLoadingFromUrl,
+      initialScrollPosition,
       handleFileChange,
       loadPdfFromUrl,
       cancelUpload,
       clearPdfCache,
+      saveScrollPosition,
     ]
   );
 

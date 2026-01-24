@@ -1,4 +1,4 @@
-import { memo, useRef, useState, useEffect } from "react";
+import { memo, useRef, useState, useEffect, useCallback } from "react";
 import { Document, Page } from "react-pdf";
 import type { ExtractedPage, ReadingMode } from "../../types/pdf";
 import { PageTextArea } from "./PageTextArea";
@@ -15,6 +15,8 @@ interface PdfViewerProps {
   onStopSpeaking: () => void;
   onTextSelection: () => void;
   isLoadingAudio?: boolean;
+  initialScrollPosition?: number | null;
+  onScrollPositionChange?: (position: number) => void;
 }
 
 export const PdfViewer = memo(
@@ -26,12 +28,78 @@ export const PdfViewer = memo(
     onStopSpeaking,
     onTextSelection,
     isLoadingAudio,
+    initialScrollPosition,
+    onScrollPositionChange,
   }: PdfViewerProps) => {
     const containerRef = useRef<HTMLDivElement | null>(null);
     const pdfContainerRef = useRef<HTMLDivElement | null>(null);
     const pageRefs = useRef<(HTMLDivElement | null)[]>([]);
     const [numPages, setNumPages] = useState<number>(0);
     const [pdfWidth, setPdfWidth] = useState<number>(600);
+    const [pdfReady, setPdfReady] = useState(false);
+    const scrollRestoredRef = useRef(false);
+    const currentUrlRef = useRef(url);
+    const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    // Reset state when URL changes
+    useEffect(() => {
+      if (currentUrlRef.current !== url) {
+        currentUrlRef.current = url;
+        scrollRestoredRef.current = false;
+        setPdfReady(false);
+        setNumPages(0);
+      }
+    }, [url]);
+
+    // Debounced scroll position save (window level)
+    const handleScroll = useCallback(() => {
+      if (!onScrollPositionChange) return;
+
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+
+      debounceTimerRef.current = setTimeout(() => {
+        onScrollPositionChange(window.scrollY);
+      }, 500);
+    }, [onScrollPositionChange]);
+
+    // Listen to window scroll events
+    useEffect(() => {
+      if (!onScrollPositionChange) return;
+
+      window.addEventListener("scroll", handleScroll, { passive: true });
+      return () => {
+        window.removeEventListener("scroll", handleScroll);
+        if (debounceTimerRef.current) {
+          clearTimeout(debounceTimerRef.current);
+        }
+      };
+    }, [handleScroll, onScrollPositionChange]);
+
+    // Mark PDF as ready after pages are rendered
+    useEffect(() => {
+      if (numPages > 0 && !pdfReady) {
+        // Wait for PDF pages to be rendered
+        const timer = setTimeout(() => {
+          setPdfReady(true);
+        }, 300);
+        return () => clearTimeout(timer);
+      }
+    }, [numPages, pdfReady]);
+
+    // Restore scroll position after PDF is ready (window level)
+    useEffect(() => {
+      if (
+        pdfReady &&
+        initialScrollPosition != null &&
+        initialScrollPosition > 0 &&
+        !scrollRestoredRef.current
+      ) {
+        window.scrollTo(0, initialScrollPosition);
+        scrollRestoredRef.current = true;
+      }
+    }, [pdfReady, initialScrollPosition]);
 
     // Measure the actual PDF container width (the card-body element)
     useEffect(() => {

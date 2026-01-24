@@ -28,10 +28,12 @@ function PdfReader() {
     result,
     pdfUrl,
     isLoadingFromUrl,
+    initialScrollPosition,
     handleFileChange,
     loadPdfFromUrl,
     cancelUpload,
     clearPdfCache,
+    saveScrollPosition,
   } = usePdfState();
 
   const {
@@ -301,6 +303,8 @@ function PdfReader() {
                   onStopSpeaking={stopSpeaking}
                   onTextSelection={handleTextSelection}
                   isLoadingAudio={isLoadingAudio}
+                  initialScrollPosition={initialScrollPosition}
+                  onScrollPositionChange={saveScrollPosition}
                 />
               </div>
             </div>

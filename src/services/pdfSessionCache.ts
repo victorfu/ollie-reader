@@ -18,6 +18,7 @@ interface CachedPdfData {
   result: ExtractResponse;
   filename: string;
   timestamp: number;
+  scrollPosition?: number;
 }
 
 class PdfSessionCacheService {
@@ -116,6 +117,7 @@ class PdfSessionCacheService {
     blob: Blob;
     result: ExtractResponse;
     filename: string;
+    scrollPosition?: number;
   } | null> {
     // Check session validity first
     if (!this.isSessionValid()) {
@@ -140,11 +142,51 @@ class PdfSessionCacheService {
             blob: data.blob,
             result: data.result,
             filename: data.filename,
+            scrollPosition: data.scrollPosition,
           });
         } else {
           resolve(null);
         }
       };
+    });
+  }
+
+  /**
+   * Save scroll position to the existing cached PDF data.
+   */
+  async saveScrollPosition(scrollPosition: number): Promise<void> {
+    await this.initPromise;
+    if (!this.db) return;
+
+    // First get the existing data
+    const existingData = await new Promise<CachedPdfData | undefined>(
+      (resolve, reject) => {
+        const transaction = this.db!.transaction(STORE_NAME, "readonly");
+        const store = transaction.objectStore(STORE_NAME);
+        const request = store.get(CACHE_KEY);
+
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => {
+          resolve(request.result as CachedPdfData | undefined);
+        };
+      },
+    );
+
+    if (!existingData) return;
+
+    // Update with new scroll position
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction(STORE_NAME, "readwrite");
+      const store = transaction.objectStore(STORE_NAME);
+
+      const updatedData: CachedPdfData = {
+        ...existingData,
+        scrollPosition,
+      };
+
+      const request = store.put(updatedData);
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => resolve();
     });
   }
 
