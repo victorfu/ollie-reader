@@ -53,7 +53,7 @@ export const PdfViewer = memo(
 
     return (
       <div className="w-full h-full flex flex-col">
-        <div className="flex items-center justify-between p-3 bg-base-200/50 backdrop-blur-sm border-b border-black/5 dark:border-white/10 rounded-t-xl sticky top-0 z-10">
+        <div className="flex items-center justify-between p-3 bg-base-200 border-b border-black/5 dark:border-white/10 rounded-t-xl sticky top-0 z-10">
           <span className="text-sm font-medium text-base-content">PDF 預覽</span>
         </div>
         <div
@@ -88,8 +88,8 @@ export const PdfViewer = memo(
                     data-page-number={pageNumber}
                     className="rounded-lg"
                   >
-                    <div className="grid grid-cols-1 xl:grid-cols-5 gap-4 items-start">
-                      <div className="xl:col-span-3">
+                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 items-start">
+                      <div className="xl:col-span-1">
                         <div
                           ref={pageNumber === 1 ? pdfContainerRef : undefined}
                           className="rounded-lg border border-black/5 dark:border-white/10 bg-base-100 shadow-sm max-w-full overflow-hidden"
@@ -109,7 +109,7 @@ export const PdfViewer = memo(
                         </div>
                       </div>
 
-                      <div className="xl:col-span-2">
+                      <div className="xl:col-span-1">
                         <PageTextArea
                           pageNumber={pageNumber}
                           text={pagesByNumber.get(pageNumber)?.text || ""}

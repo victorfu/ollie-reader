@@ -90,7 +90,7 @@ export const SelectionToolbar = memo(
     return (
       <div className="w-full max-w-md space-y-3 text-left">
         {translatedText && (
-          <div className="bg-base-100/95 backdrop-blur-xl rounded-xl border border-black/5 dark:border-white/10 shadow-lg p-4 animate-in slide-in-from-bottom-2">
+          <div className="bg-base-100 rounded-xl border border-black/5 dark:border-white/10 shadow-lg p-4 animate-in slide-in-from-bottom-2">
             <div className="flex items-start justify-between gap-2 mb-2">
               <h4 className="font-semibold text-sm flex items-center gap-1 text-base-content">
                 {feedbackIcon}
@@ -124,7 +124,7 @@ export const SelectionToolbar = memo(
       <div className="flex flex-col items-center gap-3">
         {placement === "above" && renderFeedback()}
 
-        <div className="bg-accent text-accent-content rounded-full shadow-lg px-6 py-3 flex items-center gap-3 backdrop-blur-md border border-accent/20">
+        <div className="bg-accent text-accent-content rounded-full shadow-lg px-6 py-3 flex items-center gap-3 border border-accent/20">
           <div className="flex gap-2">
             {/* Speak button */}
             <button

@@ -287,7 +287,7 @@ function PdfReader() {
 
           {/* PDF Viewer - Glass card with macOS HIG styling */}
           {pdfUrl && (
-            <div className="rounded-xl border border-black/5 dark:border-white/10 bg-base-100/80 backdrop-blur-xl shadow-lg overflow-hidden">
+            <div className="rounded-xl border border-black/5 dark:border-white/10 bg-base-100 shadow-lg overflow-hidden">
               <div className="p-0">
                 <PdfViewer
                   url={pdfUrl}

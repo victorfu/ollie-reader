@@ -83,7 +83,7 @@ export const PageTextArea = memo(
     );
 
     return (
-      <div className="rounded-xl border border-black/5 dark:border-white/10 bg-base-100/80 backdrop-blur-xl shadow-sm">
+      <div className="rounded-xl border border-black/5 dark:border-white/10 bg-base-100 shadow-sm">
         <div className="p-4 sm:p-6">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
             <h3 className="text-xl sm:text-2xl font-semibold">
