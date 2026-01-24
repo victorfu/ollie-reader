@@ -32,6 +32,9 @@ const SpeechPractice = lazy(
 const SentencePractice = lazy(
   () => import("./components/SentencePractice/SentencePractice"),
 );
+const SentenceTranslationBook = lazy(
+  () => import("./components/SentenceTranslation/SentenceTranslationBook"),
+);
 const AudioUploads = lazy(
   () => import("./components/AudioUploads/AudioUploads"),
 );
@@ -116,7 +119,8 @@ function AppContent() {
   const isVocabularyPage = location.pathname === "/vocabulary";
   const isSettingsPage = location.pathname === "/settings";
   const isSpeechPracticePage = location.pathname === "/speech-practice";
-  const isSentencePracticePage = location.pathname === "/sentence-practice";
+  const isEnglishSpeechPage = location.pathname === "/english-speech";
+  const isTranslationsPage = location.pathname === "/translations";
   const isAudioUploadsPage = location.pathname === "/audio-uploads";
   const isGamePage = location.pathname === "/game";
   const accountLabel = user.displayName || user.email || "使用者";
@@ -136,16 +140,22 @@ function AppContent() {
       isActive: isVocabularyPage,
     },
     {
+      to: "/translations",
+      label: "句子翻譯",
+      icon: "🌐",
+      isActive: isTranslationsPage,
+    },
+    {
       to: "/speech-practice",
       label: "演講練習",
       icon: "🎤",
       isActive: isSpeechPracticePage,
     },
     {
-      to: "/sentence-practice",
-      label: "句子練習",
+      to: "/english-speech",
+      label: "英文演講",
       icon: "✍️",
-      isActive: isSentencePracticePage,
+      isActive: isEnglishSpeechPage,
     },
     {
       to: "/audio-uploads",
@@ -419,8 +429,12 @@ function AppContent() {
                   <Route path="/vocabulary" element={<VocabularyBook />} />
                   <Route path="/speech-practice" element={<SpeechPractice />} />
                   <Route
-                    path="/sentence-practice"
+                    path="/english-speech"
                     element={<SentencePractice />}
+                  />
+                  <Route
+                    path="/translations"
+                    element={<SentenceTranslationBook />}
                   />
                   <Route path="/audio-uploads" element={<AudioUploads />} />
                   <Route path="/game" element={<SpiritAdventure />} />

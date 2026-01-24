@@ -57,7 +57,7 @@ function PdfReader() {
     clearSelection,
     setTranslatedText,
     toolbarPosition,
-  } = useTextSelection();
+  } = useTextSelection(selectedFile?.name);
 
   const {
     bookingRecords,
@@ -72,10 +72,14 @@ function PdfReader() {
   const handleLoadBookingPdf = async (record: { id: string }) => {
     if (!bookingToken || !record.id) return;
     setLoadingCourseId(record.id);
-    const url = `https://www.oikid.com/PHP/Review.php?id=${record.id}&token=${bookingToken}`;
-    await loadPdfFromUrl(url);
-    setDrawerOpen(false);
-    setLoadingCourseId(null);
+    try {
+      const url = `https://www.oikid.com/PHP/Review.php?id=${record.id}&token=${bookingToken}`;
+      await loadPdfFromUrl(url);
+      setDrawerOpen(false);
+    } finally {
+      // 確保一定會重置 loading 狀態
+      setLoadingCourseId(null);
+    }
   };
 
   const [urlInput, setUrlInput] = useState<string>("");

@@ -281,7 +281,7 @@ export const SentencePractice = () => {
           <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
             <div className="flex-1 min-w-0">
               <h1 className="text-2xl font-bold flex items-center gap-2">
-                ✍️ 句子練習
+                ✍️ 英文演講
               </h1>
               <p className="text-base-content/60 mt-1">
                 貼上英文段落，一句一句練習閱讀與發音

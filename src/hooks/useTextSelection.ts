@@ -1,7 +1,13 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import type { ReadingMode } from "../types/pdf";
 import { translateWithAI } from "../services/aiService";
+import {
+  findExistingTranslation,
+  addSentenceTranslation,
+} from "../services/sentenceTranslationService";
+import { useAuth } from "./useAuth";
 import { isAbortError } from "../utils/errorUtils";
+import { logger } from "../utils/logger";
 
 export type SelectionToolbarPosition = {
   top: number;
@@ -9,7 +15,8 @@ export type SelectionToolbarPosition = {
   placement: "above" | "below";
 };
 
-export const useTextSelection = () => {
+export const useTextSelection = (sourcePdfName?: string) => {
+  const { user } = useAuth();
   const [readingMode, setReadingMode] = useState<ReadingMode>("selection");
   const [selectedText, setSelectedText] = useState<string>("");
   const [translatedText, setTranslatedText] = useState<string>("");
@@ -90,18 +97,54 @@ export const useTextSelection = () => {
     setIsTranslating(true);
     setTranslateError(null);
 
+    const trimmedText = selectedText.trim();
+
     try {
       // Check if aborted before making API call
       if (controller.signal.aborted) return;
 
-      // Use AI service for kid-friendly translations
-      const result = await translateWithAI(selectedText, controller.signal);
+      // Check Firestore cache first (if user is logged in)
+      if (user) {
+        const cached = await findExistingTranslation(user.uid, trimmedText);
+        if (cached) {
+          // 確認選取的文字仍然相同
+          if (selectedTextRef.current === trimmedText) {
+            logger.info("Translation cache hit");
+            setTranslatedText(cached.chinese);
+          }
+          setIsTranslating(false);
+          return;
+        }
+      }
 
-      // Check if aborted after API call
       if (controller.signal.aborted) return;
+
+      // Use AI service for kid-friendly translations
+      const result = await translateWithAI(trimmedText, controller.signal);
+
+      // Check if aborted after API call or text changed
+      if (controller.signal.aborted || selectedTextRef.current !== trimmedText) {
+        return;
+      }
 
       if (!result) {
         throw new Error("翻譯失敗");
+      }
+
+      // Save to Firestore cache (if user is logged in)
+      if (user) {
+        try {
+          await addSentenceTranslation({
+            userId: user.uid,
+            english: trimmedText,
+            chinese: result,
+            sourcePdfName,
+          });
+          logger.info("Translation saved to cache");
+        } catch (saveErr) {
+          // Don't fail the translation if saving to cache fails
+          logger.error("Failed to save translation to cache:", saveErr);
+        }
       }
 
       setTranslatedText(result);
@@ -112,11 +155,10 @@ export const useTextSelection = () => {
       const message = err instanceof Error ? err.message : "翻譯時發生未知錯誤";
       setTranslateError(message);
     } finally {
-      if (!controller.signal.aborted) {
-        setIsTranslating(false);
-      }
+      // 無條件重置 loading 狀態，避免 abort 時卡住
+      setIsTranslating(false);
     }
-  }, [selectedText]);
+  }, [selectedText, user, sourcePdfName]);
 
   const clearSelection = useCallback(() => {
     abortControllerRef.current?.abort();

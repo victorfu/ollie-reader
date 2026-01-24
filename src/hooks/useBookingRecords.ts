@@ -1,6 +1,7 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { apiFetch } from "../utils/apiUtil";
 import { OIKID_BOOKING_RECORDS_API_URL } from "../constants/api";
+import { isAbortError } from "../utils/errorUtils";
 import type { BookingRecord, BookingRecordsResponse } from "../types/oikid";
 
 interface UseBookingRecordsReturn {
@@ -55,16 +56,26 @@ export function useBookingRecords(): UseBookingRecordsReturn {
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const fetchBookingRecords = useCallback(async () => {
+    // 取消之前的請求
+    abortControllerRef.current?.abort();
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     setIsLoading(true);
     setError(null);
 
     for (let attempt = 0; attempt <= RETRY_CONFIG.maxRetries; attempt++) {
+      // 檢查是否已被取消
+      if (controller.signal.aborted) return;
+
       try {
         const response = await apiFetch(OIKID_BOOKING_RECORDS_API_URL, {
           method: "GET",
           includeAuthToken: true,
+          signal: controller.signal,
         });
 
         if (!response.ok) {
@@ -72,6 +83,9 @@ export function useBookingRecords(): UseBookingRecordsReturn {
         }
 
         const data: BookingRecordsResponse = await response.json();
+
+        // 檢查是否已被取消
+        if (controller.signal.aborted) return;
 
         // 成功且有資料
         if (data.Data && data.Data.length > 0) {
@@ -94,7 +108,12 @@ export function useBookingRecords(): UseBookingRecordsReturn {
         // 重試完畢仍為空
         setToken(data.Token || null);
         setBookingRecords([]);
+        setIsLoading(false);
+        return;
       } catch (err: unknown) {
+        // 忽略 abort 錯誤
+        if (isAbortError(err)) return;
+
         if (attempt < RETRY_CONFIG.maxRetries) {
           const delay = Math.min(
             RETRY_CONFIG.initialDelay * Math.pow(2, attempt),
@@ -118,9 +137,12 @@ export function useBookingRecords(): UseBookingRecordsReturn {
     setError(null);
   }, []);
 
-  // 自動載入預約記錄
+  // 自動載入預約記錄，並在卸載時清理
   useEffect(() => {
     fetchBookingRecords();
+    return () => {
+      abortControllerRef.current?.abort();
+    };
   }, [fetchBookingRecords]);
 
   return {

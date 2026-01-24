@@ -236,7 +236,7 @@ export const PdfProvider = ({ children }: PdfProviderProps) => {
       const objectUrl = URL.createObjectURL(blob);
       pdfUrlRef.current = objectUrl;
       currentBlobRef.current = blob;
-      setPdfUrl(objectUrl);
+      // 注意：暫時不設置 pdfUrl，等 extract API 成功後再設置，避免 race condition
 
       setIsUploading(true);
       const form = new FormData();
@@ -255,7 +255,9 @@ export const PdfProvider = ({ children }: PdfProviderProps) => {
       }
 
       const data = (await extractRes.json()) as ExtractResponse;
+      // 先設置 result，再設置 pdfUrl，確保兩者都成功
       setResult(data);
+      setPdfUrl(objectUrl);
       setSelectedFile(file);
 
       // Save to session cache

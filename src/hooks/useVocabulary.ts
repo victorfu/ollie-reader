@@ -51,12 +51,14 @@ export const useVocabulary = () => {
   const { user } = useAuth();
   const [words, setWords] = useState<VocabularyWord[]>([]);
   const [loading, setLoading] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
   const [lastDocId, setLastDocId] = useState<string | undefined>(undefined);
   const abortControllerRef = useRef<AbortController | null>(null);
   const currentFiltersRef = useRef<VocabularyFilters | undefined>(undefined);
+  const loadRequestIdRef = useRef(0);
 
   // Cleanup abort controller on unmount
   useEffect(() => {
@@ -155,9 +157,8 @@ export const useVocabulary = () => {
         setError(message);
         return { success: false, message };
       } finally {
-        if (!controller.signal.aborted) {
-          setIsAdding(false);
-        }
+        // 無條件重置 loading 狀態，避免 abort 時卡住
+        setIsAdding(false);
       }
     },
     [user],
@@ -274,9 +275,8 @@ export const useVocabulary = () => {
         setError(message);
         return { success: false, isNew: false, message };
       } finally {
-        if (!controller.signal.aborted) {
-          setIsAdding(false);
-        }
+        // 無條件重置 loading 狀態，避免 abort 時卡住
+        setIsAdding(false);
       }
     },
     [user],
@@ -289,23 +289,33 @@ export const useVocabulary = () => {
         return;
       }
 
+      // 使用請求 ID 來追蹤最新的請求，避免競爭條件
+      const requestId = ++loadRequestIdRef.current;
+
       setLoading(true);
       setError(null);
       currentFiltersRef.current = filters;
 
       try {
         const result = await getUserVocabulary(user.uid, filters);
+
+        // 確認這是最新的請求
+        if (requestId !== loadRequestIdRef.current) return;
+
         setWords(result.words);
         setHasMore(result.hasMore);
         setLastDocId(result.lastDocId);
       } catch (err) {
-        // Ignore abort errors
-        if (isAbortError(err)) return;
+        // Ignore abort errors or outdated requests
+        if (isAbortError(err) || requestId !== loadRequestIdRef.current) return;
         const message =
           err instanceof Error ? err.message : "Failed to load vocabulary";
         setError(message);
       } finally {
-        setLoading(false);
+        // 只有最新的請求才更新 loading 狀態
+        if (requestId === loadRequestIdRef.current) {
+          setLoading(false);
+        }
       }
     },
     [user],
@@ -313,10 +323,11 @@ export const useVocabulary = () => {
 
   // Load more vocabulary words (pagination)
   const loadMore = useCallback(async () => {
-    if (!user || !hasMore || !lastDocId) {
+    if (!user || !hasMore || !lastDocId || isLoadingMore) {
       return;
     }
 
+    setIsLoadingMore(true);
     setError(null);
 
     try {
@@ -339,8 +350,10 @@ export const useVocabulary = () => {
       const message =
         err instanceof Error ? err.message : "Failed to load more vocabulary";
       setError(message);
+    } finally {
+      setIsLoadingMore(false);
     }
-  }, [user, hasMore, lastDocId]);
+  }, [user, hasMore, lastDocId, isLoadingMore]);
 
   // Get a single word (does not affect global loading state)
   const getWord = useCallback(async (wordId: string) => {
@@ -454,6 +467,7 @@ export const useVocabulary = () => {
     async (
       wordId: string,
       word: string,
+      signal?: AbortSignal,
     ): Promise<{
       success: boolean;
       message?: string;
@@ -461,10 +475,15 @@ export const useVocabulary = () => {
     }> => {
       try {
         // Fetch new word details from AI service
-        const details = await generateWordDetails(word);
+        const details = await generateWordDetails(word, signal);
 
         if (!details) {
           return { success: false, message: "無法取得 AI 生成的內容" };
+        }
+
+        // 檢查是否已被取消
+        if (signal?.aborted) {
+          return { success: false, message: "Request cancelled" };
         }
 
         const updates: Partial<VocabularyWord> = {
@@ -490,6 +509,9 @@ export const useVocabulary = () => {
           updatedWord: updates,
         };
       } catch (err) {
+        if (isAbortError(err)) {
+          return { success: false, message: "Request cancelled" };
+        }
         console.error("Failed to regenerate word details:", err);
         const message = err instanceof Error ? err.message : "重新生成失敗";
         return { success: false, message };
@@ -535,6 +557,7 @@ export const useVocabulary = () => {
   return {
     words,
     loading,
+    isLoadingMore,
     isAdding,
     error,
     hasMore,
