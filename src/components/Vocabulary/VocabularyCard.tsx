@@ -18,7 +18,7 @@ export const VocabularyCard = ({ word, onClick, onPlay, onDelete }: VocabularyCa
       exit={{ opacity: 0, scale: 0.95 }}
       whileHover={{ y: -4 }}
       transition={{ duration: 0.2 }}
-      className="card bg-base-100 shadow-sm hover:shadow-xl transition-shadow duration-300 cursor-pointer border border-base-200 overflow-hidden group h-full"
+      className="card bg-base-100 shadow-sm hover:shadow-xl transition-shadow duration-slow cursor-pointer border border-base-200 overflow-hidden group h-full"
       onClick={onClick}
     >
       {/* Decorative gradient bar at top */}

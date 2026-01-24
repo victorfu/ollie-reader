@@ -86,7 +86,7 @@ export const ChatPanel = memo(function ChatPanel({
         onClick={handleOpen}
         className={`fixed bottom-6 right-6 btn btn-circle btn-lg shadow-lg z-40 ${
           disabled ? "btn-disabled" : "btn-primary"
-        } hover:scale-105 active:scale-[0.98] transition-all duration-200`}
+        } hover:scale-105 active:scale-[0.98] transition-all duration-normal`}
         disabled={disabled}
         aria-label="開啟聊天"
       >
@@ -128,7 +128,7 @@ export const ChatPanel = memo(function ChatPanel({
 
           {/* Chat Window */}
           <div
-            className={`relative bg-base-100/95 backdrop-blur-xl rounded-2xl shadow-lg border border-black/5 dark:border-white/10 flex flex-col pointer-events-auto animate-in duration-300 ${
+            className={`relative bg-base-100/95 backdrop-blur-xl rounded-2xl shadow-lg border border-black/5 dark:border-white/10 flex flex-col pointer-events-auto animate-in duration-slow ${
               isFullScreen
                 ? "w-full h-full max-w-7xl max-h-[95vh] slide-in-from-bottom-4"
                 : "w-full sm:w-[400px] h-[600px] max-h-[80vh] slide-in-from-bottom-8"
@@ -263,7 +263,7 @@ export const ChatPanel = memo(function ChatPanel({
                   key={msg.id}
                   className={`flex ${
                     msg.role === "user" ? "justify-end" : "justify-start"
-                  } animate-in fade-in slide-in-from-bottom-2 duration-300`}
+                  } animate-in fade-in slide-in-from-bottom-2 duration-slow`}
                 >
                   <div
                     className={`max-w-[85%] rounded-2xl px-4 py-2.5 ${
@@ -286,7 +286,7 @@ export const ChatPanel = memo(function ChatPanel({
               ))}
 
               {isLoading && (
-                <div className="flex justify-start animate-in fade-in slide-in-from-bottom-2 duration-300">
+                <div className="flex justify-start animate-in fade-in slide-in-from-bottom-2 duration-slow">
                   <div className="bg-base-200 rounded-2xl px-4 py-3 border border-black/5 dark:border-white/10">
                     <div className="flex gap-1">
                       <div className="w-2 h-2 bg-base-content/40 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
@@ -328,7 +328,7 @@ export const ChatPanel = memo(function ChatPanel({
               <div className="px-4 pb-2 flex gap-2">
                 <button
                   onClick={() => onSendMessage("請幫我摘要這份文件的重點")}
-                  className="flex-1 h-8 px-3 rounded-full text-sm font-medium border border-black/10 dark:border-white/10 bg-base-100 hover:bg-black/5 dark:hover:bg-white/5 active:scale-[0.98] transition-all duration-200 flex items-center justify-center gap-1"
+                  className="flex-1 h-8 px-3 rounded-full text-sm font-medium border border-black/10 dark:border-white/10 bg-base-100 hover:bg-black/5 dark:hover:bg-white/5 active:scale-[0.98] transition-all duration-normal flex items-center justify-center gap-1"
                   disabled={isLoading}
                 >
                   <svg
@@ -349,7 +349,7 @@ export const ChatPanel = memo(function ChatPanel({
                 </button>
                 <button
                   onClick={() => onSendMessage("請列出每一頁的重點")}
-                  className="flex-1 h-8 px-3 rounded-full text-sm font-medium border border-black/10 dark:border-white/10 bg-base-100 hover:bg-black/5 dark:hover:bg-white/5 active:scale-[0.98] transition-all duration-200 flex items-center justify-center gap-1"
+                  className="flex-1 h-8 px-3 rounded-full text-sm font-medium border border-black/10 dark:border-white/10 bg-base-100 hover:bg-black/5 dark:hover:bg-white/5 active:scale-[0.98] transition-all duration-normal flex items-center justify-center gap-1"
                   disabled={isLoading}
                 >
                   <svg
@@ -390,7 +390,7 @@ export const ChatPanel = memo(function ChatPanel({
                 />
                 <button
                   type="submit"
-                  className="btn btn-primary btn-circle shadow-sm hover:scale-105 active:scale-[0.98] transition-all duration-200"
+                  className="btn btn-primary btn-circle shadow-sm hover:scale-105 active:scale-[0.98] transition-all duration-normal"
                   disabled={isLoading || disabled || !input.trim()}
                 >
                   {isLoading ? (

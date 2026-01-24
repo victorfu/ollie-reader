@@ -191,7 +191,7 @@ function AppContent() {
                 <Link
                   key={item.to}
                   to={item.to}
-                  className={`flex items-center gap-1.5 h-9 px-3 rounded-lg text-sm font-medium transition-all duration-200 ${
+                  className={`flex items-center gap-1.5 h-9 px-3 rounded-lg text-sm font-medium transition-all duration-normal ${
                     item.isActive
                       ? "bg-primary/15 text-primary"
                       : "text-base-content/70 hover:bg-black/5 dark:hover:bg-white/5 hover:text-base-content"
@@ -359,7 +359,7 @@ function AppContent() {
                     <Link
                       key={`mobile-nav-${item.to}`}
                       to={item.to}
-                      className={`flex items-center gap-3 h-11 px-3 rounded-lg transition-all duration-200 active:scale-[0.98] ${
+                      className={`flex items-center gap-3 h-11 px-3 rounded-lg transition-all duration-normal active:scale-[0.98] ${
                         item.isActive
                           ? "bg-primary/15 text-primary"
                           : "text-base-content hover:bg-black/5 dark:hover:bg-white/5"
@@ -376,7 +376,7 @@ function AppContent() {
               {/* Sign out button */}
               <button
                 type="button"
-                className="w-full flex items-center justify-center gap-2 h-10 rounded-lg text-sm font-medium border border-error/30 text-error bg-error/10 hover:bg-error/20 active:scale-[0.98] transition-all duration-200"
+                className="w-full flex items-center justify-center gap-2 h-10 rounded-lg text-sm font-medium border border-error/30 text-error bg-error/10 hover:bg-error/20 active:scale-[0.98] transition-all duration-normal"
                 onClick={() => {
                   setIsMobileMenuOpen(false);
                   handleSignOut();

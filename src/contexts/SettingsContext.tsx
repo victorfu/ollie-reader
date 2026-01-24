@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, type ReactNode } from "react";
+import { useState, useEffect, useCallback, useMemo, type ReactNode } from "react";
 import { useAuth } from "../hooks/useAuth";
 import { getUserSettings, saveUserSettings } from "../services/settingsService";
 import { SettingsContext } from "./SettingsContextType";
@@ -89,17 +89,20 @@ export const SettingsProvider = ({ children }: SettingsProviderProps) => {
     [updateSetting],
   );
 
+  const value = useMemo(
+    () => ({
+      ttsMode,
+      speechRate,
+      loading,
+      error,
+      updateTtsMode,
+      updateSpeechRate,
+    }),
+    [ttsMode, speechRate, loading, error, updateTtsMode, updateSpeechRate]
+  );
+
   return (
-    <SettingsContext.Provider
-      value={{
-        ttsMode,
-        speechRate,
-        loading,
-        error,
-        updateTtsMode,
-        updateSpeechRate,
-      }}
-    >
+    <SettingsContext.Provider value={value}>
       {children}
     </SettingsContext.Provider>
   );

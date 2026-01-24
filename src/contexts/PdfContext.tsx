@@ -4,6 +4,7 @@ import {
   useCallback,
   useRef,
   useEffect,
+  useMemo,
   type ReactNode,
 } from "react";
 import type { ExtractResponse } from "../types/pdf";
@@ -299,18 +300,32 @@ export const PdfProvider = ({ children }: PdfProviderProps) => {
     setError(null);
   }, []);
 
-  const value: PdfContextType = {
-    selectedFile,
-    isUploading,
-    error,
-    result,
-    pdfUrl,
-    isLoadingFromUrl,
-    handleFileChange,
-    loadPdfFromUrl,
-    cancelUpload,
-    clearPdfCache,
-  };
+  const value: PdfContextType = useMemo(
+    () => ({
+      selectedFile,
+      isUploading,
+      error,
+      result,
+      pdfUrl,
+      isLoadingFromUrl,
+      handleFileChange,
+      loadPdfFromUrl,
+      cancelUpload,
+      clearPdfCache,
+    }),
+    [
+      selectedFile,
+      isUploading,
+      error,
+      result,
+      pdfUrl,
+      isLoadingFromUrl,
+      handleFileChange,
+      loadPdfFromUrl,
+      cancelUpload,
+      clearPdfCache,
+    ]
+  );
 
   return <PdfContext.Provider value={value}>{children}</PdfContext.Provider>;
 };

@@ -3,6 +3,7 @@ import {
   useCallback,
   useEffect,
   useRef,
+  useMemo,
   type ReactNode,
 } from "react";
 import type { TTSMode } from "../types/pdf";
@@ -315,17 +316,30 @@ export const SpeechProvider = ({ children }: SpeechProviderProps) => {
     [pickEnglishVoice, speechRate, speechSupported, ttsMode, stopSpeaking, playAudioBlob],
   );
 
-  const value: SpeechContextType = {
-    speechRate,
-    isSpeaking,
-    ttsMode,
-    setTtsMode: handleSetTtsMode,
-    isLoadingAudio,
-    speechSupported,
-    speak,
-    speakAsync,
-    stopSpeaking,
-  };
+  const value: SpeechContextType = useMemo(
+    () => ({
+      speechRate,
+      isSpeaking,
+      ttsMode,
+      setTtsMode: handleSetTtsMode,
+      isLoadingAudio,
+      speechSupported,
+      speak,
+      speakAsync,
+      stopSpeaking,
+    }),
+    [
+      speechRate,
+      isSpeaking,
+      ttsMode,
+      handleSetTtsMode,
+      isLoadingAudio,
+      speechSupported,
+      speak,
+      speakAsync,
+      stopSpeaking,
+    ]
+  );
 
   return (
     <SpeechContext.Provider value={value}>{children}</SpeechContext.Provider>

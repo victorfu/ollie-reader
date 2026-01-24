@@ -6,7 +6,7 @@ interface GameLayoutProps {
 
 export function GameLayout({ children }: GameLayoutProps) {
   return (
-    <div className="h-[calc(100vh-7rem)] sm:h-[calc(100vh-8rem)] w-full bg-gradient-to-b from-pink-100 via-purple-100 to-indigo-100 rounded-3xl shadow-2xl border border-pink-200 p-4 flex flex-col items-center justify-center relative overflow-hidden">
+    <div className="h-[calc(100vh-7rem)] sm:h-[calc(100vh-8rem)] w-full bg-gradient-to-b from-pink-100 via-purple-100 to-indigo-100 rounded-2xl shadow-2xl border border-pink-200 p-4 flex flex-col items-center justify-center relative overflow-hidden">
       {/* Background Elements - Soft pastel glows */}
       <div className="absolute inset-0 opacity-50 pointer-events-none">
         <div className="absolute top-10 left-10 w-32 h-32 bg-pink-300 rounded-full blur-[100px] animate-pulse" />
