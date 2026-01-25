@@ -3,16 +3,31 @@ import { useAuth } from "../hooks/useAuth";
 import { getUserSettings, saveUserSettings } from "../services/settingsService";
 import { SettingsContext } from "./SettingsContextType";
 import type { UserSettings } from "../types/settings";
-import type { TTSMode } from "../types/pdf";
+import type { TTSMode, TextParsingMode } from "../types/pdf";
 
 interface SettingsProviderProps {
   children: ReactNode;
 }
 
+const TEXT_PARSING_MODE_KEY = "ollie-reader-text-parsing-mode";
+
+const getTextParsingModeFromStorage = (): TextParsingMode => {
+  try {
+    const stored = localStorage.getItem(TEXT_PARSING_MODE_KEY);
+    if (stored === "frontend" || stored === "backend") {
+      return stored;
+    }
+  } catch {
+    // localStorage not available
+  }
+  return "backend"; // default to backend
+};
+
 export const SettingsProvider = ({ children }: SettingsProviderProps) => {
   const { user } = useAuth();
   const [ttsMode, setTtsMode] = useState<TTSMode>("browser");
   const [speechRate, setSpeechRate] = useState<number>(1);
+  const [textParsingMode, setTextParsingMode] = useState<TextParsingMode>(getTextParsingModeFromStorage);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -22,6 +37,7 @@ export const SettingsProvider = ({ children }: SettingsProviderProps) => {
       if (!user) {
         setTtsMode("browser"); // Default when logged out
         setSpeechRate(1); // Default when logged out
+        // textParsingMode is managed by localStorage, no need to reset
         setLoading(false);
         return;
       }
@@ -34,6 +50,7 @@ export const SettingsProvider = ({ children }: SettingsProviderProps) => {
         if (settings) {
           setTtsMode(settings.ttsMode);
           setSpeechRate(settings.speechRate ?? 1);
+          // textParsingMode is managed by localStorage
         } else {
           // No settings found, use defaults
           setTtsMode("browser");
@@ -52,7 +69,7 @@ export const SettingsProvider = ({ children }: SettingsProviderProps) => {
     void loadSettings();
   }, [user]);
 
-  // Generic setting update helper
+  // Generic setting update helper (for Firestore-synced settings)
   const updateSetting = useCallback(
     async <K extends keyof Pick<UserSettings, "ttsMode" | "speechRate">>(
       key: K,
@@ -93,16 +110,31 @@ export const SettingsProvider = ({ children }: SettingsProviderProps) => {
     [updateSetting],
   );
 
+  const updateTextParsingMode = useCallback(
+    async (mode: TextParsingMode) => {
+      // Save to localStorage only (local preference, not synced to Firestore)
+      try {
+        localStorage.setItem(TEXT_PARSING_MODE_KEY, mode);
+      } catch {
+        // localStorage not available
+      }
+      setTextParsingMode(mode);
+    },
+    [],
+  );
+
   const value = useMemo(
     () => ({
       ttsMode,
       speechRate,
+      textParsingMode,
       loading,
       error,
       updateTtsMode,
       updateSpeechRate,
+      updateTextParsingMode,
     }),
-    [ttsMode, speechRate, loading, error, updateTtsMode, updateSpeechRate]
+    [ttsMode, speechRate, textParsingMode, loading, error, updateTtsMode, updateSpeechRate, updateTextParsingMode]
   );
 
   return (

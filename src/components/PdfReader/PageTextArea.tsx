@@ -13,6 +13,7 @@ interface PageTextAreaProps {
   onStopSpeaking: () => void;
   onTextSelection: () => void;
   isLoadingAudio?: boolean;
+  isSpeaking?: boolean;
 }
 
 export const PageTextArea = memo(
@@ -24,6 +25,7 @@ export const PageTextArea = memo(
     onStopSpeaking,
     onTextSelection,
     isLoadingAudio,
+    isSpeaking,
   }: PageTextAreaProps) => {
     const renderTextWithClickableWords = useCallback(
       (text: string) => {
@@ -46,7 +48,8 @@ export const PageTextArea = memo(
               key={`w-${key++}-${start}`}
               type="button"
               onClick={() => onSpeak(word)}
-              className="inline rounded hover:bg-warning/30 hover:text-warning-content transition-colors focus:outline-none focus:ring-2 focus:ring-warning/50"
+              disabled={isLoadingAudio || isSpeaking}
+              className="inline rounded hover:bg-warning/30 hover:text-warning-content transition-colors focus:outline-none focus:ring-2 focus:ring-warning/50 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent"
               title={`Speak: ${word}`}
             >
               {word}
@@ -64,7 +67,7 @@ export const PageTextArea = memo(
           </div>
         );
       },
-      [onSpeak],
+      [onSpeak, isLoadingAudio, isSpeaking],
     );
 
     const renderSelectableText = useCallback(
@@ -95,8 +98,12 @@ export const PageTextArea = memo(
               <button
                 type="button"
                 onClick={() => onSpeak(text)}
-                className="flex items-center gap-2 h-9 sm:h-10 px-4 rounded-lg text-sm font-medium bg-success text-success-content shadow-sm hover:bg-success/90 active:scale-[0.98] transition-all duration-200 disabled:opacity-50"
-                disabled={isLoadingAudio}
+                className={`flex items-center gap-2 h-9 sm:h-10 px-4 rounded-lg text-sm font-medium shadow-md transition-all hover:scale-105 active:scale-95 disabled:opacity-50 ${
+                  isSpeaking
+                    ? "bg-base-300/90 text-base-content"
+                    : "bg-success/90 hover:bg-success text-success-content"
+                }`}
+                disabled={isLoadingAudio || isSpeaking}
               >
                 {isLoadingAudio ? (
                   <>
@@ -132,7 +139,11 @@ export const PageTextArea = memo(
               <button
                 type="button"
                 onClick={onStopSpeaking}
-                className="flex items-center h-9 sm:h-10 px-4 rounded-lg text-sm font-medium bg-base-100 border border-black/10 dark:border-white/10 shadow-sm hover:bg-black/5 dark:hover:bg-white/5 active:scale-[0.98] transition-all duration-200"
+                className={`flex items-center h-9 sm:h-10 px-4 rounded-lg text-sm font-medium shadow-md transition-all hover:scale-105 active:scale-95 ${
+                  isSpeaking
+                    ? "bg-error/90 hover:bg-error text-error-content animate-pulse"
+                    : "bg-base-300/90 hover:bg-base-300 text-base-content opacity-50"
+                }`}
               >
                 停止
               </button>

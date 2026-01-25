@@ -15,6 +15,9 @@ export type ReadingMode = "word" | "selection";
 
 export type TTSMode = "browser" | "api";
 
+// 文字解析模式
+export type TextParsingMode = "frontend" | "backend";
+
 // PDF 單字位置資訊
 export interface WordPosition {
   word: string;

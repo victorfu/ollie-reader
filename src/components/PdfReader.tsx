@@ -1,18 +1,21 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { isAbortError } from "../utils/errorUtils";
+import { logger } from "../utils/logger";
 import { usePdfState } from "../hooks/usePdfState";
 import { useSpeechState } from "../hooks/useSpeechState";
+import { useSettings } from "../hooks/useSettings";
 import { useTextSelection } from "../hooks/useTextSelection";
 import { usePdfWorker } from "../hooks/usePdfWorker";
 import { useChat } from "../hooks/useChat";
 import { useVocabulary, formatDefinitionsForDisplay } from "../hooks/useVocabulary";
 import { UploadArea } from "./PdfReader/UploadArea";
-import { TTSControls } from "./PdfReader/TTSControls";
-import { FileInfo } from "./PdfReader/FileInfo";
+import { PdfControlBar } from "./PdfReader/PdfControlBar";
 import { PdfViewer } from "./PdfReader/PdfViewer";
 import { PageTextArea } from "./PdfReader/PageTextArea";
 import { SelectionToolbar } from "./PdfReader/SelectionToolbar";
 import { ChatPanel } from "./PdfReader/ChatPanel";
-import { Toast } from "./common/Toast";
+import { ToastContainer } from "./common/ToastContainer";
+import { useToastQueue } from "../hooks/useToastQueue";
 import { BookingRecordsDrawer } from "./PdfReader/BookingRecordsDrawer";
 import { useBookingRecords } from "../hooks/useBookingRecords";
 
@@ -47,6 +50,8 @@ function PdfReader() {
     stopSpeaking,
   } = useSpeechState();
 
+  const { textParsingMode } = useSettings();
+
   const {
     readingMode,
     setReadingMode,
@@ -71,26 +76,53 @@ function PdfReader() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [loadingCourseId, setLoadingCourseId] = useState<string | null>(null);
 
+  // Refs for race condition handling
+  const loadingCourseIdRef = useRef<string | null>(null);
+  const lookupAbortControllerRef = useRef<AbortController | null>(null);
+  const lookupSelectedTextRef = useRef<string>("");
+
+  // Cleanup abort controller on unmount
+  useEffect(() => {
+    return () => {
+      lookupAbortControllerRef.current?.abort();
+    };
+  }, []);
+
   const handleLoadBookingPdf = async (record: { id: string }) => {
     if (!bookingToken || !record.id) return;
-    setLoadingCourseId(record.id);
+
+    // Track current request to handle race conditions
+    const currentCourseId = record.id;
+    loadingCourseIdRef.current = currentCourseId;
+    setLoadingCourseId(currentCourseId);
+
     try {
       const url = `https://www.oikid.com/PHP/Review.php?id=${record.id}&token=${bookingToken}`;
       await loadPdfFromUrl(url);
-      setDrawerOpen(false);
+      // Only close drawer if this is still the active request
+      if (loadingCourseIdRef.current === currentCourseId) {
+        setDrawerOpen(false);
+      }
+    } catch (error) {
+      logger.error("Error loading booking PDF:", error);
+      // Only show error if this is still the active request
+      if (loadingCourseIdRef.current === currentCourseId) {
+        addToast("載入課程 PDF 失敗", "error");
+      }
     } finally {
-      // 確保一定會重置 loading 狀態
-      setLoadingCourseId(null);
+      // Only reset loading state if this is still the active request
+      if (loadingCourseIdRef.current === currentCourseId) {
+        setLoadingCourseId(null);
+      }
     }
   };
 
   const [urlInput, setUrlInput] = useState<string>("");
   const [isAddingToVocabulary, setIsAddingToVocabulary] = useState(false);
   const [isClearingCache, setIsClearingCache] = useState(false);
-  const [toastMessage, setToastMessage] = useState<{
-    message: string;
-    type: "success" | "error" | "info";
-  } | null>(null);
+
+  // Toast queue for multiple notifications
+  const { toasts, addToast, removeToast } = useToastQueue(3);
 
   // Vocabulary hook
   const { lookupOrAddWord } = useVocabulary();
@@ -140,38 +172,6 @@ function PdfReader() {
     }
   };
 
-  // Word lookup for PdfViewer (single word click)
-  const handleWordLookup = async (word: string): Promise<string | null> => {
-    const trimmedWord = word.trim();
-    if (!trimmedWord) return null;
-
-    try {
-      const response = await lookupOrAddWord(trimmedWord, {
-        sourceContext: trimmedWord,
-        sourcePdfName: selectedFile?.name,
-        sourcePage: undefined,
-      });
-
-      if (response.success && response.existingWord) {
-        const formattedDef = formatDefinitionsForDisplay(response.existingWord);
-
-        // Show toast for vocabulary status
-        if (response.isNew) {
-          setToastMessage({
-            message: `「${trimmedWord}」已加入生詞本！`,
-            type: "success",
-          });
-        }
-
-        return formattedDef || null;
-      }
-      return null;
-    } catch (error) {
-      console.error("Error looking up word:", error);
-      return null;
-    }
-  };
-
   // Combined lookup and add to vocabulary - also shows definition
   const handleLookupWord = async () => {
     const trimmedText = selectedText.trim();
@@ -180,13 +180,29 @@ function PdfReader() {
     // Extract the first word if multiple words are selected
     const word = trimmedText.split(/\s+/)[0];
 
+    // Abort any previous request
+    lookupAbortControllerRef.current?.abort();
+    const controller = new AbortController();
+    lookupAbortControllerRef.current = controller;
+
+    // Track the text we're looking up
+    lookupSelectedTextRef.current = word;
+
     setIsAddingToVocabulary(true);
     try {
+      // Check if aborted before API call
+      if (controller.signal.aborted) return;
+
       const response = await lookupOrAddWord(word, {
         sourceContext: trimmedText,
         sourcePdfName: selectedFile?.name,
         sourcePage: undefined,
       });
+
+      // Check if aborted or text changed after API call
+      if (controller.signal.aborted || lookupSelectedTextRef.current !== word) {
+        return;
+      }
 
       if (response.success && response.existingWord) {
         // Format and display the definition
@@ -195,25 +211,19 @@ function PdfReader() {
 
         // Show toast message
         if (response.isNew) {
-          setToastMessage({
-            message: `「${word}」已加入生詞本！`,
-            type: "success",
-          });
+          addToast(`「${word}」已加入生詞本！`, "success");
         } else {
-          setToastMessage({
-            message: `「${word}」已在生詞本中`,
-            type: "info",
-          });
+          addToast(`「${word}」已在生詞本中`, "info");
         }
       } else {
-        setToastMessage({
-          message: response.message || "查詢失敗",
-          type: "error",
-        });
+        addToast(response.message || "查詢失敗", "error");
       }
-    } catch (error) {
-      console.error("Error looking up word:", error);
-      setToastMessage({ message: "查詢單字時發生錯誤", type: "error" });
+    } catch (error: unknown) {
+      // Ignore abort errors
+      if (isAbortError(error)) return;
+
+      logger.error("Error looking up word:", error);
+      addToast("查詢單字時發生錯誤", "error");
     } finally {
       setIsAddingToVocabulary(false);
     }
@@ -223,13 +233,10 @@ function PdfReader() {
     setIsClearingCache(true);
     try {
       await clearPdfCache();
-      setToastMessage({
-        message: "快取已清除，請重新載入 PDF",
-        type: "success",
-      });
+      addToast("快取已清除，請重新載入 PDF", "success");
     } catch (error) {
-      console.error("Error clearing cache:", error);
-      setToastMessage({ message: "清除快取時發生錯誤", type: "error" });
+      logger.error("Error clearing cache:", error);
+      addToast("清除快取時發生錯誤", "error");
     } finally {
       setIsClearingCache(false);
     }
@@ -268,9 +275,9 @@ function PdfReader() {
         onRetry={fetchBookingRecords}
       />
 
-      {/* TTS Controls */}
+      {/* PDF Control Bar */}
       {result && (
-        <TTSControls
+        <PdfControlBar
           ttsMode={ttsMode}
           readingMode={readingMode}
           speechRate={speechRate}
@@ -279,6 +286,9 @@ function PdfReader() {
           onTtsModeChange={setTtsMode}
           onReadingModeChange={setReadingMode}
           onStop={stopSpeaking}
+          result={result}
+          onClearCache={handleClearCache}
+          isClearingCache={isClearingCache}
         />
       )}
 
@@ -309,13 +319,6 @@ function PdfReader() {
       {/* Results */}
       {result && (
         <div className="space-y-6">
-          {/* File Info */}
-          <FileInfo
-            result={result}
-            onClearCache={handleClearCache}
-            isClearingCache={isClearingCache}
-          />
-
           {/* PDF Viewer - Glass card with macOS HIG styling */}
           {pdfUrl && (
             <div className="rounded-xl border border-black/5 dark:border-white/10 bg-base-100 shadow-lg overflow-hidden">
@@ -331,7 +334,7 @@ function PdfReader() {
                   isSpeaking={isSpeaking}
                   initialScrollPosition={initialScrollPosition}
                   onScrollPositionChange={saveScrollPosition}
-                  onWordLookup={handleWordLookup}
+                  textParsingMode={textParsingMode}
                 />
               </div>
             </div>
@@ -350,6 +353,7 @@ function PdfReader() {
                   onStopSpeaking={stopSpeaking}
                   onTextSelection={handleTextSelection}
                   isLoadingAudio={isLoadingAudio}
+                  isSpeaking={isSpeaking}
                 />
               ))}
             </div>
@@ -368,13 +372,7 @@ function PdfReader() {
       />
 
       {/* Toast Notifications */}
-      {toastMessage && (
-        <Toast
-          message={toastMessage.message}
-          type={toastMessage.type}
-          onClose={() => setToastMessage(null)}
-        />
-      )}
+      <ToastContainer toasts={toasts} onRemove={removeToast} />
     </div>
   );
 }

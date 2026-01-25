@@ -3,17 +3,19 @@ import { useSettings } from "../../hooks/useSettings";
 import { useAuth } from "../../hooks/useAuth";
 import { resetGameProgress } from "../../services/gameProgressService";
 import { ConfirmModal } from "../common/ConfirmModal";
-import type { TTSMode } from "../../types/pdf";
+import type { TTSMode, TextParsingMode } from "../../types/pdf";
 
 export const Settings = () => {
   const { user } = useAuth();
   const {
     ttsMode,
     speechRate,
+    textParsingMode,
     loading,
     error,
     updateTtsMode,
     updateSpeechRate,
+    updateTextParsingMode,
   } = useSettings();
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -42,6 +44,21 @@ export const Settings = () => {
 
     try {
       await updateSpeechRate(rate);
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 3000);
+    } catch (err) {
+      console.error("Failed to save settings:", err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleTextParsingModeChange = async (mode: TextParsingMode) => {
+    setSaving(true);
+    setSaveSuccess(false);
+
+    try {
+      await updateTextParsingMode(mode);
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
     } catch (err) {
@@ -101,7 +118,7 @@ export const Settings = () => {
 
           {resetSuccess && (
             <div className="alert alert-success mb-4">
-              <span>✓ 遊戲進度已重設</span>
+              <span>遊戲進度已重置</span>
             </div>
           )}
 
@@ -126,7 +143,7 @@ export const Settings = () => {
                   <div className="flex-1">
                     <div className="font-medium">系統語音</div>
                     <div className="text-sm text-base-content/60">
-                      使用瀏覽器內建的語音引擎 (推薦)
+                      使用瀏覽器內建的語音引擎（推薦）
                     </div>
                   </div>
                 </label>
@@ -143,7 +160,7 @@ export const Settings = () => {
                   <div className="flex-1">
                     <div className="font-medium">AI 語音</div>
                     <div className="text-sm text-base-content/60">
-                      使用 AI 語音合成服務，音質更自然
+                      使用 AI 語音合成服務，聲音更自然
                     </div>
                   </div>
                 </label>
@@ -157,7 +174,7 @@ export const Settings = () => {
             <div>
               <h3 className="text-lg font-semibold mb-3">語速設定</h3>
               <p className="text-sm text-base-content/70 mb-4">
-                調整語音播放的速度
+                調整播放速度
               </p>
 
               <div className="p-4 border border-base-300 rounded-lg">
@@ -183,6 +200,53 @@ export const Settings = () => {
               </div>
             </div>
 
+            {/* Divider */}
+            <div className="divider"></div>
+
+            {/* PDF Text Parsing Mode */}
+            <div>
+              <h3 className="text-lg font-semibold mb-3">PDF 文字解析</h3>
+              <p className="text-sm text-base-content/70 mb-4">
+                選擇如何從 PDF 擷取文字
+              </p>
+
+              <div className="space-y-3">
+                <label className="flex items-start gap-3 p-4 border border-base-300 rounded-lg cursor-pointer hover:bg-base-200 transition-colors">
+                  <input
+                    type="radio"
+                    name="textParsingMode"
+                    className="radio radio-primary mt-1"
+                    checked={textParsingMode === "backend"}
+                    onChange={() => handleTextParsingModeChange("backend")}
+                    disabled={saving}
+                  />
+                  <div className="flex-1">
+                    <div className="font-medium">後端解析</div>
+                    <div className="text-sm text-base-content/60">
+                      上傳 PDF 至伺服器解析（較準確）
+                    </div>
+                  </div>
+                </label>
+
+                <label className="flex items-start gap-3 p-4 border border-base-300 rounded-lg cursor-pointer hover:bg-base-200 transition-colors">
+                  <input
+                    type="radio"
+                    name="textParsingMode"
+                    className="radio radio-primary mt-1"
+                    checked={textParsingMode === "frontend"}
+                    onChange={() => handleTextParsingModeChange("frontend")}
+                    disabled={saving}
+                  />
+                  <div className="flex-1">
+                    <div className="font-medium">前端解析</div>
+                    <div className="text-sm text-base-content/60">
+                      直接在瀏覽器中使用 react-pdf 解析（較快，不需上傳）
+                    </div>
+                  </div>
+                </label>
+              </div>
+            </div>
+
             {saving && (
               <div className="mt-4 flex items-center gap-2 text-sm text-base-content/70">
                 <span className="loading loading-spinner loading-sm" />
@@ -197,15 +261,15 @@ export const Settings = () => {
             <div>
               <h3 className="text-lg font-semibold mb-3">🎮 遊戲設定</h3>
               <p className="text-sm text-base-content/70 mb-4">
-                管理精靈冒險遊戲的進度
+                管理遊戲進度
               </p>
 
               <div className="p-4 border border-error/30 rounded-lg bg-error/5">
                 <div className="flex items-center justify-between">
                   <div>
-                    <div className="font-medium text-error">重設遊戲進度</div>
+                    <div className="font-medium text-error">重置遊戲進度</div>
                     <div className="text-sm text-base-content/60">
-                      清除所有關卡進度、等級和已收集的精靈（不影響單字本）
+                      清除所有關卡進度、等級和收集的精靈（生詞本不受影響）
                     </div>
                   </div>
                   <button
@@ -214,7 +278,7 @@ export const Settings = () => {
                     onClick={() => setShowResetModal(true)}
                     disabled={!user}
                   >
-                    重設進度
+                    重置
                   </button>
                 </div>
               </div>
@@ -225,9 +289,9 @@ export const Settings = () => {
 
       <ConfirmModal
         isOpen={showResetModal}
-        title="確定要重設遊戲進度嗎？"
-        message="這將會清除所有關卡進度、等級和已收集的精靈。此操作無法復原，但不會影響你的單字本。"
-        confirmText="確定重設"
+        title="確定要重置遊戲進度？"
+        message="這將清除所有關卡進度、等級和收集的精靈。此操作無法復原，但生詞本不會受到影響。"
+        confirmText="重置"
         cancelText="取消"
         confirmVariant="error"
         isLoading={resetting}
