@@ -16,7 +16,6 @@ interface PdfViewerProps {
   pagesByNumber: Map<number, ExtractedPage>;
   readingMode: ReadingMode;
   onSpeak: (text: string) => void;
-  onStopSpeaking: () => void;
   onTextSelection: () => void;
   isLoadingAudio?: boolean;
   isSpeaking?: boolean;
@@ -31,7 +30,6 @@ export const PdfViewer = memo(
     pagesByNumber,
     readingMode,
     onSpeak,
-    onStopSpeaking,
     onTextSelection,
     isLoadingAudio,
     isSpeaking,
@@ -161,8 +159,8 @@ export const PdfViewer = memo(
                         <div
                           className="relative rounded-lg border border-black/5 dark:border-white/10 bg-base-100 shadow-sm overflow-auto"
                         >
-                          {/* Speak/Stop page buttons overlay */}
-                          <div className="absolute top-3 left-3 z-10 flex gap-1.5">
+                          {/* Speak page button overlay */}
+                          <div className="absolute top-3 left-3 z-10">
                             <button
                               type="button"
                               onClick={(e) => {
@@ -202,40 +200,6 @@ export const PdfViewer = memo(
                                   />
                                 </svg>
                               )}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onStopSpeaking();
-                              }}
-                              className={`w-8 h-8 rounded-lg shadow-md flex items-center justify-center transition-all hover:scale-105 active:scale-95 ${
-                                isSpeaking
-                                  ? "bg-error/90 hover:bg-error text-error-content animate-pulse"
-                                  : "bg-base-300/90 hover:bg-base-300 text-base-content opacity-50"
-                              }`}
-                              title="停止朗讀"
-                            >
-                              <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                className="h-4 w-4"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                stroke="currentColor"
-                              >
-                                <path
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  strokeWidth={2}
-                                  d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                                />
-                                <path
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  strokeWidth={2}
-                                  d="M9 10h6v4H9z"
-                                />
-                              </svg>
                             </button>
                           </div>
                           <div
@@ -282,7 +246,6 @@ export const PdfViewer = memo(
                           text={getPageText(pageNumber)}
                           readingMode={readingMode}
                           onSpeak={onSpeak}
-                          onStopSpeaking={onStopSpeaking}
                           onTextSelection={onTextSelection}
                           isLoadingAudio={isLoadingAudio}
                           isSpeaking={isSpeaking}

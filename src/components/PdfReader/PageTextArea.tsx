@@ -10,7 +10,6 @@ interface PageTextAreaProps {
   text: string;
   readingMode: ReadingMode;
   onSpeak: (text: string) => void;
-  onStopSpeaking: () => void;
   onTextSelection: () => void;
   isLoadingAudio?: boolean;
   isSpeaking?: boolean;
@@ -22,7 +21,6 @@ export const PageTextArea = memo(
     text,
     readingMode,
     onSpeak,
-    onStopSpeaking,
     onTextSelection,
     isLoadingAudio,
     isSpeaking,
@@ -135,17 +133,6 @@ export const PageTextArea = memo(
                     朗讀此頁
                   </>
                 )}
-              </button>
-              <button
-                type="button"
-                onClick={onStopSpeaking}
-                className={`flex items-center h-9 sm:h-10 px-4 rounded-lg text-sm font-medium shadow-md transition-all hover:scale-105 active:scale-95 ${
-                  isSpeaking
-                    ? "bg-error/90 hover:bg-error text-error-content animate-pulse"
-                    : "bg-base-300/90 hover:bg-base-300 text-base-content opacity-50"
-                }`}
-              >
-                停止
               </button>
             </div>
           </div>

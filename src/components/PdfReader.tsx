@@ -6,14 +6,13 @@ import { useSpeechState } from "../hooks/useSpeechState";
 import { useSettings } from "../hooks/useSettings";
 import { useTextSelection } from "../hooks/useTextSelection";
 import { usePdfWorker } from "../hooks/usePdfWorker";
-import { useChat } from "../hooks/useChat";
 import { useVocabulary, formatDefinitionsForDisplay } from "../hooks/useVocabulary";
 import { UploadArea } from "./PdfReader/UploadArea";
 import { PdfControlBar } from "./PdfReader/PdfControlBar";
 import { PdfViewer } from "./PdfReader/PdfViewer";
 import { PageTextArea } from "./PdfReader/PageTextArea";
 import { SelectionToolbar } from "./PdfReader/SelectionToolbar";
-import { ChatPanel } from "./PdfReader/ChatPanel";
+import { FloatingStopButton } from "./PdfReader/FloatingStopButton";
 import { ToastContainer } from "./common/ToastContainer";
 import { useToastQueue } from "../hooks/useToastQueue";
 import { BookingRecordsDrawer } from "./PdfReader/BookingRecordsDrawer";
@@ -134,21 +133,6 @@ function PdfReader() {
     }
     return map;
   }, [result]);
-
-  // Get PDF full text for chat context
-  const pdfFullText = useMemo(() => {
-    if (!result) return "";
-    return result.pages.map((p) => p.text).join("\n\n");
-  }, [result]);
-
-  // Chat hook
-  const {
-    messages,
-    isLoading: isChatLoading,
-    error: chatError,
-    sendMessage,
-    clearMessages,
-  } = useChat(pdfFullText);
 
   // Handlers for child components
   const onInputChange: React.ChangeEventHandler<HTMLInputElement> = (e) => {
@@ -328,7 +312,6 @@ function PdfReader() {
                   pagesByNumber={pagesByNumber}
                   readingMode={readingMode}
                   onSpeak={speak}
-                  onStopSpeaking={stopSpeaking}
                   onTextSelection={handleTextSelection}
                   isLoadingAudio={isLoadingAudio}
                   isSpeaking={isSpeaking}
@@ -350,7 +333,6 @@ function PdfReader() {
                   text={p.text || ""}
                   readingMode={readingMode}
                   onSpeak={speak}
-                  onStopSpeaking={stopSpeaking}
                   onTextSelection={handleTextSelection}
                   isLoadingAudio={isLoadingAudio}
                   isSpeaking={isSpeaking}
@@ -361,14 +343,11 @@ function PdfReader() {
         </div>
       )}
 
-      {/* Floating Chat Panel */}
-      <ChatPanel
-        messages={messages}
-        isLoading={isChatLoading}
-        error={chatError}
-        onSendMessage={sendMessage}
-        onClear={clearMessages}
-        disabled={!result}
+      {/* Floating Stop Button */}
+      <FloatingStopButton
+        isSpeaking={isSpeaking}
+        isLoadingAudio={isLoadingAudio}
+        onStop={stopSpeaking}
       />
 
       {/* Toast Notifications */}

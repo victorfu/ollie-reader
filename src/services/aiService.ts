@@ -3,7 +3,6 @@
  */
 import { geminiModel } from "../utils/firebaseUtil";
 import { isAbortError } from "../utils/errorUtils";
-import type { ChatSession, Content } from "firebase/ai";
 
 /**
  * Word details structure returned by generateWordDetails
@@ -38,31 +37,6 @@ export interface GameWord {
   word: string;
   def: string;
   emoji: string;
-}
-
-/**
- * Chat session configuration
- */
-export interface ChatSessionConfig {
-  history?: Content[];
-  systemInstruction?: string;
-}
-
-/**
- * Create a new chat session with Gemini AI
- * @param config - Configuration for the chat session
- * @returns ChatSession instance
- */
-export function createChatSession(config: ChatSessionConfig = {}): ChatSession {
-  return geminiModel.startChat({
-    history: config.history || [],
-    ...(config.systemInstruction && {
-      systemInstruction: {
-        role: "user",
-        parts: [{ text: config.systemInstruction }],
-      },
-    }),
-  });
 }
 
 /**
