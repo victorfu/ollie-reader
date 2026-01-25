@@ -1,7 +1,14 @@
 import { memo, useRef, useState, useEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { Document, Page } from "react-pdf";
-import type { ExtractedPage, ReadingMode } from "../../types/pdf";
+import type {
+  ExtractedPage,
+  ReadingMode,
+  WordPosition,
+} from "../../types/pdf";
 import { PageTextArea } from "./PageTextArea";
+import { WordOverlay } from "./WordOverlay";
+import { WordToolbar } from "./WordToolbar";
 import { pdfDocumentOptions } from "../../utils/pdfConfig";
 
 import "react-pdf/dist/Page/AnnotationLayer.css";
@@ -19,6 +26,7 @@ interface PdfViewerProps {
   initialScrollPosition?: number | null;
   onScrollPositionChange?: (position: number) => void;
   onPageTextExtracted?: (pageNumber: number, text: string) => void;
+  onWordLookup?: (word: string) => Promise<string | null>;
 }
 
 export const PdfViewer = memo(
@@ -34,16 +42,24 @@ export const PdfViewer = memo(
     initialScrollPosition,
     onScrollPositionChange,
     onPageTextExtracted,
+    onWordLookup,
   }: PdfViewerProps) => {
     const containerRef = useRef<HTMLDivElement | null>(null);
-    const pdfContainerRef = useRef<HTMLDivElement | null>(null);
     const pageRefs = useRef<(HTMLDivElement | null)[]>([]);
     const [numPages, setNumPages] = useState<number>(0);
-    const [pdfWidth, setPdfWidth] = useState<number>(600);
     const [pdfReady, setPdfReady] = useState(false);
     const scrollRestoredRef = useRef(false);
     const currentUrlRef = useRef(url);
     const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    // Word overlay state
+    const [wordPositions, setWordPositions] = useState<Map<number, WordPosition[]>>(new Map());
+    const [activeWord, setActiveWord] = useState<{
+      word: string;
+      position: { top: number; left: number };
+    } | null>(null);
+    const [wordDefinition, setWordDefinition] = useState<string | null>(null);
+    const [isLoadingDefinition, setIsLoadingDefinition] = useState(false);
 
     // Reset state when URL changes
     useEffect(() => {
@@ -105,23 +121,120 @@ export const PdfViewer = memo(
       }
     }, [pdfReady, initialScrollPosition]);
 
-    // Measure the actual PDF container width (the card-body element)
-    useEffect(() => {
-      if (!pdfContainerRef.current) return;
-      const ro = new ResizeObserver((entries) => {
-        for (const entry of entries) {
-          const cr = entry.contentRect;
-          // Subtract padding and cap at reasonable limits
-          const width = Math.floor(cr.width - 16);
-          setPdfWidth(Math.max(300, Math.min(800, width)));
+    // Extract word positions from rendered TextLayer spans
+    const extractWordPositionsFromDOM = useCallback((pageNumber: number, pageContainer: HTMLElement) => {
+      // 如果已經處理過這一頁，跳過以避免無限迴圈
+      if (wordPositions.has(pageNumber)) return;
+
+      const textLayer = pageContainer.querySelector('.react-pdf__Page__textContent');
+      if (!textLayer) return;
+
+      const WORD_REGEX = /[A-Za-z]+(?:[''-][A-Za-z]+)*/g;
+      const containerRect = textLayer.getBoundingClientRect();
+      const words: WordPosition[] = [];
+
+      // Get all text spans in the TextLayer
+      const spans = textLayer.querySelectorAll('span');
+      spans.forEach((span) => {
+        const text = span.textContent || '';
+        if (!text.trim()) return;
+
+        const spanRect = span.getBoundingClientRect();
+        const spanStyle = window.getComputedStyle(span);
+        const fontSize = parseFloat(spanStyle.fontSize) || 12;
+
+        // Find English words in this span
+        let match;
+        WORD_REGEX.lastIndex = 0;
+        while ((match = WORD_REGEX.exec(text)) !== null) {
+          // Estimate character width
+          const avgCharWidth = spanRect.width / text.length;
+          const charOffset = match.index;
+
+          words.push({
+            word: match[0],
+            x: spanRect.left - containerRect.left + charOffset * avgCharWidth,
+            y: spanRect.top - containerRect.top,
+            width: match[0].length * avgCharWidth,
+            height: fontSize * 1.2,
+          });
         }
       });
-      ro.observe(pdfContainerRef.current);
-      const rect = pdfContainerRef.current.getBoundingClientRect();
-      const width = Math.floor(rect.width - 16);
-      setPdfWidth(Math.max(300, Math.min(800, width)));
-      return () => ro.disconnect();
-    }, [numPages]); // Re-run when numPages changes (document loaded)
+
+      if (words.length > 0) {
+        console.log(`[PDF Page ${pageNumber}] Extracted ${words.length} word positions from DOM`);
+        setWordPositions((prev) => {
+          const next = new Map(prev);
+          next.set(pageNumber, words);
+          return next;
+        });
+      }
+    }, [wordPositions]);
+
+    // Handle word click from overlay - just show popup, no auto actions
+    const handleWordClick = useCallback(
+      (word: string, rect: DOMRect) => {
+        setActiveWord({
+          word,
+          position: {
+            top: rect.bottom + 8,
+            left: rect.left + rect.width / 2,
+          },
+        });
+        setWordDefinition(null);
+        setIsLoadingDefinition(false);
+      },
+      [],
+    );
+
+    // Handle word lookup from toolbar
+    const handleWordLookup = useCallback(
+      async (word: string) => {
+        if (!onWordLookup) return;
+        setIsLoadingDefinition(true);
+        try {
+          const definition = await onWordLookup(word);
+          setWordDefinition(definition);
+        } catch (error) {
+          console.error("Failed to lookup word:", error);
+          setWordDefinition("查詢失敗");
+        } finally {
+          setIsLoadingDefinition(false);
+        }
+      },
+      [onWordLookup],
+    );
+
+    // Close word toolbar
+    const handleCloseWordToolbar = useCallback(() => {
+      setActiveWord(null);
+      setWordDefinition(null);
+    }, []);
+
+    // Close toolbar when clicking outside
+    useEffect(() => {
+      if (!activeWord) return;
+
+      const handleClickOutside = (e: MouseEvent) => {
+        const target = e.target as HTMLElement;
+        if (!target.closest(".word-toolbar")) {
+          handleCloseWordToolbar();
+        }
+      };
+
+      const handleEscape = (e: KeyboardEvent) => {
+        if (e.key === "Escape") {
+          handleCloseWordToolbar();
+        }
+      };
+
+      document.addEventListener("mousedown", handleClickOutside);
+      document.addEventListener("keydown", handleEscape);
+      return () => {
+        document.removeEventListener("mousedown", handleClickOutside);
+        document.removeEventListener("keydown", handleEscape);
+      };
+    }, [activeWord, handleCloseWordToolbar]);
 
     return (
       <div className="w-full h-full flex flex-col">
@@ -163,8 +276,7 @@ export const PdfViewer = memo(
                     <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 items-start">
                       <div className="xl:col-span-1">
                         <div
-                          ref={pageNumber === 1 ? pdfContainerRef : undefined}
-                          className="relative rounded-lg border border-black/5 dark:border-white/10 bg-base-100 shadow-sm max-w-full overflow-hidden"
+                          className="relative rounded-lg border border-black/5 dark:border-white/10 bg-base-100 shadow-sm overflow-auto"
                         >
                           {/* Speak/Stop page buttons overlay */}
                           <div className="absolute top-3 left-3 z-10 flex gap-1.5">
@@ -244,31 +356,46 @@ export const PdfViewer = memo(
                             </button>
                           </div>
                           <div className="p-2 sm:p-3">
-                            <Page
-                              pageNumber={pageNumber}
-                              width={pdfWidth}
-                              renderTextLayer={true}
-                              renderAnnotationLayer
-                              onGetTextSuccess={({ items }) => {
-                                const pageText = items
-                                  .map((item) => {
-                                    if (!("str" in item)) return "";
-                                    // 使用 hasEOL 判斷是否加換行，否則加空格
-                                    return item.str + (item.hasEOL ? "\n" : " ");
-                                  })
-                                  .join("")
-                                  .trim();
+                            <div className="relative">
+                              <Page
+                                pageNumber={pageNumber}
+                                renderTextLayer={true}
+                                renderAnnotationLayer
+                                onGetTextSuccess={({ items }) => {
+                                  // Extract page text
+                                  const pageText = items
+                                    .map((item) => {
+                                      if (!("str" in item)) return "";
+                                      return item.str + (item.hasEOL ? "\n" : " ");
+                                    })
+                                    .join("")
+                                    .trim();
 
-                                console.log(`[PDF Page ${pageNumber}]`, pageText);
+                                  console.log(`[PDF Page ${pageNumber}]`, pageText);
 
-                                if (onPageTextExtracted) {
-                                  onPageTextExtracted(pageNumber, pageText);
+                                  if (onPageTextExtracted) {
+                                    onPageTextExtracted(pageNumber, pageText);
+                                  }
+                                }}
+                                onRenderTextLayerSuccess={() => {
+                                  // Wait a frame for DOM to be ready, then extract positions
+                                  requestAnimationFrame(() => {
+                                    const pageEl = pageRefs.current[pageNumber - 1];
+                                    if (pageEl) {
+                                      extractWordPositionsFromDOM(pageNumber, pageEl);
+                                    }
+                                  });
+                                }}
+                                loading={
+                                  <div className="skeleton w-full h-150 rounded-lg" />
                                 }
-                              }}
-                              loading={
-                                <div className="skeleton w-full h-150 rounded-lg" />
-                              }
-                            />
+                              />
+                              {/* Word overlay for click detection */}
+                              <WordOverlay
+                                words={wordPositions.get(pageNumber) || []}
+                                onWordClick={handleWordClick}
+                              />
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -291,6 +418,21 @@ export const PdfViewer = memo(
             </div>
           </Document>
         </div>
+
+        {/* Word toolbar portal */}
+        {activeWord &&
+          createPortal(
+            <WordToolbar
+              word={activeWord.word}
+              position={activeWord.position}
+              onSpeak={() => onSpeak(activeWord.word)}
+              onLookup={() => handleWordLookup(activeWord.word)}
+              onClose={handleCloseWordToolbar}
+              definition={wordDefinition}
+              isLoading={isLoadingDefinition}
+            />,
+            document.body,
+          )}
       </div>
     );
   },

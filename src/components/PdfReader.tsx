@@ -140,6 +140,38 @@ function PdfReader() {
     }
   };
 
+  // Word lookup for PdfViewer (single word click)
+  const handleWordLookup = async (word: string): Promise<string | null> => {
+    const trimmedWord = word.trim();
+    if (!trimmedWord) return null;
+
+    try {
+      const response = await lookupOrAddWord(trimmedWord, {
+        sourceContext: trimmedWord,
+        sourcePdfName: selectedFile?.name,
+        sourcePage: undefined,
+      });
+
+      if (response.success && response.existingWord) {
+        const formattedDef = formatDefinitionsForDisplay(response.existingWord);
+
+        // Show toast for vocabulary status
+        if (response.isNew) {
+          setToastMessage({
+            message: `「${trimmedWord}」已加入生詞本！`,
+            type: "success",
+          });
+        }
+
+        return formattedDef || null;
+      }
+      return null;
+    } catch (error) {
+      console.error("Error looking up word:", error);
+      return null;
+    }
+  };
+
   // Combined lookup and add to vocabulary - also shows definition
   const handleLookupWord = async () => {
     const trimmedText = selectedText.trim();
@@ -205,13 +237,6 @@ function PdfReader() {
 
   return (
     <div className="w-full relative">
-      <style>
-        {`
-        .react-pdf__Document{width:100%}
-        .react-pdf__Page{width:100% !important;max-width:100%}
-        .react-pdf__Page canvas,.react-pdf__Page svg{width:100% !important;height:auto !important;max-width:100%;display:block}
-        `}
-      </style>
 
       {/* Upload Area + 課程紀錄按鈕 */}
       <div className="relative">
@@ -306,6 +331,7 @@ function PdfReader() {
                   isSpeaking={isSpeaking}
                   initialScrollPosition={initialScrollPosition}
                   onScrollPositionChange={saveScrollPosition}
+                  onWordLookup={handleWordLookup}
                 />
               </div>
             </div>
