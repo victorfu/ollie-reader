@@ -41,6 +41,7 @@ export const PdfViewer = memo(
     const pageRefs = useRef<(HTMLDivElement | null)[]>([]);
     const [numPages, setNumPages] = useState<number>(0);
     const [pdfReady, setPdfReady] = useState(false);
+    const [pdfPageWidth, setPdfPageWidth] = useState<number>(0);
     const scrollRestoredRef = useRef(false);
     const currentUrlRef = useRef(url);
     const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -55,9 +56,45 @@ export const PdfViewer = memo(
         scrollRestoredRef.current = false;
         setPdfReady(false);
         setNumPages(0);
+        setPdfPageWidth(0);
         setFrontendPages(new Map());
       }
     }, [url]);
+
+    // Keep PDF page width synced with preview column width so large PDFs always fit.
+    useEffect(() => {
+      if (numPages <= 0) return;
+
+      const container = containerRef.current;
+      if (!container) return;
+
+      const measureTarget = container.querySelector<HTMLDivElement>(
+        '[data-pdf-measure="true"]',
+      );
+      if (!measureTarget) return;
+
+      const updateWidth = () => {
+        const nextWidth = Math.floor(measureTarget.clientWidth);
+        if (nextWidth <= 0) return;
+
+        setPdfPageWidth((prevWidth) =>
+          prevWidth === nextWidth ? prevWidth : nextWidth,
+        );
+      };
+
+      updateWidth();
+
+      if (typeof ResizeObserver !== "undefined") {
+        const observer = new ResizeObserver(() => {
+          updateWidth();
+        });
+        observer.observe(measureTarget);
+        return () => observer.disconnect();
+      }
+
+      window.addEventListener("resize", updateWidth);
+      return () => window.removeEventListener("resize", updateWidth);
+    }, [numPages]);
 
     // Helper to get page text based on parsing mode
     const getPageText = useCallback((pageNumber: number): string => {
@@ -124,7 +161,7 @@ export const PdfViewer = memo(
         </div>
         <div
           ref={containerRef}
-          className="w-full flex-1 overflow-y-auto overflow-x-hidden rounded-b-xl p-3"
+          className="w-full flex-1 overflow-y-auto overflow-x-auto rounded-b-xl p-3"
           style={{ minHeight: "800px", height: "800px" }}
         >
           <Document
@@ -154,10 +191,10 @@ export const PdfViewer = memo(
                     data-page-number={pageNumber}
                     className="rounded-lg"
                   >
-                    <div className="grid gap-4 items-start grid-cols-1 xl:grid-cols-2">
+                    <div className="grid gap-4 items-start grid-cols-1 xl:grid-cols-[11fr_9fr]">
                       <div className="xl:col-span-1">
                         <div
-                          className="relative rounded-lg border border-black/5 dark:border-white/10 bg-base-100 shadow-sm overflow-auto"
+                          className="relative rounded-lg border border-black/5 dark:border-white/10 bg-base-100 shadow-sm overflow-hidden"
                         >
                           {/* Speak page button overlay */}
                           <div className="absolute top-3 left-3 z-10">
@@ -207,9 +244,13 @@ export const PdfViewer = memo(
                             onMouseUp={onTextSelection}
                             onTouchEnd={onTextSelection}
                           >
-                            <div className="relative">
+                            <div
+                              className="relative w-full"
+                              data-pdf-measure={pageNumber === 1 ? "true" : undefined}
+                            >
                               <Page
                                 pageNumber={pageNumber}
+                                width={pdfPageWidth || undefined}
                                 renderTextLayer={true}
                                 renderAnnotationLayer
                                 onGetTextSuccess={({ items }) => {
