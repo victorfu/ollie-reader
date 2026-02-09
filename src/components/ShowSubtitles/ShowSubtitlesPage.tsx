@@ -1,7 +1,19 @@
+import { useState, useRef } from "react";
 import { useShowSubtitles } from "../../hooks/useShowSubtitles";
+import { useTextSelection } from "../../hooks/useTextSelection";
+import { useSpeechState } from "../../hooks/useSpeechState";
+import {
+  useVocabulary,
+  formatDefinitionsForDisplay,
+} from "../../hooks/useVocabulary";
+import { useToastQueue } from "../../hooks/useToastQueue";
+import { isAbortError } from "../../utils/errorUtils";
+import { logger } from "../../utils/logger";
 import { SeasonSelector } from "./SeasonSelector";
 import { EpisodeList } from "./EpisodeList";
 import { TranscriptViewer } from "./TranscriptViewer";
+import { SelectionToolbar } from "../PdfReader/SelectionToolbar";
+import { ToastContainer } from "../common/ToastContainer";
 
 export function ShowSubtitlesPage() {
   const {
@@ -16,6 +28,77 @@ export function ShowSubtitlesPage() {
     selectEpisode,
     clearTranscript,
   } = useShowSubtitles();
+
+  // Text selection, translation, toolbar positioning
+  const {
+    selectedText,
+    translatedText,
+    isTranslating,
+    translateError,
+    handleTextSelection,
+    translateText,
+    clearSelection,
+    setTranslatedText,
+    toolbarPosition,
+  } = useTextSelection();
+
+  // TTS
+  const { speak } = useSpeechState();
+
+  // Vocabulary lookup
+  const { lookupOrAddWord } = useVocabulary();
+  const { toasts, addToast, removeToast } = useToastQueue(3);
+  const [isAddingToVocabulary, setIsAddingToVocabulary] = useState(false);
+  const lookupAbortControllerRef = useRef<AbortController | null>(null);
+  const lookupSelectedTextRef = useRef<string>("");
+
+  const speakSelection = () => {
+    if (selectedText) speak(selectedText);
+  };
+
+  const handleLookupWord = async () => {
+    const trimmedText = selectedText.trim();
+    if (!trimmedText) return;
+
+    const word = trimmedText.split(/\s+/)[0];
+
+    lookupAbortControllerRef.current?.abort();
+    const controller = new AbortController();
+    lookupAbortControllerRef.current = controller;
+    lookupSelectedTextRef.current = word;
+
+    setIsAddingToVocabulary(true);
+    try {
+      if (controller.signal.aborted) return;
+
+      const response = await lookupOrAddWord(word, {
+        sourceContext: trimmedText,
+      });
+
+      if (controller.signal.aborted || lookupSelectedTextRef.current !== word) {
+        return;
+      }
+
+      if (response.success && response.existingWord) {
+        const formattedDef = formatDefinitionsForDisplay(response.existingWord);
+        setTranslatedText(formattedDef || "無定義資料");
+
+        if (response.isNew) {
+          addToast(`「${word}」已加入生詞本！`, "success");
+        } else {
+          addToast(`「${word}」已在生詞本中`, "info");
+        }
+      } else {
+        addToast(response.message || "查詢失敗", "error");
+      }
+    } catch (err: unknown) {
+      if (isAbortError(err)) return;
+      logger.error("Error looking up word:", err);
+      addToast("查詢單字時發生錯誤", "error");
+    } finally {
+      setIsAddingToVocabulary(false);
+    }
+  };
 
   return (
     <div className="max-w-4xl mx-auto pb-8">
@@ -59,7 +142,7 @@ export function ShowSubtitlesPage() {
 
       {/* Episode list or Transcript viewer */}
       <div className="card bg-base-100 shadow-xl">
-        <div className="card-body">
+        <div className="card-body" onMouseUp={handleTextSelection}>
           {selectedEpisode ? (
             <>
               <button
@@ -105,6 +188,26 @@ export function ShowSubtitlesPage() {
           )}
         </div>
       </div>
+
+      {/* Selection toolbar for word lookup / translate / speak */}
+      {selectedText && (
+        <SelectionToolbar
+          selectedText={selectedText}
+          translatedText={translatedText}
+          isTranslating={isTranslating}
+          translateError={translateError}
+          onSpeak={speakSelection}
+          onTranslate={translateText}
+          onClear={clearSelection}
+          onClearTranslation={() => setTranslatedText("")}
+          onAddToVocabulary={handleLookupWord}
+          isAddingToVocabulary={isAddingToVocabulary}
+          position={toolbarPosition}
+        />
+      )}
+
+      {/* Toast notifications */}
+      <ToastContainer toasts={toasts} onRemove={removeToast} />
     </div>
   );
 }
