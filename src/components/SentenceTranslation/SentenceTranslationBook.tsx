@@ -60,11 +60,13 @@ export const SentenceTranslationBook = () => {
   }, [loadSentences]);
 
   // Show error as toast
-  useEffect(() => {
+  const [prevError, setPrevError] = useState(error);
+  if (prevError !== error) {
+    setPrevError(error);
     if (error) {
       setToastMessage({ message: error, type: "error" });
     }
-  }, [error]);
+  }
 
   // Filter sentences by search query
   const filteredSentences = debouncedSearchQuery

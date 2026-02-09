@@ -68,14 +68,16 @@ function AppContent() {
   const { user, loading, authError, signOutUser } = useAuth();
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [prevPathname, setPrevPathname] = useState(location.pathname);
 
   // Warm-start backend on each route change
   useWarmServerOnRouteChange();
 
   // Close mobile menu on route change
-  useEffect(() => {
+  if (prevPathname !== location.pathname) {
+    setPrevPathname(location.pathname);
     setIsMobileMenuOpen(false);
-  }, [location.pathname]);
+  }
 
   // Prevent background scroll when mobile menu is open
   useEffect(() => {

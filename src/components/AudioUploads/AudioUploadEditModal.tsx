@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import type {
   AudioUpload,
   AudioUploadUpdateInput,
@@ -21,14 +21,16 @@ export function AudioUploadEditModal({
 }: AudioUploadEditModalProps) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [prevUpload, setPrevUpload] = useState(upload);
 
   // Reset form when upload changes
-  useEffect(() => {
+  if (prevUpload !== upload) {
+    setPrevUpload(upload);
     if (upload) {
       setTitle(upload.title);
       setDescription(upload.description || "");
     }
-  }, [upload]);
+  }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

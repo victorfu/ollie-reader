@@ -43,22 +43,24 @@ export const PdfViewer = memo(
     const [pdfReady, setPdfReady] = useState(false);
     const [pdfPageWidth, setPdfPageWidth] = useState<number>(0);
     const scrollRestoredRef = useRef(false);
-    const currentUrlRef = useRef(url);
+    const [prevUrl, setPrevUrl] = useState(url);
     const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     // Frontend extracted text (when textParsingMode === "frontend")
     const [frontendPages, setFrontendPages] = useState<Map<number, string>>(new Map());
 
     // Reset state when URL changes
+    if (prevUrl !== url) {
+      setPrevUrl(url);
+      setPdfReady(false);
+      setNumPages(0);
+      setPdfPageWidth(0);
+      setFrontendPages(new Map());
+    }
+
+    // Reset scroll tracking when URL changes
     useEffect(() => {
-      if (currentUrlRef.current !== url) {
-        currentUrlRef.current = url;
-        scrollRestoredRef.current = false;
-        setPdfReady(false);
-        setNumPages(0);
-        setPdfPageWidth(0);
-        setFrontendPages(new Map());
-      }
+      scrollRestoredRef.current = false;
     }, [url]);
 
     // Keep PDF page width synced with preview column width so large PDFs always fit.

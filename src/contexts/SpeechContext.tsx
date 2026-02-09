@@ -71,9 +71,7 @@ export const SpeechProvider = ({ children }: SpeechProviderProps) => {
     updateTtsMode,
   } = useSettings();
   const [isSpeaking, setIsSpeaking] = useState(false);
-  const [currentAudio, setCurrentAudio] = useState<HTMLAudioElement | null>(
-    null,
-  );
+  const currentAudioRef = useRef<HTMLAudioElement | null>(null);
   const [isLoadingAudio, setIsLoadingAudio] = useState(false);
   const currentAudioUrl = useRef<string | null>(null);
 
@@ -125,13 +123,13 @@ export const SpeechProvider = ({ children }: SpeechProviderProps) => {
     }
     setIsSpeaking(false);
     setIsLoadingAudio(false);
-    if (currentAudio) {
-      currentAudio.pause();
-      currentAudio.currentTime = 0;
-      setCurrentAudio(null);
+    if (currentAudioRef.current) {
+      currentAudioRef.current.pause();
+      currentAudioRef.current.currentTime = 0;
+      currentAudioRef.current = null;
     }
     cleanupAudioUrl();
-  }, [speechSupported, currentAudio, cleanupAudioUrl]);
+  }, [speechSupported, cleanupAudioUrl]);
 
   /**
    * Play audio blob and return a promise that resolves when playback ends
@@ -150,12 +148,12 @@ export const SpeechProvider = ({ children }: SpeechProviderProps) => {
       setIsLoadingAudio(false);
 
       const audio = new Audio(audioUrl);
-      setCurrentAudio(audio);
+      currentAudioRef.current = audio;
       setIsSpeaking(true);
 
       audio.onended = () => {
         setIsSpeaking(false);
-        setCurrentAudio(null);
+        currentAudioRef.current = null;
         cleanupAudioUrl();
         onEnd?.();
       };
@@ -163,7 +161,7 @@ export const SpeechProvider = ({ children }: SpeechProviderProps) => {
       audio.onerror = () => {
         setIsSpeaking(false);
         setIsLoadingAudio(false);
-        setCurrentAudio(null);
+        currentAudioRef.current = null;
         cleanupAudioUrl();
         const error = new Error("音訊播放失敗");
         if (onError) {

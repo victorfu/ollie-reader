@@ -482,7 +482,6 @@ export const SentencePractice = () => {
               onReorder={handleReorder}
               className="space-y-4"
             >
-              {(sentenceRefs.current.length = sentences.length) && null}
               {sentences.map((sentence, index) => (
                 <ReorderableSentenceCard
                   key={sentence.id}

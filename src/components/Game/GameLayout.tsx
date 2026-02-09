@@ -1,4 +1,4 @@
-import { useMemo, type ReactNode } from "react";
+import type { ReactNode } from "react";
 
 interface GameLayoutProps {
   children: ReactNode;
@@ -6,20 +6,18 @@ interface GameLayoutProps {
 
 const PARTICLE_EMOJIS = ["🌸", "✨", "💫", "🌟", "💖", "🎀", "🦋", "🌷"];
 
+// Pre-compute particle positions at module scope (stable across renders)
+const PARTICLES = PARTICLE_EMOJIS.map((emoji, i) => ({
+  id: i,
+  emoji,
+  top: Math.random() * 100,
+  left: Math.random() * 100,
+  duration: Math.random() * 10 + 10,
+  delay: Math.random() * 5,
+}));
+
 export function GameLayout({ children }: GameLayoutProps) {
-  // Memoize particle positions to prevent recalculation on re-renders
-  const particles = useMemo(
-    () =>
-      PARTICLE_EMOJIS.map((emoji, i) => ({
-        id: i,
-        emoji,
-        top: Math.random() * 100,
-        left: Math.random() * 100,
-        duration: Math.random() * 10 + 10,
-        delay: Math.random() * 5,
-      })),
-    [],
-  );
+  const particles = PARTICLES;
 
   return (
     <div className="h-[calc(100vh-7rem)] sm:h-[calc(100vh-8rem)] w-full bg-gradient-to-b from-pink-100 via-purple-100 to-indigo-100 rounded-2xl shadow-2xl border border-pink-200 p-4 flex flex-col items-center justify-center relative overflow-hidden">
