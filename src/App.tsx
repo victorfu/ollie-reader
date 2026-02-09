@@ -39,6 +39,11 @@ const AudioUploads = lazy(
   () => import("./components/AudioUploads/AudioUploads"),
 );
 const SpiritAdventure = lazy(() => import("./components/Game/SpiritAdventure"));
+const ShowSubtitlesPage = lazy(() =>
+  import("./components/ShowSubtitles/ShowSubtitlesPage").then((module) => ({
+    default: module.ShowSubtitlesPage,
+  })),
+);
 
 // Loading fallback component
 function RouteLoadingFallback() {
@@ -125,6 +130,7 @@ function AppContent() {
   const isTranslationsPage = location.pathname === "/translations";
   const isAudioUploadsPage = location.pathname === "/audio-uploads";
   const isGamePage = location.pathname === "/game";
+  const isShowPage = location.pathname === "/show";
   const accountLabel = user.displayName || user.email || "使用者";
   const accountEmail = user.email;
   const accountInitial = accountLabel.charAt(0).toUpperCase();
@@ -164,6 +170,12 @@ function AppContent() {
       label: "音訊庫",
       icon: "🎵",
       isActive: isAudioUploadsPage,
+    },
+    {
+      to: "/show",
+      label: "影集字幕",
+      icon: "📺",
+      isActive: isShowPage,
     },
     {
       to: "/game",
@@ -439,6 +451,7 @@ function AppContent() {
                     element={<SentenceTranslationBook />}
                   />
                   <Route path="/audio-uploads" element={<AudioUploads />} />
+                  <Route path="/show" element={<ShowSubtitlesPage />} />
                   <Route path="/game" element={<SpiritAdventure />} />
                   <Route path="/settings" element={<Settings />} />
                 </Routes>
