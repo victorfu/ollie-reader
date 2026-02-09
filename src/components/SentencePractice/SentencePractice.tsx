@@ -112,9 +112,6 @@ export const SentencePractice = () => {
   const [currentPlayingIndex, setCurrentPlayingIndex] = useState(-1);
   const playAllRef = useRef<{ cancelled: boolean }>({ cancelled: false });
 
-  // Refs for sentence cards
-  const sentenceRefs = useRef<(HTMLDivElement | null)[]>([]);
-
   // Play all sentences sequentially
   const handlePlayAll = useCallback(async () => {
     if (sentences.length === 0) return;
@@ -485,9 +482,6 @@ export const SentencePractice = () => {
               {sentences.map((sentence, index) => (
                 <ReorderableSentenceCard
                   key={sentence.id}
-                  ref={(el) => {
-                    sentenceRefs.current[index] = el;
-                  }}
                   sentence={sentence}
                   onEdit={handleEdit}
                   onDelete={handleDelete}
