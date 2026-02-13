@@ -226,19 +226,24 @@ export const clearAllSentences = async (userId: string): Promise<void> => {
   }
 };
 
-// Update the order of multiple sentences (batch write)
+// Update the order of multiple sentences (batch write with chunking)
 export const updateSentenceOrders = async (
   updates: { id: string; order: number }[],
 ): Promise<void> => {
   if (updates.length === 0) return;
 
   const now = Timestamp.now();
-  const batch = writeBatch(db);
+  const BATCH_SIZE = 500;
 
-  for (const { id, order } of updates) {
-    const docRef = doc(db, COLLECTION_NAME, id);
-    batch.update(docRef, { order, updatedAt: now });
+  for (let i = 0; i < updates.length; i += BATCH_SIZE) {
+    const batch = writeBatch(db);
+    const chunk = updates.slice(i, i + BATCH_SIZE);
+
+    for (const { id, order } of chunk) {
+      const docRef = doc(db, COLLECTION_NAME, id);
+      batch.update(docRef, { order, updatedAt: now });
+    }
+
+    await batch.commit();
   }
-
-  await batch.commit();
 };

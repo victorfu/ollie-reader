@@ -12,6 +12,7 @@ import {
   orderBy,
   limit,
   startAfter,
+  increment,
   type DocumentData,
   type QueryDocumentSnapshot,
 } from "firebase/firestore";
@@ -95,6 +96,7 @@ export const getUserVocabulary = async (
     const pageSize = filters?.limit || DEFAULT_PAGE_SIZE;
     const sortField = filters?.sortBy || "createdAt";
     const sortDirection = filters?.sortOrder || "desc";
+    const hasClientFilters = !!(filters?.searchQuery || (filters?.tags && filters.tags.length > 0));
 
     // Build base query with server-side ordering
     let q = query(
@@ -107,46 +109,43 @@ export const getUserVocabulary = async (
       q = query(q, where("difficulty", "==", filters.difficulty));
     }
 
-    // Add server-side ordering and pagination
-    q = query(
-      q,
-      orderBy(sortField, sortDirection),
-      limit(pageSize + 1), // Fetch one extra to check if more exist
-    );
+    // When client-side filters are active, fetch all documents to filter correctly.
+    // Pagination only works reliably with server-side filters.
+    if (hasClientFilters) {
+      q = query(q, orderBy(sortField, sortDirection));
+    } else {
+      // Add server-side ordering and pagination
+      q = query(
+        q,
+        orderBy(sortField, sortDirection),
+        limit(pageSize + 1), // Fetch one extra to check if more exist
+      );
 
-    // Apply cursor for pagination
-    if (filters?.cursor) {
-      const cursorDoc = await getDoc(doc(db, COLLECTION_NAME, filters.cursor));
-      if (cursorDoc.exists()) {
-        q = query(
-          collection(db, COLLECTION_NAME),
-          where("userId", "==", userId),
-          ...(filters?.difficulty
-            ? [where("difficulty", "==", filters.difficulty)]
-            : []),
-          orderBy(sortField, sortDirection),
-          startAfter(cursorDoc),
-          limit(pageSize + 1),
-        );
+      // Apply cursor for pagination
+      if (filters?.cursor) {
+        const cursorDoc = await getDoc(doc(db, COLLECTION_NAME, filters.cursor));
+        if (cursorDoc.exists()) {
+          q = query(
+            collection(db, COLLECTION_NAME),
+            where("userId", "==", userId),
+            ...(filters?.difficulty
+              ? [where("difficulty", "==", filters.difficulty)]
+              : []),
+            orderBy(sortField, sortDirection),
+            startAfter(cursorDoc),
+            limit(pageSize + 1),
+          );
+        }
       }
     }
 
     const querySnapshot = await getDocs(q);
 
-    // Check if there are more results
-    const hasMore = querySnapshot.docs.length > pageSize;
-    const docs = hasMore
-      ? querySnapshot.docs.slice(0, pageSize)
-      : querySnapshot.docs;
-
-    let words = docs.map((doc: QueryDocumentSnapshot<DocumentData>) => {
+    let words = querySnapshot.docs.map((doc: QueryDocumentSnapshot<DocumentData>) => {
       return convertToVocabularyWord(doc.id, doc.data());
     });
 
-    // Get last document ID for cursor-based pagination
-    const lastDocId = docs.length > 0 ? docs[docs.length - 1].id : undefined;
-
-    // Apply client-side filters (for search query and tags - these require full-text search which Firestore doesn't natively support)
+    // Apply client-side filters
     if (filters?.searchQuery) {
       const searchLower = filters.searchQuery.toLowerCase();
       words = words.filter((word) =>
@@ -159,6 +158,22 @@ export const getUserVocabulary = async (
         filters.tags!.some((tag) => word.tags.includes(tag)),
       );
     }
+
+    if (hasClientFilters) {
+      // Client-side filtered: no pagination, return all matching results
+      return {
+        words,
+        hasMore: false,
+        lastDocId: undefined,
+      };
+    }
+
+    // Server-side pagination: check if there are more results
+    const hasMore = words.length > pageSize;
+    if (hasMore) {
+      words = words.slice(0, pageSize);
+    }
+    const lastDocId = words.length > 0 ? words[words.length - 1].id : undefined;
 
     return {
       words,
@@ -243,7 +258,7 @@ export const getVocabularyForReview = async (
   }
 };
 
-// Update review statistics for a word
+// Update review statistics for a word (atomic increments)
 export const updateReviewStats = async (
   wordId: string,
   remembered: boolean,
@@ -253,22 +268,11 @@ export const updateReviewStats = async (
   const updates: Record<string, unknown> = {
     lastReviewedAt: Timestamp.now(),
     updatedAt: Timestamp.now(),
+    reviewCount: increment(1),
+    ...(remembered
+      ? { rememberedCount: increment(1) }
+      : { forgotCount: increment(1) }),
   };
-
-  // Get current values to increment
-  const docSnap = await getDoc(docRef);
-  if (docSnap.exists()) {
-    const data = docSnap.data();
-    const currentReviewCount = data.reviewCount || 0;
-
-    updates.reviewCount = currentReviewCount + 1;
-
-    if (remembered) {
-      updates.rememberedCount = (data.rememberedCount || 0) + 1;
-    } else {
-      updates.forgotCount = (data.forgotCount || 0) + 1;
-    }
-  }
 
   await updateDoc(docRef, updates);
 };
@@ -309,15 +313,14 @@ export const deleteVocabularyWord = async (wordId: string): Promise<void> => {
   await deleteDoc(docRef);
 };
 
-// Increment review count
+// Increment review count (atomic)
 export const incrementReviewCount = async (wordId: string): Promise<void> => {
-  const word = await getVocabularyWord(wordId);
-  if (word) {
-    await updateVocabularyWord(wordId, {
-      reviewCount: word.reviewCount + 1,
-      lastReviewedAt: new Date(),
-    });
-  }
+  const docRef = doc(db, COLLECTION_NAME, wordId);
+  await updateDoc(docRef, {
+    reviewCount: increment(1),
+    lastReviewedAt: Timestamp.now(),
+    updatedAt: Timestamp.now(),
+  });
 };
 
 // Check if word already exists for user

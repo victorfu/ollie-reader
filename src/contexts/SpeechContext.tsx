@@ -167,7 +167,7 @@ export const SpeechProvider = ({ children }: SpeechProviderProps) => {
         if (onError) {
           onError(error);
         } else {
-          throw error;
+          console.error(error);
         }
       };
 
@@ -240,6 +240,7 @@ export const SpeechProvider = ({ children }: SpeechProviderProps) => {
         // For API mode, we need to wait for the audio to finish
         return new Promise((resolve, reject) => {
           const timeoutId = setTimeout(() => {
+            stopSpeaking();
             resolve();
           }, TIMEOUT_MS);
 
@@ -275,6 +276,7 @@ export const SpeechProvider = ({ children }: SpeechProviderProps) => {
 
         return new Promise((resolve) => {
           const timeoutId = setTimeout(() => {
+            stopSpeaking();
             resolve();
           }, TIMEOUT_MS);
 
