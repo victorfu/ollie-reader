@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "fetch-transcripts": "node scripts/fetch-transcripts.mjs"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.18",
@@ -34,6 +35,7 @@
     "eslint-plugin-react-hooks": "7.0.0",
     "eslint-plugin-react-refresh": "^0.5.0",
     "globals": "^17.3.0",
+    "node-html-parser": "^7.0.2",
     "postcss": "^8.5.6",
     "tailwindcss": "^4.1.18",
     "typescript": "~5.9.3",

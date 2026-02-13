@@ -48,6 +48,20 @@ export default defineConfig({
               },
             },
           },
+          {
+            urlPattern: /\/transcripts\/.*\.json$/,
+            handler: "CacheFirst",
+            options: {
+              cacheName: "transcript-cache",
+              expiration: {
+                maxEntries: 70,
+                maxAgeSeconds: 60 * 60 * 24 * 365, // 1 year
+              },
+              cacheableResponse: {
+                statuses: [0, 200],
+              },
+            },
+          },
         ],
       },
     }),

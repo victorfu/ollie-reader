@@ -1,7 +1,25 @@
-import { logger } from "../utils/logger";
-import type { Season, Transcript, SubtitleLine } from "../types/showSubtitles";
+#!/usr/bin/env node
 
-export const SEASONS: Season[] = [
+/**
+ * Fetch all Gabby's Dollhouse transcripts from subslikescript.com
+ * and save them as static JSON files in public/transcripts/
+ *
+ * Usage: node scripts/fetch-transcripts.mjs
+ */
+
+import { mkdirSync, writeFileSync } from "node:fs";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+import { parse as parseHTML } from "node-html-parser";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const PROJECT_ROOT = join(__dirname, "..");
+const OUTPUT_DIR = join(PROJECT_ROOT, "public", "transcripts");
+
+const BASE_URL = "https://subslikescript.com";
+const SERIES_PATH = "/series/Gabbys_Dollhouse-9165438";
+
+const SEASONS = [
   {
     number: 1,
     episodes: [
@@ -112,54 +130,71 @@ export const SEASONS: Season[] = [
   },
 ];
 
-/**
- * Get all seasons with their episodes
- */
-export const getSeasons = (): Season[] => {
-  return SEASONS;
-};
-
-/**
- * Get episodes for a specific season
- */
-export const getEpisodesBySeason = (seasonNumber: number): Season | undefined => {
-  return SEASONS.find((s) => s.number === seasonNumber);
-};
-
-/**
- * Fetch the transcript for a specific episode from static JSON files.
- */
-export const fetchEpisodeTranscript = async (
-  seasonNumber: number,
-  episodeSlug: string,
-  signal?: AbortSignal,
-): Promise<Transcript> => {
-  const episode = SEASONS
-    .find((s) => s.number === seasonNumber)
-    ?.episodes.find((e) => e.slug === episodeSlug);
-
-  if (!episode) {
-    throw new Error(`Episode not found: season ${seasonNumber}, ${episodeSlug}`);
+function parseTranscriptHtml(html) {
+  const root = parseHTML(html);
+  const scriptDiv = root.querySelector(".full-script");
+  if (!scriptDiv) {
+    console.warn("  Could not find .full-script element");
+    return [];
   }
 
-  const url = `/transcripts/season-${seasonNumber}/${episodeSlug}.json`;
+  // Replace <br> with newlines in the raw HTML, then extract text
+  const rawHtml = scriptDiv.innerHTML;
+  const withNewlines = rawHtml.replace(/<br\s*\/?>/gi, "\n");
+  const textOnly = parseHTML(withNewlines).textContent || "";
 
-  logger.debug("Loading transcript:", url);
+  const lines = textOnly
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
 
-  const response = await fetch(url, { signal });
+  return lines.map((text, index) => ({ index, text }));
+}
 
+async function fetchTranscript(seasonNumber, slug) {
+  const url = `${BASE_URL}${SERIES_PATH}/season-${seasonNumber}/${slug}`;
+  const response = await fetch(url);
   if (!response.ok) {
-    throw new Error(`Failed to load transcript: ${response.status} ${response.statusText}`);
+    throw new Error(`HTTP ${response.status} for ${url}`);
+  }
+  return parseTranscriptHtml(await response.text());
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function main() {
+  let success = 0;
+  let failed = 0;
+  const totalEpisodes = SEASONS.reduce((sum, s) => sum + s.episodes.length, 0);
+
+  console.log(`Fetching ${totalEpisodes} episodes across ${SEASONS.length} seasons...\n`);
+
+  for (const season of SEASONS) {
+    const seasonDir = join(OUTPUT_DIR, `season-${season.number}`);
+    mkdirSync(seasonDir, { recursive: true });
+
+    for (const episode of season.episodes) {
+      const outPath = join(seasonDir, `${episode.slug}.json`);
+      try {
+        process.stdout.write(`S${season.number}E${episode.number} ${episode.title}... `);
+        const lines = await fetchTranscript(season.number, episode.slug);
+        writeFileSync(outPath, JSON.stringify(lines, null, 2));
+        console.log(`${lines.length} lines`);
+        success++;
+      } catch (err) {
+        console.log(`FAILED: ${err.message}`);
+        failed++;
+      }
+      await sleep(800);
+    }
   }
 
-  const lines: SubtitleLine[] = await response.json();
+  console.log(`\nDone. ${success} succeeded, ${failed} failed out of ${totalEpisodes}.`);
+  if (failed > 0) {
+    process.exit(1);
+  }
+}
 
-  logger.debug(`Loaded ${lines.length} transcript lines for S${seasonNumber}E${episode.number}`);
-
-  return {
-    seasonNumber,
-    episodeNumber: episode.number,
-    title: episode.title,
-    lines,
-  };
-};
+main();
