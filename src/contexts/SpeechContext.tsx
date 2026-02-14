@@ -12,6 +12,7 @@ import { TTS_API_URL } from "../constants/api";
 import { useSettings } from "../hooks/useSettings";
 import { ttsCache } from "../services/ttsCache";
 import { apiFetch } from "../utils/apiUtil";
+import { isAbortError } from "../utils/errorUtils";
 
 interface SpeechProviderProps {
   children: ReactNode;
@@ -20,7 +21,7 @@ interface SpeechProviderProps {
 /**
  * Fetch TTS audio blob from API or cache
  */
-async function fetchTTSBlob(text: string, speechRate: number): Promise<Blob> {
+async function fetchTTSBlob(text: string, speechRate: number, signal?: AbortSignal): Promise<Blob> {
   const cacheKey = ttsCache.getCacheKey(text, speechRate);
 
   // Check for pending request
@@ -41,6 +42,7 @@ async function fetchTTSBlob(text: string, speechRate: number): Promise<Blob> {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       includeAuthToken: true,
+      signal,
       body: JSON.stringify({
         text,
         language_code: "en-US",
@@ -74,6 +76,7 @@ export const SpeechProvider = ({ children }: SpeechProviderProps) => {
   const currentAudioRef = useRef<HTMLAudioElement | null>(null);
   const [isLoadingAudio, setIsLoadingAudio] = useState(false);
   const currentAudioUrl = useRef<string | null>(null);
+  const ttsAbortRef = useRef<AbortController | null>(null);
 
   // Update settings when ttsMode changes
   const handleSetTtsMode = useCallback(
@@ -118,6 +121,8 @@ export const SpeechProvider = ({ children }: SpeechProviderProps) => {
   }, []);
 
   const stopSpeaking = useCallback(() => {
+    ttsAbortRef.current?.abort();
+    ttsAbortRef.current = null;
     if (speechSupported) {
       window.speechSynthesis.cancel();
     }
@@ -178,13 +183,17 @@ export const SpeechProvider = ({ children }: SpeechProviderProps) => {
 
   const speakWithAPI = useCallback(
     async (text: string) => {
+      const controller = new AbortController();
+      ttsAbortRef.current = controller;
+
       try {
         setIsLoadingAudio(true);
         setIsSpeaking(false);
 
-        const blob = await fetchTTSBlob(text, speechRate);
+        const blob = await fetchTTSBlob(text, speechRate, controller.signal);
         await playAudioBlob(blob);
       } catch (err: unknown) {
+        if (isAbortError(err)) return;
         setIsSpeaking(false);
         setIsLoadingAudio(false);
         const message = err instanceof Error ? err.message : "TTS API 呼叫失敗";
@@ -244,12 +253,15 @@ export const SpeechProvider = ({ children }: SpeechProviderProps) => {
             resolve();
           }, TIMEOUT_MS);
 
+          const controller = new AbortController();
+          ttsAbortRef.current = controller;
+
           (async () => {
             try {
               setIsLoadingAudio(true);
               setIsSpeaking(false);
 
-              const blob = await fetchTTSBlob(text, speechRate);
+              const blob = await fetchTTSBlob(text, speechRate, controller.signal);
 
               await playAudioBlob(
                 blob,
@@ -264,6 +276,10 @@ export const SpeechProvider = ({ children }: SpeechProviderProps) => {
               );
             } catch (err) {
               clearTimeout(timeoutId);
+              if (isAbortError(err)) {
+                resolve();
+                return;
+              }
               setIsSpeaking(false);
               setIsLoadingAudio(false);
               reject(err);

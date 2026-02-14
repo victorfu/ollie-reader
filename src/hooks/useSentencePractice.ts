@@ -22,6 +22,7 @@ export const useSentencePractice = () => {
   const { user } = useAuth();
   const [sentences, setSentences] = useState<PracticeSentence[]>([]);
   const [loading, setLoading] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
@@ -29,25 +30,34 @@ export const useSentencePractice = () => {
 
   // Cache for word definitions to avoid repeated API calls
   const wordDefinitionCache = useRef<Map<string, string>>(new Map());
+  const loadRequestIdRef = useRef(0);
 
   // Load sentences from Firestore
   const loadSentences = useCallback(
     async (filters?: SentencePracticeFilters) => {
       if (!user) return;
 
+      const requestId = ++loadRequestIdRef.current;
+
       setLoading(true);
       setError(null);
 
       try {
         const result = await getUserSentences(user.uid, filters);
+
+        if (requestId !== loadRequestIdRef.current) return;
+
         setSentences(result.sentences);
         setHasMore(result.hasMore);
         setLastDocId(result.lastDocId);
       } catch (err) {
+        if (requestId !== loadRequestIdRef.current) return;
         console.error("Failed to load sentences:", err);
         setError("載入句子失敗");
       } finally {
-        setLoading(false);
+        if (requestId === loadRequestIdRef.current) {
+          setLoading(false);
+        }
       }
     },
     [user],
@@ -55,9 +65,9 @@ export const useSentencePractice = () => {
 
   // Load more sentences (pagination)
   const loadMore = useCallback(async () => {
-    if (!user || !hasMore || !lastDocId || loading) return;
+    if (!user || !hasMore || !lastDocId || isLoadingMore) return;
 
-    setLoading(true);
+    setIsLoadingMore(true);
 
     try {
       const result = await getUserSentences(user.uid, { cursor: lastDocId });
@@ -68,9 +78,9 @@ export const useSentencePractice = () => {
       console.error("Failed to load more sentences:", err);
       setError("載入更多句子失敗");
     } finally {
-      setLoading(false);
+      setIsLoadingMore(false);
     }
-  }, [user, hasMore, lastDocId, loading]);
+  }, [user, hasMore, lastDocId, isLoadingMore]);
 
   // Parse and translate text using AI service
   const parseAndTranslate = useCallback(
@@ -321,6 +331,7 @@ export const useSentencePractice = () => {
     sentences,
     setSentences,
     loading,
+    isLoadingMore,
     isProcessing,
     error,
     hasMore,

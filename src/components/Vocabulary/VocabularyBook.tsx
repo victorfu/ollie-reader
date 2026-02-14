@@ -41,6 +41,7 @@ export const VocabularyBook = () => {
   const {
     words,
     loading,
+    isLoadingMore,
     isAdding,
     hasMore,
     loadVocabulary,
@@ -77,7 +78,7 @@ export const VocabularyBook = () => {
   const [isSearching, setIsSearching] = useState(false);
   const [manualWord, setManualWord] = useState("");
   const [isAddingManualWord, setIsAddingManualWord] = useState(false);
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
+
   const [toastMessage, setToastMessage] = useState<{
     message: string;
     type: "success" | "error" | "info";
@@ -211,12 +212,7 @@ export const VocabularyBook = () => {
 
   const handleLoadMore = useCallback(async () => {
     if (isLoadingMore || !hasMore) return;
-    setIsLoadingMore(true);
-    try {
-      await loadMore();
-    } finally {
-      setIsLoadingMore(false);
-    }
+    await loadMore();
   }, [isLoadingMore, hasMore, loadMore]);
 
   // Infinite scroll using IntersectionObserver (more efficient than scroll events)

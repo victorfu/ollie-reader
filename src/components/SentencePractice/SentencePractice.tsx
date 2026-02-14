@@ -81,6 +81,7 @@ export const SentencePractice = () => {
     sentences,
     setSentences,
     loading,
+    isLoadingMore,
     isProcessing,
     hasMore,
     loadMore,
@@ -505,10 +506,10 @@ export const SentencePractice = () => {
                 <button
                   type="button"
                   onClick={loadMore}
-                  disabled={loading}
+                  disabled={isLoadingMore}
                   className="btn btn-outline btn-primary"
                 >
-                  {loading ? (
+                  {isLoadingMore ? (
                     <>
                       <span className="loading loading-spinner loading-sm"></span>
                       載入中...

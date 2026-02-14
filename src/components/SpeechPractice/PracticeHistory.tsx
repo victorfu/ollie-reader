@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import type { PracticeRecord } from "../../types/speechPractice";
 import { SPEECH_TOPICS } from "../../types/speechPractice";
 import { getAudioSignedUrl } from "../../services/audioStorageService";
@@ -19,6 +19,8 @@ export function PracticeHistory({
   const [audioUrls, setAudioUrls] = useState<Map<string, string>>(new Map());
   const [audioLoading, setAudioLoading] = useState<Set<string>>(new Set());
   const [audioErrors, setAudioErrors] = useState<Set<string>>(new Set());
+  // Track fetched IDs to avoid re-triggering the effect via audioUrls dependency
+  const fetchedIdsRef = useRef<Set<string>>(new Set());
 
   // Fetch signed URL for a record's audio
   const fetchAudioUrl = useCallback(async (recordId: string, path: string) => {
@@ -49,11 +51,12 @@ export function PracticeHistory({
   // Fetch signed URLs for all records with audio on mount/records change
   useEffect(() => {
     records.forEach((record) => {
-      if (record.id && record.recordingUrl && !audioUrls.has(record.id)) {
+      if (record.id && record.recordingUrl && !fetchedIdsRef.current.has(record.id)) {
+        fetchedIdsRef.current.add(record.id);
         void fetchAudioUrl(record.id, record.recordingUrl);
       }
     });
-  }, [records, audioUrls, fetchAudioUrl]);
+  }, [records, fetchAudioUrl]);
 
   const formatTime = (seconds: number): string => {
     const mins = Math.floor(seconds / 60);
@@ -196,6 +199,7 @@ export function PracticeHistory({
                         preload="metadata"
                         onError={() => {
                           // Re-fetch signed URL if playback fails (URL may have expired)
+                          fetchedIdsRef.current.delete(record.id!);
                           setAudioUrls((prev) => {
                             const next = new Map(prev);
                             next.delete(record.id!);

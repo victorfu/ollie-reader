@@ -27,6 +27,7 @@ export function useAudioRecorder(): UseAudioRecorderResult {
   const audioChunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<number | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const audioUrlRef = useRef<string | null>(null);
 
   const isSupported =
     typeof navigator !== "undefined" &&
@@ -62,6 +63,7 @@ export function useAudioRecorder(): UseAudioRecorderResult {
       if (audioUrl) {
         URL.revokeObjectURL(audioUrl);
         setAudioUrl(null);
+        audioUrlRef.current = null;
       }
 
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -84,6 +86,7 @@ export function useAudioRecorder(): UseAudioRecorderResult {
         const url = URL.createObjectURL(blob);
         setAudioBlob(blob);
         setAudioUrl(url);
+        audioUrlRef.current = url;
 
         // Stop all tracks
         if (streamRef.current) {
@@ -144,28 +147,28 @@ export function useAudioRecorder(): UseAudioRecorderResult {
     }
 
     setAudioUrl(null);
+    audioUrlRef.current = null;
     setAudioBlob(null);
     setRecordingTime(0);
     setError(null);
     audioChunksRef.current = [];
   }, [isRecording, audioUrl, stopRecording]);
 
-  // Cleanup on unmount
+  // Cleanup on unmount only — read current values from refs
   useEffect(() => {
-    // Capture refs for cleanup
-    const currentStream = streamRef.current;
-    const currentAudioUrl = audioUrl;
-
     return () => {
-      stopTimer();
-      if (currentStream) {
-        currentStream.getTracks().forEach((track) => track.stop());
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
       }
-      if (currentAudioUrl) {
-        URL.revokeObjectURL(currentAudioUrl);
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop());
+      }
+      if (audioUrlRef.current) {
+        URL.revokeObjectURL(audioUrlRef.current);
       }
     };
-  }, [stopTimer, audioUrl]);
+  }, []);
 
   return {
     isRecording,
