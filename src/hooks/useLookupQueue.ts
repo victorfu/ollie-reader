@@ -102,7 +102,7 @@ export const useLookupQueue = (
         timestamp: Date.now(),
       };
 
-      setLookups((prev) => [...prev, item]);
+      setLookups((prev) => [item, ...prev]);
 
       // Create abort controller for this lookup
       const controller = new AbortController();

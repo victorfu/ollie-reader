@@ -306,6 +306,7 @@ function PdfReader() {
         onDismiss={dismissLookup}
         onDismissAll={dismissAll}
         onSpeak={speak}
+        hasStopButton={isSpeaking || isLoadingAudio}
       />
 
       {/* Floating Stop Button */}
