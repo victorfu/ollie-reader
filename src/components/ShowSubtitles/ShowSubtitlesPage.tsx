@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useRef } from "react";
 import { useShowSubtitles } from "../../hooks/useShowSubtitles";
 import { useTextSelection } from "../../hooks/useTextSelection";
 import { useSpeechState } from "../../hooks/useSpeechState";
@@ -48,7 +48,6 @@ export function ShowSubtitlesPage() {
   // Vocabulary lookup
   const { lookupOrAddWord } = useVocabulary();
   const { toasts, addToast, removeToast } = useToastQueue(3);
-  const [isAddingToVocabulary, setIsAddingToVocabulary] = useState(false);
   const lookupAbortControllerRef = useRef<AbortController | null>(null);
   const lookupSelectedTextRef = useRef<string>("");
 
@@ -67,7 +66,6 @@ export function ShowSubtitlesPage() {
     lookupAbortControllerRef.current = controller;
     lookupSelectedTextRef.current = word;
 
-    setIsAddingToVocabulary(true);
     try {
       if (controller.signal.aborted) return;
 
@@ -96,7 +94,7 @@ export function ShowSubtitlesPage() {
       logger.error("Error looking up word:", err);
       addToast("查詢單字時發生錯誤", "error");
     } finally {
-      setIsAddingToVocabulary(false);
+      // cleanup handled by abort controller
     }
   };
 
@@ -201,7 +199,6 @@ export function ShowSubtitlesPage() {
           onClear={clearSelection}
           onClearTranslation={() => setTranslatedText("")}
           onAddToVocabulary={handleLookupWord}
-          isAddingToVocabulary={isAddingToVocabulary}
           position={toolbarPosition}
         />
       )}

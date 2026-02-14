@@ -1,5 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { isAbortError } from "../utils/errorUtils";
+import { useMemo, useRef, useState } from "react";
 import { logger } from "../utils/logger";
 import { usePdfState } from "../hooks/usePdfState";
 import { useSpeechState } from "../hooks/useSpeechState";
@@ -7,12 +6,14 @@ import { useSettings } from "../hooks/useSettings";
 import { useTextSelection } from "../hooks/useTextSelection";
 import { usePdfWorker } from "../hooks/usePdfWorker";
 import { useVocabulary, formatDefinitionsForDisplay } from "../hooks/useVocabulary";
+import { useLookupQueue } from "../hooks/useLookupQueue";
 import { UploadArea } from "./PdfReader/UploadArea";
 import { PdfControlBar } from "./PdfReader/PdfControlBar";
 import { PdfViewer } from "./PdfReader/PdfViewer";
 import { PageTextArea } from "./PdfReader/PageTextArea";
 import { SelectionToolbar } from "./PdfReader/SelectionToolbar";
 import { FloatingStopButton } from "./PdfReader/FloatingStopButton";
+import { LookupPanel } from "./PdfReader/LookupPanel";
 import { ToastContainer } from "./common/ToastContainer";
 import { useToastQueue } from "../hooks/useToastQueue";
 import { BookingRecordsDrawer } from "./PdfReader/BookingRecordsDrawer";
@@ -77,15 +78,6 @@ function PdfReader() {
 
   // Refs for race condition handling
   const loadingCourseIdRef = useRef<string | null>(null);
-  const lookupAbortControllerRef = useRef<AbortController | null>(null);
-  const lookupSelectedTextRef = useRef<string>("");
-
-  // Cleanup abort controller on unmount
-  useEffect(() => {
-    return () => {
-      lookupAbortControllerRef.current?.abort();
-    };
-  }, []);
 
   const handleLoadBookingPdf = async (record: { id: string }) => {
     if (!bookingToken || !record.id) return;
@@ -117,7 +109,6 @@ function PdfReader() {
   };
 
   const [urlInput, setUrlInput] = useState<string>("");
-  const [isAddingToVocabulary, setIsAddingToVocabulary] = useState(false);
   const [isClearingCache, setIsClearingCache] = useState(false);
 
   // Toast queue for multiple notifications
@@ -125,6 +116,10 @@ function PdfReader() {
 
   // Vocabulary hook
   const { lookupOrAddWord } = useVocabulary();
+  const { lookups, startLookup, dismissLookup, dismissAll } = useLookupQueue(
+    lookupOrAddWord,
+    formatDefinitionsForDisplay,
+  );
 
   const pagesByNumber = useMemo(() => {
     const map = new Map();
@@ -156,61 +151,24 @@ function PdfReader() {
     }
   };
 
-  // Combined lookup and add to vocabulary - also shows definition
-  const handleLookupWord = async () => {
+  // Queue-based lookup and add to vocabulary
+  const handleLookupWord = () => {
     const trimmedText = selectedText.trim();
     if (!trimmedText) return;
 
-    // Extract the first word if multiple words are selected
     const word = trimmedText.split(/\s+/)[0];
+    const result = startLookup(word, {
+      sourceContext: trimmedText,
+      sourcePdfName: selectedFile?.name,
+    });
 
-    // Abort any previous request
-    lookupAbortControllerRef.current?.abort();
-    const controller = new AbortController();
-    lookupAbortControllerRef.current = controller;
-
-    // Track the text we're looking up
-    lookupSelectedTextRef.current = word;
-
-    setIsAddingToVocabulary(true);
-    try {
-      // Check if aborted before API call
-      if (controller.signal.aborted) return;
-
-      const response = await lookupOrAddWord(word, {
-        sourceContext: trimmedText,
-        sourcePdfName: selectedFile?.name,
-        sourcePage: undefined,
-      });
-
-      // Check if aborted or text changed after API call
-      if (controller.signal.aborted || lookupSelectedTextRef.current !== word) {
-        return;
-      }
-
-      if (response.success && response.existingWord) {
-        // Format and display the definition
-        const formattedDef = formatDefinitionsForDisplay(response.existingWord);
-        setTranslatedText(formattedDef || "無定義資料");
-
-        // Show toast message
-        if (response.isNew) {
-          addToast(`「${word}」已加入生詞本！`, "success");
-        } else {
-          addToast(`「${word}」已在生詞本中`, "info");
-        }
-      } else {
-        addToast(response.message || "查詢失敗", "error");
-      }
-    } catch (error: unknown) {
-      // Ignore abort errors
-      if (isAbortError(error)) return;
-
-      logger.error("Error looking up word:", error);
-      addToast("查詢單字時發生錯誤", "error");
-    } finally {
-      setIsAddingToVocabulary(false);
+    if (result === "duplicate") {
+      addToast(`「${word}」正在查詢中`, "info");
+    } else if (result === "max_reached") {
+      addToast("同時查詢數量已達上限", "error");
     }
+
+    clearSelection();
   };
 
   const handleClearCache = async () => {
@@ -295,7 +253,6 @@ function PdfReader() {
           onClear={clearSelection}
           onClearTranslation={() => setTranslatedText("")}
           onAddToVocabulary={handleLookupWord}
-          isAddingToVocabulary={isAddingToVocabulary}
           position={toolbarPosition}
         />
       )}
@@ -342,6 +299,13 @@ function PdfReader() {
           )}
         </div>
       )}
+
+      {/* Lookup Queue Panel */}
+      <LookupPanel
+        lookups={lookups}
+        onDismiss={dismissLookup}
+        onDismissAll={dismissAll}
+      />
 
       {/* Floating Stop Button */}
       <FloatingStopButton

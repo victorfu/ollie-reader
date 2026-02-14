@@ -173,6 +173,7 @@ export const useVocabulary = () => {
         sourcePdfName?: string;
         sourcePage?: number;
       },
+      signal?: AbortSignal,
     ): Promise<{
       success: boolean;
       existingWord?: VocabularyWord;
@@ -188,12 +189,21 @@ export const useVocabulary = () => {
         return { success: false, isNew: false, message: "Word cannot be empty" };
       }
 
-      // Abort any previous request
-      abortControllerRef.current?.abort();
-      const controller = new AbortController();
-      abortControllerRef.current = controller;
+      // When an external signal is provided, the caller manages abort and state.
+      // Otherwise, use the internal abort controller.
+      let effectiveSignal: AbortSignal;
+      if (signal) {
+        effectiveSignal = signal;
+      } else {
+        abortControllerRef.current?.abort();
+        const controller = new AbortController();
+        abortControllerRef.current = controller;
+        effectiveSignal = controller.signal;
+      }
 
-      setIsAdding(true);
+      if (!signal) {
+        setIsAdding(true);
+      }
       setError(null);
 
       try {
@@ -213,15 +223,15 @@ export const useVocabulary = () => {
         }
 
         // Check if aborted
-        if (controller.signal.aborted) {
+        if (effectiveSignal.aborted) {
           return { success: false, isNew: false, message: "Request cancelled" };
         }
 
         // Word doesn't exist, fetch details and add it
-        const details = await generateWordDetails(trimmedWord, controller.signal);
+        const details = await generateWordDetails(trimmedWord, effectiveSignal);
 
         // Check if aborted
-        if (controller.signal.aborted) {
+        if (effectiveSignal.aborted) {
           return { success: false, isNew: false, message: "Request cancelled" };
         }
 
@@ -275,8 +285,9 @@ export const useVocabulary = () => {
         setError(message);
         return { success: false, isNew: false, message };
       } finally {
-        // 無條件重置 loading 狀態，避免 abort 時卡住
-        setIsAdding(false);
+        if (!signal) {
+          setIsAdding(false);
+        }
       }
     },
     [user],
