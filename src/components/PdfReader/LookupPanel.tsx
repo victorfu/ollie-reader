@@ -1,6 +1,7 @@
 import { memo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import type { LookupItem } from "../../hooks/useLookupQueue";
+import { useFloatingPanel } from "../../hooks/useFloatingPanel";
 
 const BookOpenIcon = ({ className = "w-4 h-4" }: { className?: string }) => (
   <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -14,6 +15,12 @@ const MinusIcon = () => (
   </svg>
 );
 
+const SpeakerIcon = ({ className = "w-3.5 h-3.5" }: { className?: string }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+  </svg>
+);
+
 const XIcon = ({ className = "w-3.5 h-3.5" }: { className?: string }) => (
   <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" />
@@ -24,15 +31,18 @@ interface LookupPanelProps {
   lookups: LookupItem[];
   onDismiss: (id: string) => void;
   onDismissAll: () => void;
+  onSpeak?: (word: string) => void;
 }
 
 const LookupItemCard = memo(
   ({
     item,
     onDismiss,
+    onSpeak,
   }: {
     item: LookupItem;
     onDismiss: (id: string) => void;
+    onSpeak?: (word: string) => void;
   }) => {
     const borderColor =
       item.status === "loading"
@@ -56,6 +66,16 @@ const LookupItemCard = memo(
             <span className="font-semibold text-sm truncate">{item.word}</span>
             {item.isNew && (
               <span className="badge badge-xs badge-accent">new</span>
+            )}
+            {onSpeak && (
+              <button
+                type="button"
+                onClick={() => onSpeak(item.word)}
+                className="btn btn-ghost btn-xs btn-circle hover:bg-black/5 dark:hover:bg-white/10 shrink-0"
+                aria-label="朗讀"
+              >
+                <SpeakerIcon />
+              </button>
             )}
           </div>
           {item.status !== "loading" && (
@@ -94,8 +114,13 @@ const LookupItemCard = memo(
 LookupItemCard.displayName = "LookupItemCard";
 
 export const LookupPanel = memo(
-  ({ lookups, onDismiss, onDismissAll }: LookupPanelProps) => {
+  ({ lookups, onDismiss, onDismissAll, onSpeak }: LookupPanelProps) => {
     const [collapsed, setCollapsed] = useState(false);
+    const { panelStyle, dragHandleProps, resizeHandleProps, isDragging } = useFloatingPanel({
+      defaultSize: { width: 320, height: 384 },
+      minSize: { width: 240, height: 200 },
+      maxSize: { width: 600, height: 600 },
+    });
 
     if (lookups.length === 0) return null;
 
@@ -130,14 +155,19 @@ export const LookupPanel = memo(
     return (
       <AnimatePresence mode="wait">
         <motion.div
-          initial={{ opacity: 0, scale: 0.95, y: 20 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.95, y: 20 }}
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.95 }}
           transition={{ duration: 0.2 }}
-          className="fixed bottom-6 right-20 z-40 w-[calc(100vw-3rem)] sm:w-80 bg-base-100/90 backdrop-blur-xl rounded-2xl border border-black/5 dark:border-white/10 shadow-xl flex flex-col max-h-96"
+          style={{ ...panelStyle, overflow: "hidden" }}
+          className="bg-base-100/90 backdrop-blur-xl rounded-2xl border border-black/5 dark:border-white/10 shadow-xl flex flex-col"
         >
-          {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-black/5 dark:border-white/10 shrink-0">
+          {/* Header — draggable */}
+          <div
+            {...dragHandleProps}
+            style={{ ...dragHandleProps.style, cursor: isDragging ? "grabbing" : "grab" }}
+            className="flex items-center justify-between px-4 py-3 border-b border-black/5 dark:border-white/10 shrink-0"
+          >
             <div className="flex items-center gap-2">
               <BookOpenIcon className="w-4 h-4 text-accent" />
               <span className="font-semibold text-sm">查詢結果</span>
@@ -169,16 +199,29 @@ export const LookupPanel = memo(
           </div>
 
           {/* Items */}
-          <div className="overflow-y-auto p-3 space-y-2">
+          <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-2">
             <AnimatePresence initial={false}>
               {lookups.map((item) => (
                 <LookupItemCard
                   key={item.id}
                   item={item}
                   onDismiss={onDismiss}
+                  onSpeak={onSpeak}
                 />
               ))}
             </AnimatePresence>
+          </div>
+
+          {/* Resize handle */}
+          <div
+            {...resizeHandleProps}
+            className="absolute bottom-0 right-0 w-4 h-4 cursor-nwse-resize"
+          >
+            <svg className="w-3 h-3 text-base-content/20 absolute bottom-0.5 right-0.5" viewBox="0 0 6 6">
+              <circle cx="4.5" cy="1.5" r="0.75" fill="currentColor" />
+              <circle cx="1.5" cy="4.5" r="0.75" fill="currentColor" />
+              <circle cx="4.5" cy="4.5" r="0.75" fill="currentColor" />
+            </svg>
           </div>
         </motion.div>
       </AnimatePresence>

@@ -305,6 +305,7 @@ function PdfReader() {
         lookups={lookups}
         onDismiss={dismissLookup}
         onDismissAll={dismissAll}
+        onSpeak={speak}
       />
 
       {/* Floating Stop Button */}
