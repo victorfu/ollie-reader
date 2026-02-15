@@ -18,9 +18,7 @@ export const SimpleTTSControls = ({
   onStop,
 }: SimpleTTSControlsProps) => {
   return (
-    <div className="card bg-base-100 shadow-md">
-      <div className="card-body p-4">
-        <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+        <div className="flex flex-wrap gap-2 items-center">
           {/* TTS Mode Selection */}
           <div className="flex gap-2">
             <button
@@ -122,7 +120,5 @@ export const SimpleTTSControls = ({
             </button>
           )}
         </div>
-      </div>
-    </div>
   );
 };

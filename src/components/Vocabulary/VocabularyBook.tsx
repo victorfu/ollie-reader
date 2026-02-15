@@ -416,9 +416,9 @@ export const VocabularyBook = () => {
         isLoading={isLoadingReview}
       />
 
-      {/* TTS Controls */}
-      {speechSupported && (
-        <div className="mb-4 flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+      {/* Toolbar: TTS + Manual Add + Start Review */}
+      <div className="bg-base-100 rounded-lg shadow p-3 mb-4 flex flex-wrap gap-3 items-center">
+        {speechSupported && (
           <SimpleTTSControls
             ttsMode={ttsMode}
             speechRate={speechRate}
@@ -427,78 +427,63 @@ export const VocabularyBook = () => {
             onTtsModeChange={setTtsMode}
             onStop={stopSpeaking}
           />
-
-          {words.length > 0 && !loading && (
-            <button
-              className="btn btn-primary gap-2 w-full sm:w-auto shadow-md min-h-11"
-              onClick={handleOpenReviewSettings}
-              disabled={isLoadingReview}
-            >
-              {isLoadingReview ? (
-                <span className="loading loading-spinner loading-sm" />
-              ) : (
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="h-5 w-5"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"
-                  />
-                </svg>
-              )}
-              開始複習
-            </button>
-          )}
-        </div>
-      )}
-
-      {/* Manual Add */}
-      <div className="bg-base-100 rounded-lg shadow p-4 mb-4">
+        )}
         <form
-          className="flex flex-col sm:flex-row gap-3 sm:items-end"
+          className="flex flex-1 min-w-0 gap-2 items-center"
           onSubmit={handleManualSubmit}
         >
-          <div className="flex-1">
-            <label
-              htmlFor={manualWordFieldId}
-              className="block text-sm font-medium text-base-content mb-2"
-            >
-              手動新增英文單字
-            </label>
-            <input
-              id={manualWordFieldId}
-              type="text"
-              placeholder="例如：vocabulary"
-              className="input input-bordered w-full"
-              value={manualWord}
-              onChange={(e) => setManualWord(e.target.value)}
-              disabled={isAddingManualWord}
-              autoComplete="off"
-            />
-          </div>
+          <input
+            id={manualWordFieldId}
+            type="text"
+            placeholder="手動新增英文單字"
+            className="input input-bordered input-sm flex-1 min-w-[8rem]"
+            value={manualWord}
+            onChange={(e) => setManualWord(e.target.value)}
+            disabled={isAddingManualWord}
+            autoComplete="off"
+          />
           <button
             type="submit"
-            className="btn btn-primary w-full sm:w-auto sm:min-w-[10rem] min-h-11"
+            className="btn btn-primary btn-sm"
             disabled={
               isAddingManualWord || isAdding || manualWord.trim().length === 0
             }
           >
             {isAddingManualWord || isAdding ? (
-              <>
-                <span className="loading loading-spinner loading-xs" />
-                處理中…
-              </>
+              <span className="loading loading-spinner loading-xs" />
             ) : (
               "加入生詞本"
             )}
           </button>
         </form>
+        {words.length > 0 && !loading && (
+          <button
+            type="button"
+            className="btn btn-primary btn-sm gap-1"
+            onClick={handleOpenReviewSettings}
+            disabled={isLoadingReview}
+          >
+            {isLoadingReview ? (
+              <span className="loading loading-spinner loading-xs" />
+            ) : (
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-4 w-4"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"
+                />
+              </svg>
+            )}
+            開始複習
+          </button>
+        )}
       </div>
 
       {/* Compact Filters and Search */}
