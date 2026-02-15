@@ -1,13 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import type { ReadingMode } from "../types/pdf";
-import { translateWithAI } from "../services/aiService";
-import {
-  findExistingTranslation,
-  addSentenceTranslation,
-} from "../services/sentenceTranslationService";
-import { useAuth } from "./useAuth";
-import { isAbortError } from "../utils/errorUtils";
-import { logger } from "../utils/logger";
 
 export type SelectionToolbarPosition = {
   top: number;
@@ -15,24 +7,12 @@ export type SelectionToolbarPosition = {
   placement: "above" | "below";
 };
 
-export const useTextSelection = (sourcePdfName?: string) => {
-  const { user } = useAuth();
+export const useTextSelection = () => {
   const [readingMode, setReadingMode] = useState<ReadingMode>("selection");
   const [selectedText, setSelectedText] = useState<string>("");
-  const [translatedText, setTranslatedText] = useState<string>("");
-  const [isTranslating, setIsTranslating] = useState(false);
-  const [translateError, setTranslateError] = useState<string | null>(null);
   const [toolbarPosition, setToolbarPosition] =
     useState<SelectionToolbarPosition | null>(null);
-  const selectedTextRef = useRef<string>("");
-  const abortControllerRef = useRef<AbortController | null>(null);
-
-  // Cleanup abort controller on unmount
-  useEffect(() => {
-    return () => {
-      abortControllerRef.current?.abort();
-    };
-  }, []);
+  const selectedTextRef = useRef("");
 
   const updateToolbarPosition = useCallback(() => {
     const selection = window.getSelection();
@@ -76,8 +56,6 @@ export const useTextSelection = (sourcePdfName?: string) => {
     if (text !== selectedTextRef.current) {
       selectedTextRef.current = text;
       setSelectedText(text);
-      setTranslatedText("");
-      setTranslateError(null);
     }
     if (text) {
       updateToolbarPosition();
@@ -86,86 +64,9 @@ export const useTextSelection = (sourcePdfName?: string) => {
     }
   }, [updateToolbarPosition]);
 
-  const translateText = useCallback(async () => {
-    if (!selectedText.trim()) return;
-
-    // Abort any previous translation request
-    abortControllerRef.current?.abort();
-    const controller = new AbortController();
-    abortControllerRef.current = controller;
-
-    setIsTranslating(true);
-    setTranslateError(null);
-
-    const trimmedText = selectedText.trim();
-
-    try {
-      // Check if aborted before making API call
-      if (controller.signal.aborted) return;
-
-      // Check Firestore cache first (if user is logged in)
-      if (user) {
-        const cached = await findExistingTranslation(user.uid, trimmedText);
-        if (cached) {
-          // 確認選取的文字仍然相同
-          if (selectedTextRef.current === trimmedText) {
-            logger.info("Translation cache hit");
-            setTranslatedText(cached.chinese);
-          }
-          setIsTranslating(false);
-          return;
-        }
-      }
-
-      if (controller.signal.aborted) return;
-
-      // Use AI service for kid-friendly translations
-      const result = await translateWithAI(trimmedText, controller.signal);
-
-      // Check if aborted after API call or text changed
-      if (controller.signal.aborted || selectedTextRef.current !== trimmedText) {
-        return;
-      }
-
-      if (!result) {
-        throw new Error("翻譯失敗");
-      }
-
-      // Save to Firestore cache (if user is logged in)
-      if (user) {
-        try {
-          await addSentenceTranslation({
-            userId: user.uid,
-            english: trimmedText,
-            chinese: result,
-            sourcePdfName,
-          });
-          logger.info("Translation saved to cache");
-        } catch (saveErr) {
-          // Don't fail the translation if saving to cache fails
-          logger.error("Failed to save translation to cache:", saveErr);
-        }
-      }
-
-      setTranslatedText(result);
-    } catch (err: unknown) {
-      // Ignore abort errors
-      if (isAbortError(err)) return;
-
-      const message = err instanceof Error ? err.message : "翻譯時發生未知錯誤";
-      setTranslateError(message);
-    } finally {
-      // 無條件重置 loading 狀態，避免 abort 時卡住
-      setIsTranslating(false);
-    }
-  }, [selectedText, user, sourcePdfName]);
-
   const clearSelection = useCallback(() => {
-    abortControllerRef.current?.abort();
     selectedTextRef.current = "";
     setSelectedText("");
-    setTranslatedText("");
-    setTranslateError(null);
     setToolbarPosition(null);
     window.getSelection()?.removeAllRanges();
   }, []);
@@ -204,13 +105,8 @@ export const useTextSelection = (sourcePdfName?: string) => {
     readingMode,
     setReadingMode,
     selectedText,
-    translatedText,
-    isTranslating,
-    translateError,
     handleTextSelection,
-    translateText,
     clearSelection,
-    setTranslatedText,
     toolbarPosition,
   };
 };

@@ -7,6 +7,12 @@ import { useTextSelection } from "../hooks/useTextSelection";
 import { usePdfWorker } from "../hooks/usePdfWorker";
 import { useVocabulary, formatDefinitionsForDisplay } from "../hooks/useVocabulary";
 import { useLookupQueue } from "../hooks/useLookupQueue";
+import { useAuth } from "../hooks/useAuth";
+import { translateWithAI } from "../services/aiService";
+import {
+  findExistingTranslation,
+  addSentenceTranslation,
+} from "../services/sentenceTranslationService";
 import { UploadArea } from "./PdfReader/UploadArea";
 import { PdfControlBar } from "./PdfReader/PdfControlBar";
 import { PdfViewer } from "./PdfReader/PdfViewer";
@@ -52,19 +58,16 @@ function PdfReader() {
 
   const { textParsingMode } = useSettings();
 
+  const { user } = useAuth();
+
   const {
     readingMode,
     setReadingMode,
     selectedText,
-    translatedText,
-    isTranslating,
-    translateError,
     handleTextSelection,
-    translateText,
     clearSelection,
-    setTranslatedText,
     toolbarPosition,
-  } = useTextSelection(selectedFile?.name);
+  } = useTextSelection();
 
   const {
     bookingRecords,
@@ -116,7 +119,7 @@ function PdfReader() {
 
   // Vocabulary hook
   const { lookupOrAddWord } = useVocabulary();
-  const { lookups, startLookup, dismissLookup, dismissAll } = useLookupQueue(
+  const { lookups, startLookup, startTranslation, dismissLookup, dismissAll } = useLookupQueue(
     lookupOrAddWord,
     formatDefinitionsForDisplay,
   );
@@ -164,6 +167,47 @@ function PdfReader() {
 
     if (result === "duplicate") {
       addToast(`「${word}」正在查詢中`, "info");
+    } else if (result === "max_reached") {
+      addToast("同時查詢數量已達上限", "error");
+    }
+
+    clearSelection();
+  };
+
+  // Queue-based sentence translation
+  const handleTranslate = () => {
+    const trimmedText = selectedText.trim();
+    if (!trimmedText) return;
+
+    const translateFn = async (text: string, signal: AbortSignal): Promise<string | null> => {
+      if (user) {
+        const cached = await findExistingTranslation(user.uid, text);
+        if (cached) return cached.chinese;
+      }
+      if (signal.aborted) return null;
+
+      const chinese = await translateWithAI(text, signal);
+      if (!chinese || signal.aborted) return null;
+
+      if (user) {
+        try {
+          await addSentenceTranslation({
+            userId: user.uid,
+            english: text,
+            chinese,
+            sourcePdfName: selectedFile?.name,
+          });
+        } catch (e) {
+          logger.error("Failed to cache translation:", e);
+        }
+      }
+      return chinese;
+    };
+
+    const result = startTranslation(trimmedText, translateFn);
+
+    if (result === "duplicate") {
+      addToast("此句子正在翻譯中", "info");
     } else if (result === "max_reached") {
       addToast("同時查詢數量已達上限", "error");
     }
@@ -245,13 +289,9 @@ function PdfReader() {
       {readingMode === "selection" && result && (
         <SelectionToolbar
           selectedText={selectedText}
-          translatedText={translatedText}
-          isTranslating={isTranslating}
-          translateError={translateError}
           onSpeak={speakSelection}
-          onTranslate={translateText}
+          onTranslate={handleTranslate}
           onClear={clearSelection}
-          onClearTranslation={() => setTranslatedText("")}
           onAddToVocabulary={handleLookupWord}
           position={toolbarPosition}
         />

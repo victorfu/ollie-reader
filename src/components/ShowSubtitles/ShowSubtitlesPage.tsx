@@ -1,4 +1,3 @@
-import { useRef } from "react";
 import { useShowSubtitles } from "../../hooks/useShowSubtitles";
 import { useTextSelection } from "../../hooks/useTextSelection";
 import { useSpeechState } from "../../hooks/useSpeechState";
@@ -6,13 +5,20 @@ import {
   useVocabulary,
   formatDefinitionsForDisplay,
 } from "../../hooks/useVocabulary";
+import { useLookupQueue } from "../../hooks/useLookupQueue";
+import { useAuth } from "../../hooks/useAuth";
 import { useToastQueue } from "../../hooks/useToastQueue";
-import { isAbortError } from "../../utils/errorUtils";
+import { translateWithAI } from "../../services/aiService";
+import {
+  findExistingTranslation,
+  addSentenceTranslation,
+} from "../../services/sentenceTranslationService";
 import { logger } from "../../utils/logger";
 import { SeasonSelector } from "./SeasonSelector";
 import { EpisodeList } from "./EpisodeList";
 import { TranscriptViewer } from "./TranscriptViewer";
 import { SelectionToolbar } from "../PdfReader/SelectionToolbar";
+import { LookupPanel } from "../PdfReader/LookupPanel";
 import { ToastContainer } from "../common/ToastContainer";
 
 export function ShowSubtitlesPage() {
@@ -29,73 +35,77 @@ export function ShowSubtitlesPage() {
     clearTranscript,
   } = useShowSubtitles();
 
-  // Text selection, translation, toolbar positioning
   const {
     selectedText,
-    translatedText,
-    isTranslating,
-    translateError,
     handleTextSelection,
-    translateText,
     clearSelection,
-    setTranslatedText,
     toolbarPosition,
   } = useTextSelection();
 
-  // TTS
+  const { user } = useAuth();
   const { speak } = useSpeechState();
-
-  // Vocabulary lookup
   const { lookupOrAddWord } = useVocabulary();
   const { toasts, addToast, removeToast } = useToastQueue(3);
-  const lookupAbortControllerRef = useRef<AbortController | null>(null);
-  const lookupSelectedTextRef = useRef<string>("");
+  const { lookups, startLookup, startTranslation, dismissLookup, dismissAll } =
+    useLookupQueue(lookupOrAddWord, formatDefinitionsForDisplay);
 
   const speakSelection = () => {
     if (selectedText) speak(selectedText);
   };
 
-  const handleLookupWord = async () => {
+  const handleLookupWord = () => {
     const trimmedText = selectedText.trim();
     if (!trimmedText) return;
 
     const word = trimmedText.split(/\s+/)[0];
+    const result = startLookup(word, { sourceContext: trimmedText });
 
-    lookupAbortControllerRef.current?.abort();
-    const controller = new AbortController();
-    lookupAbortControllerRef.current = controller;
-    lookupSelectedTextRef.current = word;
-
-    try {
-      if (controller.signal.aborted) return;
-
-      const response = await lookupOrAddWord(word, {
-        sourceContext: trimmedText,
-      });
-
-      if (controller.signal.aborted || lookupSelectedTextRef.current !== word) {
-        return;
-      }
-
-      if (response.success && response.existingWord) {
-        const formattedDef = formatDefinitionsForDisplay(response.existingWord);
-        setTranslatedText(formattedDef || "無定義資料");
-
-        if (response.isNew) {
-          addToast(`「${word}」已加入生詞本！`, "success");
-        } else {
-          addToast(`「${word}」已在生詞本中`, "info");
-        }
-      } else {
-        addToast(response.message || "查詢失敗", "error");
-      }
-    } catch (err: unknown) {
-      if (isAbortError(err)) return;
-      logger.error("Error looking up word:", err);
-      addToast("查詢單字時發生錯誤", "error");
-    } finally {
-      // cleanup handled by abort controller
+    if (result === "duplicate") {
+      addToast(`「${word}」正在查詢中`, "info");
+    } else if (result === "max_reached") {
+      addToast("同時查詢數量已達上限", "error");
     }
+
+    clearSelection();
+  };
+
+  const handleTranslate = () => {
+    const trimmedText = selectedText.trim();
+    if (!trimmedText) return;
+
+    const translateFn = async (text: string, signal: AbortSignal): Promise<string | null> => {
+      if (user) {
+        const cached = await findExistingTranslation(user.uid, text);
+        if (cached) return cached.chinese;
+      }
+      if (signal.aborted) return null;
+
+      const chinese = await translateWithAI(text, signal);
+      if (!chinese || signal.aborted) return null;
+
+      if (user) {
+        try {
+          await addSentenceTranslation({
+            userId: user.uid,
+            english: text,
+            chinese,
+          });
+        } catch (e) {
+          logger.error("Failed to cache translation:", e);
+        }
+      }
+      return chinese;
+    };
+
+    const result = startTranslation(trimmedText, translateFn);
+
+    if (result === "duplicate") {
+      addToast("此句子正在翻譯中", "info");
+    } else if (result === "max_reached") {
+      addToast("同時查詢數量已達上限", "error");
+    }
+
+    clearSelection();
   };
 
   return (
@@ -106,7 +116,7 @@ export function ShowSubtitlesPage() {
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
               <h1 className="text-2xl font-bold flex items-center gap-2">
-                📺 Gabby's Dollhouse
+                Gabby's Dollhouse
               </h1>
               <p className="text-base-content/60 mt-1">
                 觀看影集字幕，學習日常英文對話
@@ -187,21 +197,25 @@ export function ShowSubtitlesPage() {
         </div>
       </div>
 
-      {/* Selection toolbar for word lookup / translate / speak */}
+      {/* Selection toolbar */}
       {selectedText && (
         <SelectionToolbar
           selectedText={selectedText}
-          translatedText={translatedText}
-          isTranslating={isTranslating}
-          translateError={translateError}
           onSpeak={speakSelection}
-          onTranslate={translateText}
+          onTranslate={handleTranslate}
           onClear={clearSelection}
-          onClearTranslation={() => setTranslatedText("")}
           onAddToVocabulary={handleLookupWord}
           position={toolbarPosition}
         />
       )}
+
+      {/* Lookup Queue Panel */}
+      <LookupPanel
+        lookups={lookups}
+        onDismiss={dismissLookup}
+        onDismissAll={dismissAll}
+        onSpeak={speak}
+      />
 
       {/* Toast notifications */}
       <ToastContainer toasts={toasts} onRemove={removeToast} />

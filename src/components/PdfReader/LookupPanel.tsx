@@ -21,6 +21,12 @@ const SpeakerIcon = ({ className = "w-3.5 h-3.5" }: { className?: string }) => (
   </svg>
 );
 
+const TranslateIcon = ({ className = "w-4 h-4" }: { className?: string }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129" />
+  </svg>
+);
+
 const XIcon = ({ className = "w-3.5 h-3.5" }: { className?: string }) => (
   <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" />
@@ -45,6 +51,7 @@ const LookupItemCard = memo(
     onDismiss: (id: string) => void;
     onSpeak?: (word: string) => void;
   }) => {
+    const isTranslation = item.type === "translation";
     const borderColor =
       item.status === "loading"
         ? "border-l-accent"
@@ -63,10 +70,19 @@ const LookupItemCard = memo(
       >
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-center gap-1.5 min-w-0">
-            {item.emoji && <span className="text-sm">{item.emoji}</span>}
-            <span className="font-semibold text-sm truncate">{item.word}</span>
-            {item.isNew && (
+            {isTranslation ? (
+              <TranslateIcon className="w-3.5 h-3.5 text-base-content/50 shrink-0" />
+            ) : (
+              item.emoji && <span className="text-sm">{item.emoji}</span>
+            )}
+            <span className={`font-semibold text-sm ${isTranslation ? "line-clamp-2" : "truncate"}`}>
+              {item.word}
+            </span>
+            {!isTranslation && item.isNew && (
               <span className="badge badge-xs badge-accent">new</span>
+            )}
+            {isTranslation && (
+              <span className="badge badge-xs badge-ghost shrink-0">翻譯</span>
             )}
             {onSpeak && (
               <button
@@ -94,7 +110,9 @@ const LookupItemCard = memo(
         {item.status === "loading" && (
           <div className="mt-2 flex items-center gap-2">
             <span className="loading loading-spinner loading-xs text-accent" />
-            <span className="text-xs text-base-content/50">查詢中...</span>
+            <span className="text-xs text-base-content/50">
+              {isTranslation ? "翻譯中..." : "查詢中..."}
+            </span>
           </div>
         )}
 
@@ -105,7 +123,9 @@ const LookupItemCard = memo(
         )}
 
         {item.status === "error" && (
-          <p className="mt-2 text-xs text-error">{item.error || "查詢失敗"}</p>
+          <p className="mt-2 text-xs text-error">
+            {item.error || (isTranslation ? "翻譯失敗" : "查詢失敗")}
+          </p>
         )}
       </motion.div>
     );

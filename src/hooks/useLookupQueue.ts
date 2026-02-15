@@ -2,10 +2,12 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import type { VocabularyWord } from "../types/vocabulary";
 
 export type LookupStatus = "loading" | "success" | "error";
+export type LookupItemType = "word" | "translation";
 
 export interface LookupItem {
   id: string;
   word: string;
+  type: LookupItemType;
   status: LookupStatus;
   result?: string;
   error?: string;
@@ -87,7 +89,7 @@ export const useLookupQueue = (
 
       // Check for duplicate (same word already in queue)
       const hasDuplicate = lookups.some(
-        (l) => l.word.toLowerCase() === normalizedWord,
+        (l) => l.type === "word" && l.word.toLowerCase() === normalizedWord,
       );
       if (hasDuplicate) return "duplicate";
 
@@ -98,6 +100,7 @@ export const useLookupQueue = (
       const item: LookupItem = {
         id,
         word: word.trim(),
+        type: "word",
         status: "loading",
         timestamp: Date.now(),
       };
@@ -161,6 +164,76 @@ export const useLookupQueue = (
     [lookups, activeCount, lookupOrAddWord, formatDefinitionsForDisplay, scheduleDismiss],
   );
 
+  const startTranslation = useCallback(
+    (
+      text: string,
+      translateFn: (text: string, signal: AbortSignal) => Promise<string | null>,
+    ): "duplicate" | "max_reached" | undefined => {
+      const normalizedText = text.trim().toLowerCase();
+      if (!normalizedText) return undefined;
+
+      const hasDuplicate = lookups.some(
+        (l) => l.type === "translation" && l.word.toLowerCase() === normalizedText,
+      );
+      if (hasDuplicate) return "duplicate";
+
+      if (activeCount >= MAX_CONCURRENT) return "max_reached";
+
+      const id = `translate-${++nextId}`;
+      const item: LookupItem = {
+        id,
+        word: text.trim(),
+        type: "translation",
+        status: "loading",
+        timestamp: Date.now(),
+      };
+
+      setLookups((prev) => [item, ...prev]);
+
+      const controller = new AbortController();
+      controllersRef.current.set(id, controller);
+
+      translateFn(text.trim(), controller.signal)
+        .then((result) => {
+          if (unmountedRef.current) return;
+          controllersRef.current.delete(id);
+
+          if (result) {
+            setLookups((prev) =>
+              prev.map((l) =>
+                l.id === id
+                  ? { ...l, status: "success" as const, result }
+                  : l,
+              ),
+            );
+            scheduleDismiss(id);
+          } else {
+            setLookups((prev) =>
+              prev.map((l) =>
+                l.id === id
+                  ? { ...l, status: "error" as const, error: "翻譯失敗" }
+                  : l,
+              ),
+            );
+          }
+        })
+        .catch(() => {
+          if (unmountedRef.current) return;
+          controllersRef.current.delete(id);
+          setLookups((prev) =>
+            prev.map((l) =>
+              l.id === id
+                ? { ...l, status: "error" as const, error: "翻譯失敗" }
+                : l,
+            ),
+          );
+        });
+
+      return undefined;
+    },
+    [lookups, activeCount, scheduleDismiss],
+  );
+
   const dismissLookup = useCallback((id: string) => {
     const timer = dismissTimersRef.current.get(id);
     if (timer) {
@@ -197,6 +270,7 @@ export const useLookupQueue = (
     lookups,
     activeCount,
     startLookup,
+    startTranslation,
     dismissLookup,
     dismissAll,
     cancelLookup,
