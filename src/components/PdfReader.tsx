@@ -8,11 +8,7 @@ import { usePdfWorker } from "../hooks/usePdfWorker";
 import { useVocabulary, formatDefinitionsForDisplay } from "../hooks/useVocabulary";
 import { useLookupQueue } from "../hooks/useLookupQueue";
 import { useAuth } from "../hooks/useAuth";
-import { translateWithAI } from "../services/aiService";
-import {
-  findExistingTranslation,
-  addSentenceTranslation,
-} from "../services/sentenceTranslationService";
+import { createTranslateFn } from "../utils/translateFactory";
 import { UploadArea } from "./PdfReader/UploadArea";
 import { PdfControlBar } from "./PdfReader/PdfControlBar";
 import { PdfViewer } from "./PdfReader/PdfViewer";
@@ -179,32 +175,10 @@ function PdfReader() {
     const trimmedText = selectedText.trim();
     if (!trimmedText) return;
 
-    const translateFn = async (text: string, signal: AbortSignal): Promise<string | null> => {
-      if (user) {
-        const cached = await findExistingTranslation(user.uid, text);
-        if (cached) return cached.chinese;
-      }
-      if (signal.aborted) return null;
-
-      const chinese = await translateWithAI(text, signal);
-      if (!chinese || signal.aborted) return null;
-
-      if (user) {
-        try {
-          await addSentenceTranslation({
-            userId: user.uid,
-            english: text,
-            chinese,
-            sourcePdfName: selectedFile?.name,
-          });
-        } catch (e) {
-          logger.error("Failed to cache translation:", e);
-        }
-      }
-      return chinese;
-    };
-
-    const result = startTranslation(trimmedText, translateFn);
+    const result = startTranslation(
+      trimmedText,
+      createTranslateFn(user, selectedFile?.name),
+    );
 
     if (result === "duplicate") {
       addToast("此句子正在翻譯中", "info");

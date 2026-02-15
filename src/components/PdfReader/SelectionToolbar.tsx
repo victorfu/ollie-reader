@@ -28,23 +28,16 @@ export const SelectionToolbar = memo(
   if (!selectedText) return null;
 
   const isFloating = Boolean(position);
+  const translateY = position?.placement === "above" ? "-translate-y-full" : "translate-y-0";
   const containerClasses = isFloating
-    ? "fixed z-50 transform -translate-x-1/2 translate-y-0"
+    ? `fixed z-50 transform -translate-x-1/2 ${translateY}`
     : "fixed bottom-6 left-1/2 transform -translate-x-1/2 z-50";
-
   const containerStyle = isFloating
-    ? { top: position!.placement === "above" ? position!.top : position!.top, left: position!.left }
+    ? { top: position!.top, left: position!.left }
     : undefined;
 
-  const transformClass = isFloating && position?.placement === "above"
-    ? "-translate-y-full"
-    : "translate-y-0";
-
   return (
-    <div
-      className={`${containerClasses} ${isFloating ? transformClass : ""}`}
-      style={containerStyle}
-    >
+    <div className={containerClasses} style={containerStyle}>
       <div className="bg-accent text-accent-content rounded-full shadow-lg px-6 py-3 flex items-center gap-3 border border-accent/20">
         <div className="flex gap-2">
           {/* Speak button */}

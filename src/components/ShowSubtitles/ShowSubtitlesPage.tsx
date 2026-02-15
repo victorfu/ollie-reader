@@ -8,12 +8,7 @@ import {
 import { useLookupQueue } from "../../hooks/useLookupQueue";
 import { useAuth } from "../../hooks/useAuth";
 import { useToastQueue } from "../../hooks/useToastQueue";
-import { translateWithAI } from "../../services/aiService";
-import {
-  findExistingTranslation,
-  addSentenceTranslation,
-} from "../../services/sentenceTranslationService";
-import { logger } from "../../utils/logger";
+import { createTranslateFn } from "../../utils/translateFactory";
 import { SeasonSelector } from "./SeasonSelector";
 import { EpisodeList } from "./EpisodeList";
 import { TranscriptViewer } from "./TranscriptViewer";
@@ -73,31 +68,7 @@ export function ShowSubtitlesPage() {
     const trimmedText = selectedText.trim();
     if (!trimmedText) return;
 
-    const translateFn = async (text: string, signal: AbortSignal): Promise<string | null> => {
-      if (user) {
-        const cached = await findExistingTranslation(user.uid, text);
-        if (cached) return cached.chinese;
-      }
-      if (signal.aborted) return null;
-
-      const chinese = await translateWithAI(text, signal);
-      if (!chinese || signal.aborted) return null;
-
-      if (user) {
-        try {
-          await addSentenceTranslation({
-            userId: user.uid,
-            english: text,
-            chinese,
-          });
-        } catch (e) {
-          logger.error("Failed to cache translation:", e);
-        }
-      }
-      return chinese;
-    };
-
-    const result = startTranslation(trimmedText, translateFn);
+    const result = startTranslation(trimmedText, createTranslateFn(user));
 
     if (result === "duplicate") {
       addToast("此句子正在翻譯中", "info");

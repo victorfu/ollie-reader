@@ -7,7 +7,7 @@ export type SelectionToolbarPosition = {
   placement: "above" | "below";
 };
 
-export const useTextSelection = () => {
+export function useTextSelection() {
   const [readingMode, setReadingMode] = useState<ReadingMode>("selection");
   const [selectedText, setSelectedText] = useState<string>("");
   const [toolbarPosition, setToolbarPosition] =
@@ -109,4 +109,4 @@ export const useTextSelection = () => {
     clearSelection,
     toolbarPosition,
   };
-};
+}

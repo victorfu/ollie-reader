@@ -38,16 +38,15 @@ const AUTO_DISMISS_MS = 30_000;
 
 let nextId = 0;
 
-export const useLookupQueue = (
+export function useLookupQueue(
   lookupOrAddWord: LookupOrAddWord,
   formatDefinitionsForDisplay: FormatDefinitions,
-) => {
+) {
   const [lookups, setLookups] = useState<LookupItem[]>([]);
   const controllersRef = useRef<Map<string, AbortController>>(new Map());
   const dismissTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const unmountedRef = useRef(false);
 
-  // Cleanup on unmount
   useEffect(() => {
     unmountedRef.current = false;
     return () => {
@@ -75,6 +74,69 @@ export const useLookupQueue = (
     dismissTimersRef.current.set(id, timer);
   }, []);
 
+  /** Enqueue a new item and create its AbortController. */
+  function enqueueItem(item: LookupItem): void {
+    setLookups((prev) => [item, ...prev]);
+    const controller = new AbortController();
+    controllersRef.current.set(item.id, controller);
+  }
+
+  /**
+   * Run an async task for a queued item, handling success/error/unmount uniformly.
+   * The task should return partial updates on success, or null on failure.
+   */
+  const fireAsync = useCallback(
+    (
+      id: string,
+      task: (signal: AbortSignal) => Promise<Partial<LookupItem> | null>,
+      errorMessage: string,
+    ): void => {
+      const controller = controllersRef.current.get(id);
+      if (!controller) return;
+
+      const updateItem = (updates: Partial<LookupItem>) => {
+        if (unmountedRef.current) return;
+        setLookups((prev) =>
+          prev.map((l) => (l.id === id ? { ...l, ...updates } : l)),
+        );
+      };
+
+      task(controller.signal)
+        .then((updates) => {
+          if (unmountedRef.current) return;
+          controllersRef.current.delete(id);
+
+          if (updates) {
+            updateItem({ status: "success", ...updates });
+            scheduleDismiss(id);
+          } else {
+            updateItem({ status: "error", error: errorMessage });
+          }
+        })
+        .catch(() => {
+          if (unmountedRef.current) return;
+          controllersRef.current.delete(id);
+          updateItem({ status: "error", error: errorMessage });
+        });
+    },
+    [scheduleDismiss],
+  );
+
+  const validateEnqueue = useCallback(
+    (type: LookupItemType, normalizedKey: string): "duplicate" | "max_reached" | undefined => {
+      if (!normalizedKey) return undefined;
+
+      const hasDuplicate = lookups.some(
+        (l) => l.type === type && l.word.toLowerCase() === normalizedKey,
+      );
+      if (hasDuplicate) return "duplicate";
+      if (activeCount >= MAX_CONCURRENT) return "max_reached";
+
+      return undefined;
+    },
+    [lookups, activeCount],
+  );
+
   const startLookup = useCallback(
     (
       word: string,
@@ -85,16 +147,8 @@ export const useLookupQueue = (
       },
     ): "duplicate" | "max_reached" | undefined => {
       const normalizedWord = word.trim().toLowerCase();
-      if (!normalizedWord) return undefined;
-
-      // Check for duplicate (same word already in queue)
-      const hasDuplicate = lookups.some(
-        (l) => l.type === "word" && l.word.toLowerCase() === normalizedWord,
-      );
-      if (hasDuplicate) return "duplicate";
-
-      // Check concurrent limit
-      if (activeCount >= MAX_CONCURRENT) return "max_reached";
+      const blocked = validateEnqueue("word", normalizedWord);
+      if (blocked) return blocked;
 
       const id = `lookup-${++nextId}`;
       const item: LookupItem = {
@@ -105,59 +159,23 @@ export const useLookupQueue = (
         timestamp: Date.now(),
       };
 
-      setLookups((prev) => [item, ...prev]);
+      enqueueItem(item);
 
-      // Create abort controller for this lookup
-      const controller = new AbortController();
-      controllersRef.current.set(id, controller);
-
-      // Fire async lookup
-      lookupOrAddWord(word.trim(), context, controller.signal)
-        .then((result) => {
-          if (unmountedRef.current) return;
-          controllersRef.current.delete(id);
-
-          if (result.success && result.existingWord) {
-            const formatted = formatDefinitionsForDisplay(result.existingWord);
-            setLookups((prev) =>
-              prev.map((l) =>
-                l.id === id
-                  ? {
-                      ...l,
-                      status: "success" as const,
-                      result: formatted,
-                      isNew: result.isNew,
-                      emoji: result.existingWord?.emoji,
-                    }
-                  : l,
-              ),
-            );
-            scheduleDismiss(id);
-          } else {
-            setLookups((prev) =>
-              prev.map((l) =>
-                l.id === id
-                  ? {
-                      ...l,
-                      status: "error" as const,
-                      error: result.message || "Lookup failed",
-                    }
-                  : l,
-              ),
-            );
-          }
-        })
-        .catch(() => {
-          if (unmountedRef.current) return;
-          controllersRef.current.delete(id);
-          setLookups((prev) =>
-            prev.map((l) =>
-              l.id === id
-                ? { ...l, status: "error" as const, error: "Lookup failed" }
-                : l,
-            ),
-          );
-        });
+      fireAsync(
+        id,
+        (signal) =>
+          lookupOrAddWord(word.trim(), context, signal).then((result) => {
+            if (result.success && result.existingWord) {
+              return {
+                result: formatDefinitionsForDisplay(result.existingWord),
+                isNew: result.isNew,
+                emoji: result.existingWord?.emoji,
+              };
+            }
+            return null;
+          }),
+        "Lookup failed",
+      );
 
       return undefined;
     },
@@ -170,14 +188,8 @@ export const useLookupQueue = (
       translateFn: (text: string, signal: AbortSignal) => Promise<string | null>,
     ): "duplicate" | "max_reached" | undefined => {
       const normalizedText = text.trim().toLowerCase();
-      if (!normalizedText) return undefined;
-
-      const hasDuplicate = lookups.some(
-        (l) => l.type === "translation" && l.word.toLowerCase() === normalizedText,
-      );
-      if (hasDuplicate) return "duplicate";
-
-      if (activeCount >= MAX_CONCURRENT) return "max_reached";
+      const blocked = validateEnqueue("translation", normalizedText);
+      if (blocked) return blocked;
 
       const id = `translate-${++nextId}`;
       const item: LookupItem = {
@@ -188,46 +200,16 @@ export const useLookupQueue = (
         timestamp: Date.now(),
       };
 
-      setLookups((prev) => [item, ...prev]);
+      enqueueItem(item);
 
-      const controller = new AbortController();
-      controllersRef.current.set(id, controller);
-
-      translateFn(text.trim(), controller.signal)
-        .then((result) => {
-          if (unmountedRef.current) return;
-          controllersRef.current.delete(id);
-
-          if (result) {
-            setLookups((prev) =>
-              prev.map((l) =>
-                l.id === id
-                  ? { ...l, status: "success" as const, result }
-                  : l,
-              ),
-            );
-            scheduleDismiss(id);
-          } else {
-            setLookups((prev) =>
-              prev.map((l) =>
-                l.id === id
-                  ? { ...l, status: "error" as const, error: "翻譯失敗" }
-                  : l,
-              ),
-            );
-          }
-        })
-        .catch(() => {
-          if (unmountedRef.current) return;
-          controllersRef.current.delete(id);
-          setLookups((prev) =>
-            prev.map((l) =>
-              l.id === id
-                ? { ...l, status: "error" as const, error: "翻譯失敗" }
-                : l,
-            ),
-          );
-        });
+      fireAsync(
+        id,
+        (signal) =>
+          translateFn(text.trim(), signal).then((result) =>
+            result ? { result } : null,
+          ),
+        "翻譯失敗",
+      );
 
       return undefined;
     },
@@ -275,4 +257,4 @@ export const useLookupQueue = (
     dismissAll,
     cancelLookup,
   };
-};
+}
