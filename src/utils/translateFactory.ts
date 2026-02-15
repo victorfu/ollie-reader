@@ -16,8 +16,12 @@ export function createTranslateFn(
 ): (text: string, signal: AbortSignal) => Promise<string | null> {
   return async (text: string, signal: AbortSignal): Promise<string | null> => {
     if (user) {
-      const cached = await findExistingTranslation(user.uid, text);
-      if (cached) return cached.chinese;
+      try {
+        const cached = await findExistingTranslation(user.uid, text);
+        if (cached) return cached.chinese;
+      } catch (e) {
+        logger.error("Cache lookup failed, proceeding with AI:", e);
+      }
     }
     if (signal.aborted) return null;
 

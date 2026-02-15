@@ -1,5 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import type { VocabularyWord } from "../types/vocabulary";
+import { isAbortError } from "../utils/errorUtils";
+import { logger } from "../utils/logger";
 
 export type LookupStatus = "loading" | "success" | "error";
 export type LookupItemType = "word" | "translation";
@@ -112,13 +114,23 @@ export function useLookupQueue(
           if (updates) {
             updateItem({ status: "success", ...updates });
             scheduleDismiss(id);
+          } else if (controller.signal.aborted) {
+            // Aborted (user cancelled) — remove silently
+            setLookups((prev) => prev.filter((l) => l.id !== id));
           } else {
             updateItem({ status: "error", error: errorMessage });
           }
         })
-        .catch(() => {
+        .catch((err: unknown) => {
           if (unmountedRef.current) return;
           controllersRef.current.delete(id);
+
+          if (isAbortError(err)) {
+            setLookups((prev) => prev.filter((l) => l.id !== id));
+            return;
+          }
+
+          logger.error("Lookup/translation failed:", err);
           updateItem({ status: "error", error: errorMessage });
         });
     },

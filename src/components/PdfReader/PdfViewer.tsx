@@ -198,49 +198,6 @@ export const PdfViewer = memo(
                         <div
                           className="relative rounded-lg border border-black/5 dark:border-white/10 bg-base-100 shadow-sm overflow-hidden"
                         >
-                          {/* Speak page button overlay */}
-                          <div className="absolute top-3 left-3 z-10">
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                const text = getPageText(pageNumber);
-                                if (text) onSpeak(text);
-                              }}
-                              disabled={isLoadingAudio || isSpeaking}
-                              className={`w-8 h-8 rounded-lg shadow-md flex items-center justify-center transition-all hover:scale-105 active:scale-95 disabled:opacity-50 ${
-                                isSpeaking
-                                  ? "bg-base-300/90 text-base-content"
-                                  : "bg-success/90 hover:bg-success text-success-content"
-                              }`}
-                              title={`朗讀第 ${pageNumber} 頁`}
-                            >
-                              {isLoadingAudio ? (
-                                <span className="loading loading-spinner loading-xs"></span>
-                              ) : (
-                                <svg
-                                  xmlns="http://www.w3.org/2000/svg"
-                                  className="h-4 w-4"
-                                  fill="none"
-                                  viewBox="0 0 24 24"
-                                  stroke="currentColor"
-                                >
-                                  <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth={2}
-                                    d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"
-                                  />
-                                  <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth={2}
-                                    d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                                  />
-                                </svg>
-                              )}
-                            </button>
-                          </div>
                           <div
                             className="p-2 sm:p-3 select-text cursor-text"
                             onMouseUp={onTextSelection}

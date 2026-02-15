@@ -38,7 +38,6 @@ interface LookupPanelProps {
   onDismiss: (id: string) => void;
   onDismissAll: () => void;
   onSpeak?: (word: string) => void;
-  hasStopButton?: boolean;
 }
 
 const LookupItemCard = memo(
@@ -135,7 +134,7 @@ const LookupItemCard = memo(
 LookupItemCard.displayName = "LookupItemCard";
 
 export const LookupPanel = memo(
-  ({ lookups, onDismiss, onDismissAll, onSpeak, hasStopButton = false }: LookupPanelProps) => {
+  ({ lookups, onDismiss, onDismissAll, onSpeak }: LookupPanelProps) => {
     const [collapsed, setCollapsed] = useState(false);
     const { panelStyle, dragHandleProps, resizeHandleProps, isDragging } = useFloatingPanel({
       defaultSize: { width: 320, height: 384 },
@@ -158,7 +157,7 @@ export const LookupPanel = memo(
           exit={{ opacity: 0, scale: 0.8 }}
           transition={{ duration: 0.2 }}
           onClick={() => setCollapsed(false)}
-          className={`fixed right-6 z-40 w-14 h-14 rounded-full flex items-center justify-center bg-base-100/90 backdrop-blur-xl border border-black/5 dark:border-white/10 shadow-lg hover:scale-105 active:scale-[0.98] transition-all duration-200 ${hasStopButton ? "bottom-22" : "bottom-6"}`}
+          className="fixed right-6 bottom-6 z-40 w-14 h-14 rounded-full flex items-center justify-center bg-base-100/90 backdrop-blur-xl border border-black/5 dark:border-white/10 shadow-lg hover:scale-105 active:scale-[0.98] transition-all duration-200"
           aria-label="展開查詢面板"
         >
           <div className="relative">

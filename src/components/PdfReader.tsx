@@ -14,7 +14,6 @@ import { PdfControlBar } from "./PdfReader/PdfControlBar";
 import { PdfViewer } from "./PdfReader/PdfViewer";
 import { PageTextArea } from "./PdfReader/PageTextArea";
 import { SelectionToolbar } from "./PdfReader/SelectionToolbar";
-import { FloatingStopButton } from "./PdfReader/FloatingStopButton";
 import { LookupPanel } from "./PdfReader/LookupPanel";
 import { ToastContainer } from "./common/ToastContainer";
 import { useToastQueue } from "../hooks/useToastQueue";
@@ -320,14 +319,6 @@ function PdfReader() {
         onDismiss={dismissLookup}
         onDismissAll={dismissAll}
         onSpeak={speak}
-        hasStopButton={isSpeaking || isLoadingAudio}
-      />
-
-      {/* Floating Stop Button */}
-      <FloatingStopButton
-        isSpeaking={isSpeaking}
-        isLoadingAudio={isLoadingAudio}
-        onStop={stopSpeaking}
       />
 
       {/* Toast Notifications */}
