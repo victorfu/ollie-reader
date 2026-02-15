@@ -40,6 +40,14 @@ export function ReviewSettingsModal({
 
   const actualWordCount = Math.min(wordCount, totalWords);
   const canStart = mode === "tag" ? !!selectedTag : totalWords > 0;
+  const startButtonLabel =
+    mode === "tag"
+      ? selectedTag
+        ? `開始複習「${selectedTag}」標籤`
+        : "請先選擇標籤"
+      : totalWords > 0
+        ? `開始複習 ${actualWordCount} 個單字`
+        : "目前沒有可複習單字";
 
   return (
     <AnimatePresence>
@@ -215,7 +223,7 @@ export function ReviewSettingsModal({
             {/* Footer */}
             <div className="p-6 pt-0">
               <button
-                className="btn btn-primary w-full gap-2"
+                className="btn btn-primary w-full gap-2 min-h-11"
                 onClick={handleStart}
                 disabled={isLoading || !canStart}
               >
@@ -243,11 +251,15 @@ export function ReviewSettingsModal({
                     />
                   </svg>
                 )}
-                {mode === "tag" 
-                  ? `開始複習「${selectedTag || "..."}」標籤`
-                  : `開始複習 ${actualWordCount} 個單字`
-                }
+                {startButtonLabel}
               </button>
+              {!canStart && (
+                <p className="mt-2 text-xs text-base-content/60">
+                  {mode === "tag"
+                    ? "請先選擇一個標籤再開始。"
+                    : "目前生詞本為空，先加入單字後再複習。"}
+                </p>
+              )}
             </div>
           </motion.div>
         </div>

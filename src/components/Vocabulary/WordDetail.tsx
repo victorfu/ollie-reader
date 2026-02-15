@@ -48,11 +48,19 @@ export const WordDetail = ({
       difficulty: editedDifficulty as "easy" | "medium" | "hard" | undefined,
     };
 
-    await onUpdateWord(word.id!, updates);
+    const result = await onUpdateWord(word.id!, updates);
+    if (!result.success) {
+      setToast({
+        message: result.message || "儲存失敗，請稍後再試",
+        type: "error",
+      });
+      return;
+    }
 
     // Update local state to reflect changes
     setWord((prev) => ({ ...prev, ...updates }));
     setIsEditing(false);
+    setToast({ message: "已儲存標籤與難度", type: "success" });
   };
 
   const handleAddTag = (tag?: string) => {

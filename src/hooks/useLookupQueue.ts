@@ -49,16 +49,19 @@ export function useLookupQueue(
 
   useEffect(() => {
     unmountedRef.current = false;
+    const controllers = controllersRef.current;
+    const dismissTimers = dismissTimersRef.current;
+
     return () => {
       unmountedRef.current = true;
-      for (const controller of controllersRef.current.values()) {
+      for (const controller of controllers.values()) {
         controller.abort();
       }
-      controllersRef.current.clear();
-      for (const timer of dismissTimersRef.current.values()) {
+      controllers.clear();
+      for (const timer of dismissTimers.values()) {
         clearTimeout(timer);
       }
-      dismissTimersRef.current.clear();
+      dismissTimers.clear();
     };
   }, []);
 
@@ -179,7 +182,7 @@ export function useLookupQueue(
 
       return undefined;
     },
-    [lookups, activeCount, lookupOrAddWord, formatDefinitionsForDisplay, scheduleDismiss],
+    [lookupOrAddWord, formatDefinitionsForDisplay, fireAsync, validateEnqueue],
   );
 
   const startTranslation = useCallback(
@@ -213,7 +216,7 @@ export function useLookupQueue(
 
       return undefined;
     },
-    [lookups, activeCount, scheduleDismiss],
+    [fireAsync, validateEnqueue],
   );
 
   const dismissLookup = useCallback((id: string) => {

@@ -51,13 +51,6 @@ export interface Example {
   translation?: string;
 }
 
-export interface VocabularyGroup {
-  date?: string;
-  difficulty?: string;
-  tag?: string;
-  words: VocabularyWord[];
-}
-
 export interface VocabularyFilters {
   searchQuery?: string;
   tags?: string[];
@@ -72,6 +65,11 @@ export interface VocabularyResult {
   words: VocabularyWord[];
   hasMore: boolean;
   lastDocId?: string;
+}
+
+export interface VocabularySearchOptions {
+  limit?: number;
+  mode?: "prefix" | "contains";
 }
 
 export const DEFAULT_PAGE_SIZE = 50;

@@ -12,7 +12,10 @@ import {
   orderBy,
   limit,
   startAfter,
+  startAt,
+  endAt,
   increment,
+  getCountFromServer,
   type DocumentData,
   type QueryDocumentSnapshot,
 } from "firebase/firestore";
@@ -23,6 +26,7 @@ import type {
   VocabularyFilters,
   VocabularyResult,
   ReviewMode,
+  VocabularySearchOptions,
 } from "../types/vocabulary";
 import { DEFAULT_PAGE_SIZE } from "../types/vocabulary";
 
@@ -313,16 +317,6 @@ export const deleteVocabularyWord = async (wordId: string): Promise<void> => {
   await deleteDoc(docRef);
 };
 
-// Increment review count (atomic)
-export const incrementReviewCount = async (wordId: string): Promise<void> => {
-  const docRef = doc(db, COLLECTION_NAME, wordId);
-  await updateDoc(docRef, {
-    reviewCount: increment(1),
-    lastReviewedAt: Timestamp.now(),
-    updatedAt: Timestamp.now(),
-  });
-};
-
 // Check if word already exists for user
 export const checkWordExists = async (
   userId: string,
@@ -367,10 +361,27 @@ export const getUserTags = async (userId: string): Promise<string[]> => {
   }
 };
 
-// Search all vocabulary words for a user (no pagination, for search functionality)
+// Get total vocabulary count for a user
+export const getUserVocabularyCount = async (userId: string): Promise<number> => {
+  try {
+    const q = query(
+      collection(db, COLLECTION_NAME),
+      where("userId", "==", userId),
+    );
+
+    const countSnapshot = await getCountFromServer(q);
+    return countSnapshot.data().count;
+  } catch (error) {
+    console.error("Error getting vocabulary count:", error);
+    throw error;
+  }
+};
+
+// Search vocabulary words for a user with configurable mode and limit
 export const searchUserVocabulary = async (
   userId: string,
   searchQuery: string,
+  options: VocabularySearchOptions = {},
 ): Promise<VocabularyWord[]> => {
   try {
     if (!searchQuery.trim()) {
@@ -378,25 +389,47 @@ export const searchUserVocabulary = async (
     }
 
     const searchLower = searchQuery.toLowerCase().trim();
+    const maxResults = options.limit || DEFAULT_PAGE_SIZE;
+    const mode = options.mode || "prefix";
+    let filteredWords: VocabularyWord[] = [];
+    let shouldUseContainsFallback = mode === "contains";
 
-    // Query all words for this user
-    const q = query(
-      collection(db, COLLECTION_NAME),
-      where("userId", "==", userId),
-    );
+    if (mode === "prefix") {
+      try {
+        const prefixQuery = query(
+          collection(db, COLLECTION_NAME),
+          where("userId", "==", userId),
+          orderBy("word"),
+          startAt(searchLower),
+          endAt(`${searchLower}\uf8ff`),
+          limit(maxResults),
+        );
+        const querySnapshot = await getDocs(prefixQuery);
+        filteredWords = querySnapshot.docs.map(
+          (doc: QueryDocumentSnapshot<DocumentData>) =>
+            convertToVocabularyWord(doc.id, doc.data()),
+        );
+      } catch (prefixError) {
+        console.warn("Prefix search failed, falling back to contains search:", prefixError);
+        shouldUseContainsFallback = true;
+      }
+    }
 
-    const querySnapshot = await getDocs(q);
+    if (shouldUseContainsFallback) {
+      const q = query(
+        collection(db, COLLECTION_NAME),
+        where("userId", "==", userId),
+      );
+      const querySnapshot = await getDocs(q);
+      const words = querySnapshot.docs.map(
+        (doc: QueryDocumentSnapshot<DocumentData>) =>
+          convertToVocabularyWord(doc.id, doc.data()),
+      );
 
-    const words = querySnapshot.docs.map(
-      (doc: QueryDocumentSnapshot<DocumentData>) => {
-        return convertToVocabularyWord(doc.id, doc.data());
-      },
-    );
-
-    // Filter by search query on client side
-    const filteredWords = words.filter((word) =>
-      word.word.toLowerCase().includes(searchLower),
-    );
+      filteredWords = words
+        .filter((word) => word.word.toLowerCase().includes(searchLower))
+        .slice(0, maxResults);
+    }
 
     // Sort by relevance: exact match first, then starts with, then contains
     filteredWords.sort((a, b) => {
@@ -417,7 +450,7 @@ export const searchUserVocabulary = async (
       return aWord.localeCompare(bWord);
     });
 
-    return filteredWords;
+    return filteredWords.slice(0, maxResults);
   } catch (error) {
     console.error("Error searching user vocabulary:", error);
     throw error;

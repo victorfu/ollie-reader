@@ -11,6 +11,7 @@ import {
   getVocabularyForReview,
   updateReviewStats,
   searchUserVocabulary,
+  getUserVocabularyCount,
 } from "../services/vocabularyService";
 import { generateWordDetails } from "../services/aiService";
 import { isAbortError } from "../utils/errorUtils";
@@ -19,6 +20,7 @@ import type {
   VocabularyFilters,
   ReviewMode,
   Definition,
+  VocabularySearchOptions,
 } from "../types/vocabulary";
 
 // Helper to format definitions for display
@@ -441,6 +443,18 @@ export const useVocabulary = () => {
     }
   }, [user]);
 
+  // Get total word count for review settings
+  const getWordCount = useCallback(async (): Promise<number> => {
+    if (!user) return 0;
+
+    try {
+      return await getUserVocabularyCount(user.uid);
+    } catch (err) {
+      console.error("Failed to get word count:", err);
+      return words.length;
+    }
+  }, [user, words.length]);
+
   // Update review statistics (remembered or forgot)
   const updateReview = useCallback(
     async (wordId: string, remembered: boolean) => {
@@ -552,11 +566,14 @@ export const useVocabulary = () => {
 
   // Search all vocabulary words (not just loaded ones)
   const searchWords = useCallback(
-    async (searchQuery: string): Promise<VocabularyWord[]> => {
+    async (
+      searchQuery: string,
+      options?: VocabularySearchOptions,
+    ): Promise<VocabularyWord[]> => {
       if (!user) return [];
 
       try {
-        return await searchUserVocabulary(user.uid, searchQuery);
+        return await searchUserVocabulary(user.uid, searchQuery, options);
       } catch (err) {
         console.error("Failed to search words:", err);
         return [];
@@ -580,6 +597,7 @@ export const useVocabulary = () => {
     updateWord,
     deleteWord,
     getTags,
+    getWordCount,
     updateReview,
     regenerateWordDetails,
     loadWordsForReview,

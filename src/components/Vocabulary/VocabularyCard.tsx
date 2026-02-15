@@ -54,7 +54,7 @@ export const VocabularyCard = ({ word, onClick, onPlay, onDelete }: VocabularyCa
           <button
             type="button"
             onClick={onDelete}
-            className="btn btn-ghost btn-xs btn-circle opacity-0 group-hover:opacity-100 transition-opacity focus:opacity-100"
+            className="btn btn-ghost btn-xs btn-circle opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity sm:focus:opacity-100"
             aria-label="刪除"
             title="刪除單字"
           >

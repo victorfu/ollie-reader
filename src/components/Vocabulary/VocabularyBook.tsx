@@ -37,6 +37,54 @@ const groupWordsByDate = (words: VocabularyWord[]) => {
 
   return groups;
 };
+
+const DEFAULT_FILTERS: VocabularyFilters = {
+  sortBy: "createdAt",
+  sortOrder: "desc",
+};
+
+const getWordKey = (word: VocabularyWord): string =>
+  word.id || `${word.userId}-${word.word}`;
+
+const sortBySearchRelevance = (
+  inputWords: VocabularyWord[],
+  searchLower: string,
+): VocabularyWord[] => {
+  return [...inputWords].sort((a, b) => {
+    const aWord = a.word.toLowerCase();
+    const bWord = b.word.toLowerCase();
+
+    if (aWord === searchLower && bWord !== searchLower) return -1;
+    if (bWord === searchLower && aWord !== searchLower) return 1;
+
+    const aStartsWith = aWord.startsWith(searchLower);
+    const bStartsWith = bWord.startsWith(searchLower);
+    if (aStartsWith && !bStartsWith) return -1;
+    if (bStartsWith && !aStartsWith) return 1;
+
+    return aWord.localeCompare(bWord);
+  });
+};
+
+const mergeSearchResults = (
+  localResults: VocabularyWord[],
+  remoteResults: VocabularyWord[],
+  searchLower: string,
+): VocabularyWord[] => {
+  const seenKeys = new Set(localResults.map(getWordKey));
+  const merged = [...localResults];
+
+  remoteResults.forEach((word) => {
+    const key = getWordKey(word);
+    if (!seenKeys.has(key)) {
+      seenKeys.add(key);
+      merged.push(word);
+    }
+  });
+
+  return sortBySearchRelevance(merged, searchLower);
+};
+
 export const VocabularyBook = () => {
   const {
     words,
@@ -54,6 +102,7 @@ export const VocabularyBook = () => {
     loadWordsForReview,
     searchWords,
     getTags,
+    getWordCount,
   } = useVocabulary();
   const {
     speechSupported,
@@ -66,10 +115,7 @@ export const VocabularyBook = () => {
     speak,
   } = useSpeechState();
   const [selectedWord, setSelectedWord] = useState<VocabularyWord | null>(null);
-  const [filters, setFilters] = useState<VocabularyFilters>({
-    sortBy: "createdAt",
-    sortOrder: "desc",
-  });
+  const [filters, setFilters] = useState<VocabularyFilters>(DEFAULT_FILTERS);
   const [searchQuery, setSearchQuery] = useState("");
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
   const [searchResults, setSearchResults] = useState<VocabularyWord[] | null>(
@@ -93,42 +139,138 @@ export const VocabularyBook = () => {
   const [availableTags, setAvailableTags] = useState<string[]>([]);
   const manualWordFieldId = "manual-word-input";
   const loadMoreRef = useRef<HTMLDivElement>(null);
+  const searchRequestIdRef = useRef(0);
+
+  const refreshTags = useCallback(async () => {
+    const tags = await getTags();
+    setAvailableTags(tags);
+  }, [getTags]);
 
   // Load vocabulary when component mounts or filters change
   useEffect(() => {
-    loadVocabulary(filters);
+    void loadVocabulary(filters);
   }, [filters, loadVocabulary]);
 
-  // Load available tags when words change
+  // Load available tags once and after tag-affecting operations
   useEffect(() => {
-    const loadTags = async () => {
-      const tags = await getTags();
-      setAvailableTags(tags);
-    };
-    loadTags();
-  }, [getTags, words]);
+    void refreshTags();
+  }, [refreshTags]);
 
-  // Debounced search - search all words in Firestore
+  // Debounced search: local instant results + remote completion
   useEffect(() => {
+    const searchText = debouncedSearchQuery.trim();
+
+    if (!searchText) {
+      searchRequestIdRef.current += 1;
+      setIsSearching(false);
+      setSearchResults(null);
+      return;
+    }
+
+    const requestId = ++searchRequestIdRef.current;
+    const searchLower = searchText.toLowerCase();
+    const localResults = sortBySearchRelevance(
+      words.filter((word) => word.word.toLowerCase().includes(searchLower)),
+      searchLower,
+    );
+
+    setSearchResults(localResults);
+    setIsSearching(true);
+
     const performSearch = async () => {
-      if (debouncedSearchQuery.trim()) {
-        setIsSearching(true);
-        try {
-          const results = await searchWords(debouncedSearchQuery);
-          setSearchResults(results);
-        } catch (error) {
-          console.error("Search failed:", error);
-          setSearchResults([]);
-        } finally {
+      try {
+        const remoteResults = await searchWords(searchText, {
+          mode: "prefix",
+          limit: 120,
+        });
+        if (requestId !== searchRequestIdRef.current) return;
+        setSearchResults(
+          mergeSearchResults(localResults, remoteResults, searchLower),
+        );
+      } catch (error) {
+        console.error("Search failed:", error);
+        if (requestId !== searchRequestIdRef.current) return;
+        setSearchResults(localResults);
+      } finally {
+        if (requestId === searchRequestIdRef.current) {
           setIsSearching(false);
         }
-      } else {
-        setSearchResults(null);
       }
     };
 
-    performSearch();
-  }, [debouncedSearchQuery, searchWords]);
+    void performSearch();
+  }, [debouncedSearchQuery, words, searchWords]);
+
+  const hasActiveFilters = useMemo(() => {
+    return Boolean(
+      searchQuery.trim() ||
+        filters.difficulty ||
+        filters.sortBy !== DEFAULT_FILTERS.sortBy ||
+        filters.sortOrder !== DEFAULT_FILTERS.sortOrder,
+    );
+  }, [searchQuery, filters]);
+
+  const handleClearSearch = useCallback(() => {
+    searchRequestIdRef.current += 1;
+    setSearchQuery("");
+    setSearchResults(null);
+    setIsSearching(false);
+  }, []);
+
+  const handleClearFilters = useCallback(() => {
+    handleClearSearch();
+    setFilters({ ...DEFAULT_FILTERS });
+  }, [handleClearSearch]);
+
+  const handleUpdateWord = useCallback(
+    async (wordId: string, updates: Partial<VocabularyWord>) => {
+      const result = await updateWord(wordId, updates);
+      if (result.success) {
+        void refreshTags();
+      }
+      return result;
+    },
+    [updateWord, refreshTags],
+  );
+
+  const fetchTotalWordCount = useCallback(async () => {
+    const count = await getWordCount();
+    setTotalWordCount(count);
+    return count;
+  }, [getWordCount]);
+
+  // Handle opening review settings modal
+  const handleOpenReviewSettings = useCallback(async () => {
+    await fetchTotalWordCount();
+    setShowReviewSettings(true);
+  }, [fetchTotalWordCount]);
+
+  // Handle starting review with settings
+  const handleStartReview = useCallback(
+    async (settings: ReviewSettings) => {
+      setShowReviewSettings(false);
+      setIsLoadingReview(true);
+      try {
+        const selectedWords = await loadWordsForReview(
+          settings.wordCount,
+          settings.mode,
+          settings.selectedTag,
+        );
+        setReviewWords(selectedWords);
+        if (selectedWords.length > 0) {
+          setIsReviewMode(true);
+        } else {
+          setToastMessage({ message: "沒有單字可以複習", type: "info" });
+        }
+      } catch (error) {
+        console.error("Error loading review words:", error);
+        setToastMessage({ message: "載入複習清單失敗", type: "error" });
+      } finally {
+        setIsLoadingReview(false);
+      }
+    },
+    [loadWordsForReview],
+  );
 
   const handleFilterChange = (
     key: keyof VocabularyFilters,
@@ -152,7 +294,7 @@ export const VocabularyBook = () => {
           type: "success",
         });
         setManualWord("");
-        await loadVocabulary(filters);
+        await Promise.all([loadVocabulary(filters), refreshTags()]);
       } else {
         const message =
           response.message === "Word already in vocabulary"
@@ -177,7 +319,7 @@ export const VocabularyBook = () => {
     }
   };
 
-  const handleDelete = async (wordId: string) => {
+  const handleDelete = (wordId: string) => {
     setDeleteWordId(wordId);
   };
 
@@ -190,6 +332,7 @@ export const VocabularyBook = () => {
       if (selectedWord?.id === deleteWordId) {
         setSelectedWord(null);
       }
+      await refreshTags();
       setToastMessage({
         message: "單字已刪除",
         type: "success",
@@ -240,39 +383,6 @@ export const VocabularyBook = () => {
   // Memoize word groups to prevent recalculation on every render
   const wordGroups = useMemo(() => groupWordsByDate(words), [words]);
 
-  // Fetch total word count for review settings
-  const fetchTotalWordCount = useCallback(async () => {
-    const allWords = await loadWordsForReview(9999, "smart");
-    setTotalWordCount(allWords.length);
-  }, [loadWordsForReview]);
-
-  // Handle opening review settings modal
-  const handleOpenReviewSettings = useCallback(async () => {
-    await fetchTotalWordCount();
-    setShowReviewSettings(true);
-  }, [fetchTotalWordCount]);
-
-  // Handle starting review with settings
-  const handleStartReview = useCallback(
-    async (settings: ReviewSettings) => {
-      setShowReviewSettings(false);
-      setIsLoadingReview(true);
-      const selectedWords = await loadWordsForReview(
-        settings.wordCount,
-        settings.mode,
-        settings.selectedTag,
-      );
-      setReviewWords(selectedWords);
-      setIsLoadingReview(false);
-      if (selectedWords.length > 0) {
-        setIsReviewMode(true);
-      } else {
-        setToastMessage({ message: "沒有單字可以複習", type: "info" });
-      }
-    },
-    [loadWordsForReview],
-  );
-
   if (isReviewMode && reviewWords.length > 0) {
     return (
       <FlashcardMode
@@ -320,7 +430,7 @@ export const VocabularyBook = () => {
 
           {words.length > 0 && !loading && (
             <button
-              className="btn btn-primary gap-2 w-full sm:w-auto shadow-md"
+              className="btn btn-primary gap-2 w-full sm:w-auto shadow-md min-h-11"
               onClick={handleOpenReviewSettings}
               disabled={isLoadingReview}
             >
@@ -374,7 +484,7 @@ export const VocabularyBook = () => {
           </div>
           <button
             type="submit"
-            className="btn btn-primary w-full sm:w-auto sm:min-w-[10rem]"
+            className="btn btn-primary w-full sm:w-auto sm:min-w-[10rem] min-h-11"
             disabled={
               isAddingManualWord || isAdding || manualWord.trim().length === 0
             }
@@ -394,15 +504,25 @@ export const VocabularyBook = () => {
       {/* Compact Filters and Search */}
       <div className="bg-base-100 rounded-lg shadow p-4 mb-4">
         <div className="flex flex-col sm:flex-row gap-3">
-          <input
-            type="text"
-            placeholder="搜尋單字..."
-            className="input input-bordered input-sm w-full sm:flex-1"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
+          <div className="relative w-full sm:flex-1">
+            <input
+              type="text"
+              placeholder="搜尋單字..."
+              className="input input-bordered input-sm w-full pr-24"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+            {searchQuery.trim() && (
+              <div className="absolute inset-y-0 right-3 flex items-center gap-2 text-xs text-base-content/60">
+                {isSearching && (
+                  <span className="loading loading-spinner loading-xs" />
+                )}
+                <span>{isSearching ? "更新中" : `${searchResults?.length ?? 0} 筆`}</span>
+              </div>
+            )}
+          </div>
 
-          <div className="grid grid-cols-3 sm:flex gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             {/* Difficulty Filter */}
             <select
               className="select select-bordered select-sm w-full sm:w-auto"
@@ -435,22 +555,36 @@ export const VocabularyBook = () => {
               <option value="desc">降序</option>
               <option value="asc">升序</option>
             </select>
+
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm sm:w-auto min-h-11"
+              onClick={handleClearFilters}
+              disabled={!hasActiveFilters}
+            >
+              清除篩選
+            </button>
           </div>
         </div>
       </div>
 
-      {/* Loading State */}
-      {(loading || isSearching) && (
-        <div className="text-center py-12">
-          <span className="loading loading-spinner loading-lg"></span>
-          {isSearching && (
-            <p className="mt-2 text-base-content/60">搜尋中...</p>
-          )}
+      {/* Initial Loading State */}
+      {loading && words.length === 0 && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 py-2">
+          {Array.from({ length: 8 }).map((_, index) => (
+            <div key={index} className="card bg-base-100 border border-base-200">
+              <div className="card-body p-4">
+                <div className="h-6 w-2/3 rounded bg-base-300 animate-pulse" />
+                <div className="h-4 w-1/2 rounded bg-base-300 animate-pulse" />
+                <div className="h-12 w-full rounded bg-base-300 animate-pulse mt-2" />
+              </div>
+            </div>
+          ))}
         </div>
       )}
 
       {/* Empty State - No words at all */}
-      {!loading && !isSearching && !searchResults && words.length === 0 && (
+      {!loading && searchResults === null && words.length === 0 && (
         <div className="card bg-base-100 shadow-xl">
           <div className="card-body text-center py-12">
             <div className="text-6xl mb-4">📖</div>
@@ -463,7 +597,7 @@ export const VocabularyBook = () => {
       )}
 
       {/* Search Results */}
-      {!loading && !isSearching && searchResults !== null && (
+      {!loading && searchResults !== null && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-bold text-base-content/60 flex items-center gap-2">
@@ -485,13 +619,13 @@ export const VocabularyBook = () => {
               <span className="text-xs font-normal bg-base-200 px-2 py-0.5 rounded-full">
                 {searchResults.length}
               </span>
+              {isSearching && (
+                <span className="loading loading-spinner loading-xs text-primary" />
+              )}
             </h2>
             <button
               className="btn btn-ghost btn-sm"
-              onClick={() => {
-                setSearchQuery("");
-                setSearchResults(null);
-              }}
+              onClick={handleClearSearch}
             >
               清除搜尋
             </button>
@@ -502,7 +636,7 @@ export const VocabularyBook = () => {
               <div className="card-body text-center py-8">
                 <div className="text-4xl mb-2">🔍</div>
                 <p className="text-base-content/60">
-                  找不到符合「{debouncedSearchQuery}」的單字
+                  找不到符合「{debouncedSearchQuery || searchQuery.trim()}」的單字
                 </p>
               </div>
             </div>
@@ -532,7 +666,6 @@ export const VocabularyBook = () => {
 
       {/* Word Groups - Only show when not searching */}
       {!loading &&
-        !isSearching &&
         searchResults === null &&
         Object.keys(wordGroups).length > 0 && (
           <div className="space-y-8">
@@ -586,7 +719,7 @@ export const VocabularyBook = () => {
         <WordDetail
           word={selectedWord}
           onClose={() => setSelectedWord(null)}
-          onUpdateWord={updateWord}
+          onUpdateWord={handleUpdateWord}
           onRegenerateWordDetails={regenerateWordDetails}
           availableTags={availableTags}
         />
