@@ -17,6 +17,7 @@ import { ConfirmModal } from "../common/ConfirmModal";
 
 import { FlashcardMode } from "./FlashcardMode";
 import { ReviewSettingsModal } from "./ReviewSettingsModal";
+import { SentenceTranslationBook } from "../SentenceTranslation/SentenceTranslationBook";
 
 // Move groupWordsByDate outside component to prevent recreation on each render
 const groupWordsByDate = (words: VocabularyWord[]) => {
@@ -137,6 +138,7 @@ export const VocabularyBook = () => {
   const [showReviewSettings, setShowReviewSettings] = useState(false);
   const [totalWordCount, setTotalWordCount] = useState(0);
   const [availableTags, setAvailableTags] = useState<string[]>([]);
+  const [activeTab, setActiveTab] = useState<"words" | "sentences">("words");
   const manualWordFieldId = "manual-word-input";
   const loadMoreRef = useRef<HTMLDivElement>(null);
   const searchRequestIdRef = useRef(0);
@@ -204,7 +206,6 @@ export const VocabularyBook = () => {
   const hasActiveFilters = useMemo(() => {
     return Boolean(
       searchQuery.trim() ||
-        filters.difficulty ||
         filters.sortBy !== DEFAULT_FILTERS.sortBy ||
         filters.sortOrder !== DEFAULT_FILTERS.sortOrder,
     );
@@ -416,6 +417,35 @@ export const VocabularyBook = () => {
         isLoading={isLoadingReview}
       />
 
+      {/* Tab segmented control */}
+      <div className="flex gap-1 bg-base-200/50 rounded-xl p-1 mb-4">
+        <button
+          type="button"
+          className={`flex-1 h-10 rounded-lg text-sm font-medium transition-all ${
+            activeTab === "words"
+              ? "bg-primary text-primary-content shadow-sm"
+              : "text-base-content/60 hover:bg-black/5 dark:hover:bg-white/5"
+          }`}
+          onClick={() => setActiveTab("words")}
+        >
+          📖 單字
+        </button>
+        <button
+          type="button"
+          className={`flex-1 h-10 rounded-lg text-sm font-medium transition-all ${
+            activeTab === "sentences"
+              ? "bg-primary text-primary-content shadow-sm"
+              : "text-base-content/60 hover:bg-black/5 dark:hover:bg-white/5"
+          }`}
+          onClick={() => setActiveTab("sentences")}
+        >
+          🌐 句子翻譯
+        </button>
+      </div>
+
+      {/* Words tab content */}
+      <div className={activeTab === "words" ? "" : "hidden"}>
+
       {/* Toolbar: TTS + Manual Add + Start Review */}
       <div className="bg-base-100 rounded-lg shadow p-3 mb-4 flex flex-wrap gap-3 items-center">
         {speechSupported && (
@@ -488,7 +518,7 @@ export const VocabularyBook = () => {
 
       {/* Compact Filters and Search */}
       <div className="bg-base-100 rounded-lg shadow p-4 mb-4">
-        <div className="flex flex-col sm:flex-row gap-3">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
           <div className="relative w-full sm:flex-1">
             <input
               type="text"
@@ -507,21 +537,7 @@ export const VocabularyBook = () => {
             )}
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            {/* Difficulty Filter */}
-            <select
-              className="select select-bordered select-sm w-full sm:w-auto"
-              value={filters.difficulty || ""}
-              onChange={(e) =>
-                handleFilterChange("difficulty", e.target.value || undefined)
-              }
-            >
-              <option value="">所有難度</option>
-              <option value="easy">簡單</option>
-              <option value="medium">中等</option>
-              <option value="hard">困難</option>
-            </select>
-
+          <div className="grid grid-cols-2 sm:grid-cols-3 items-center gap-2">
             {/* Sort Options */}
             <select
               className="select select-bordered select-sm w-full sm:w-auto"
@@ -543,7 +559,7 @@ export const VocabularyBook = () => {
 
             <button
               type="button"
-              className="btn btn-ghost btn-sm sm:w-auto min-h-11"
+              className="btn btn-ghost btn-sm sm:w-auto"
               onClick={handleClearFilters}
               disabled={!hasActiveFilters}
             >
@@ -698,6 +714,13 @@ export const VocabularyBook = () => {
             </div>
           </div>
         )}
+
+      </div>{/* End words tab content */}
+
+      {/* Sentences tab content */}
+      <div className={activeTab === "sentences" ? "" : "hidden"}>
+        <SentenceTranslationBook embedded />
+      </div>
 
       {/* Word Detail Modal */}
       {selectedWord && (

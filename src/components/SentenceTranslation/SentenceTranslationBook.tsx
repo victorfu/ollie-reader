@@ -27,7 +27,12 @@ const groupSentencesByDate = (sentences: SentenceTranslation[]) => {
   return groups;
 };
 
-export const SentenceTranslationBook = () => {
+interface SentenceTranslationBookProps {
+  embedded?: boolean;
+  onCountChange?: (count: number) => void;
+}
+
+export const SentenceTranslationBook = ({ embedded = false, onCountChange }: SentenceTranslationBookProps) => {
   const {
     sentences,
     isLoading,
@@ -36,7 +41,6 @@ export const SentenceTranslationBook = () => {
     loadSentences,
     loadMore,
     deleteSentence,
-    clearAll,
   } = useSentenceTranslation();
 
   const { speak, isSpeaking, stopSpeaking } = useSpeechState();
@@ -49,8 +53,6 @@ export const SentenceTranslationBook = () => {
   } | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [showClearConfirm, setShowClearConfirm] = useState(false);
-  const [isClearing, setIsClearing] = useState(false);
 
   const loadMoreRef = useRef<HTMLDivElement>(null);
 
@@ -80,6 +82,11 @@ export const SentenceTranslationBook = () => {
   const groupedSentences = groupSentencesByDate(filteredSentences);
   const dateKeys = Object.keys(groupedSentences);
 
+  // Report count changes to parent
+  useEffect(() => {
+    onCountChange?.(sentences.length);
+  }, [sentences.length, onCountChange]);
+
   // Infinite scroll
   useEffect(() => {
     if (!loadMoreRef.current || !hasMore || isLoading) return;
@@ -108,15 +115,6 @@ export const SentenceTranslationBook = () => {
     setToastMessage({ message: "已刪除", type: "success" });
   }, [deleteId, deleteSentence]);
 
-  // Handle clear all
-  const handleClearAll = useCallback(async () => {
-    setIsClearing(true);
-    await clearAll();
-    setIsClearing(false);
-    setShowClearConfirm(false);
-    setToastMessage({ message: "已清除所有翻譯", type: "success" });
-  }, [clearAll]);
-
   // Handle speak
   const handleSpeak = useCallback(
     (text: string) => {
@@ -131,27 +129,19 @@ export const SentenceTranslationBook = () => {
 
   return (
     <div className="max-w-4xl mx-auto">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">
-            句子翻譯
-          </h1>
-          <p className="text-sm text-base-content/60 mt-1">
-            {sentences.length} 個已翻譯句子
-          </p>
+      {/* Header — only in standalone mode */}
+      {!embedded && (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">
+              句子翻譯
+            </h1>
+            <p className="text-sm text-base-content/60 mt-1">
+              {sentences.length} 個已翻譯句子
+            </p>
+          </div>
         </div>
-
-        {sentences.length > 0 && (
-          <button
-            type="button"
-            className="btn btn-outline btn-error btn-sm"
-            onClick={() => setShowClearConfirm(true)}
-          >
-            清除全部
-          </button>
-        )}
-      </div>
+      )}
 
       {/* Search */}
       <div className="mb-6">
@@ -306,18 +296,6 @@ export const SentenceTranslationBook = () => {
         isLoading={isDeleting}
         onConfirm={handleDelete}
         onCancel={() => setDeleteId(null)}
-      />
-
-      {/* Clear All Confirm Modal */}
-      <ConfirmModal
-        isOpen={showClearConfirm}
-        title="清除全部"
-        message="確定要清除所有已翻譯的句子嗎？此操作無法復原。"
-        confirmText="清除全部"
-        confirmVariant="error"
-        isLoading={isClearing}
-        onConfirm={handleClearAll}
-        onCancel={() => setShowClearConfirm(false)}
       />
 
       {/* Toast */}

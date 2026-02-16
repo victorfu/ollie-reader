@@ -32,9 +32,6 @@ const SpeechPractice = lazy(
 const SentencePractice = lazy(
   () => import("./components/SentencePractice/SentencePractice"),
 );
-const SentenceTranslationBook = lazy(
-  () => import("./components/SentenceTranslation/SentenceTranslationBook"),
-);
 const AudioUploads = lazy(
   () => import("./components/AudioUploads/AudioUploads"),
 );
@@ -132,7 +129,6 @@ function AppContent() {
   const isSettingsPage = location.pathname === "/settings";
   const isSpeechPracticePage = location.pathname === "/speech-practice";
   const isEnglishSpeechPage = location.pathname === "/english-speech";
-  const isTranslationsPage = location.pathname === "/translations";
   const isAudioUploadsPage = location.pathname === "/audio-uploads";
   const isGamePage = location.pathname === "/game";
   const isShowPage = location.pathname === "/show";
@@ -152,12 +148,6 @@ function AppContent() {
       label: "生詞本",
       icon: "📖",
       isActive: isVocabularyPage,
-    },
-    {
-      to: "/translations",
-      label: "句子翻譯",
-      icon: "🌐",
-      isActive: isTranslationsPage,
     },
     {
       to: "/speech-practice",
@@ -457,10 +447,6 @@ function AppContent() {
                   <Route
                     path="/english-speech"
                     element={<SentencePractice />}
-                  />
-                  <Route
-                    path="/translations"
-                    element={<SentenceTranslationBook />}
                   />
                   <Route path="/audio-uploads" element={<AudioUploads />} />
                   <Route path="/show" element={<ShowSubtitlesPage />} />
