@@ -44,6 +44,11 @@ const ShowSubtitlesPage = lazy(() =>
     default: module.ShowSubtitlesPage,
   })),
 );
+const TravelEnglishPage = lazy(() =>
+  import("./components/TravelEnglish/TravelEnglishPage").then((module) => ({
+    default: module.TravelEnglishPage,
+  })),
+);
 
 // Loading fallback component
 function RouteLoadingFallback() {
@@ -131,6 +136,7 @@ function AppContent() {
   const isAudioUploadsPage = location.pathname === "/audio-uploads";
   const isGamePage = location.pathname === "/game";
   const isShowPage = location.pathname === "/show";
+  const isTravelPage = location.pathname === "/travel";
   const accountLabel = user.displayName || user.email || "使用者";
   const accountEmail = user.email;
   const accountInitial = accountLabel.charAt(0).toUpperCase();
@@ -182,6 +188,12 @@ function AppContent() {
       label: "精靈探險",
       icon: "🎮",
       isActive: isGamePage,
+    },
+    {
+      to: "/travel",
+      label: "旅遊英文",
+      icon: "🌏",
+      isActive: isTravelPage,
     },
     {
       to: "/settings",
@@ -453,6 +465,7 @@ function AppContent() {
                   <Route path="/audio-uploads" element={<AudioUploads />} />
                   <Route path="/show" element={<ShowSubtitlesPage />} />
                   <Route path="/game" element={<SpiritAdventure />} />
+                  <Route path="/travel" element={<TravelEnglishPage />} />
                   <Route path="/settings" element={<Settings />} />
                 </Routes>
               </Suspense>
