@@ -10,7 +10,6 @@ import { useLookupQueue } from "../hooks/useLookupQueue";
 import { useAuth } from "../hooks/useAuth";
 import { createTranslateFn } from "../utils/translateFactory";
 import { UploadArea } from "./PdfReader/UploadArea";
-import { PdfControlBar } from "./PdfReader/PdfControlBar";
 import { PdfViewer } from "./PdfReader/PdfViewer";
 import { PageTextArea } from "./PdfReader/PageTextArea";
 import { SelectionToolbar } from "./PdfReader/SelectionToolbar";
@@ -41,23 +40,18 @@ function PdfReader() {
   } = usePdfState();
 
   const {
-    speechRate,
     isSpeaking,
-    ttsMode,
-    setTtsMode,
     isLoadingAudio,
     speechSupported,
     speak,
     stopSpeaking,
   } = useSpeechState();
 
-  const { textParsingMode } = useSettings();
+  const { textParsingMode, readingMode } = useSettings();
 
   const { user } = useAuth();
 
   const {
-    readingMode,
-    setReadingMode,
     selectedText,
     handleTextSelection,
     clearSelection,
@@ -219,6 +213,8 @@ function PdfReader() {
           onUrlLoad={loadPdfFromUrl}
           onCancel={cancelUpload}
           onOpenBookingDrawer={() => setDrawerOpen(true)}
+          onClearCache={result ? handleClearCache : undefined}
+          isClearingCache={isClearingCache}
         />
       </div>
 
@@ -233,23 +229,6 @@ function PdfReader() {
         onSelectRecord={handleLoadBookingPdf}
         onRetry={fetchBookingRecords}
       />
-
-      {/* PDF Control Bar */}
-      {result && (
-        <PdfControlBar
-          ttsMode={ttsMode}
-          readingMode={readingMode}
-          speechRate={speechRate}
-          isSpeaking={isSpeaking}
-          isLoadingAudio={isLoadingAudio}
-          onTtsModeChange={setTtsMode}
-          onReadingModeChange={setReadingMode}
-          onStop={stopSpeaking}
-          result={result}
-          onClearCache={handleClearCache}
-          isClearingCache={isClearingCache}
-        />
-      )}
 
       {/* Error Alert - macOS HIG style */}
       {error && (
@@ -310,6 +289,49 @@ function PdfReader() {
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Stop Speech Button */}
+      {(isSpeaking || isLoadingAudio) && (
+        <div className="fixed bottom-6 right-6 z-50">
+          <button
+            type="button"
+            onClick={stopSpeaking}
+            disabled={isLoadingAudio}
+            className="flex items-center gap-2 h-10 px-4 rounded-xl text-sm font-medium border border-error/30 text-error bg-base-100/90 backdrop-blur-xl shadow-lg hover:bg-error/10 active:scale-[0.98] transition-all duration-200 disabled:opacity-50"
+          >
+            {isLoadingAudio ? (
+              <>
+                <span className="loading loading-spinner loading-xs"></span>
+                生成中
+              </>
+            ) : (
+              <>
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-4 w-4"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={1.5}
+                    d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={1.5}
+                    d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"
+                  />
+                </svg>
+                停止
+              </>
+            )}
+          </button>
         </div>
       )}
 

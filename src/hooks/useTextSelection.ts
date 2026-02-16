@@ -1,5 +1,4 @@
 import { useState, useCallback, useRef, useEffect } from "react";
-import type { ReadingMode } from "../types/pdf";
 
 export type SelectionToolbarPosition = {
   top: number;
@@ -8,7 +7,6 @@ export type SelectionToolbarPosition = {
 };
 
 export function useTextSelection() {
-  const [readingMode, setReadingMode] = useState<ReadingMode>("selection");
   const [selectedText, setSelectedText] = useState<string>("");
   const [toolbarPosition, setToolbarPosition] =
     useState<SelectionToolbarPosition | null>(null);
@@ -102,8 +100,6 @@ export function useTextSelection() {
   }, [selectedText, clearSelection]);
 
   return {
-    readingMode,
-    setReadingMode,
     selectedText,
     handleTextSelection,
     clearSelection,

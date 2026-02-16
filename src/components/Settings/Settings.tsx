@@ -3,18 +3,20 @@ import { useSettings } from "../../hooks/useSettings";
 import { useAuth } from "../../hooks/useAuth";
 import { resetGameProgress } from "../../services/gameProgressService";
 import { ConfirmModal } from "../common/ConfirmModal";
-import type { TTSMode, TextParsingMode } from "../../types/pdf";
+import type { TTSMode, ReadingMode, TextParsingMode } from "../../types/pdf";
 
 export const Settings = () => {
   const { user } = useAuth();
   const {
     ttsMode,
     speechRate,
+    readingMode,
     textParsingMode,
     loading,
     error,
     updateTtsMode,
     updateSpeechRate,
+    updateReadingMode,
     updateTextParsingMode,
   } = useSettings();
   const [saving, setSaving] = useState(false);
@@ -44,6 +46,21 @@ export const Settings = () => {
 
     try {
       await updateSpeechRate(rate);
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 3000);
+    } catch (err) {
+      console.error("Failed to save settings:", err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleReadingModeChange = async (mode: ReadingMode) => {
+    setSaving(true);
+    setSaveSuccess(false);
+
+    try {
+      await updateReadingMode(mode);
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
     } catch (err) {
@@ -197,6 +214,53 @@ export const Settings = () => {
                     {speechRate.toFixed(1)}x
                   </span>
                 </div>
+              </div>
+            </div>
+
+            {/* Divider */}
+            <div className="divider"></div>
+
+            {/* Reading Mode Selection */}
+            <div>
+              <h3 className="text-lg font-semibold mb-3">閱讀模式</h3>
+              <p className="text-sm text-base-content/70 mb-4">
+                選擇點擊文字時的查詢方式
+              </p>
+
+              <div className="space-y-3">
+                <label className="flex items-start gap-3 p-4 border border-base-300 rounded-lg cursor-pointer hover:bg-base-200 transition-colors">
+                  <input
+                    type="radio"
+                    name="readingMode"
+                    className="radio radio-primary mt-1"
+                    checked={readingMode === "word"}
+                    onChange={() => handleReadingModeChange("word")}
+                    disabled={saving}
+                  />
+                  <div className="flex-1">
+                    <div className="font-medium">單字模式</div>
+                    <div className="text-sm text-base-content/60">
+                      點擊單字即可查詢（推薦）
+                    </div>
+                  </div>
+                </label>
+
+                <label className="flex items-start gap-3 p-4 border border-base-300 rounded-lg cursor-pointer hover:bg-base-200 transition-colors">
+                  <input
+                    type="radio"
+                    name="readingMode"
+                    className="radio radio-primary mt-1"
+                    checked={readingMode === "selection"}
+                    onChange={() => handleReadingModeChange("selection")}
+                    disabled={saving}
+                  />
+                  <div className="flex-1">
+                    <div className="font-medium">選取模式</div>
+                    <div className="text-sm text-base-content/60">
+                      選取文字範圍後查詢，適合查詢片語或句子
+                    </div>
+                  </div>
+                </label>
               </div>
             </div>
 

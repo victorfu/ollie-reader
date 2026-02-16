@@ -3,7 +3,7 @@ import { useAuth } from "../hooks/useAuth";
 import { getUserSettings, saveUserSettings } from "../services/settingsService";
 import { SettingsContext } from "./SettingsContextType";
 import type { UserSettings } from "../types/settings";
-import type { TTSMode, TextParsingMode } from "../types/pdf";
+import type { TTSMode, ReadingMode, TextParsingMode } from "../types/pdf";
 
 interface SettingsProviderProps {
   children: ReactNode;
@@ -27,6 +27,7 @@ export const SettingsProvider = ({ children }: SettingsProviderProps) => {
   const { user } = useAuth();
   const [ttsMode, setTtsMode] = useState<TTSMode>("browser");
   const [speechRate, setSpeechRate] = useState<number>(1);
+  const [readingMode, setReadingMode] = useState<ReadingMode>("word");
   const [textParsingMode, setTextParsingMode] = useState<TextParsingMode>(getTextParsingModeFromStorage);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -37,6 +38,7 @@ export const SettingsProvider = ({ children }: SettingsProviderProps) => {
       if (!user) {
         setTtsMode("browser"); // Default when logged out
         setSpeechRate(1); // Default when logged out
+        setReadingMode("word"); // Default when logged out
         // textParsingMode is managed by localStorage, no need to reset
         setLoading(false);
         return;
@@ -50,11 +52,13 @@ export const SettingsProvider = ({ children }: SettingsProviderProps) => {
         if (settings) {
           setTtsMode(settings.ttsMode);
           setSpeechRate(settings.speechRate ?? 1);
+          setReadingMode(settings.readingMode ?? "word");
           // textParsingMode is managed by localStorage
         } else {
           // No settings found, use defaults
           setTtsMode("browser");
           setSpeechRate(1);
+          setReadingMode("word");
         }
       } catch (err) {
         const message =
@@ -71,7 +75,7 @@ export const SettingsProvider = ({ children }: SettingsProviderProps) => {
 
   // Generic setting update helper (for Firestore-synced settings)
   const updateSetting = useCallback(
-    async <K extends keyof Pick<UserSettings, "ttsMode" | "speechRate">>(
+    async <K extends keyof Pick<UserSettings, "ttsMode" | "speechRate" | "readingMode">>(
       key: K,
       value: UserSettings[K],
       setter: (value: UserSettings[K]) => void,
@@ -110,6 +114,11 @@ export const SettingsProvider = ({ children }: SettingsProviderProps) => {
     [updateSetting],
   );
 
+  const updateReadingMode = useCallback(
+    (mode: ReadingMode) => updateSetting("readingMode", mode, setReadingMode),
+    [updateSetting],
+  );
+
   const updateTextParsingMode = useCallback(
     async (mode: TextParsingMode) => {
       // Save to localStorage only (local preference, not synced to Firestore)
@@ -127,14 +136,16 @@ export const SettingsProvider = ({ children }: SettingsProviderProps) => {
     () => ({
       ttsMode,
       speechRate,
+      readingMode,
       textParsingMode,
       loading,
       error,
       updateTtsMode,
       updateSpeechRate,
+      updateReadingMode,
       updateTextParsingMode,
     }),
-    [ttsMode, speechRate, textParsingMode, loading, error, updateTtsMode, updateSpeechRate, updateTextParsingMode]
+    [ttsMode, speechRate, readingMode, textParsingMode, loading, error, updateTtsMode, updateSpeechRate, updateReadingMode, updateTextParsingMode]
   );
 
   return (

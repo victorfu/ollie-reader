@@ -11,7 +11,6 @@ import type {
 } from "../../types/vocabulary";
 import { WordDetail } from "../Vocabulary/WordDetail";
 import { VocabularyCard } from "../Vocabulary/VocabularyCard";
-import { SimpleTTSControls } from "../common/SimpleTTSControls";
 import { Toast } from "../common/Toast";
 import { ConfirmModal } from "../common/ConfirmModal";
 
@@ -105,16 +104,7 @@ export const VocabularyBook = () => {
     getTags,
     getWordCount,
   } = useVocabulary();
-  const {
-    speechSupported,
-    speechRate,
-    isSpeaking,
-    ttsMode,
-    setTtsMode,
-    isLoadingAudio,
-    stopSpeaking,
-    speak,
-  } = useSpeechState();
+  const { speak } = useSpeechState();
   const [selectedWord, setSelectedWord] = useState<VocabularyWord | null>(null);
   const [filters, setFilters] = useState<VocabularyFilters>(DEFAULT_FILTERS);
   const [searchQuery, setSearchQuery] = useState("");
@@ -446,18 +436,8 @@ export const VocabularyBook = () => {
       {/* Words tab content */}
       <div className={activeTab === "words" ? "" : "hidden"}>
 
-      {/* Toolbar: TTS + Manual Add + Start Review */}
+      {/* Toolbar: Manual Add + Start Review */}
       <div className="bg-base-100 rounded-lg shadow p-3 mb-4 flex flex-wrap gap-3 items-center">
-        {speechSupported && (
-          <SimpleTTSControls
-            ttsMode={ttsMode}
-            speechRate={speechRate}
-            isSpeaking={isSpeaking}
-            isLoadingAudio={isLoadingAudio}
-            onTtsModeChange={setTtsMode}
-            onStop={stopSpeaking}
-          />
-        )}
         <form
           className="flex flex-1 min-w-0 gap-2 items-center"
           onSubmit={handleManualSubmit}

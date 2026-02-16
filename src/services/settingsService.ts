@@ -1,7 +1,7 @@
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "../utils/firebaseUtil";
 import type { UserSettings } from "../types/settings";
-import type { TTSMode } from "../types/pdf";
+import type { TTSMode, ReadingMode } from "../types/pdf";
 
 const SETTINGS_COLLECTION = "userSettings";
 
@@ -21,6 +21,7 @@ export const getUserSettings = async (
         userId,
         ttsMode: (data.ttsMode as TTSMode) || "browser",
         speechRate: (data.speechRate as number) ?? 1,
+        readingMode: (data.readingMode as ReadingMode) || "word",
         createdAt: data.createdAt?.toDate(),
         updatedAt: data.updatedAt?.toDate(),
       };
@@ -38,7 +39,7 @@ export const getUserSettings = async (
  */
 export const saveUserSettings = async (
   userId: string,
-  settings: Partial<Pick<UserSettings, "ttsMode" | "speechRate">>,
+  settings: Partial<Pick<UserSettings, "ttsMode" | "speechRate" | "readingMode">>,
 ): Promise<void> => {
   try {
     const docRef = doc(db, SETTINGS_COLLECTION, userId);
@@ -60,6 +61,7 @@ export const saveUserSettings = async (
         userId,
         ttsMode: settings.ttsMode || "browser",
         speechRate: settings.speechRate ?? 1,
+        readingMode: settings.readingMode || "word",
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
