@@ -150,6 +150,12 @@ function AppContent() {
       isActive: isVocabularyPage,
     },
     {
+      to: "/travel",
+      label: "旅遊英文",
+      icon: "🌏",
+      isActive: isTravelPage,
+    },
+    {
       to: "/speech-practice",
       label: "演講練習",
       icon: "🎤",
@@ -178,12 +184,6 @@ function AppContent() {
       label: "精靈探險",
       icon: "🎮",
       isActive: isGamePage,
-    },
-    {
-      to: "/travel",
-      label: "旅遊英文",
-      icon: "🌏",
-      isActive: isTravelPage,
     },
     {
       to: "/settings",
