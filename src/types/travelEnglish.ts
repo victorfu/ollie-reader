@@ -61,5 +61,14 @@ export interface PracticeItem {
   hint?: string;
 }
 
+/** 場景分組 */
+export interface SceneSection {
+  id: string;
+  title: string;
+  titleChinese: string;
+  emoji: string;
+  scenes: TravelScene[];
+}
+
 /** 分頁 */
 export type SceneTab = "phrases" | "dialogues" | "practice";
