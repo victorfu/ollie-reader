@@ -7,6 +7,13 @@ export interface TravelDestination {
   scenes: TravelScene[];
 }
 
+/** 趣味小知識 */
+export interface FunFact {
+  emoji: string;
+  english: string;
+  chinese: string;
+}
+
 /** 場景 */
 export interface TravelScene {
   id: string;
@@ -18,6 +25,7 @@ export interface TravelScene {
   vocabulary: TravelVocab[];
   phrases: TravelPhrase[];
   dialogues: TravelDialogue[];
+  funFacts?: FunFact[];
 }
 
 /** 單字 */
@@ -70,5 +78,5 @@ export interface SceneSection {
   scenes: TravelScene[];
 }
 
-/** 分頁 */
-export type SceneTab = "phrases" | "dialogues" | "practice";
+/** 活動類型 */
+export type ActivityType = "words" | "story" | "roleplay" | "challenge";

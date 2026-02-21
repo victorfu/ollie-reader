@@ -1,74 +1,7 @@
 import type { TravelScene } from "../../types/travelEnglish";
 
 export const singaporeGeneralScenes: TravelScene[] = [
-  // ── 1. Airport & Flying ──────────────────────────────────
-  {
-    id: "airport",
-    title: "Airport & Flying",
-    titleChinese: "機場與搭飛機",
-    emoji: "✈️",
-    description: "Learn what to say at check-in, boarding, customs, and immigration.",
-    colorClass: "bg-sky-50",
-    vocabulary: [
-      { word: "passport", chinese: "護照", emoji: "🛂", phonetic: "PASS-port", example: "Please show me your passport." },
-      { word: "boarding pass", chinese: "登機證", emoji: "🎫", phonetic: "BOR-ding pass", example: "Here is your boarding pass." },
-      { word: "luggage", chinese: "行李", emoji: "🧳", phonetic: "LUG-ij", example: "How many pieces of luggage do you have?" },
-      { word: "gate", chinese: "登機門", emoji: "🚪", phonetic: "gayt", example: "Your gate is B12." },
-      { word: "aisle", chinese: "走道", emoji: "💺", phonetic: "AYL", example: "I'd like an aisle seat, please." },
-      { word: "window", chinese: "窗戶", emoji: "🪟", phonetic: "WIN-doh", example: "Can I have a window seat?" },
-      { word: "customs", chinese: "海關", emoji: "🛃", phonetic: "KUS-tumz", example: "You need to go through customs." },
-      { word: "declaration", chinese: "申報", emoji: "📋", phonetic: "dek-luh-RAY-shun", example: "Do you have anything to declare?" },
-      { word: "departure", chinese: "出發", emoji: "🛫", phonetic: "dee-PAR-chur", example: "The departure time is 3 PM." },
-      { word: "arrival", chinese: "抵達", emoji: "🛬", phonetic: "uh-RY-vul", example: "What is the arrival time?" },
-    ],
-    phrases: [
-      { id: "airport-p1", english: "I'd like to check in, please.", chinese: "我想辦理登機手續。", situation: "check-in" },
-      { id: "airport-p2", english: "Can I have a window seat?", chinese: "可以給我靠窗的座位嗎？", situation: "check-in" },
-      { id: "airport-p3", english: "Where is Gate B12?", chinese: "B12 登機門在哪裡？", situation: "boarding" },
-      { id: "airport-p4", english: "Is this the line for boarding?", chinese: "這是排隊登機的隊伍嗎？", situation: "boarding" },
-      { id: "airport-p5", english: "I'm here for vacation.", chinese: "我來這裡度假。", situation: "immigration" },
-      { id: "airport-p6", english: "I'm staying for five days.", chinese: "我會待五天。", situation: "immigration" },
-      { id: "airport-p7", english: "I have nothing to declare.", chinese: "我沒有東西要申報。", situation: "customs" },
-      { id: "airport-p8", english: "Where can I pick up my luggage?", chinese: "我在哪裡領行李？", situation: "arrival" },
-      { id: "airport-p9", english: "Excuse me, where is the toilet?", chinese: "不好意思，廁所在哪裡？", situation: "general" },
-    ],
-    dialogues: [
-      {
-        id: "airport-d1",
-        title: "Checking In at the Counter",
-        titleChinese: "在櫃檯辦理登機",
-        description: "You arrive at Taoyuan Airport and check in for your flight to Singapore.",
-        lines: [
-          { speaker: "A", role: "You", english: "Hi, I'd like to check in for my flight to Singapore.", chinese: "你好，我想辦理飛往新加坡的登機手續。" },
-          { speaker: "B", role: "Staff", english: "Sure! May I see your passport, please?", chinese: "好的！請讓我看看您的護照。" },
-          { speaker: "A", role: "You", english: "Here you go.", chinese: "給你。" },
-          { speaker: "B", role: "Staff", english: "Would you like a window or aisle seat?", chinese: "您要靠窗還是靠走道的座位？" },
-          { speaker: "A", role: "You", english: "A window seat, please.", chinese: "靠窗的，麻煩你。" },
-          { speaker: "B", role: "Staff", english: "How many bags are you checking in?", chinese: "您要托運幾件行李？" },
-          { speaker: "A", role: "You", english: "Just one suitcase.", chinese: "只有一個行李箱。" },
-          { speaker: "B", role: "Staff", english: "Here's your boarding pass. Your gate is B5. Have a nice flight!", chinese: "這是您的登機證。您的登機門是 B5。祝您旅途愉快！" },
-        ],
-      },
-      {
-        id: "airport-d2",
-        title: "Going Through Immigration",
-        titleChinese: "通過移民關",
-        description: "You arrive at Changi Airport and go through Singapore immigration.",
-        lines: [
-          { speaker: "B", role: "Officer", english: "Passport, please.", chinese: "請出示護照。" },
-          { speaker: "A", role: "You", english: "Here is my passport.", chinese: "這是我的護照。" },
-          { speaker: "B", role: "Officer", english: "What is the purpose of your visit?", chinese: "您來訪的目的是什麼？" },
-          { speaker: "A", role: "You", english: "I'm here for a vacation with my family.", chinese: "我和家人來度假。" },
-          { speaker: "B", role: "Officer", english: "How long will you be staying?", chinese: "您會待多久？" },
-          { speaker: "A", role: "You", english: "Five days.", chinese: "五天。" },
-          { speaker: "B", role: "Officer", english: "Where will you be staying?", chinese: "您會住在哪裡？" },
-          { speaker: "A", role: "You", english: "At the Marina Bay Hotel.", chinese: "在濱海灣飯店。" },
-        ],
-      },
-    ],
-  },
-
-  // ── 2. Hotel ─────────────────────────────────────────────
+  // ── 1. Hotel ─────────────────────────────────────────────
   {
     id: "hotel",
     title: "Hotel",
@@ -76,6 +9,9 @@ export const singaporeGeneralScenes: TravelScene[] = [
     emoji: "🏨",
     description: "Check in, ask about amenities, request room service, and check out.",
     colorClass: "bg-amber-50",
+    funFacts: [
+      { emoji: "🏊", english: "Many Singapore hotels have an infinity pool on the rooftop! Marina Bay Sands has the most famous one.", chinese: "很多新加坡飯店的屋頂都有無邊際泳池！濱海灣金沙的最有名。" },
+    ],
     vocabulary: [
       { word: "reservation", chinese: "訂房", emoji: "📅", phonetic: "rez-er-VAY-shun", example: "I have a reservation under Lee." },
       { word: "key card", chinese: "房卡", emoji: "🔑", phonetic: "kee kard", example: "Here is your key card." },
@@ -135,7 +71,7 @@ export const singaporeGeneralScenes: TravelScene[] = [
     ],
   },
 
-  // ── 3. Food & Hawker Centre ──────────────────────────────
+  // ── 2. Food & Hawker Centre ──────────────────────────────
   {
     id: "food",
     title: "Food & Hawker Centre",
@@ -143,6 +79,11 @@ export const singaporeGeneralScenes: TravelScene[] = [
     emoji: "🍜",
     description: "Order food at hawker centres, try Singapore specialties, and ask about ingredients.",
     colorClass: "bg-orange-50",
+    funFacts: [
+      { emoji: "😄", english: "In Singapore, people use \"lah\" at the end of sentences. \"Can, lah!\" means \"Yes, sure!\"", chinese: "在新加坡，人們會在句尾加「lah」。「Can, lah!」意思是「可以啊！」" },
+      { emoji: "🏛️", english: "Hawker centres are like big outdoor food courts. They are so important to Singapore's culture that they were added to UNESCO's list!", chinese: "小販中心就像大型的露天美食廣場。它們對新加坡文化非常重要，已被列入聯合國教科文組織名錄！" },
+      { emoji: "☕", english: "\"Teh\" means tea in Hokkien/Malay, \"Kopi\" means coffee. You can order \"teh-O\" (tea without milk) or \"kopi-C\" (coffee with evaporated milk).", chinese: "「Teh」在閩南語/馬來語中是茶，「Kopi」是咖啡。你可以點「teh-O」（無奶茶）或「kopi-C」（淡奶咖啡）。" },
+    ],
     vocabulary: [
       { word: "hawker centre", chinese: "小販中心", emoji: "🏪", phonetic: "HAW-ker SEN-ter", example: "Let's eat at the hawker centre." },
       { word: "chicken rice", chinese: "雞飯", emoji: "🍗", phonetic: "CHIK-en rys", example: "Hainanese chicken rice is famous here." },
@@ -201,7 +142,7 @@ export const singaporeGeneralScenes: TravelScene[] = [
     ],
   },
 
-  // ── 4. Getting Around ────────────────────────────────────
+  // ── 3. Getting Around ────────────────────────────────────
   {
     id: "transport",
     title: "Getting Around",
@@ -209,6 +150,10 @@ export const singaporeGeneralScenes: TravelScene[] = [
     emoji: "🚇",
     description: "Take the MRT, bus, and taxi. Ask for directions in Singapore.",
     colorClass: "bg-green-50",
+    funFacts: [
+      { emoji: "🚫", english: "Singapore's MRT is super clean! Eating, drinking, and chewing gum are not allowed on the MRT. You can get fined!", chinese: "新加坡的地鐵超乾淨！地鐵上不能吃東西、喝飲料和嚼口香糖。會被罰款！" },
+      { emoji: "🚗", english: "In Singapore, people say \"Grab\" instead of \"Uber\" for ride-hailing.", chinese: "在新加坡，人們說「Grab」而不是「Uber」來叫車。" },
+    ],
     vocabulary: [
       { word: "MRT", chinese: "地鐵", emoji: "🚇", phonetic: "em-ar-TEE", example: "Let's take the MRT." },
       { word: "station", chinese: "車站", emoji: "🏛️", phonetic: "STAY-shun", example: "Where is the nearest MRT station?" },
@@ -269,7 +214,7 @@ export const singaporeGeneralScenes: TravelScene[] = [
     ],
   },
 
-  // ── 5. Attractions & Fun ─────────────────────────────────
+  // ── 4. Attractions & Fun ─────────────────────────────────
   {
     id: "attractions",
     title: "Attractions & Fun",
@@ -277,6 +222,10 @@ export const singaporeGeneralScenes: TravelScene[] = [
     emoji: "🎢",
     description: "Buy tickets, take photos, and enjoy theme parks and attractions.",
     colorClass: "bg-purple-50",
+    funFacts: [
+      { emoji: "🦁", english: "The Merlion is half-lion, half-fish. It's the symbol of Singapore!", chinese: "魚尾獅是半獅半魚。它是新加坡的象徵！" },
+      { emoji: "🌳", english: "Gardens by the Bay's Supertrees light up every night with a music and light show at 7:45 PM and 8:45 PM. It's free!", chinese: "濱海灣花園的超級樹每晚7:45和8:45都有燈光音樂秀。而且是免費的！" },
+    ],
     vocabulary: [
       { word: "ticket", chinese: "門票", emoji: "🎟️", phonetic: "TIK-it", example: "Two tickets, please." },
       { word: "entrance", chinese: "入口", emoji: "🚪", phonetic: "EN-truns", example: "The entrance is over there." },
@@ -336,7 +285,7 @@ export const singaporeGeneralScenes: TravelScene[] = [
     ],
   },
 
-  // ── 6. Shopping ──────────────────────────────────────────
+  // ── 5. Shopping ──────────────────────────────────────────
   {
     id: "shopping",
     title: "Shopping",
@@ -344,6 +293,9 @@ export const singaporeGeneralScenes: TravelScene[] = [
     emoji: "🛍️",
     description: "Ask about prices, sizes, and payment when shopping in Singapore.",
     colorClass: "bg-pink-50",
+    funFacts: [
+      { emoji: "🛣️", english: "Orchard Road is Singapore's most famous shopping street — it's 2.2 km long!", chinese: "烏節路是新加坡最有名的購物街——全長2.2公里！" },
+    ],
     vocabulary: [
       { word: "price", chinese: "價格", emoji: "🏷️", phonetic: "prys", example: "What's the price of this?" },
       { word: "size", chinese: "尺寸", emoji: "📏", phonetic: "syz", example: "Do you have a smaller size?" },
@@ -404,7 +356,7 @@ export const singaporeGeneralScenes: TravelScene[] = [
     ],
   },
 
-  // ── 7. Asking for Help ───────────────────────────────────
+  // ── 6. Asking for Help ───────────────────────────────────
   {
     id: "help",
     title: "Asking for Help",
@@ -412,6 +364,10 @@ export const singaporeGeneralScenes: TravelScene[] = [
     emoji: "🆘",
     description: "Ask for directions, get help when lost, or handle emergencies.",
     colorClass: "bg-red-50",
+    funFacts: [
+      { emoji: "📞", english: "Singapore's emergency number is 999 for police and 995 for ambulance/fire.", chinese: "新加坡的緊急電話是999報警，995叫救護車/消防車。" },
+      { emoji: "🗣️", english: "Most people in Singapore speak English, so don't be afraid to ask for help!", chinese: "新加坡大多數人都說英語，所以不要怕開口求助！" },
+    ],
     vocabulary: [
       { word: "help", chinese: "幫忙", emoji: "🆘", phonetic: "help", example: "Can you help me?" },
       { word: "lost", chinese: "迷路", emoji: "😟", phonetic: "lawst", example: "I think I'm lost." },
