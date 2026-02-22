@@ -115,7 +115,11 @@ export const SettingsProvider = ({ children }: SettingsProviderProps) => {
   );
 
   const updateReadingMode = useCallback(
-    (mode: ReadingMode) => updateSetting("readingMode", mode, setReadingMode),
+    (mode: ReadingMode) => updateSetting("readingMode", mode, (value) => {
+      if (value !== undefined) {
+        setReadingMode(value);
+      }
+    }),
     [updateSetting],
   );
 
