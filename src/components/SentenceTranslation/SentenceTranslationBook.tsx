@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from "react";
+import type { FormEvent } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useSentenceTranslation } from "../../hooks/useSentenceTranslation";
 import { useSpeechState } from "../../hooks/useSpeechState";
@@ -40,12 +41,16 @@ export const SentenceTranslationBook = ({ embedded = false, onCountChange }: Sen
     error,
     loadSentences,
     loadMore,
+    translateText,
     deleteSentence,
   } = useSentenceTranslation();
 
   const { speak, isSpeaking, stopSpeaking } = useSpeechState();
 
   const [searchQuery, setSearchQuery] = useState("");
+  const [manualSentence, setManualSentence] = useState("");
+  const [isSubmittingManualSentence, setIsSubmittingManualSentence] =
+    useState(false);
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
   const [toastMessage, setToastMessage] = useState<{
     message: string;
@@ -55,6 +60,7 @@ export const SentenceTranslationBook = ({ embedded = false, onCountChange }: Sen
   const [isDeleting, setIsDeleting] = useState(false);
 
   const loadMoreRef = useRef<HTMLDivElement>(null);
+  const manualSentenceFieldId = "manual-sentence-input";
 
   // Load sentences on mount
   useEffect(() => {
@@ -127,6 +133,37 @@ export const SentenceTranslationBook = ({ embedded = false, onCountChange }: Sen
     [isSpeaking, stopSpeaking, speak]
   );
 
+  const handleManualSubmit = useCallback(
+    async (event: FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+      const trimmedSentence = manualSentence.trim();
+      if (!trimmedSentence || isSubmittingManualSentence) return;
+
+      setIsSubmittingManualSentence(true);
+      try {
+        const result = await translateText(trimmedSentence);
+        if (!result) {
+          setToastMessage({ message: "翻譯失敗，請稍後再試", type: "error" });
+          return;
+        }
+
+        if (result.fromCache) {
+          setToastMessage({ message: "句子已存在翻譯本", type: "info" });
+        } else {
+          setToastMessage({ message: "句子已加入翻譯本", type: "success" });
+          setManualSentence("");
+        }
+
+        await loadSentences();
+      } catch {
+        setToastMessage({ message: "翻譯失敗，請稍後再試", type: "error" });
+      } finally {
+        setIsSubmittingManualSentence(false);
+      }
+    },
+    [isSubmittingManualSentence, loadSentences, manualSentence, translateText]
+  );
+
   return (
     <div className="max-w-4xl mx-auto">
       {/* Header — only in standalone mode */}
@@ -142,6 +179,38 @@ export const SentenceTranslationBook = ({ embedded = false, onCountChange }: Sen
           </div>
         </div>
       )}
+
+      {/* Manual sentence input */}
+      <div className="bg-base-100 rounded-lg shadow p-3 mb-4 flex flex-wrap gap-3 items-center">
+        <form
+          className="flex flex-1 min-w-0 gap-2 items-center"
+          onSubmit={handleManualSubmit}
+        >
+          <input
+            id={manualSentenceFieldId}
+            type="text"
+            placeholder="手動輸入英文句子"
+            className="input input-bordered input-sm flex-1 min-w-[12rem]"
+            value={manualSentence}
+            onChange={(e) => setManualSentence(e.target.value)}
+            disabled={isSubmittingManualSentence}
+            autoComplete="off"
+          />
+          <button
+            type="submit"
+            className="btn btn-primary btn-sm"
+            disabled={
+              isSubmittingManualSentence || manualSentence.trim().length === 0
+            }
+          >
+            {isSubmittingManualSentence ? (
+              <span className="loading loading-spinner loading-xs" />
+            ) : (
+              "翻譯並加入"
+            )}
+          </button>
+        </form>
+      </div>
 
       {/* Search */}
       <div className="mb-6">
