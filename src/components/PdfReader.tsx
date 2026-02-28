@@ -108,10 +108,14 @@ function PdfReader() {
 
   // Vocabulary hook
   const { lookupOrAddWord } = useVocabulary();
-  const { lookups, startLookup, startTranslation, dismissLookup, dismissAll } = useLookupQueue(
-    lookupOrAddWord,
-    formatDefinitionsForDisplay,
-  );
+  const {
+    lookups,
+    requestSignal,
+    startLookup,
+    startTranslation,
+    dismissLookup,
+    dismissAll,
+  } = useLookupQueue(lookupOrAddWord, formatDefinitionsForDisplay);
 
   const pagesByNumber = useMemo(() => {
     const map = new Map();
@@ -338,6 +342,7 @@ function PdfReader() {
       {/* Lookup Queue Panel */}
       <LookupPanel
         lookups={lookups}
+        showSignal={requestSignal}
         onDismiss={dismissLookup}
         onDismissAll={dismissAll}
         onSpeak={speak}

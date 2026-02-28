@@ -36,23 +36,45 @@ type LookupOrAddWord = (
 type FormatDefinitions = (word: VocabularyWord) => string;
 
 const MAX_CONCURRENT = 5;
-const AUTO_DISMISS_MS = 30_000;
+const MAX_VISIBLE_ITEMS = 20;
 
 let nextId = 0;
+
+function clampLookupItems(items: LookupItem[]): LookupItem[] {
+  if (items.length <= MAX_VISIBLE_ITEMS) return items;
+
+  const next = [...items];
+  while (next.length > MAX_VISIBLE_ITEMS) {
+    let removeIndex = -1;
+    for (let i = next.length - 1; i >= 0; i -= 1) {
+      if (next[i].status !== "loading") {
+        removeIndex = i;
+        break;
+      }
+    }
+
+    // Fallback: if all items are loading, remove the oldest item.
+    if (removeIndex === -1) {
+      removeIndex = next.length - 1;
+    }
+    next.splice(removeIndex, 1);
+  }
+
+  return next;
+}
 
 export function useLookupQueue(
   lookupOrAddWord: LookupOrAddWord,
   formatDefinitionsForDisplay: FormatDefinitions,
 ) {
   const [lookups, setLookups] = useState<LookupItem[]>([]);
+  const [requestSignal, setRequestSignal] = useState(0);
   const controllersRef = useRef<Map<string, AbortController>>(new Map());
-  const dismissTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const unmountedRef = useRef(false);
 
   useEffect(() => {
     unmountedRef.current = false;
     const controllers = controllersRef.current;
-    const dismissTimers = dismissTimersRef.current;
 
     return () => {
       unmountedRef.current = true;
@@ -60,28 +82,14 @@ export function useLookupQueue(
         controller.abort();
       }
       controllers.clear();
-      for (const timer of dismissTimers.values()) {
-        clearTimeout(timer);
-      }
-      dismissTimers.clear();
     };
   }, []);
 
   const activeCount = lookups.filter((l) => l.status === "loading").length;
 
-  const scheduleDismiss = useCallback((id: string) => {
-    const timer = setTimeout(() => {
-      dismissTimersRef.current.delete(id);
-      if (!unmountedRef.current) {
-        setLookups((prev) => prev.filter((l) => l.id !== id));
-      }
-    }, AUTO_DISMISS_MS);
-    dismissTimersRef.current.set(id, timer);
-  }, []);
-
   /** Enqueue a new item and create its AbortController. */
   function enqueueItem(item: LookupItem): void {
-    setLookups((prev) => [item, ...prev]);
+    setLookups((prev) => clampLookupItems([item, ...prev]));
     const controller = new AbortController();
     controllersRef.current.set(item.id, controller);
   }
@@ -113,7 +121,6 @@ export function useLookupQueue(
 
           if (updates) {
             updateItem({ status: "success", ...updates });
-            scheduleDismiss(id);
           } else if (controller.signal.aborted) {
             // Aborted (user cancelled) — remove silently
             setLookups((prev) => prev.filter((l) => l.id !== id));
@@ -134,15 +141,22 @@ export function useLookupQueue(
           updateItem({ status: "error", error: errorMessage });
         });
     },
-    [scheduleDismiss],
+    [],
   );
+
+  const signalRequest = useCallback(() => {
+    setRequestSignal((prev) => prev + 1);
+  }, []);
 
   const validateEnqueue = useCallback(
     (type: LookupItemType, normalizedKey: string): "duplicate" | "max_reached" | undefined => {
       if (!normalizedKey) return undefined;
 
       const hasDuplicate = lookups.some(
-        (l) => l.type === type && l.word.toLowerCase() === normalizedKey,
+        (l) =>
+          l.type === type &&
+          l.status === "loading" &&
+          l.word.toLowerCase() === normalizedKey,
       );
       if (hasDuplicate) return "duplicate";
       if (activeCount >= MAX_CONCURRENT) return "max_reached";
@@ -161,6 +175,7 @@ export function useLookupQueue(
         sourcePage?: number;
       },
     ): "duplicate" | "max_reached" | undefined => {
+      signalRequest();
       const normalizedWord = word.trim().toLowerCase();
       const blocked = validateEnqueue("word", normalizedWord);
       if (blocked) return blocked;
@@ -194,7 +209,13 @@ export function useLookupQueue(
 
       return undefined;
     },
-    [lookupOrAddWord, formatDefinitionsForDisplay, fireAsync, validateEnqueue],
+    [
+      lookupOrAddWord,
+      formatDefinitionsForDisplay,
+      fireAsync,
+      signalRequest,
+      validateEnqueue,
+    ],
   );
 
   const startTranslation = useCallback(
@@ -202,6 +223,7 @@ export function useLookupQueue(
       text: string,
       translateFn: (text: string, signal: AbortSignal) => Promise<string | null>,
     ): "duplicate" | "max_reached" | undefined => {
+      signalRequest();
       const normalizedText = text.trim().toLowerCase();
       const blocked = validateEnqueue("translation", normalizedText);
       if (blocked) return blocked;
@@ -228,24 +250,14 @@ export function useLookupQueue(
 
       return undefined;
     },
-    [fireAsync, validateEnqueue],
+    [fireAsync, signalRequest, validateEnqueue],
   );
 
   const dismissLookup = useCallback((id: string) => {
-    const timer = dismissTimersRef.current.get(id);
-    if (timer) {
-      clearTimeout(timer);
-      dismissTimersRef.current.delete(id);
-    }
     setLookups((prev) => prev.filter((l) => l.id !== id));
   }, []);
 
   const dismissAll = useCallback(() => {
-    // Clear all dismiss timers
-    for (const timer of dismissTimersRef.current.values()) {
-      clearTimeout(timer);
-    }
-    dismissTimersRef.current.clear();
     setLookups((prev) => prev.filter((l) => l.status === "loading"));
   }, []);
 
@@ -255,17 +267,13 @@ export function useLookupQueue(
       controller.abort();
       controllersRef.current.delete(id);
     }
-    const timer = dismissTimersRef.current.get(id);
-    if (timer) {
-      clearTimeout(timer);
-      dismissTimersRef.current.delete(id);
-    }
     setLookups((prev) => prev.filter((l) => l.id !== id));
   }, []);
 
   return {
     lookups,
     activeCount,
+    requestSignal,
     startLookup,
     startTranslation,
     dismissLookup,

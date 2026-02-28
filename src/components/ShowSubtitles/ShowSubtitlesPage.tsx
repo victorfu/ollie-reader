@@ -41,8 +41,14 @@ export function ShowSubtitlesPage() {
   const { speak } = useSpeechState();
   const { lookupOrAddWord } = useVocabulary();
   const { toasts, addToast, removeToast } = useToastQueue(3);
-  const { lookups, startLookup, startTranslation, dismissLookup, dismissAll } =
-    useLookupQueue(lookupOrAddWord, formatDefinitionsForDisplay);
+  const {
+    lookups,
+    requestSignal,
+    startLookup,
+    startTranslation,
+    dismissLookup,
+    dismissAll,
+  } = useLookupQueue(lookupOrAddWord, formatDefinitionsForDisplay);
 
   const speakSelection = () => {
     if (selectedText) speak(selectedText);
@@ -183,6 +189,7 @@ export function ShowSubtitlesPage() {
       {/* Lookup Queue Panel */}
       <LookupPanel
         lookups={lookups}
+        showSignal={requestSignal}
         onDismiss={dismissLookup}
         onDismissAll={dismissAll}
         onSpeak={speak}

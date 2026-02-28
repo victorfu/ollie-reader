@@ -38,6 +38,7 @@ interface LookupPanelProps {
   onDismiss: (id: string) => void;
   onDismissAll: () => void;
   onSpeak?: (word: string) => void;
+  showSignal?: number;
 }
 
 const LookupItemCard = memo(
@@ -45,10 +46,12 @@ const LookupItemCard = memo(
     item,
     onDismiss,
     onSpeak,
+    disableLayoutAnimation = false,
   }: {
     item: LookupItem;
     onDismiss: (id: string) => void;
     onSpeak?: (word: string) => void;
+    disableLayoutAnimation?: boolean;
   }) => {
     const isTranslation = item.type === "translation";
     const borderColor =
@@ -60,11 +63,15 @@ const LookupItemCard = memo(
 
     return (
       <motion.div
-        layout
+        layout={disableLayoutAnimation ? false : "position"}
         initial={{ opacity: 0, y: 20, scale: 0.95 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, x: 50, scale: 0.95 }}
-        transition={{ duration: 0.2 }}
+        transition={
+          disableLayoutAnimation
+            ? { duration: 0.2 }
+            : { duration: 0.2, layout: { duration: 0.14, ease: "easeOut" } }
+        }
         className={`bg-base-100 rounded-lg border border-black/5 dark:border-white/10 p-3 shadow-sm border-l-4 ${borderColor}`}
       >
         <div className="flex items-start justify-between gap-2">
@@ -134,13 +141,19 @@ const LookupItemCard = memo(
 LookupItemCard.displayName = "LookupItemCard";
 
 export const LookupPanel = memo(
-  ({ lookups, onDismiss, onDismissAll, onSpeak }: LookupPanelProps) => {
-    const [collapsed, setCollapsed] = useState(false);
-    const { panelStyle, dragHandleProps, resizeHandleProps, isDragging } = useFloatingPanel({
+  ({ lookups, onDismiss, onDismissAll, onSpeak, showSignal }: LookupPanelProps) => {
+    const [collapsedToken, setCollapsedToken] = useState<number | "nosignal" | null>(
+      null,
+    );
+    const { panelStyle, dragHandleProps, resizeHandleProps, isDragging, isResizing } =
+      useFloatingPanel({
       defaultSize: { width: 320, height: 384 },
       minSize: { width: 240, height: 200 },
       maxSize: { width: 600, height: 600 },
-    });
+      });
+    const disableItemLayoutAnimation = isDragging || isResizing;
+    const signalToken = showSignal ?? "nosignal";
+    const collapsed = collapsedToken !== null && collapsedToken === signalToken;
 
     if (lookups.length === 0) return null;
 
@@ -156,7 +169,7 @@ export const LookupPanel = memo(
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.8 }}
           transition={{ duration: 0.2 }}
-          onClick={() => setCollapsed(false)}
+          onClick={() => setCollapsedToken(null)}
           className="fixed right-6 bottom-6 z-40 w-14 h-14 rounded-full flex items-center justify-center bg-base-100/90 backdrop-blur-xl border border-black/5 dark:border-white/10 shadow-lg hover:scale-105 active:scale-[0.98] transition-all duration-200"
           aria-label="展開查詢面板"
         >
@@ -209,7 +222,7 @@ export const LookupPanel = memo(
               )}
               <button
                 type="button"
-                onClick={() => setCollapsed(true)}
+                onClick={() => setCollapsedToken(signalToken)}
                 className="btn btn-ghost btn-xs btn-circle hover:bg-black/5 dark:hover:bg-white/10"
                 aria-label="收合面板"
               >
@@ -227,6 +240,7 @@ export const LookupPanel = memo(
                   item={item}
                   onDismiss={onDismiss}
                   onSpeak={onSpeak}
+                  disableLayoutAnimation={disableItemLayoutAnimation}
                 />
               ))}
             </AnimatePresence>
