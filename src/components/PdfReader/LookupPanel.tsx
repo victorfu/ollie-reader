@@ -81,7 +81,7 @@ const LookupItemCard = memo(
             ) : (
               item.emoji && <span className="text-sm">{item.emoji}</span>
             )}
-            <span className={`font-semibold text-sm ${isTranslation ? "line-clamp-2" : "truncate"}`}>
+            <span className={`font-semibold text-base ${isTranslation ? "line-clamp-2" : "truncate"}`}>
               {item.word}
             </span>
             {!isTranslation && item.isNew && (
@@ -116,20 +116,20 @@ const LookupItemCard = memo(
         {item.status === "loading" && (
           <div className="mt-2 flex items-center gap-2">
             <span className="loading loading-spinner loading-xs text-accent" />
-            <span className="text-xs text-base-content/50">
+            <span className="text-sm text-base-content/50">
               {isTranslation ? "翻譯中..." : "查詢中..."}
             </span>
           </div>
         )}
 
         {item.status === "success" && item.result && (
-          <p className="mt-2 text-xs leading-relaxed whitespace-pre-line text-base-content/70">
+          <p className="mt-2 text-sm leading-relaxed whitespace-pre-line text-base-content/70">
             {item.result}
           </p>
         )}
 
         {item.status === "error" && (
-          <p className="mt-2 text-xs text-error">
+          <p className="mt-2 text-sm text-error">
             {item.error || (isTranslation ? "翻譯失敗" : "查詢失敗")}
           </p>
         )}
@@ -203,7 +203,7 @@ export const LookupPanel = memo(
           >
             <div className="flex items-center gap-2">
               <BookOpenIcon className="w-4 h-4 text-accent" />
-              <span className="font-semibold text-sm">查詢結果</span>
+              <span className="font-semibold text-base">查詢結果</span>
               {activeCount > 0 && (
                 <span className="badge badge-xs badge-accent">
                   {activeCount}
