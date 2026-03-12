@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { logger } from "../utils/logger";
 import { usePdfState } from "../hooks/usePdfState";
 import { useSpeechState } from "../hooks/useSpeechState";
@@ -14,6 +14,7 @@ import { PdfViewer } from "./PdfReader/PdfViewer";
 import { PageTextArea } from "./PdfReader/PageTextArea";
 import { SelectionToolbar } from "./PdfReader/SelectionToolbar";
 import { LookupPanel } from "./PdfReader/LookupPanel";
+import { VocabularyBrowserPanel } from "./PdfReader/VocabularyBrowserPanel";
 import { ToastContainer } from "./common/ToastContainer";
 import { useToastQueue } from "../hooks/useToastQueue";
 import { BookingRecordsDrawer } from "./PdfReader/BookingRecordsDrawer";
@@ -66,7 +67,21 @@ function PdfReader() {
     fetchBookingRecords,
   } = useBookingRecords();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [vocabBrowserOpen, setVocabBrowserOpen] = useState(false);
   const [loadingCourseId, setLoadingCourseId] = useState<string | null>(null);
+
+  // Keyboard shortcut: Cmd/Ctrl+K to toggle vocabulary browser
+  useEffect(() => {
+    if (!result) return;
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        setVocabBrowserOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [result]);
 
   // Refs for race condition handling
   const loadingCourseIdRef = useRef<string | null>(null);
@@ -338,6 +353,28 @@ function PdfReader() {
           </button>
         </div>
       )}
+
+      {/* Vocabulary Browser Trigger Button */}
+      {result && !vocabBrowserOpen && (
+        <button
+          type="button"
+          onClick={() => setVocabBrowserOpen(true)}
+          className="fixed left-6 bottom-6 z-40 w-12 h-12 rounded-full flex items-center justify-center bg-base-100/90 backdrop-blur-xl border border-black/5 dark:border-white/10 shadow-lg hover:scale-105 active:scale-[0.98] transition-all duration-200"
+          aria-label="搜尋生詞本"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 19.5v-15A2.5 2.5 0 016.5 2H20v20H6.5a2.5 2.5 0 010-5H20" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 2v7l2.5-2L14 9V2" />
+          </svg>
+        </button>
+      )}
+
+      {/* Vocabulary Browser Panel */}
+      <VocabularyBrowserPanel
+        isOpen={vocabBrowserOpen}
+        onClose={() => setVocabBrowserOpen(false)}
+        onSpeak={speak}
+      />
 
       {/* Lookup Queue Panel */}
       <LookupPanel
