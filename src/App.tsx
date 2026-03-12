@@ -6,6 +6,20 @@ import {
   Link,
   useLocation,
 } from "react-router-dom";
+import {
+  BookOpen,
+  BookMarked,
+  Globe,
+  Mic,
+  PenLine,
+  Music,
+  MonitorPlay,
+  Gamepad2,
+  Settings as SettingsIcon,
+  ChevronDown,
+  LogOut,
+  AlertTriangle,
+} from "lucide-react";
 import { useAuth } from "./hooks/useAuth";
 import { PdfProvider } from "./contexts/PdfContext";
 import { SpeechProvider } from "./contexts/SpeechContext";
@@ -140,55 +154,64 @@ function AppContent() {
     {
       to: "/",
       label: "閱讀器",
-      icon: "📚",
+      icon: <BookOpen className="size-4" strokeWidth={1.75} />,
+      mobileIcon: <BookOpen className="size-5" strokeWidth={1.75} />,
       isActive: isReaderPage,
     },
     {
       to: "/vocabulary",
       label: "生詞本",
-      icon: "📖",
+      icon: <BookMarked className="size-4" strokeWidth={1.75} />,
+      mobileIcon: <BookMarked className="size-5" strokeWidth={1.75} />,
       isActive: isVocabularyPage,
     },
     {
       to: "/travel",
       label: "旅遊英文",
-      icon: "🌏",
+      icon: <Globe className="size-4" strokeWidth={1.75} />,
+      mobileIcon: <Globe className="size-5" strokeWidth={1.75} />,
       isActive: isTravelPage,
     },
     {
       to: "/speech-practice",
       label: "演講練習",
-      icon: "🎤",
+      icon: <Mic className="size-4" strokeWidth={1.75} />,
+      mobileIcon: <Mic className="size-5" strokeWidth={1.75} />,
       isActive: isSpeechPracticePage,
     },
     {
       to: "/english-speech",
       label: "英文演講",
-      icon: "✍️",
+      icon: <PenLine className="size-4" strokeWidth={1.75} />,
+      mobileIcon: <PenLine className="size-5" strokeWidth={1.75} />,
       isActive: isEnglishSpeechPage,
     },
     {
       to: "/audio-uploads",
       label: "音訊庫",
-      icon: "🎵",
+      icon: <Music className="size-4" strokeWidth={1.75} />,
+      mobileIcon: <Music className="size-5" strokeWidth={1.75} />,
       isActive: isAudioUploadsPage,
     },
     {
       to: "/show",
       label: "影集字幕",
-      icon: "📺",
+      icon: <MonitorPlay className="size-4" strokeWidth={1.75} />,
+      mobileIcon: <MonitorPlay className="size-5" strokeWidth={1.75} />,
       isActive: isShowPage,
     },
     {
       to: "/game",
       label: "精靈探險",
-      icon: "🎮",
+      icon: <Gamepad2 className="size-4" strokeWidth={1.75} />,
+      mobileIcon: <Gamepad2 className="size-5" strokeWidth={1.75} />,
       isActive: isGamePage,
     },
     {
       to: "/settings",
       label: "設定",
-      icon: "⚙️",
+      icon: <SettingsIcon className="size-4" strokeWidth={1.75} />,
+      mobileIcon: <SettingsIcon className="size-5" strokeWidth={1.75} />,
       isActive: isSettingsPage,
     },
   ];
@@ -200,14 +223,14 @@ function AppContent() {
           {/* Left: App Title + Navigation */}
           <div className="flex flex-1 items-center gap-3 min-w-0">
             <h1 className="text-lg sm:text-xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent whitespace-nowrap">
-              📚 Ollie Reader
+              Ollie Reader
             </h1>
-            <nav className="hidden md:flex items-center gap-1">
+            <nav className="hidden md:flex items-center gap-1 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
               {navItems.map((item) => (
                 <Link
                   key={item.to}
                   to={item.to}
-                  className={`flex items-center gap-1.5 h-9 px-3 rounded-lg text-sm font-medium transition-all duration-normal ${
+                  className={`flex items-center gap-1.5 h-9 px-2 xl:px-3 rounded-lg text-sm font-medium transition-all duration-normal shrink-0 ${
                     item.isActive
                       ? "bg-primary/15 text-primary"
                       : "text-base-content/70 hover:bg-black/5 dark:hover:bg-white/5 hover:text-base-content"
@@ -215,8 +238,8 @@ function AppContent() {
                   title={item.label}
                   aria-current={item.isActive ? "page" : undefined}
                 >
-                  <span>{item.icon}</span>
-                  <span className="hidden lg:inline">{item.label}</span>
+                  {item.icon}
+                  <span className="hidden xl:inline">{item.label}</span>
                 </Link>
               ))}
             </nav>
@@ -246,21 +269,7 @@ function AppContent() {
                   </span>
                 )}
               </div>
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-4 w-4 text-base-content/70"
-                fill="none"
-                viewBox="0 0 24 24"
-                strokeWidth={1.5}
-                stroke="currentColor"
-                aria-hidden="true"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M8.25 9.75L12 13.5l3.75-3.75"
-                />
-              </svg>
+              <ChevronDown className="h-4 w-4 text-base-content/70" strokeWidth={1.5} aria-hidden="true" />
             </button>
             <ul
               tabIndex={0}
@@ -286,21 +295,7 @@ function AppContent() {
                   onClick={handleSignOut}
                 >
                   <span>登出</span>
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="h-4 w-4"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth={1.5}
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    aria-hidden="true"
-                  >
-                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-                    <polyline points="16 17 21 12 16 7" />
-                    <line x1="21" y1="12" x2="9" y2="12" />
-                  </svg>
+                  <LogOut className="h-4 w-4" strokeWidth={1.5} aria-hidden="true" />
                 </button>
               </li>
             </ul>
@@ -318,21 +313,7 @@ function AppContent() {
                 {accountInitial}
               </div>
             </div>
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="h-4 w-4 text-base-content/70"
-              fill="none"
-              viewBox="0 0 24 24"
-              strokeWidth={1.5}
-              stroke="currentColor"
-              aria-hidden="true"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M8.25 9.75L12 13.5l3.75-3.75"
-              />
-            </svg>
+            <ChevronDown className="h-4 w-4 text-base-content/70" strokeWidth={1.5} aria-hidden="true" />
           </button>
         </div>
       </header>
@@ -382,7 +363,7 @@ function AppContent() {
                       }`}
                       onClick={() => setIsMobileMenuOpen(false)}
                     >
-                      <span className="text-lg w-6 text-center">{item.icon}</span>
+                      <span className="w-6 flex justify-center">{item.mobileIcon}</span>
                       <span className="text-sm font-medium">{item.label}</span>
                     </Link>
                   ))}
@@ -398,21 +379,7 @@ function AppContent() {
                   handleSignOut();
                 }}
               >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="h-5 w-5"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth={1.5}
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  aria-hidden="true"
-                >
-                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-                  <polyline points="16 17 21 12 16 7" />
-                  <line x1="21" y1="12" x2="9" y2="12" />
-                </svg>
+                <LogOut className="h-5 w-5" strokeWidth={1.5} aria-hidden="true" />
                 登出
               </button>
             </div>
@@ -427,9 +394,7 @@ function AppContent() {
       {authError && (
         <div className="mx-auto px-4">
           <div className="rounded-lg bg-error/10 border border-error/20 px-4 py-3 mt-4 flex items-center gap-2">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-error shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-            </svg>
+            <AlertTriangle className="h-5 w-5 text-error shrink-0" strokeWidth={1.5} aria-hidden="true" />
             <span className="text-sm text-error">{authError}</span>
           </div>
         </div>
