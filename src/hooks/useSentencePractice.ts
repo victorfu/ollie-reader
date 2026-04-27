@@ -2,10 +2,10 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import { useAuth } from "./useAuth";
 import {
   addSentences,
-  getUserSentences,
+  getSpeechSentences,
   updateSentence,
   deleteSentence as deleteSentenceService,
-  clearAllSentences,
+  clearSpeechSentences,
   updateSentenceOrders,
 } from "../services/sentencePracticeService";
 import {
@@ -18,7 +18,7 @@ import type {
   SentencePracticeFilters,
 } from "../types/sentencePractice";
 
-export const useSentencePractice = () => {
+export const useSentencePractice = (speechId: string | null) => {
   const { user } = useAuth();
   const [sentences, setSentences] = useState<PracticeSentence[]>([]);
   const [loading, setLoading] = useState(false);
@@ -28,14 +28,17 @@ export const useSentencePractice = () => {
   const [hasMore, setHasMore] = useState(false);
   const [lastDocId, setLastDocId] = useState<string | undefined>(undefined);
 
-  // Cache for word definitions to avoid repeated API calls
   const wordDefinitionCache = useRef<Map<string, string>>(new Map());
   const loadRequestIdRef = useRef(0);
 
-  // Load sentences from Firestore
   const loadSentences = useCallback(
     async (filters?: SentencePracticeFilters) => {
-      if (!user) return;
+      if (!user || !speechId) {
+        setSentences([]);
+        setHasMore(false);
+        setLastDocId(undefined);
+        return;
+      }
 
       const requestId = ++loadRequestIdRef.current;
 
@@ -43,7 +46,7 @@ export const useSentencePractice = () => {
       setError(null);
 
       try {
-        const result = await getUserSentences(user.uid, filters);
+        const result = await getSpeechSentences(speechId, filters);
 
         if (requestId !== loadRequestIdRef.current) return;
 
@@ -60,17 +63,16 @@ export const useSentencePractice = () => {
         }
       }
     },
-    [user],
+    [user, speechId],
   );
 
-  // Load more sentences (pagination)
   const loadMore = useCallback(async () => {
-    if (!user || !hasMore || !lastDocId || isLoadingMore) return;
+    if (!user || !speechId || !hasMore || !lastDocId || isLoadingMore) return;
 
     setIsLoadingMore(true);
 
     try {
-      const result = await getUserSentences(user.uid, { cursor: lastDocId });
+      const result = await getSpeechSentences(speechId, { cursor: lastDocId });
       setSentences((prev) => [...prev, ...result.sentences]);
       setHasMore(result.hasMore);
       setLastDocId(result.lastDocId);
@@ -80,20 +82,15 @@ export const useSentencePractice = () => {
     } finally {
       setIsLoadingMore(false);
     }
-  }, [user, hasMore, lastDocId, isLoadingMore]);
+  }, [user, speechId, hasMore, lastDocId, isLoadingMore]);
 
-  // Parse and translate text using AI service
   const parseAndTranslate = useCallback(
     async (
       text: string,
     ): Promise<{ success: boolean; message?: string; count?: number }> => {
-      if (!user) {
-        return { success: false, message: "使用者未登入" };
-      }
-
-      if (!text.trim()) {
-        return { success: false, message: "請輸入英文文字" };
-      }
+      if (!user) return { success: false, message: "使用者未登入" };
+      if (!speechId) return { success: false, message: "請先選擇演講版本" };
+      if (!text.trim()) return { success: false, message: "請輸入英文文字" };
 
       setIsProcessing(true);
       setError(null);
@@ -105,16 +102,15 @@ export const useSentencePractice = () => {
           return { success: false, message: "無法解析句子" };
         }
 
-        // Save sentences to Firestore (order is auto-assigned in service layer)
         const sentencesToSave = parsedSentences.map((s) => ({
           english: s.english,
           chinese: s.chinese,
           userId: user.uid,
+          speechId,
         }));
 
         const docIds = await addSentences(sentencesToSave);
 
-        // Update local state with new sentences
         const currentLength = sentences.length;
         const newSentences: PracticeSentence[] = parsedSentences.map(
           (s, index) => ({
@@ -122,7 +118,8 @@ export const useSentencePractice = () => {
             english: s.english,
             chinese: s.chinese,
             userId: user.uid,
-            order: currentLength + index, // Assign order based on current list length
+            speechId,
+            order: currentLength + index,
             createdAt: new Date(),
             updatedAt: new Date(),
           }),
@@ -130,9 +127,8 @@ export const useSentencePractice = () => {
 
         setSentences((prev) => [...prev, ...newSentences]);
 
-        // Check if any sentences have fallback translation (AI failed)
-        const hasFailedTranslation = parsedSentences.some(
-          (s) => s.chinese.includes("翻譯失敗")
+        const hasFailedTranslation = parsedSentences.some((s) =>
+          s.chinese.includes("翻譯失敗"),
         );
 
         return {
@@ -151,10 +147,9 @@ export const useSentencePractice = () => {
         setIsProcessing(false);
       }
     },
-    [user, sentences.length],
+    [user, speechId, sentences.length],
   );
 
-  // Translate a single sentence (for editing)
   const translateSingle = useCallback(
     async (english: string): Promise<string | null> => {
       return translateWithAI(english);
@@ -162,33 +157,24 @@ export const useSentencePractice = () => {
     [],
   );
 
-  // Update a sentence (english and/or chinese)
   const editSentence = useCallback(
     async (
       sentenceId: string,
       newEnglish: string,
     ): Promise<{ success: boolean; message?: string }> => {
-      if (!user) {
-        return { success: false, message: "使用者未登入" };
-      }
+      if (!user) return { success: false, message: "使用者未登入" };
 
       setIsProcessing(true);
 
       try {
-        // Translate the new English sentence
         const newChinese = await translateSingle(newEnglish);
+        if (!newChinese) return { success: false, message: "翻譯失敗" };
 
-        if (!newChinese) {
-          return { success: false, message: "翻譯失敗" };
-        }
-
-        // Update in Firestore
         await updateSentence(sentenceId, {
           english: newEnglish,
           chinese: newChinese,
         });
 
-        // Update local state
         setSentences((prev) =>
           prev.map((s) =>
             s.id === sentenceId
@@ -214,21 +200,15 @@ export const useSentencePractice = () => {
     [user, translateSingle],
   );
 
-  // Delete a sentence
   const deleteSentence = useCallback(
     async (
       sentenceId: string,
     ): Promise<{ success: boolean; message?: string }> => {
-      if (!user) {
-        return { success: false, message: "使用者未登入" };
-      }
+      if (!user) return { success: false, message: "使用者未登入" };
 
       try {
         await deleteSentenceService(sentenceId);
-
-        // Update local state
         setSentences((prev) => prev.filter((s) => s.id !== sentenceId));
-
         return { success: true, message: "刪除成功" };
       } catch (err) {
         console.error("Failed to delete sentence:", err);
@@ -239,45 +219,35 @@ export const useSentencePractice = () => {
     [user],
   );
 
-  // Clear all sentences
   const clearAll = useCallback(async (): Promise<{
     success: boolean;
     message?: string;
   }> => {
-    if (!user) {
-      return { success: false, message: "使用者未登入" };
-    }
+    if (!user) return { success: false, message: "使用者未登入" };
+    if (!speechId) return { success: false, message: "請先選擇演講版本" };
 
     try {
-      await clearAllSentences(user.uid);
-
-      // Update local state
+      await clearSpeechSentences(speechId);
       setSentences([]);
       setHasMore(false);
       setLastDocId(undefined);
-
       return { success: true, message: "已清除所有句子" };
     } catch (err) {
-      console.error("Failed to clear all sentences:", err);
+      console.error("Failed to clear sentences:", err);
       const message = err instanceof Error ? err.message : "清除失敗";
       return { success: false, message };
     }
-  }, [user]);
+  }, [user, speechId]);
 
-  // Reorder sentences (for drag-and-drop)
   const reorderSentences = useCallback(
     async (
       reorderedList: PracticeSentence[],
     ): Promise<{ success: boolean; message?: string }> => {
-      if (!user) {
-        return { success: false, message: "使用者未登入" };
-      }
+      if (!user) return { success: false, message: "使用者未登入" };
 
-      // Optimistic update - immediately update local state
       setSentences(reorderedList);
 
       try {
-        // Prepare batch update with new order values
         const updates = reorderedList.map((sentence, index) => ({
           id: sentence.id!,
           order: index,
@@ -288,7 +258,6 @@ export const useSentencePractice = () => {
         return { success: true };
       } catch (err) {
         console.error("Failed to reorder sentences:", err);
-        // Revert on error - reload from server
         await loadSentences();
         const message = err instanceof Error ? err.message : "排序失敗";
         setError(message);
@@ -298,20 +267,16 @@ export const useSentencePractice = () => {
     [user, loadSentences],
   );
 
-  // Get word definition with caching
   const getWordDefinition = useCallback(
     async (word: string): Promise<string | null> => {
       const normalizedWord = word.toLowerCase().trim();
 
-      // Check cache first
       if (wordDefinitionCache.current.has(normalizedWord)) {
         return wordDefinitionCache.current.get(normalizedWord) || null;
       }
 
       const definition = await getWordDefinitionAI(word);
-
       if (definition) {
-        // Cache the result
         wordDefinitionCache.current.set(normalizedWord, definition);
       }
 
@@ -320,12 +285,10 @@ export const useSentencePractice = () => {
     [],
   );
 
-  // Load sentences on mount
+  // Load sentences on mount and whenever the active speech changes
   useEffect(() => {
-    if (user) {
-      loadSentences();
-    }
-  }, [user, loadSentences]);
+    if (user) loadSentences();
+  }, [user, speechId, loadSentences]);
 
   return {
     sentences,

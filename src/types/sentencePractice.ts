@@ -3,7 +3,17 @@ export interface PracticeSentence {
   english: string;
   chinese: string;
   userId: string;
+  speechId: string;
   order?: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface Speech {
+  id: string;
+  userId: string;
+  name: string;
+  description?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -22,3 +32,4 @@ export interface SentencePracticeResult {
 }
 
 export const DEFAULT_SENTENCE_PAGE_SIZE = 50;
+export const DEFAULT_SPEECH_NAME = "預設";

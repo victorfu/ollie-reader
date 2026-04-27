@@ -6,10 +6,12 @@ import {
   motion,
 } from "framer-motion";
 import { useSentencePractice } from "../../hooks/useSentencePractice";
+import { useSpeeches } from "../../hooks/useSpeeches";
 import { useSpeechState } from "../../hooks/useSpeechState";
 import { SentenceInput } from "./SentenceInput";
 import { SentenceCard } from "./SentenceCard";
 import { ClickableWords } from "./ClickableWords";
+import { SpeechSwitcher } from "./SpeechSwitcher";
 import { Toast } from "../common/Toast";
 import { ConfirmModal } from "../common/ConfirmModal";
 import type { PracticeSentence } from "../../types/sentencePractice";
@@ -78,6 +80,16 @@ const ReorderableSentenceCard = forwardRef<
 
 export const SentencePractice = () => {
   const {
+    speeches,
+    currentSpeechId,
+    setCurrentSpeechId,
+    create: createSpeech,
+    duplicate: duplicateSpeech,
+    rename: renameSpeech,
+    remove: removeSpeech,
+  } = useSpeeches();
+
+  const {
     sentences,
     setSentences,
     loading,
@@ -91,7 +103,7 @@ export const SentencePractice = () => {
     clearAll,
     getWordDefinition,
     reorderSentences,
-  } = useSentencePractice();
+  } = useSentencePractice(currentSpeechId);
 
   const { isLoadingAudio, stopSpeaking, speakAsync } = useSpeechState();
 
@@ -284,6 +296,26 @@ export const SentencePractice = () => {
               <p className="text-base-content/60 mt-1">
                 貼上英文段落，一句一句練習閱讀與發音
               </p>
+              <div className="mt-3 flex items-center gap-2">
+                <span className="text-xs text-base-content/50">版本：</span>
+                <SpeechSwitcher
+                  speeches={speeches}
+                  currentSpeechId={currentSpeechId}
+                  onSelect={setCurrentSpeechId}
+                  onCreate={async (name) => {
+                    await createSpeech(name);
+                  }}
+                  onDuplicate={async (id, name) => {
+                    await duplicateSpeech(id, name);
+                  }}
+                  onRename={async (id, name) => {
+                    await renameSpeech(id, name);
+                  }}
+                  onDelete={async (id) => {
+                    await removeSpeech(id);
+                  }}
+                />
+              </div>
             </div>
             {sentences.length > 0 && (
               <div className="flex flex-wrap gap-2 shrink-0">
