@@ -1,6 +1,7 @@
 import { motion } from "framer-motion";
 import type { VocabularyWord } from "../../types/vocabulary";
 import { SpeakerIcon, TrashIcon, ClockIcon } from "../icons";
+import { useSettings } from "../../hooks/useSettings";
 
 interface VocabularyCardProps {
   word: VocabularyWord;
@@ -10,6 +11,12 @@ interface VocabularyCardProps {
 }
 
 export const VocabularyCard = ({ word, onClick, onPlay, onDelete }: VocabularyCardProps) => {
+  const { showChineseTranslation } = useSettings();
+  const previewDef = word.definitions[0]
+    ? showChineseTranslation && word.definitions[0].definitionChinese
+      ? word.definitions[0].definitionChinese
+      : word.definitions[0].definition || word.definitions[0].definitionChinese
+    : "";
   return (
     <motion.div
       layout
@@ -69,7 +76,7 @@ export const VocabularyCard = ({ word, onClick, onPlay, onDelete }: VocabularyCa
                 {word.definitions[0].partOfSpeech}
               </span>
               <span className="align-middle">
-                {word.definitions[0].definitionChinese || word.definitions[0].definition}
+                {previewDef}
               </span>
             </p>
           </div>

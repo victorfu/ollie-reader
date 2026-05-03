@@ -6,12 +6,14 @@ export type SettingsContextValue = {
   speechRate: number;
   readingMode: ReadingMode;
   textParsingMode: TextParsingMode;
+  showChineseTranslation: boolean;
   loading: boolean;
   error: string | null;
   updateTtsMode: (mode: TTSMode) => Promise<void>;
   updateSpeechRate: (rate: number) => Promise<void>;
   updateReadingMode: (mode: ReadingMode) => Promise<void>;
   updateTextParsingMode: (mode: TextParsingMode) => Promise<void>;
+  updateShowChineseTranslation: (show: boolean) => void;
 };
 
 export const SettingsContext = createContext<SettingsContextValue | undefined>(

@@ -23,14 +23,18 @@ import type {
   VocabularySearchOptions,
 } from "../types/vocabulary";
 
-// Helper to format definitions for display
+// Helper to format definitions for display.
+// Defaults to English-to-English; pass { includeChinese: true } to also show
+// the Traditional Chinese gloss on a follow-up line.
 export const formatDefinitionsForDisplay = (
   word: VocabularyWord,
+  options: { includeChinese?: boolean } = {},
 ): string => {
   if (!word.definitions || word.definitions.length === 0) {
     return "";
   }
 
+  const { includeChinese = false } = options;
   const lines: string[] = [];
 
   // Add emoji and phonetic if available
@@ -39,11 +43,15 @@ export const formatDefinitionsForDisplay = (
     lines.push(header);
   }
 
-  // Add definitions
+  // Add definitions: English first, optional Chinese gloss underneath
   word.definitions.forEach((def: Definition, index: number) => {
     const partOfSpeech = def.partOfSpeech ? `(${def.partOfSpeech}) ` : "";
-    const chineseDef = def.definitionChinese || def.definition || "";
-    lines.push(`${index + 1}. ${partOfSpeech}${chineseDef}`);
+    const englishDef = def.definition || def.definitionChinese || "";
+    lines.push(`${index + 1}. ${partOfSpeech}${englishDef}`);
+
+    if (includeChinese && def.definitionChinese && def.definition) {
+      lines.push(`   ${def.definitionChinese}`);
+    }
   });
 
   return lines.join("\n");

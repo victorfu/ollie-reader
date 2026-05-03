@@ -10,6 +10,7 @@ interface SettingsProviderProps {
 }
 
 const TEXT_PARSING_MODE_KEY = "ollie-reader-text-parsing-mode";
+const SHOW_CHINESE_TRANSLATION_KEY = "ollie-reader-show-chinese-translation";
 
 const getTextParsingModeFromStorage = (): TextParsingMode => {
   try {
@@ -23,12 +24,26 @@ const getTextParsingModeFromStorage = (): TextParsingMode => {
   return "backend"; // default to backend
 };
 
+const getShowChineseTranslationFromStorage = (): boolean => {
+  try {
+    const stored = localStorage.getItem(SHOW_CHINESE_TRANSLATION_KEY);
+    if (stored === "true") return true;
+    if (stored === "false") return false;
+  } catch {
+    // localStorage not available
+  }
+  return false; // default: hide Chinese, show English-to-English
+};
+
 export const SettingsProvider = ({ children }: SettingsProviderProps) => {
   const { user } = useAuth();
   const [ttsMode, setTtsMode] = useState<TTSMode>("browser");
   const [speechRate, setSpeechRate] = useState<number>(1);
   const [readingMode, setReadingMode] = useState<ReadingMode>("word");
   const [textParsingMode, setTextParsingMode] = useState<TextParsingMode>(getTextParsingModeFromStorage);
+  const [showChineseTranslation, setShowChineseTranslation] = useState<boolean>(
+    getShowChineseTranslationFromStorage,
+  );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -136,20 +151,44 @@ export const SettingsProvider = ({ children }: SettingsProviderProps) => {
     [],
   );
 
+  const updateShowChineseTranslation = useCallback((show: boolean) => {
+    try {
+      localStorage.setItem(SHOW_CHINESE_TRANSLATION_KEY, String(show));
+    } catch {
+      // localStorage not available
+    }
+    setShowChineseTranslation(show);
+  }, []);
+
   const value = useMemo(
     () => ({
       ttsMode,
       speechRate,
       readingMode,
       textParsingMode,
+      showChineseTranslation,
       loading,
       error,
       updateTtsMode,
       updateSpeechRate,
       updateReadingMode,
       updateTextParsingMode,
+      updateShowChineseTranslation,
     }),
-    [ttsMode, speechRate, readingMode, textParsingMode, loading, error, updateTtsMode, updateSpeechRate, updateReadingMode, updateTextParsingMode]
+    [
+      ttsMode,
+      speechRate,
+      readingMode,
+      textParsingMode,
+      showChineseTranslation,
+      loading,
+      error,
+      updateTtsMode,
+      updateSpeechRate,
+      updateReadingMode,
+      updateTextParsingMode,
+      updateShowChineseTranslation,
+    ],
   );
 
   return (

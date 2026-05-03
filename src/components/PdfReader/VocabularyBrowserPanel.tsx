@@ -2,6 +2,7 @@ import { memo, useState, useRef, useEffect } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useFloatingPanel } from "../../hooks/useFloatingPanel";
 import { useVocabularySearch } from "../../hooks/useVocabularySearch";
+import { useSettings } from "../../hooks/useSettings";
 import type { VocabularyWord } from "../../types/vocabulary";
 
 // --- Inline SVG Icons ---
@@ -57,9 +58,11 @@ const WordDetail = memo(
   ({
     word,
     onSpeak,
+    showChinese,
   }: {
     word: VocabularyWord;
     onSpeak?: (text: string) => void;
+    showChinese: boolean;
   }) => (
     <motion.div
       initial={{ height: 0, opacity: 0 }}
@@ -78,9 +81,9 @@ const WordDetail = memo(
                   {def.partOfSpeech}
                 </span>
                 <span className="text-base-content/70 ml-1.5">
-                  {def.definition}
+                  {def.definition || def.definitionChinese}
                 </span>
-                {def.definitionChinese && (
+                {showChinese && def.definitionChinese && def.definition && (
                   <span className="text-base-content/50 ml-1">
                     ({def.definitionChinese})
                   </span>
@@ -154,11 +157,13 @@ const WordItem = memo(
     isExpanded,
     onToggle,
     onSpeak,
+    showChinese,
   }: {
     word: VocabularyWord;
     isExpanded: boolean;
     onToggle: () => void;
     onSpeak?: (text: string) => void;
+    showChinese: boolean;
   }) => (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
@@ -206,14 +211,16 @@ const WordItem = memo(
       {/* Brief definition preview when collapsed */}
       {!isExpanded && word.definitions.length > 0 && (
         <p className="text-xs text-base-content/50 mt-1 truncate">
-          {word.definitions[0].definitionChinese || word.definitions[0].definition}
+          {showChinese && word.definitions[0].definitionChinese
+            ? word.definitions[0].definitionChinese
+            : word.definitions[0].definition || word.definitions[0].definitionChinese}
         </p>
       )}
 
       {/* Expanded detail */}
       <AnimatePresence initial={false}>
         {isExpanded && (
-          <WordDetail word={word} onSpeak={onSpeak} />
+          <WordDetail word={word} onSpeak={onSpeak} showChinese={showChinese} />
         )}
       </AnimatePresence>
     </motion.div>
@@ -228,6 +235,7 @@ export const VocabularyBrowserPanel = memo(
   ({ isOpen, onClose, onSpeak }: VocabularyBrowserPanelProps) => {
     const [expandedId, setExpandedId] = useState<string | null>(null);
     const inputRef = useRef<HTMLInputElement>(null);
+    const { showChineseTranslation, updateShowChineseTranslation } = useSettings();
 
     const { query, setQuery, results, isSearching, clearSearch } =
       useVocabularySearch();
@@ -282,6 +290,21 @@ export const VocabularyBrowserPanel = memo(
               <span className="font-semibold text-base">生詞本</span>
             </div>
             <div className="flex items-center gap-1">
+              {/* Chinese translation toggle */}
+              <label
+                className="flex items-center gap-1.5 px-2 cursor-pointer text-xs select-none"
+                title={showChineseTranslation ? "隱藏中文翻譯" : "顯示中文翻譯"}
+                onMouseDown={(e) => e.stopPropagation()}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <span className="text-base-content/60">中</span>
+                <input
+                  type="checkbox"
+                  className="toggle toggle-xs toggle-accent"
+                  checked={showChineseTranslation}
+                  onChange={(e) => updateShowChineseTranslation(e.target.checked)}
+                />
+              </label>
               <button
                 type="button"
                 onClick={onClose}
@@ -369,6 +392,7 @@ export const VocabularyBrowserPanel = memo(
                       handleToggleExpand(word.id ?? word.word)
                     }
                     onSpeak={onSpeak}
+                    showChinese={showChineseTranslation}
                   />
                 ))}
               </AnimatePresence>

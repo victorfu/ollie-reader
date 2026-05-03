@@ -2,6 +2,7 @@ import { memo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import type { LookupItem } from "../../hooks/useLookupQueue";
 import { useFloatingPanel } from "../../hooks/useFloatingPanel";
+import { useSettings } from "../../hooks/useSettings";
 
 const BookOpenIcon = ({ className = "w-4 h-4" }: { className?: string }) => (
   <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -46,11 +47,13 @@ const LookupItemCard = memo(
     item,
     onDismiss,
     onSpeak,
+    showChinese,
     disableLayoutAnimation = false,
   }: {
     item: LookupItem;
     onDismiss: (id: string) => void;
     onSpeak?: (word: string) => void;
+    showChinese: boolean;
     disableLayoutAnimation?: boolean;
   }) => {
     const isTranslation = item.type === "translation";
@@ -122,10 +125,43 @@ const LookupItemCard = memo(
           </div>
         )}
 
-        {item.status === "success" && item.result && (
-          <p className="mt-2 text-sm leading-relaxed whitespace-pre-line text-base-content/70">
-            {item.result}
-          </p>
+        {item.status === "success" && (
+          <>
+            {/* Word lookup with structured definitions */}
+            {!isTranslation && item.vocabularyWord && item.vocabularyWord.definitions.length > 0 ? (
+              <div className="mt-2 space-y-1.5">
+                {item.vocabularyWord.phonetic && (
+                  <p className="text-xs text-base-content/40 italic">
+                    {item.vocabularyWord.phonetic}
+                  </p>
+                )}
+                {item.vocabularyWord.definitions.map((def, i) => (
+                  <div key={i} className="text-sm leading-relaxed">
+                    {def.partOfSpeech && (
+                      <span className="text-accent font-medium italic mr-1.5">
+                        {def.partOfSpeech}.
+                      </span>
+                    )}
+                    <span className="text-base-content/80">
+                      {def.definition || def.definitionChinese}
+                    </span>
+                    {showChinese && def.definitionChinese && def.definition && (
+                      <p className="text-base-content/50 text-xs mt-0.5 pl-1">
+                        {def.definitionChinese}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              /* Translation type or words without structured data */
+              item.result && (
+                <p className="mt-2 text-sm leading-relaxed whitespace-pre-line text-base-content/70">
+                  {item.result}
+                </p>
+              )
+            )}
+          </>
         )}
 
         {item.status === "error" && (
@@ -145,6 +181,7 @@ export const LookupPanel = memo(
     const [collapsedToken, setCollapsedToken] = useState<number | "nosignal" | null>(
       null,
     );
+    const { showChineseTranslation, updateShowChineseTranslation } = useSettings();
     const { panelStyle, dragHandleProps, resizeHandleProps, isDragging, isResizing } =
       useFloatingPanel({
       defaultSize: { width: 320, height: 384 },
@@ -211,6 +248,21 @@ export const LookupPanel = memo(
               )}
             </div>
             <div className="flex items-center gap-1">
+              {/* Chinese translation toggle */}
+              <label
+                className="flex items-center gap-1.5 px-2 cursor-pointer text-xs select-none"
+                title={showChineseTranslation ? "隱藏中文翻譯" : "顯示中文翻譯"}
+                onMouseDown={(e) => e.stopPropagation()}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <span className="text-base-content/60">中</span>
+                <input
+                  type="checkbox"
+                  className="toggle toggle-xs toggle-accent"
+                  checked={showChineseTranslation}
+                  onChange={(e) => updateShowChineseTranslation(e.target.checked)}
+                />
+              </label>
               {hasCompleted && (
                 <button
                   type="button"
@@ -240,6 +292,7 @@ export const LookupPanel = memo(
                   item={item}
                   onDismiss={onDismiss}
                   onSpeak={onSpeak}
+                  showChinese={showChineseTranslation}
                   disableLayoutAnimation={disableItemLayoutAnimation}
                 />
               ))}

@@ -16,6 +16,9 @@ export interface LookupItem {
   isNew?: boolean;
   emoji?: string;
   timestamp: number;
+  // For word lookups, the underlying vocabulary entry so the panel can
+  // re-render the definitions (e.g. toggle Chinese gloss) without losing data.
+  vocabularyWord?: VocabularyWord;
 }
 
 type LookupOrAddWord = (
@@ -200,6 +203,7 @@ export function useLookupQueue(
                 result: formatDefinitionsForDisplay(result.existingWord),
                 isNew: result.isNew,
                 emoji: result.existingWord?.emoji,
+                vocabularyWord: result.existingWord,
               };
             }
             return null;

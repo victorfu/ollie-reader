@@ -64,9 +64,15 @@ export async function generateWordDetails(
   signal?: AbortSignal,
 ): Promise<WordDetails | null> {
   try {
-    const prompt = `給小朋友解釋「${word}」這個英文單字，回覆 JSON：
-{"phonetic":"音標","definitions":[{"partOfSpeech":"詞性","definition":"簡單英文定義","definitionChinese":"中文解釋"}],"examples":[{"sentence":"例句"}]}
-2-3個定義、1個例句。只回覆JSON。`;
+    const prompt = `你是一個給國小到國中學生使用的英英／英中字典助手。請解釋「${word}」這個英文單字，回覆 JSON：
+{"phonetic":"音標","definitions":[{"partOfSpeech":"詞性","definition":"簡單清楚的英文對英文解釋","definitionChinese":"對應的繁體中文解釋"}],"examples":[{"sentence":"例句"}]}
+
+要求：
+- "definition" 必須是 **英文對英文** 的解釋（English-to-English），像兒童英英字典那樣，使用簡單常見的英文單字（避免使用比原單字更難的字），完整的英文句子，10-20 個字內。
+- "definitionChinese" 是對應的繁體中文翻譯，給看不懂英文解釋時參考。
+- 提供 2-3 個常見定義（不同詞性或不同意思），每個都要同時包含英文與中文解釋。
+- 提供 1 個簡短例句。
+- 只回覆 JSON，不要任何其他說明。`;
 
     if (signal?.aborted) return null;
 

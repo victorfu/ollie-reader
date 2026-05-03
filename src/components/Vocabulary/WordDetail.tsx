@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { useSpeechState } from "../../hooks/useSpeechState";
+import { useSettings } from "../../hooks/useSettings";
 import { Toast } from "../common/Toast";
 import type { VocabularyWord } from "../../types/vocabulary";
 
@@ -29,6 +30,7 @@ export const WordDetail = ({
   availableTags = [],
 }: WordDetailProps) => {
   const { speak } = useSpeechState();
+  const { showChineseTranslation, updateShowChineseTranslation } = useSettings();
   const [word, setWord] = useState<VocabularyWord>(initialWord);
   const [isEditing, setIsEditing] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false);
@@ -329,7 +331,18 @@ export const WordDetail = ({
         {/* Definitions */}
         {word.definitions.length > 0 && (
           <div className="mb-6">
-            <h3 className="font-semibold text-lg mb-3">📖 定義</h3>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-semibold text-lg">📖 定義</h3>
+              <label className="flex items-center gap-2 cursor-pointer text-sm select-none">
+                <span className="text-base-content/60">顯示中文</span>
+                <input
+                  type="checkbox"
+                  className="toggle toggle-sm toggle-accent"
+                  checked={showChineseTranslation}
+                  onChange={(e) => updateShowChineseTranslation(e.target.checked)}
+                />
+              </label>
+            </div>
             <div className="space-y-3">
               {word.definitions.map((def, index) => (
                 <div key={index} className="pl-4 border-l-4 border-primary">
@@ -359,8 +372,10 @@ export const WordDetail = ({
                       </svg>
                     </button>
                   </div>
-                  <p className="text-base-content">{def.definition}</p>
-                  {def.definitionChinese && (
+                  <p className="text-base-content">
+                    {def.definition || def.definitionChinese}
+                  </p>
+                  {showChineseTranslation && def.definitionChinese && def.definition && (
                     <p className="text-base-content/60 text-sm mt-1">
                       {def.definitionChinese}
                     </p>
