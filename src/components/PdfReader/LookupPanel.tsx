@@ -84,7 +84,7 @@ const LookupItemCard = memo(
             ) : (
               item.emoji && <span className="text-sm">{item.emoji}</span>
             )}
-            <span className={`font-semibold text-base ${isTranslation ? "line-clamp-2" : "truncate"}`}>
+            <span className={`font-semibold text-lg ${isTranslation ? "line-clamp-2" : "truncate"}`}>
               {item.word}
             </span>
             {!isTranslation && item.isNew && (
@@ -131,12 +131,12 @@ const LookupItemCard = memo(
             {!isTranslation && item.vocabularyWord && item.vocabularyWord.definitions.length > 0 ? (
               <div className="mt-2 space-y-1.5">
                 {item.vocabularyWord.phonetic && (
-                  <p className="text-xs text-base-content/40 italic">
+                  <p className="text-sm text-base-content/40 italic">
                     {item.vocabularyWord.phonetic}
                   </p>
                 )}
                 {item.vocabularyWord.definitions.map((def, i) => (
-                  <div key={i} className="text-sm leading-relaxed">
+                  <div key={i} className="text-base leading-relaxed">
                     {def.partOfSpeech && (
                       <span className="text-accent font-medium italic mr-1.5">
                         {def.partOfSpeech}.
@@ -146,7 +146,7 @@ const LookupItemCard = memo(
                       {def.definition || def.definitionChinese}
                     </span>
                     {showChinese && def.definitionChinese && def.definition && (
-                      <p className="text-base-content/50 text-xs mt-0.5 pl-1">
+                      <p className="text-base-content/50 text-sm mt-0.5 pl-1">
                         {def.definitionChinese}
                       </p>
                     )}
@@ -156,7 +156,7 @@ const LookupItemCard = memo(
             ) : (
               /* Translation type or words without structured data */
               item.result && (
-                <p className="mt-2 text-sm leading-relaxed whitespace-pre-line text-base-content/70">
+                <p className="mt-2 text-base leading-relaxed whitespace-pre-line text-base-content/70">
                   {item.result}
                 </p>
               )
@@ -184,9 +184,9 @@ export const LookupPanel = memo(
     const { showChineseTranslation, updateShowChineseTranslation } = useSettings();
     const { panelStyle, dragHandleProps, resizeHandleProps, isDragging, isResizing } =
       useFloatingPanel({
-      defaultSize: { width: 320, height: 384 },
+      defaultSize: { width: 320, height: 520 },
       minSize: { width: 240, height: 200 },
-      maxSize: { width: 600, height: 600 },
+      maxSize: { width: 600, height: 760 },
       });
     const disableItemLayoutAnimation = isDragging || isResizing;
     const signalToken = showSignal ?? "nosignal";
