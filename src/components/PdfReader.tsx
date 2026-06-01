@@ -182,6 +182,22 @@ function PdfReader() {
     clearSelection();
   };
 
+  // Lookup a word typed directly into the panel's search row
+  const handleLookupTypedWord = (word: string) => {
+    const trimmed = word.trim();
+    if (!trimmed) return;
+
+    const result = startLookup(trimmed, {
+      sourcePdfName: selectedFile?.name,
+    });
+
+    if (result === "duplicate") {
+      addToast(`「${trimmed}」正在查詢中`, "info");
+    } else if (result === "max_reached") {
+      addToast("同時查詢數量已達上限", "error");
+    }
+  };
+
   // Queue-based sentence translation
   const handleTranslate = () => {
     const trimmedText = selectedText.trim();
@@ -383,6 +399,7 @@ function PdfReader() {
         onDismiss={dismissLookup}
         onDismissAll={dismissAll}
         onSpeak={speak}
+        onLookupWord={handleLookupTypedWord}
       />
 
       {/* Toast Notifications */}
