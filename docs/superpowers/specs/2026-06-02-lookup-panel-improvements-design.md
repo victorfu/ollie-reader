@@ -13,8 +13,7 @@ The reader's floating "查詢結果" (Lookup Results) panel has three usability 
 
 ## Scope
 
-- `src/components/PdfReader/LookupPanel.tsx` — text sizes + new top search row
-- `src/hooks/useFloatingPanel.ts` — taller default/max size
+- `src/components/PdfReader/LookupPanel.tsx` — text sizes, taller panel options, new top search row
 - `src/components/PdfReader.tsx` — wire up typed lookups
 - `src/components/ShowSubtitles/ShowSubtitlesPage.tsx` — wire up typed lookups
 
@@ -36,13 +35,13 @@ Loading text ("查詢中…"), the error message, and badges keep their current 
 
 ## 2. Taller panel
 
-In `useFloatingPanel.ts`, change the constants used by `LookupPanel` (passed via options, so update the `defaultSize`/`maxSize` the panel requests):
+In `LookupPanel.tsx`, the panel already passes explicit size options to `useFloatingPanel`. Update those option values:
 
 - Default height: `384` → `520`
 - Max height: `600` → `760`
 - Width (default 320, max 600) and min size (240×200) unchanged.
 
-The panel stays drag-resizable; only the starting and ceiling heights grow. The default-position helper already derives `y` from the current height, so a taller default simply starts higher on screen.
+`useFloatingPanel.ts` itself is not modified — only the options the panel requests. The panel stays drag-resizable; only the starting and ceiling heights grow. The hook's default-position helper already derives `y` from the current height, so a taller default simply starts higher on screen.
 
 ## 3. Top search row (type-to-look-up)
 
