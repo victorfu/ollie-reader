@@ -188,9 +188,9 @@ export const LookupPanel = memo(
     const { showChineseTranslation, updateShowChineseTranslation } = useSettings();
     const { panelStyle, dragHandleProps, resizeHandleProps, isDragging, isResizing } =
       useFloatingPanel({
-      defaultSize: { width: 320, height: 520 },
-      minSize: { width: 240, height: 200 },
-      maxSize: { width: 600, height: 760 },
+        defaultSize: { width: 320, height: 520 },
+        minSize: { width: 240, height: 200 },
+        maxSize: { width: 600, height: 760 },
       });
     const disableItemLayoutAnimation = isDragging || isResizing;
     const signalToken = showSignal ?? "nosignal";
@@ -299,7 +299,11 @@ export const LookupPanel = memo(
           {/* Search row — type a word to look it up directly */}
           {onLookupWord && (
             <div className="px-3 py-2 border-b border-black/5 dark:border-white/10 shrink-0">
-              <form onSubmit={handleSearchSubmit} className="relative flex items-center">
+              <form
+                onSubmit={handleSearchSubmit}
+                onPointerDown={(e) => e.stopPropagation()}
+                className="relative flex items-center"
+              >
                 <Search
                   className="w-4 h-4 text-base-content/40 absolute left-2.5 pointer-events-none"
                   strokeWidth={1.5}
