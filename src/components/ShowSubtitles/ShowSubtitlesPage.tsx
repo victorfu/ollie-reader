@@ -70,6 +70,20 @@ export function ShowSubtitlesPage() {
     clearSelection();
   };
 
+  // Lookup a word typed directly into the panel's search row
+  const handleLookupTypedWord = (word: string) => {
+    const trimmed = word.trim();
+    if (!trimmed) return;
+
+    const result = startLookup(trimmed);
+
+    if (result === "duplicate") {
+      addToast(`「${trimmed}」正在查詢中`, "info");
+    } else if (result === "max_reached") {
+      addToast("同時查詢數量已達上限", "error");
+    }
+  };
+
   const handleTranslate = () => {
     const trimmedText = selectedText.trim();
     if (!trimmedText) return;
@@ -193,6 +207,7 @@ export function ShowSubtitlesPage() {
         onDismiss={dismissLookup}
         onDismissAll={dismissAll}
         onSpeak={speak}
+        onLookupWord={handleLookupTypedWord}
       />
 
       {/* Toast notifications */}
