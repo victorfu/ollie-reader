@@ -3,12 +3,13 @@
 import io
 import logging
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, HTTPException, Query, UploadFile
 from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 
 from server.config import CORS_ORIGINS, VERSION
+from server.fetch_url import FetchError, fetch_url_content_async
 from server.models import SpeechRequest
 from server.pdf_extract import PDFError, extract_text_from_pdf
 from server.tts_kokoro import KokoroTTSError, kokoro_synthesize_speech
@@ -30,6 +31,43 @@ def create_app() -> FastAPI:
     @app.get("/api/version", tags=["meta"])
     async def version():
         return {"version": VERSION, "engine": "local-sidecar"}
+
+    @app.get("/api/fetch-url", tags=["utility"])
+    async def fetch_url(
+        url: str = Query(..., description="要抓取的網址 URL"),
+        follow_redirects: bool = Query(True, description="是否自動跟隨重定向"),
+        max_redirects: int = Query(10, ge=1, le=30, description="最大重定向次數 (1-30)"),
+        timeout: int = Query(30, ge=1, le=120, description="請求超時時間(秒) (1-120)"),
+    ):
+        """代抓指定 URL 的檔案內容並回傳（合約與雲端一致）。"""
+        try:
+            result = await fetch_url_content_async(
+                url=url,
+                follow_redirects=follow_redirects,
+                max_redirects=max_redirects,
+                timeout=timeout,
+            )
+        except FetchError as e:
+            raise HTTPException(status_code=e.status_code, detail=e.message) from e
+        except Exception as e:
+            logger.exception("URL 抓取未預期錯誤")
+            raise HTTPException(
+                status_code=500, detail="伺服器錯誤，請稍後再試"
+            ) from e
+
+        headers = {
+            "Content-Type": result.content_type,
+            "Content-Length": str(len(result.content)),
+            "X-Final-URL": result.final_url,
+            "X-Redirect-Count": str(result.redirect_count),
+            "X-File-Extension": result.file_extension,
+            "Content-Disposition": result.content_disposition,
+        }
+        return Response(
+            content=result.content,
+            headers=headers,
+            media_type=result.content_type,
+        )
 
     @app.post("/api/pdf/extract", tags=["pdf"])
     async def extract_pdf(file: UploadFile = File(...)):
