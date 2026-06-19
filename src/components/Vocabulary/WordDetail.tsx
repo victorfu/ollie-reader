@@ -1,22 +1,7 @@
-import { WordDetailPanel } from "./WordDetailPanel";
-import type { VocabularyWord } from "../../types/vocabulary";
+import { WordDetailPanel, type WordDetailPanelProps } from "./WordDetailPanel";
 
-interface WordDetailProps {
-  word: VocabularyWord;
+interface WordDetailProps extends WordDetailPanelProps {
   onClose: () => void;
-  onUpdateWord: (
-    wordId: string,
-    updates: Partial<VocabularyWord>,
-  ) => Promise<{ success: boolean; message?: string }>;
-  onRegenerateWordDetails: (
-    wordId: string,
-    word: string,
-  ) => Promise<{
-    success: boolean;
-    message?: string;
-    updatedWord?: Partial<VocabularyWord>;
-  }>;
-  availableTags?: string[];
 }
 
 /** Mobile / fallback presentation: the word detail inside a modal sheet. */
