@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import type { FormEvent } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence } from "framer-motion";
 import { useVocabulary } from "../../hooks/useVocabulary";
 import { useSpeechState } from "../../hooks/useSpeechState";
 import { useDebounce } from "../../hooks/useDebounce";
@@ -10,13 +10,15 @@ import type {
   ReviewSettings,
 } from "../../types/vocabulary";
 import { WordDetail } from "../Vocabulary/WordDetail";
-import { VocabularyCard } from "../Vocabulary/VocabularyCard";
 import { Toast } from "../common/Toast";
 import { ConfirmModal } from "../common/ConfirmModal";
 
 import { FlashcardMode } from "./FlashcardMode";
 import { ReviewSettingsModal } from "./ReviewSettingsModal";
 import { SentenceTranslationBook } from "../SentenceTranslation/SentenceTranslationBook";
+import { VocabularyRow } from "./VocabularyRow";
+import { WordDetailPanel } from "./WordDetailPanel";
+import { useIsDesktop } from "../../hooks/useMediaQuery";
 
 // Move groupWordsByDate outside component to prevent recreation on each render
 const groupWordsByDate = (words: VocabularyWord[]) => {
@@ -105,6 +107,7 @@ export const VocabularyBook = () => {
     getWordCount,
   } = useVocabulary();
   const { speak } = useSpeechState();
+  const isDesktop = useIsDesktop();
   const [selectedWord, setSelectedWord] = useState<VocabularyWord | null>(null);
   const [filters, setFilters] = useState<VocabularyFilters>(DEFAULT_FILTERS);
   const [searchQuery, setSearchQuery] = useState("");
@@ -192,26 +195,6 @@ export const VocabularyBook = () => {
 
     void performSearch();
   }, [debouncedSearchQuery, words, searchWords]);
-
-  const hasActiveFilters = useMemo(() => {
-    return Boolean(
-      searchQuery.trim() ||
-        filters.sortBy !== DEFAULT_FILTERS.sortBy ||
-        filters.sortOrder !== DEFAULT_FILTERS.sortOrder,
-    );
-  }, [searchQuery, filters]);
-
-  const handleClearSearch = useCallback(() => {
-    searchRequestIdRef.current += 1;
-    setSearchQuery("");
-    setSearchResults(null);
-    setIsSearching(false);
-  }, []);
-
-  const handleClearFilters = useCallback(() => {
-    handleClearSearch();
-    setFilters({ ...DEFAULT_FILTERS });
-  }, [handleClearSearch]);
 
   const handleUpdateWord = useCallback(
     async (wordId: string, updates: Partial<VocabularyWord>) => {
@@ -374,6 +357,15 @@ export const VocabularyBook = () => {
   // Memoize word groups to prevent recalculation on every render
   const wordGroups = useMemo(() => groupWordsByDate(words), [words]);
 
+  // Desktop master-detail: keep a word selected so the detail pane isn't empty.
+  useEffect(() => {
+    if (!isDesktop) return;
+    if (selectedWord) return;
+    if (searchResults === null && words.length > 0) {
+      setSelectedWord(words[0]);
+    }
+  }, [isDesktop, selectedWord, searchResults, words]);
+
   if (isReviewMode && reviewWords.length > 0) {
     return (
       <FlashcardMode
@@ -387,8 +379,11 @@ export const VocabularyBook = () => {
     );
   }
 
+  // Words currently shown in the list pane (search results or date groups).
+  const showingSearch = searchResults !== null;
+
   return (
-    <div className="container mx-auto max-w-7xl">
+    <div className="flex h-[calc(100dvh-3.5rem-2rem)] flex-col md:h-[calc(100dvh-3.5rem-3rem)]">
       {toastMessage && (
         <Toast
           message={toastMessage.message}
@@ -397,7 +392,6 @@ export const VocabularyBook = () => {
         />
       )}
 
-      {/* Review Settings Modal */}
       <ReviewSettingsModal
         isOpen={showReviewSettings}
         onClose={() => setShowReviewSettings(false)}
@@ -407,11 +401,11 @@ export const VocabularyBook = () => {
         isLoading={isLoadingReview}
       />
 
-      {/* Tab segmented control */}
-      <div className="flex gap-1 surface-card rounded-xl p-1 mb-4">
+      {/* Segmented control */}
+      <div className="mb-4 flex shrink-0 gap-1 rounded-xl surface-card p-1">
         <button
           type="button"
-          className={`flex-1 h-11 rounded-lg text-sm font-medium transition-all active:scale-[0.98] ${
+          className={`h-10 flex-1 rounded-lg text-sm font-medium transition-all active:scale-[0.98] ${
             activeTab === "words"
               ? "bg-primary text-primary-content shadow-soft"
               : "text-muted-foreground hover:bg-accent-tint hover:text-accent"
@@ -422,7 +416,7 @@ export const VocabularyBook = () => {
         </button>
         <button
           type="button"
-          className={`flex-1 h-11 rounded-lg text-sm font-medium transition-all active:scale-[0.98] ${
+          className={`h-10 flex-1 rounded-lg text-sm font-medium transition-all active:scale-[0.98] ${
             activeTab === "sentences"
               ? "bg-primary text-primary-content shadow-soft"
               : "text-muted-foreground hover:bg-accent-tint hover:text-accent"
@@ -433,277 +427,215 @@ export const VocabularyBook = () => {
         </button>
       </div>
 
-      {/* Words tab content */}
-      <div className={activeTab === "words" ? "" : "hidden"}>
-
-      {/* Toolbar: Manual Add + Start Review */}
-      <div className="surface-card rounded-xl p-3 mb-4 flex flex-wrap gap-3 items-center">
-        <form
-          className="flex flex-1 min-w-0 gap-2 items-center"
-          onSubmit={handleManualSubmit}
-        >
-          <input
-            id={manualWordFieldId}
-            type="text"
-            placeholder="手動新增英文單字"
-            className="input input-bordered flex-1 min-w-[8rem]"
-            value={manualWord}
-            onChange={(e) => setManualWord(e.target.value)}
-            disabled={isAddingManualWord}
-            autoComplete="off"
-          />
-          <button
-            type="submit"
-            className="btn btn-primary active:scale-[0.98]"
-            disabled={
-              isAddingManualWord || isAdding || manualWord.trim().length === 0
-            }
-          >
-            {isAddingManualWord || isAdding ? (
-              <span className="loading loading-spinner loading-xs" />
-            ) : (
-              "加入生詞本"
-            )}
-          </button>
-        </form>
-        {words.length > 0 && !loading && (
-          <button
-            type="button"
-            className="btn btn-primary gap-1 active:scale-[0.98]"
-            onClick={handleOpenReviewSettings}
-            disabled={isLoadingReview}
-          >
-            {isLoadingReview ? (
-              <span className="loading loading-spinner loading-xs" />
-            ) : (
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-4 w-4"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"
+      {/* WORDS TAB */}
+      {activeTab === "words" && (
+        <div className="flex min-h-0 flex-1 flex-col lg:flex-row lg:gap-6">
+          {/* List pane */}
+          <aside className="flex min-h-0 flex-1 flex-col lg:w-72 lg:flex-none lg:shrink-0 xl:w-80 2xl:w-96">
+            {/* Compact toolbar */}
+            <div className="shrink-0 space-y-2">
+              <form className="flex gap-2" onSubmit={handleManualSubmit}>
+                <input
+                  id={manualWordFieldId}
+                  type="text"
+                  placeholder="手動新增英文單字"
+                  className="input input-bordered input-sm min-w-0 flex-1"
+                  value={manualWord}
+                  onChange={(e) => setManualWord(e.target.value)}
+                  disabled={isAddingManualWord}
+                  autoComplete="off"
                 />
-              </svg>
-            )}
-            開始複習
-          </button>
-        )}
-      </div>
+                <button
+                  type="submit"
+                  className="btn btn-primary btn-sm active:scale-[0.98]"
+                  disabled={isAddingManualWord || isAdding || manualWord.trim().length === 0}
+                >
+                  {isAddingManualWord || isAdding ? (
+                    <span className="loading loading-spinner loading-xs" />
+                  ) : (
+                    "新增"
+                  )}
+                </button>
+              </form>
 
-      {/* Compact Filters and Search */}
-      <div className="surface-card rounded-xl p-4 mb-4">
-        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-          <div className="relative w-full sm:flex-1">
-            <input
-              type="text"
-              placeholder="搜尋單字..."
-              className="input input-bordered w-full pr-24"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-            {searchQuery.trim() && (
-              <div className="absolute inset-y-0 right-3 flex items-center gap-2 text-xs text-muted-foreground">
-                {isSearching && (
-                  <span className="loading loading-spinner loading-xs" />
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="搜尋單字..."
+                  className="input input-bordered input-sm w-full pr-16"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+                {searchQuery.trim() && (
+                  <div className="absolute inset-y-0 right-2 flex items-center gap-1 text-xs text-muted-foreground">
+                    {isSearching && <span className="loading loading-spinner loading-xs" />}
+                    <span>{isSearching ? "更新中" : `${searchResults?.length ?? 0}`}</span>
+                  </div>
                 )}
-                <span>{isSearching ? "更新中" : `${searchResults?.length ?? 0} 筆`}</span>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <select
+                  className="select select-bordered select-sm min-w-0 flex-1"
+                  value={filters.sortBy}
+                  onChange={(e) => handleFilterChange("sortBy", e.target.value)}
+                >
+                  <option value="createdAt">加入時間</option>
+                  <option value="word">字母順序</option>
+                </select>
+                <select
+                  className="select select-bordered select-sm min-w-0 flex-1"
+                  value={filters.sortOrder}
+                  onChange={(e) => handleFilterChange("sortOrder", e.target.value)}
+                >
+                  <option value="desc">降序</option>
+                  <option value="asc">升序</option>
+                </select>
+                {words.length > 0 && !loading && (
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-sm shrink-0 active:scale-[0.98]"
+                    onClick={handleOpenReviewSettings}
+                    disabled={isLoadingReview}
+                    title="開始複習"
+                  >
+                    {isLoadingReview ? (
+                      <span className="loading loading-spinner loading-xs" />
+                    ) : (
+                      "複習"
+                    )}
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Scrollable list */}
+            <div className="mt-3 min-h-0 flex-1 overflow-y-auto pr-1 scrollbar-hide">
+              {/* Initial loading */}
+              {loading && words.length === 0 && (
+                <div className="space-y-2 py-1">
+                  {Array.from({ length: 8 }).map((_, i) => (
+                    <div key={i} className="h-12 rounded-lg bg-base-300/60 animate-pulse" />
+                  ))}
+                </div>
+              )}
+
+              {/* Empty: no words at all */}
+              {!loading && !showingSearch && words.length === 0 && (
+                <div className="rounded-xl surface-card p-6 text-center">
+                  <div className="mb-2 text-4xl">📖</div>
+                  <p className="text-sm text-muted-foreground">
+                    還沒有收藏的單字。在閱讀 PDF 時選取單字加入生詞本，或用上方輸入框手動新增。
+                  </p>
+                </div>
+              )}
+
+              {/* Search results as rows */}
+              {!loading && showingSearch && (
+                <div className="space-y-1">
+                  {searchResults!.length === 0 ? (
+                    <div className="rounded-xl surface-card p-6 text-center">
+                      <div className="mb-2 text-3xl">🔍</div>
+                      <p className="text-sm text-muted-foreground">
+                        找不到符合「{debouncedSearchQuery || searchQuery.trim()}」的單字
+                      </p>
+                    </div>
+                  ) : (
+                    <AnimatePresence mode="popLayout">
+                      {searchResults!.map((word) => (
+                        <VocabularyRow
+                          key={word.id}
+                          word={word}
+                          isActive={selectedWord?.id === word.id}
+                          onSelect={() => setSelectedWord(word)}
+                          onPlay={(e) => {
+                            e.stopPropagation();
+                            speak(word.word);
+                          }}
+                          onDelete={(e) => {
+                            e.stopPropagation();
+                            handleDelete(word.id!);
+                          }}
+                        />
+                      ))}
+                    </AnimatePresence>
+                  )}
+                </div>
+              )}
+
+              {/* Date groups as rows */}
+              {!loading && !showingSearch && words.length > 0 && (
+                <div className="space-y-4">
+                  {Object.entries(wordGroups).map(([date, groupWords]) => (
+                    <div key={date}>
+                      <h2 className="sticky top-0 z-10 mb-1 flex items-center gap-2 rounded-lg toolbar px-2 py-1.5 text-xs font-semibold text-muted-foreground">
+                        <span className="size-1.5 rounded-full bg-accent/60" />
+                        {date}
+                        <span className="rounded-full bg-base-200 px-1.5 py-0.5 text-[10px] font-normal">
+                          {groupWords.length}
+                        </span>
+                      </h2>
+                      <div className="space-y-1">
+                        <AnimatePresence mode="popLayout">
+                          {groupWords.map((word) => (
+                            <VocabularyRow
+                              key={word.id}
+                              word={word}
+                              isActive={selectedWord?.id === word.id}
+                              onSelect={() => setSelectedWord(word)}
+                              onPlay={(e) => {
+                                e.stopPropagation();
+                                speak(word.word);
+                              }}
+                              onDelete={(e) => {
+                                e.stopPropagation();
+                                handleDelete(word.id!);
+                              }}
+                            />
+                          ))}
+                        </AnimatePresence>
+                      </div>
+                    </div>
+                  ))}
+                  <div ref={loadMoreRef} className="py-4 text-center">
+                    {hasMore && isLoadingMore && (
+                      <span className="loading loading-spinner loading-md text-primary" />
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          </aside>
+
+          {/* Detail pane (desktop only) */}
+          <section className="hidden min-h-0 flex-1 overflow-y-auto rounded-2xl surface-card p-6 lg:block">
+            {selectedWord ? (
+              <WordDetailPanel
+                key={selectedWord.id}
+                word={selectedWord}
+                onUpdateWord={handleUpdateWord}
+                onRegenerateWordDetails={regenerateWordDetails}
+                availableTags={availableTags}
+              />
+            ) : (
+              <div className="flex h-full flex-col items-center justify-center text-center text-muted-foreground">
+                <div className="mb-3 text-5xl">📖</div>
+                <p className="text-sm">選擇一個單字以查看詳情</p>
               </div>
             )}
-          </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-3 items-center gap-2">
-            {/* Sort Options */}
-            <select
-              className="select select-bordered w-full sm:w-auto"
-              value={filters.sortBy}
-              onChange={(e) => handleFilterChange("sortBy", e.target.value)}
-            >
-              <option value="createdAt">加入時間</option>
-              <option value="word">字母順序</option>
-            </select>
-
-            <select
-              className="select select-bordered w-full sm:w-auto"
-              value={filters.sortOrder}
-              onChange={(e) => handleFilterChange("sortOrder", e.target.value)}
-            >
-              <option value="desc">降序</option>
-              <option value="asc">升序</option>
-            </select>
-
-            <button
-              type="button"
-              className="btn btn-ghost sm:w-auto"
-              onClick={handleClearFilters}
-              disabled={!hasActiveFilters}
-            >
-              清除篩選
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Initial Loading State */}
-      {loading && words.length === 0 && (
-        <div className="grid gap-4 auto-grid py-2">
-          {Array.from({ length: 8 }).map((_, index) => (
-            <div key={index} className="card surface-card rounded-xl">
-              <div className="card-body p-4">
-                <div className="h-6 w-2/3 rounded bg-base-300 animate-pulse" />
-                <div className="h-4 w-1/2 rounded bg-base-300 animate-pulse" />
-                <div className="h-12 w-full rounded bg-base-300 animate-pulse mt-2" />
-              </div>
-            </div>
-          ))}
+          </section>
         </div>
       )}
 
-      {/* Empty State - No words at all */}
-      {!loading && searchResults === null && words.length === 0 && (
-        <div className="card surface-card rounded-2xl">
-          <div className="card-body text-center py-12">
-            <div className="text-6xl mb-4">📖</div>
-            <h2 className="text-2xl font-semibold tracking-tight mb-2">還沒有收藏的單字</h2>
-            <p className="text-muted-foreground">
-              在閱讀 PDF 時選取單字，點擊「加入生詞本」按鈕開始收藏吧！
-            </p>
-          </div>
+      {/* SENTENCES TAB */}
+      {activeTab === "sentences" && (
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <SentenceTranslationBook embedded />
         </div>
       )}
 
-      {/* Search Results */}
-      {!loading && searchResults !== null && (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-muted-foreground flex items-center gap-2">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-5 w-5"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                />
-              </svg>
-              搜尋結果
-              <span className="text-xs font-normal bg-base-200 px-2 py-0.5 rounded-full">
-                {searchResults.length}
-              </span>
-              {isSearching && (
-                <span className="loading loading-spinner loading-xs text-primary" />
-              )}
-            </h2>
-            <button
-              className="btn btn-ghost btn-sm"
-              onClick={handleClearSearch}
-            >
-              清除搜尋
-            </button>
-          </div>
-
-          {searchResults.length === 0 ? (
-            <div className="card surface-card rounded-2xl">
-              <div className="card-body text-center py-8">
-                <div className="text-4xl mb-2">🔍</div>
-                <p className="text-muted-foreground">
-                  找不到符合「{debouncedSearchQuery || searchQuery.trim()}」的單字
-                </p>
-              </div>
-            </div>
-          ) : (
-            <div className="grid gap-4 auto-grid">
-              <AnimatePresence mode="popLayout">
-                {searchResults.map((word) => (
-                  <VocabularyCard
-                    key={word.id}
-                    word={word}
-                    onClick={() => setSelectedWord(word)}
-                    onPlay={(e) => {
-                      e.stopPropagation();
-                      speak(word.word);
-                    }}
-                    onDelete={(e) => {
-                      e.stopPropagation();
-                      handleDelete(word.id!);
-                    }}
-                  />
-                ))}
-              </AnimatePresence>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Word Groups - Only show when not searching */}
-      {!loading &&
-        searchResults === null &&
-        Object.keys(wordGroups).length > 0 && (
-          <div className="space-y-8">
-            {Object.entries(wordGroups).map(([date, groupWords]) => (
-              <motion.div
-                key={date}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.4 }}
-              >
-                <h2 className="text-lg font-semibold mb-4 text-muted-foreground flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-accent/60"></span>
-                  {date}
-                  <span className="text-xs font-normal bg-base-200 px-2 py-0.5 rounded-full">
-                    {groupWords.length}
-                  </span>
-                </h2>
-                <div className="grid gap-4 auto-grid">
-                  <AnimatePresence mode="popLayout">
-                    {groupWords.map((word) => (
-                      <VocabularyCard
-                        key={word.id}
-                        word={word}
-                        onClick={() => setSelectedWord(word)}
-                        onPlay={(e) => {
-                          e.stopPropagation();
-                          speak(word.word);
-                        }}
-                        onDelete={(e) => {
-                          e.stopPropagation();
-                          handleDelete(word.id!);
-                        }}
-                      />
-                    ))}
-                  </AnimatePresence>
-                </div>
-              </motion.div>
-            ))}
-
-            {/* Load More Indicator */}
-            <div ref={loadMoreRef} className="text-center py-6">
-              {hasMore && isLoadingMore && (
-                <span className="loading loading-spinner loading-md text-primary" />
-              )}
-            </div>
-          </div>
-        )}
-
-      </div>{/* End words tab content */}
-
-      {/* Sentences tab content */}
-      <div className={activeTab === "sentences" ? "" : "hidden"}>
-        <SentenceTranslationBook embedded />
-      </div>
-
-      {/* Word Detail Modal */}
-      {selectedWord && (
+      {/* Mobile / tablet: detail as a modal sheet */}
+      {!isDesktop && selectedWord && (
         <WordDetail
           word={selectedWord}
           onClose={() => setSelectedWord(null)}
@@ -713,7 +645,7 @@ export const VocabularyBook = () => {
         />
       )}
 
-      {/* Delete Confirmation Modal */}
+      {/* Delete confirmation */}
       <ConfirmModal
         isOpen={deleteWordId !== null}
         title="刪除單字"
