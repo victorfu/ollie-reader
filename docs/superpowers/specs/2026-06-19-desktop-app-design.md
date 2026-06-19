@@ -183,8 +183,10 @@ P0+P1 即可驗證整個價值假設，不必等打包。
 - Chrome 隔離 profile 開 `http://localhost:5173/` 時，頁面 context 直接 `fetch("http://127.0.0.1:8765/api/version")` 成功；回 `200`、`type: "cors"`、body `{"version":"0.1.0","engine":"local-sidecar"}`。
 - `curl` 帶 `Origin: http://localhost:5173` 呼叫 `/api/version`，CORS 回 `access-control-allow-origin: http://localhost:5173`。
 - PNA preflight (`Access-Control-Request-Private-Network: true`) 在原始 sidecar 上回 `400 Disallowed CORS private-network`；已補 `allow_private_network=True` 後重測：允許的 `http://localhost:5173` origin 回 `200` 且帶 `access-control-allow-private-network: true`，未允許 origin 回 `400` 且沒有 `access-control-allow-origin`。
+- Chrome 頁面 context 端點 workflow 成功：從 `http://localhost:5173/` 建立 `FormData` POST `http://127.0.0.1:8765/api/pdf/extract`，回 `200`、`type: "cors"`、`total_pages: 1`、文字 `Hello Ollie Task Nine`；同頁面 POST `http://127.0.0.1:8765/api/ktts`，Network 觀察到 `POST` 打到 `127.0.0.1:8765`，回 `200 audio/wav`，blob 前 4 bytes 為 `RIFF`。
+- Chrome 登入後 UI workflow 未完成：乾淨 profile 停在 Google 登入畫面；Firebase anonymous sign-in 被 `auth/admin-restricted-operation` 擋下。要完成「實際上傳 PDF + 點擊朗讀」仍需可登入的 Google session 或專用測試 auth bypass。
 - Codex in-app Browser 可渲染 login 畫面且無 console error，但其 read-only evaluate runtime 沒有 `fetch`/`XMLHttpRequest`，不能作為 localhost reachability 證據。
-- Safari WebDriver 未完成自動化驗證：`safaridriver` 回覆需先在 Safari Settings > Developer 啟用 Allow Remote Automation；本次未更動使用者設定。Safari 實機手動仍待測。
+- Safari 未完成自動化驗證：`safaridriver` 回覆需先在 Safari Settings > Developer 啟用 Allow Remote Automation；AppleScript `do JavaScript` 也被系統回 `Not authorized to send Apple events to Safari`。本次未更動使用者設定。Safari 實機手動仍待測。
 
 ---
 
