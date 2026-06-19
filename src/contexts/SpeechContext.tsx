@@ -8,8 +8,9 @@ import {
 } from "react";
 import type { TTSMode, TTSEngine } from "../types/pdf";
 import { SpeechContext, type SpeechContextType } from "./SpeechContextType";
-import { TTS_ENGINE_URL } from "../constants/api";
+import { TTS_ENGINE_PATH } from "../constants/api";
 import { useSettings } from "../hooks/useSettings";
+import { getComputeBase } from "../services/localBackend";
 import { ttsCache } from "../services/ttsCache";
 import { apiFetch } from "../utils/apiUtil";
 import { isAbortError } from "../utils/errorUtils";
@@ -29,30 +30,29 @@ async function fetchTTSBlob(
 ): Promise<Blob> {
   const cacheKey = ttsCache.getCacheKey(text, speechRate, engine);
 
-  // Check for pending request
   const pendingRequest = ttsCache.getPendingRequest(cacheKey);
   if (pendingRequest) {
     return pendingRequest;
   }
 
-  // Check cache
   const cachedBlob = await ttsCache.get(cacheKey);
   if (cachedBlob) {
     return cachedBlob;
   }
 
-  // Cache miss - fetch from API。統一格式 { text, speed }，後端依 engine 自行轉換
-  // （Piper: length_scale=1/speed；Kokoro: 直接用 speed）。兩者皆免認證。
   const fetchPromise = (async () => {
-    const response = await apiFetch(TTS_ENGINE_URL[engine], {
+    const base = await getComputeBase();
+    const response = await apiFetch(`${base}${TTS_ENGINE_PATH[engine]}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       signal,
-      body: JSON.stringify({
-        text,
-        speed: speechRate,
-      }),
+      body: JSON.stringify({ text, speed: speechRate }),
     });
+
+    // Kokoro 在本機/雲端都可能因缺 torch 回 503 → 自動降級 Piper，確保有聲音
+    if (response.status === 503 && engine === "kokoro") {
+      return fetchTTSBlob(text, speechRate, "piper", signal);
+    }
 
     if (!response.ok) {
       throw new Error(`TTS API 錯誤: ${response.status}`);
@@ -61,7 +61,6 @@ async function fetchTTSBlob(
     return await response.blob();
   })();
 
-  // Register pending request
   ttsCache.setPendingRequest(cacheKey, fetchPromise);
 
   const blob = await fetchPromise;

@@ -8,7 +8,8 @@ import {
   type ReactNode,
 } from "react";
 import type { ExtractResponse } from "../types/pdf";
-import { API_URL, FETCH_URL_API } from "../constants/api";
+import { FETCH_URL_API, PDF_EXTRACT_PATH } from "../constants/api";
+import { getComputeBase } from "../services/localBackend";
 import { pdfSessionCache } from "../services/pdfSessionCache";
 import { isAbortError } from "../utils/errorUtils";
 
@@ -104,7 +105,8 @@ export const PdfProvider = ({ children }: PdfProviderProps) => {
       const form = new FormData();
       form.append("file", file);
 
-      const res = await fetch(API_URL, {
+      const base = await getComputeBase();
+      const res = await fetch(`${base}${PDF_EXTRACT_PATH}`, {
         method: "POST",
         body: form,
         headers: { Accept: "application/json" },
@@ -250,7 +252,8 @@ export const PdfProvider = ({ children }: PdfProviderProps) => {
       const form = new FormData();
       form.append("file", file);
 
-      const extractRes = await fetch(API_URL, {
+      const extractBase = await getComputeBase();
+      const extractRes = await fetch(`${extractBase}${PDF_EXTRACT_PATH}`, {
         method: "POST",
         body: form,
         headers: { Accept: "application/json" },
