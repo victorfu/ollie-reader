@@ -31,7 +31,6 @@ function PdfReader() {
     error,
     result,
     pdfUrl,
-    isLoadingFromUrl,
     initialScrollPosition,
     handleFileChange,
     loadPdfFromUrl,
@@ -115,7 +114,6 @@ function PdfReader() {
     }
   };
 
-  const [urlInput, setUrlInput] = useState<string>("");
   const [isClearingCache, setIsClearingCache] = useState(false);
 
   // Toast queue for multiple notifications
@@ -238,14 +236,10 @@ function PdfReader() {
         <UploadArea
           selectedFile={selectedFile}
           isUploading={isUploading}
-          isLoadingFromUrl={isLoadingFromUrl}
-          urlInput={urlInput}
           speechSupported={speechSupported}
           onFileChange={onInputChange}
           onDrop={onDrop}
           onDragOver={onDragOver}
-          onUrlChange={setUrlInput}
-          onUrlLoad={loadPdfFromUrl}
           onCancel={cancelUpload}
           onOpenBookingDrawer={() => setDrawerOpen(true)}
           onClearCache={result ? handleClearCache : undefined}
