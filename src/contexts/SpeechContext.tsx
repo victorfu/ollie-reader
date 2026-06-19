@@ -36,17 +36,19 @@ async function fetchTTSBlob(text: string, speechRate: number, signal?: AbortSign
     return cachedBlob;
   }
 
-  // Cache miss - fetch from API
+  // Cache miss - fetch from API (Piper /api/tts, 無需認證)
   const fetchPromise = (async () => {
+    // Piper 的 length_scale 與語速方向相反（值越大唸越慢），故取倒數。
+    // speechRate 介於 0.5–2.0，倒數仍落在 Piper 合法範圍，clamp 為防禦性處理。
+    const lengthScale = Math.min(2.0, Math.max(0.1, 1 / speechRate));
+
     const response = await apiFetch(TTS_API_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      includeAuthToken: true,
       signal,
       body: JSON.stringify({
         text,
-        language_code: "en-US",
-        speaking_rate: speechRate,
+        length_scale: lengthScale,
       }),
     });
 

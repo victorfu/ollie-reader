@@ -15,7 +15,7 @@ interface PendingRequest {
 
 const DB_NAME = "ollie-tts-cache";
 const STORE_NAME = "audio-blobs";
-const DB_VERSION = 2; // Bumped for index addition
+const DB_VERSION = 3; // Bumped to clear stale Google MP3 blobs after switching to Piper WAV
 const MAX_CACHE_SIZE = 50; // Maximum number of cached items in memory
 const CACHE_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 const PRUNE_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 hours
