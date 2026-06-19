@@ -1,3 +1,5 @@
+import subprocess
+
 import server  # noqa: F401  確保 server 套件可 import
 from shell.sidecar import SidecarManager
 
@@ -19,6 +21,26 @@ class _FakeProc:
         self._alive = False
 
 
+class _SlowProc(_FakeProc):
+    def __init__(self):
+        super().__init__()
+        self.killed = False
+        self.wait_calls = 0
+
+    def terminate(self):
+        pass
+
+    def wait(self, timeout=None):
+        self.wait_calls += 1
+        if self.wait_calls == 1:
+            raise subprocess.TimeoutExpired(cmd=["sidecar"], timeout=timeout)
+        return 0
+
+    def kill(self):
+        self.killed = True
+        self._alive = False
+
+
 def test_start_spawns_process(monkeypatch):
     spawned = {}
 
@@ -34,11 +56,46 @@ def test_start_spawns_process(monkeypatch):
     assert "8765" in spawned["cmd"]
 
 
+def test_start_uses_frozen_executable(monkeypatch):
+    spawned = {}
+
+    def fake_popen(cmd, *a, **k):
+        spawned["cmd"] = cmd
+        return _FakeProc()
+
+    monkeypatch.setattr("shell.sidecar.subprocess.Popen", fake_popen)
+    monkeypatch.setattr("shell.sidecar.sys.frozen", True, raising=False)
+    monkeypatch.setattr("shell.sidecar.sys.executable", "/Applications/Ollie.app/ollie")
+
+    mgr = SidecarManager(port=8766, main_path="/x/main.py")
+    mgr.start()
+
+    assert spawned["cmd"] == [
+        "/Applications/Ollie.app/ollie",
+        "--serve",
+        "--port",
+        "8766",
+    ]
+
+
 def test_stop_terminates(monkeypatch):
     monkeypatch.setattr("shell.sidecar.subprocess.Popen", lambda *a, **k: _FakeProc())
     mgr = SidecarManager(port=8765, main_path="/x/main.py")
     mgr.start()
     mgr.stop()
+    assert mgr.is_running() is False
+
+
+def test_stop_kills_and_waits_when_terminate_times_out(monkeypatch):
+    proc = _SlowProc()
+    monkeypatch.setattr("shell.sidecar.subprocess.Popen", lambda *a, **k: proc)
+
+    mgr = SidecarManager(port=8765, main_path="/x/main.py")
+    mgr.start()
+    mgr.stop()
+
+    assert proc.killed is True
+    assert proc.wait_calls == 2
     assert mgr.is_running() is False
 
 

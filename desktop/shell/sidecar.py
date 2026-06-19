@@ -37,6 +37,7 @@ class SidecarManager:
                 self._proc.wait(timeout=5)
             except subprocess.TimeoutExpired:
                 self._proc.kill()
+                self._proc.wait(timeout=5)
             self._proc = None
 
     def is_running(self) -> bool:
