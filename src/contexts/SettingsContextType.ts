@@ -1,5 +1,5 @@
 import { createContext } from "react";
-import type { TTSMode, TTSEngine, ReadingMode, TextParsingMode } from "../types/pdf";
+import type { TTSMode, TTSEngine, ReadingMode, TextParsingMode, ComputeMode } from "../types/pdf";
 
 export type SettingsContextValue = {
   ttsMode: TTSMode;
@@ -8,6 +8,8 @@ export type SettingsContextValue = {
   readingMode: ReadingMode;
   textParsingMode: TextParsingMode;
   showChineseTranslation: boolean;
+  computeMode: ComputeMode;
+  updateComputeMode: (mode: ComputeMode) => void;
   loading: boolean;
   error: string | null;
   updateTtsMode: (mode: TTSMode) => Promise<void>;

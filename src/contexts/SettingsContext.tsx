@@ -3,7 +3,8 @@ import { useAuth } from "../hooks/useAuth";
 import { getUserSettings, saveUserSettings } from "../services/settingsService";
 import { SettingsContext } from "./SettingsContextType";
 import type { UserSettings } from "../types/settings";
-import type { TTSMode, TTSEngine, ReadingMode, TextParsingMode } from "../types/pdf";
+import type { TTSMode, TTSEngine, ReadingMode, TextParsingMode, ComputeMode } from "../types/pdf";
+import { getComputeMode, setComputeMode } from "../services/localBackend";
 
 interface SettingsProviderProps {
   children: ReactNode;
@@ -45,6 +46,7 @@ export const SettingsProvider = ({ children }: SettingsProviderProps) => {
   const [showChineseTranslation, setShowChineseTranslation] = useState<boolean>(
     getShowChineseTranslationFromStorage,
   );
+  const [computeMode, setComputeModeState] = useState<ComputeMode>(getComputeMode);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -177,6 +179,11 @@ export const SettingsProvider = ({ children }: SettingsProviderProps) => {
     setShowChineseTranslation(show);
   }, []);
 
+  const updateComputeMode = useCallback((mode: ComputeMode) => {
+    setComputeMode(mode);
+    setComputeModeState(mode);
+  }, []);
+
   const value = useMemo(
     () => ({
       ttsMode,
@@ -185,6 +192,7 @@ export const SettingsProvider = ({ children }: SettingsProviderProps) => {
       readingMode,
       textParsingMode,
       showChineseTranslation,
+      computeMode,
       loading,
       error,
       updateTtsMode,
@@ -193,6 +201,7 @@ export const SettingsProvider = ({ children }: SettingsProviderProps) => {
       updateReadingMode,
       updateTextParsingMode,
       updateShowChineseTranslation,
+      updateComputeMode,
     }),
     [
       ttsMode,
@@ -201,6 +210,7 @@ export const SettingsProvider = ({ children }: SettingsProviderProps) => {
       readingMode,
       textParsingMode,
       showChineseTranslation,
+      computeMode,
       loading,
       error,
       updateTtsMode,
@@ -209,6 +219,7 @@ export const SettingsProvider = ({ children }: SettingsProviderProps) => {
       updateReadingMode,
       updateTextParsingMode,
       updateShowChineseTranslation,
+      updateComputeMode,
     ],
   );
 
