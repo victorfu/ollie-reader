@@ -178,6 +178,14 @@ P0+P1 即可驗證整個價值假設，不必等打包。
 | Python 進 ollie-reader 影響前端工具鏈 | `desktop/` 不納入 tsconfig/eslint(本就只掃 `src/`);Python 產物加進 `.gitignore` |
 | macOS Gatekeeper 擋未簽章 app | 自用以 ad-hoc 簽章或系統設定放行;發佈才需 Apple 憑證 + notarization |
 
+**2026-06-19 實測紀錄**：
+
+- Chrome 隔離 profile 開 `http://localhost:5173/` 時，頁面 context 直接 `fetch("http://127.0.0.1:8765/api/version")` 成功；回 `200`、`type: "cors"`、body `{"version":"0.1.0","engine":"local-sidecar"}`。
+- `curl` 帶 `Origin: http://localhost:5173` 呼叫 `/api/version`，CORS 回 `access-control-allow-origin: http://localhost:5173`。
+- PNA preflight (`Access-Control-Request-Private-Network: true`) 在原始 sidecar 上回 `400 Disallowed CORS private-network`；已補 `allow_private_network=True` 後重測：允許的 `http://localhost:5173` origin 回 `200` 且帶 `access-control-allow-private-network: true`，未允許 origin 回 `400` 且沒有 `access-control-allow-origin`。
+- Codex in-app Browser 可渲染 login 畫面且無 console error，但其 read-only evaluate runtime 沒有 `fetch`/`XMLHttpRequest`，不能作為 localhost reachability 證據。
+- Safari WebDriver 未完成自動化驗證：`safaridriver` 回覆需先在 Safari Settings > Developer 啟用 Allow Remote Automation；本次未更動使用者設定。Safari 實機手動仍待測。
+
 ---
 
 ## 10. 附錄：REST vs WebSocket(已決定 v1 用 REST)
