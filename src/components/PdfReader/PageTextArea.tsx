@@ -1,6 +1,7 @@
 import { memo, useCallback } from "react";
 import type { ReactNode } from "react";
 import type { ReadingMode } from "../../types/pdf";
+import { ExternalAssistantToolbar } from "./ExternalAssistantToolbar";
 
 // Regex defined outside component to avoid recreation on each render
 const WORD_REGEX = /[A-Za-z]+(?:[''-][A-Za-z]+)*/g;
@@ -92,7 +93,8 @@ export const PageTextArea = memo(
                 Page {pageNumber}
               </span>
             </h3>
-            <div className="flex gap-2 flex-wrap">
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <ExternalAssistantToolbar pageNumber={pageNumber} text={text || ""} />
               <button
                 type="button"
                 onClick={() => onSpeak(text)}
