@@ -261,7 +261,7 @@ export const SentenceTranslationBook = ({ embedded = false, onCountChange }: Sen
         <div className="space-y-8">
           {dateKeys.map((date) => (
             <div key={date}>
-              <h2 className="text-sm font-medium text-muted-foreground mb-3 sticky top-14 toolbar rounded-lg py-2 -mx-2 px-2 z-10">
+              <h2 className="text-sm font-medium text-muted-foreground mb-3 sticky top-0 toolbar rounded-lg py-2 -mx-2 px-2 z-10">
                 {date}
               </h2>
               <div className="space-y-3">
