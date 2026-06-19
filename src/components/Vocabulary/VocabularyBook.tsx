@@ -431,7 +431,7 @@ export const VocabularyBook = () => {
       {activeTab === "words" && (
         <div className="flex min-h-0 flex-1 flex-col lg:flex-row lg:gap-6">
           {/* List pane */}
-          <aside className="flex min-h-0 flex-col lg:w-72 lg:shrink-0 xl:w-80 2xl:w-96">
+          <aside className="flex min-h-0 flex-1 flex-col lg:w-72 lg:flex-none lg:shrink-0 xl:w-80 2xl:w-96">
             {/* Compact toolbar */}
             <div className="shrink-0 space-y-2">
               <form className="flex gap-2" onSubmit={handleManualSubmit}>
