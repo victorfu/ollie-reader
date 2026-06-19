@@ -3,7 +3,9 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useFloatingPanel } from "../../hooks/useFloatingPanel";
 import { useVocabularySearch } from "../../hooks/useVocabularySearch";
 import { useSettings } from "../../hooks/useSettings";
+import type { LookupItem } from "../../hooks/useLookupQueue";
 import type { VocabularyWord } from "../../types/vocabulary";
+import { LookupResultCard } from "./LookupResultCard";
 
 // --- Inline SVG Icons ---
 
@@ -44,15 +46,26 @@ const ChevronDownIcon = ({ className = "w-4 h-4" }: { className?: string }) => (
   </svg>
 );
 
+const ReturnIcon = ({ className = "w-3.5 h-3.5" }: { className?: string }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 10l-5 5 5 5" />
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 4v7a4 4 0 01-4 4H4" />
+  </svg>
+);
+
 // --- Types ---
 
-interface VocabularyBrowserPanelProps {
+interface WordPanelProps {
   isOpen: boolean;
   onClose: () => void;
+  lookups: LookupItem[];
+  onDismiss: (id: string) => void;
+  onDismissAll: () => void;
   onSpeak?: (text: string) => void;
+  onLookupWord: (word: string) => void;
 }
 
-// --- Word Detail (expanded inline) ---
+// --- Saved word detail (expanded inline) ---
 
 const WordDetail = memo(
   ({
@@ -133,10 +146,7 @@ const WordDetail = memo(
         {word.tags.length > 0 && (
           <div className="flex flex-wrap gap-1 pt-1">
             {word.tags.map((tag) => (
-              <span
-                key={tag}
-                className="badge badge-xs badge-ghost"
-              >
+              <span key={tag} className="badge badge-xs badge-ghost">
                 {tag}
               </span>
             ))}
@@ -149,9 +159,9 @@ const WordDetail = memo(
 
 WordDetail.displayName = "WordDetail";
 
-// --- Word Item (compact row, expandable) ---
+// --- Saved word row (compact, expandable) ---
 
-const WordItem = memo(
+const SavedWordItem = memo(
   ({
     word,
     isExpanded,
@@ -166,6 +176,7 @@ const WordItem = memo(
     showChinese: boolean;
   }) => (
     <motion.div
+      layout="position"
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -10 }}
@@ -227,35 +238,48 @@ const WordItem = memo(
   ),
 );
 
-WordItem.displayName = "WordItem";
+SavedWordItem.displayName = "SavedWordItem";
 
-// --- Main Panel ---
+// --- Main unified panel ---
 
-export const VocabularyBrowserPanel = memo(
-  ({ isOpen, onClose, onSpeak }: VocabularyBrowserPanelProps) => {
+export const WordPanel = memo(
+  ({
+    isOpen,
+    onClose,
+    lookups,
+    onDismiss,
+    onDismissAll,
+    onSpeak,
+    onLookupWord,
+  }: WordPanelProps) => {
     const [expandedId, setExpandedId] = useState<string | null>(null);
     const inputRef = useRef<HTMLInputElement>(null);
     const { showChineseTranslation, updateShowChineseTranslation } = useSettings();
-
     const { query, setQuery, results, isSearching, clearSearch } =
       useVocabularySearch();
 
-    const { panelStyle, dragHandleProps, resizeHandleProps, isDragging } =
-      useFloatingPanel({
-        defaultPosition: { x: 24, y: window.innerHeight - 440 - 24 },
-        defaultSize: { width: 340, height: 440 },
-        minSize: { width: 260, height: 240 },
-        maxSize: { width: 500, height: 600 },
-      });
+    const {
+      panelStyle,
+      dragHandleProps,
+      resizeHandleProps,
+      isDragging,
+      isResizing,
+    } = useFloatingPanel({
+      defaultPosition: {
+        x: window.innerWidth - 360 - 24,
+        y: window.innerHeight - 480 - 24,
+      },
+      defaultSize: { width: 360, height: 480 },
+      minSize: { width: 260, height: 240 },
+      maxSize: { width: 560, height: 760 },
+    });
 
-    // Auto-focus the search input when the panel opens, and reset state when it
-    // closes. The reset runs in cleanup (when isOpen flips back to false or the
-    // panel unmounts) rather than synchronously in the effect body, which avoids
-    // the cascading-render lint while keeping the same reset-on-close behaviour
-    // (clearSearch is a stable useCallback, so the effect only re-runs on isOpen).
+    // Focus the search input when the panel opens; reset state on close. The
+    // reset runs in cleanup (when isOpen flips back to false) rather than in the
+    // effect body, which avoids the cascading-render lint while keeping the same
+    // reset-on-close behaviour (clearSearch is a stable useCallback).
     useEffect(() => {
       if (!isOpen) return;
-      // Small delay so the panel animation can start
       const timer = setTimeout(() => inputRef.current?.focus(), 100);
       return () => {
         clearTimeout(timer);
@@ -268,7 +292,66 @@ export const VocabularyBrowserPanel = memo(
       setExpandedId((prev) => (prev === wordId ? null : wordId));
     };
 
+    const handleLookupSubmit = (e: React.FormEvent) => {
+      e.preventDefault();
+      const word = query.trim();
+      if (!word) return;
+      onLookupWord(word);
+    };
+
     if (!isOpen) return null;
+
+    const disableItemLayoutAnimation = isDragging || isResizing;
+    const trimmedQuery = query.trim();
+    const normalizedQuery = trimmedQuery.toLowerCase();
+    const activeCount = lookups.filter((l) => l.status === "loading").length;
+    const hasCompleted = lookups.some((l) => l.status !== "loading");
+
+    // Queue cards: all of them when idle, or only those matching the term when
+    // searching — keeps the merged list focused on what was typed.
+    const visibleLookups = trimmedQuery
+      ? lookups.filter((l) => l.word.toLowerCase().includes(normalizedQuery))
+      : lookups;
+
+    const savedResults = results ?? [];
+    const exactSavedMatch = savedResults.some(
+      (w) => w.word.toLowerCase() === normalizedQuery,
+    );
+    const queryLoadingInQueue = lookups.some(
+      (l) =>
+        l.type === "word" &&
+        l.status === "loading" &&
+        l.word.toLowerCase() === normalizedQuery,
+    );
+
+    // Saved matches, de-duplicated against any queue card for the same word so a
+    // freshly looked-up word never shows twice.
+    const visibleSaved = trimmedQuery
+      ? savedResults.filter(
+          (w) =>
+            !visibleLookups.some(
+              (l) =>
+                l.type === "word" &&
+                l.word.toLowerCase() === w.word.toLowerCase(),
+            ),
+        )
+      : [];
+
+    // Offer to look the typed term up as a new word unless it's already saved or
+    // already being looked up.
+    const showLookupCTA =
+      Boolean(trimmedQuery) && !exactSavedMatch && !queryLoadingInQueue;
+    const showGroupLabels =
+      Boolean(trimmedQuery) &&
+      visibleLookups.length > 0 &&
+      visibleSaved.length > 0;
+    const showLandingHint = !trimmedQuery && lookups.length === 0;
+    const showNoSavedHint =
+      Boolean(trimmedQuery) &&
+      !isSearching &&
+      results !== null &&
+      visibleSaved.length === 0 &&
+      visibleLookups.length === 0;
 
     return (
       <AnimatePresence mode="wait">
@@ -289,11 +372,16 @@ export const VocabularyBrowserPanel = memo(
             }}
             className="flex items-center justify-between px-4 py-3 border-b border-border-hairline shrink-0"
           >
-            <div className="flex items-center gap-2">
-              <BookMarkedIcon className="w-4 h-4 text-accent" />
-              <span className="font-semibold text-base">生詞本</span>
+            <div className="flex items-center gap-2 min-w-0">
+              <BookMarkedIcon className="w-4 h-4 text-accent shrink-0" />
+              <span className="font-semibold text-base truncate">生詞本</span>
+              {activeCount > 0 && (
+                <span className="badge badge-xs badge-accent shrink-0">
+                  {activeCount}
+                </span>
+              )}
             </div>
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1 shrink-0">
               {/* Chinese translation toggle */}
               <label
                 className="flex items-center gap-1.5 px-2 cursor-pointer text-xs select-none"
@@ -309,6 +397,15 @@ export const VocabularyBrowserPanel = memo(
                   onChange={(e) => updateShowChineseTranslation(e.target.checked)}
                 />
               </label>
+              {hasCompleted && (
+                <button
+                  type="button"
+                  onClick={onDismissAll}
+                  className="btn btn-ghost btn-xs hover:bg-black/5 dark:hover:bg-white/10"
+                >
+                  清除
+                </button>
+              )}
               <button
                 type="button"
                 onClick={onClose}
@@ -317,31 +414,25 @@ export const VocabularyBrowserPanel = memo(
               >
                 <MinusIcon />
               </button>
-              <button
-                type="button"
-                onClick={() => {
-                  clearSearch();
-                  onClose();
-                }}
-                className="btn btn-ghost btn-xs btn-circle hover:bg-black/5 dark:hover:bg-white/10"
-                aria-label="關閉面板"
-              >
-                <XIcon />
-              </button>
             </div>
           </div>
 
-          {/* Search input — sticky below header */}
+          {/* Unified search box — type to search the book, Enter to look up a new word */}
           <div className="px-3 py-2 border-b border-border-hairline shrink-0">
-            <div className="relative">
-              <SearchIcon className="w-4 h-4 text-base-content/40 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <form
+              onSubmit={handleLookupSubmit}
+              onPointerDown={(e) => e.stopPropagation()}
+              className="relative"
+            >
+              <SearchIcon className="w-4 h-4 text-base-content/40 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
               <input
                 ref={inputRef}
                 type="text"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="搜尋單字..."
-                className="input input-bordered input-sm w-full pl-8 pr-8"
+                placeholder="搜尋或查詢單字…"
+                aria-label="搜尋或查詢單字"
+                className="w-full h-9 rounded-[8px] border border-border-hairline bg-base-200/50 pl-9 pr-9 text-sm placeholder:text-base-content/40 focus:outline-none focus:border-accent/40 focus:ring-2 focus:ring-accent/40 transition-colors"
               />
               {query && (
                 <button
@@ -356,50 +447,89 @@ export const VocabularyBrowserPanel = memo(
                   <XIcon className="w-3 h-3" />
                 </button>
               )}
-            </div>
+            </form>
           </div>
 
-          {/* Scrollable results area */}
+          {/* Merged list */}
           <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-2">
-            {/* No search yet */}
-            {!query.trim() && !isSearching && results === null && (
-              <div className="flex flex-col items-center justify-center h-full text-base-content/40 text-sm text-center px-4">
-                <SearchIcon className="w-8 h-8 mb-2 text-base-content/20" />
-                <p>輸入單字來搜尋生詞本</p>
-              </div>
+            {/* Lookup CTA — look the typed term up as a new word */}
+            {showLookupCTA && (
+              <button
+                type="button"
+                onClick={() => onLookupWord(trimmedQuery)}
+                className="flex items-center gap-2 w-full text-left rounded-lg border border-accent/20 bg-accent-tint px-3 py-2.5 text-sm text-accent hover:bg-accent/15 active:scale-[0.99] transition-all duration-200"
+              >
+                <SearchIcon className="w-4 h-4 shrink-0" />
+                <span className="flex-1 truncate">
+                  查詢「{trimmedQuery}」並加入生詞本
+                </span>
+                <ReturnIcon className="w-3.5 h-3.5 shrink-0 opacity-60" />
+              </button>
             )}
 
-            {/* Searching */}
-            {isSearching && (
-              <div className="flex items-center justify-center h-full gap-2">
+            {/* Lookup queue */}
+            {visibleLookups.length > 0 && (
+              <>
+                {showGroupLabels && (
+                  <p className="text-xs text-base-content/40 px-1 pt-0.5">查詢結果</p>
+                )}
+                <AnimatePresence initial={false}>
+                  {visibleLookups.map((item) => (
+                    <LookupResultCard
+                      key={item.id}
+                      item={item}
+                      onDismiss={onDismiss}
+                      onSpeak={onSpeak}
+                      showChinese={showChineseTranslation}
+                      disableLayoutAnimation={disableItemLayoutAnimation}
+                    />
+                  ))}
+                </AnimatePresence>
+              </>
+            )}
+
+            {/* Searching the saved book */}
+            {trimmedQuery && isSearching && (
+              <div className="flex items-center justify-center gap-2 py-4">
                 <span className="loading loading-spinner loading-sm text-accent" />
                 <span className="text-sm text-base-content/50">搜尋中...</span>
               </div>
             )}
 
-            {/* No results */}
-            {!isSearching && results !== null && results.length === 0 && (
-              <div className="flex flex-col items-center justify-center h-full text-base-content/40 text-sm text-center px-4">
-                <p>找不到符合的單字</p>
-              </div>
+            {/* Saved vocabulary matches */}
+            {visibleSaved.length > 0 && (
+              <>
+                {showGroupLabels && (
+                  <p className="text-xs text-base-content/40 px-1 pt-0.5">生詞本</p>
+                )}
+                <AnimatePresence initial={false}>
+                  {visibleSaved.map((word) => (
+                    <SavedWordItem
+                      key={word.id ?? word.word}
+                      word={word}
+                      isExpanded={expandedId === (word.id ?? word.word)}
+                      onToggle={() => handleToggleExpand(word.id ?? word.word)}
+                      onSpeak={onSpeak}
+                      showChinese={showChineseTranslation}
+                    />
+                  ))}
+                </AnimatePresence>
+              </>
             )}
 
-            {/* Results list */}
-            {!isSearching && results !== null && results.length > 0 && (
-              <AnimatePresence initial={false}>
-                {results.map((word) => (
-                  <WordItem
-                    key={word.id ?? word.word}
-                    word={word}
-                    isExpanded={expandedId === (word.id ?? word.word)}
-                    onToggle={() =>
-                      handleToggleExpand(word.id ?? word.word)
-                    }
-                    onSpeak={onSpeak}
-                    showChinese={showChineseTranslation}
-                  />
-                ))}
-              </AnimatePresence>
+            {/* No saved match (the CTA above offers to look it up) */}
+            {showNoSavedHint && (
+              <p className="text-center text-sm text-base-content/40 px-4 py-2">
+                生詞本沒有「{trimmedQuery}」
+              </p>
+            )}
+
+            {/* Landing state — nothing typed and no active lookups */}
+            {showLandingHint && (
+              <div className="flex flex-col items-center justify-center h-full text-base-content/40 text-sm text-center px-4">
+                <SearchIcon className="w-8 h-8 mb-2 text-base-content/20" />
+                <p>搜尋生詞本，或輸入單字查詢</p>
+              </div>
             )}
           </div>
 
@@ -423,4 +553,4 @@ export const VocabularyBrowserPanel = memo(
   },
 );
 
-VocabularyBrowserPanel.displayName = "VocabularyBrowserPanel";
+WordPanel.displayName = "WordPanel";

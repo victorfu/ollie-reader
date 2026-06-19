@@ -13,8 +13,7 @@ import { UploadArea } from "./PdfReader/UploadArea";
 import { PdfViewer } from "./PdfReader/PdfViewer";
 import { PageTextArea } from "./PdfReader/PageTextArea";
 import { SelectionToolbar } from "./PdfReader/SelectionToolbar";
-import { LookupPanel } from "./PdfReader/LookupPanel";
-import { VocabularyBrowserPanel } from "./PdfReader/VocabularyBrowserPanel";
+import { WordPanel } from "./PdfReader/WordPanel";
 import { ToastContainer } from "./common/ToastContainer";
 import { useToastQueue } from "../hooks/useToastQueue";
 import { BookingRecordsDrawer } from "./PdfReader/BookingRecordsDrawer";
@@ -66,16 +65,16 @@ function PdfReader() {
     fetchBookingRecords,
   } = useBookingRecords();
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [vocabBrowserOpen, setVocabBrowserOpen] = useState(false);
+  const [wordPanelOpen, setWordPanelOpen] = useState(false);
   const [loadingCourseId, setLoadingCourseId] = useState<string | null>(null);
 
-  // Keyboard shortcut: Cmd/Ctrl+K to toggle vocabulary browser
+  // Keyboard shortcut: Cmd/Ctrl+K to toggle the word panel
   useEffect(() => {
     if (!result) return;
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
         e.preventDefault();
-        setVocabBrowserOpen((prev) => !prev);
+        setWordPanelOpen((prev) => !prev);
       }
     };
     window.addEventListener("keydown", handler);
@@ -123,7 +122,6 @@ function PdfReader() {
   const { lookupOrAddWord } = useVocabulary();
   const {
     lookups,
-    requestSignal,
     startLookup,
     startTranslation,
     dismissLookup,
@@ -164,6 +162,7 @@ function PdfReader() {
   const handleLookupWord = () => {
     const trimmedText = selectedText.trim();
     if (!trimmedText) return;
+    setWordPanelOpen(true);
 
     const word = trimmedText.split(/\s+/)[0];
     const result = startLookup(word, {
@@ -184,6 +183,7 @@ function PdfReader() {
   const handleLookupTypedWord = (word: string) => {
     const trimmed = word.trim();
     if (!trimmed) return;
+    setWordPanelOpen(true);
 
     const result = startLookup(trimmed, {
       sourcePdfName: selectedFile?.name,
@@ -200,6 +200,7 @@ function PdfReader() {
   const handleTranslate = () => {
     const trimmedText = selectedText.trim();
     if (!trimmedText) return;
+    setWordPanelOpen(true);
 
     const result = startTranslation(
       trimmedText,
@@ -364,32 +365,33 @@ function PdfReader() {
         </div>
       )}
 
-      {/* Vocabulary Browser Trigger Button */}
-      {result && !vocabBrowserOpen && (
+      {/* Word Panel Trigger Button — opens the unified lookup + vocabulary panel */}
+      {result && !wordPanelOpen && (
         <button
           type="button"
-          onClick={() => setVocabBrowserOpen(true)}
-          className="fixed left-6 bottom-6 z-40 w-12 h-12 rounded-full flex items-center justify-center bg-base-100/90 backdrop-blur-xl border border-border-hairline shadow-floating hover:scale-105 hover:text-accent active:scale-[0.98] transition-all duration-200 lg:left-[calc(var(--app-sidebar-w)+1.5rem)]"
-          aria-label="搜尋生詞本"
+          onClick={() => setWordPanelOpen(true)}
+          className="fixed right-6 bottom-6 z-40 w-12 h-12 rounded-full flex items-center justify-center bg-base-100/90 backdrop-blur-xl border border-border-hairline shadow-floating hover:scale-105 hover:text-accent active:scale-[0.98] transition-all duration-200"
+          aria-label="開啟生詞本"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 19.5v-15A2.5 2.5 0 016.5 2H20v20H6.5a2.5 2.5 0 010-5H20" />
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 2v7l2.5-2L14 9V2" />
-          </svg>
+          <div className="relative">
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 19.5v-15A2.5 2.5 0 016.5 2H20v20H6.5a2.5 2.5 0 010-5H20" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 2v7l2.5-2L14 9V2" />
+            </svg>
+            {lookups.length > 0 && (
+              <span className="absolute -top-2 -right-2 badge badge-xs badge-accent">
+                {lookups.length}
+              </span>
+            )}
+          </div>
         </button>
       )}
 
-      {/* Vocabulary Browser Panel */}
-      <VocabularyBrowserPanel
-        isOpen={vocabBrowserOpen}
-        onClose={() => setVocabBrowserOpen(false)}
-        onSpeak={speak}
-      />
-
-      {/* Lookup Queue Panel */}
-      <LookupPanel
+      {/* Unified Word Panel — saved-vocabulary search + lookup queue in one widget */}
+      <WordPanel
+        isOpen={wordPanelOpen}
+        onClose={() => setWordPanelOpen(false)}
         lookups={lookups}
-        showSignal={requestSignal}
         onDismiss={dismissLookup}
         onDismissAll={dismissAll}
         onSpeak={speak}

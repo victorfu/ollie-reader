@@ -203,14 +203,14 @@ function AppContent() {
         {
           // Exposes the desktop sidebar width so fixed/floating elements deep in
           // the content (e.g. PDF reader FABs) can clear it at the lg breakpoint.
-          "--app-sidebar-w": sidebarCollapsed ? "4rem" : "16rem",
+          "--app-sidebar-w": sidebarCollapsed ? "4rem" : "14rem",
         } as CSSProperties
       }
     >
       {/* Desktop sidebar (fixed; document keeps scrolling) */}
       <aside
         className={`fixed inset-y-0 left-0 z-40 hidden flex-col border-r border-border-hairline bg-sidebar-bg backdrop-blur-xl transition-[width] duration-200 lg:flex ${
-          sidebarCollapsed ? "w-16" : "w-64"
+          sidebarCollapsed ? "w-16" : "w-56"
         }`}
       >
         {/* Brand */}
@@ -307,7 +307,7 @@ function AppContent() {
       {/* Main column (offset for the fixed sidebar on desktop) */}
       <div
         className={`flex min-h-screen flex-col transition-[padding] duration-200 ${
-          sidebarCollapsed ? "lg:pl-16" : "lg:pl-64"
+          sidebarCollapsed ? "lg:pl-16" : "lg:pl-56"
         }`}
       >
         {/* Toolbar */}
