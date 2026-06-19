@@ -9,7 +9,7 @@ import {
 } from "react";
 import type { ExtractResponse } from "../types/pdf";
 import { FETCH_URL_API, PDF_EXTRACT_PATH } from "../constants/api";
-import { getComputeBase } from "../services/localBackend";
+import { fetchWithComputeBase, getComputeMode, localUnavailableMessage } from "../services/localBackend";
 import { pdfSessionCache } from "../services/pdfSessionCache";
 import { isAbortError } from "../utils/errorUtils";
 
@@ -105,8 +105,7 @@ export const PdfProvider = ({ children }: PdfProviderProps) => {
       const form = new FormData();
       form.append("file", file);
 
-      const base = await getComputeBase();
-      const res = await fetch(`${base}${PDF_EXTRACT_PATH}`, {
+      const res = await fetchWithComputeBase(PDF_EXTRACT_PATH, {
         method: "POST",
         body: form,
         headers: { Accept: "application/json" },
@@ -134,7 +133,10 @@ export const PdfProvider = ({ children }: PdfProviderProps) => {
     } catch (err: unknown) {
       if (isAbortError(err)) return;
       const message = err instanceof Error ? err.message : "發生未知錯誤";
-      if (/Failed to fetch|CORS/i.test(message)) {
+      const isConn = /Failed to fetch|CORS|NetworkError/i.test(message);
+      if (getComputeMode() === "local" && isConn) {
+        setError(localUnavailableMessage());
+      } else if (/Failed to fetch|CORS/i.test(message)) {
         setError("連線失敗或 CORS 問題，請稍後再試。");
       } else {
         setError(message);
@@ -252,8 +254,7 @@ export const PdfProvider = ({ children }: PdfProviderProps) => {
       const form = new FormData();
       form.append("file", file);
 
-      const extractBase = await getComputeBase();
-      const extractRes = await fetch(`${extractBase}${PDF_EXTRACT_PATH}`, {
+      const extractRes = await fetchWithComputeBase(PDF_EXTRACT_PATH, {
         method: "POST",
         body: form,
         headers: { Accept: "application/json" },
@@ -277,7 +278,10 @@ export const PdfProvider = ({ children }: PdfProviderProps) => {
       if (isAbortError(err)) return;
       const message =
         err instanceof Error ? err.message : "載入 PDF 時發生未知錯誤";
-      setError(message);
+      const isConn = /Failed to fetch|CORS|NetworkError/i.test(message);
+      setError(
+        getComputeMode() === "local" && isConn ? localUnavailableMessage() : message,
+      );
       setSelectedFile(null);
       setPdfUrl(null);
       setResult(null);
