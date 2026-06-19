@@ -15,6 +15,7 @@ hiddenimports = [
     "uvicorn.lifespan.on",
 ]
 hiddenimports += collect_submodules("server")
+hiddenimports += collect_submodules("shell")
 
 if Path("models").exists():
     datas.append(("models", "models"))
@@ -50,7 +51,7 @@ exe = EXE(
     [],
     exclude_binaries=True,
     name="ollie-reader-desktop",
-    console=True,
+    console=False,
 )
 coll = COLLECT(
     exe,
