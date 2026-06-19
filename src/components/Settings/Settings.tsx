@@ -5,7 +5,8 @@ import { useAuth } from "../../hooks/useAuth";
 import { useTheme } from "../../hooks/useTheme";
 import { resetGameProgress } from "../../services/gameProgressService";
 import { ConfirmModal } from "../common/ConfirmModal";
-import type { TTSMode, TTSEngine, ReadingMode, TextParsingMode } from "../../types/pdf";
+import type { TTSMode, TTSEngine, ReadingMode, TextParsingMode, ComputeMode } from "../../types/pdf";
+import { getComputeStatusSync, refreshComputeBase, type ComputeStatus } from "../../services/localBackend";
 
 const THEME_OPTIONS = [
   { id: "light", label: "淺色", icon: Sun },
@@ -29,9 +30,13 @@ export const Settings = () => {
     updateSpeechRate,
     updateReadingMode,
     updateTextParsingMode,
+    computeMode,
+    updateComputeMode,
   } = useSettings();
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [computeStatus, setComputeStatus] = useState<ComputeStatus>(getComputeStatusSync);
+  const [redetecting, setRedetecting] = useState(false);
   const [showResetModal, setShowResetModal] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [resetSuccess, setResetSuccess] = useState(false);
@@ -109,6 +114,23 @@ export const Settings = () => {
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleComputeModeChange = async (mode: ComputeMode) => {
+    updateComputeMode(mode);
+    if (mode !== "cloud") {
+      setRedetecting(true);
+      await refreshComputeBase();
+      setRedetecting(false);
+    }
+    setComputeStatus(getComputeStatusSync());
+  };
+
+  const handleRedetect = async () => {
+    setRedetecting(true);
+    await refreshComputeBase();
+    setRedetecting(false);
+    setComputeStatus(getComputeStatusSync());
   };
 
   const handleResetGameProgress = async () => {
@@ -412,6 +434,65 @@ export const Settings = () => {
                   </div>
                 </label>
               </div>
+            </div>
+
+            {/* Divider */}
+            <div className="divider"></div>
+
+            {/* 運算後端 / 連線模式 */}
+            <div>
+              <h3 className="text-lg font-semibold mb-3">運算後端</h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                選擇 PDF 解析與 AI 語音要走本機桌面 App、自動，或只用雲端
+              </p>
+
+              <div className="space-y-3">
+                {(
+                  [
+                    { id: "auto", name: "自動", desc: "偵測到本機桌面 App 就用本機，否則用雲端（推薦）" },
+                    { id: "local", name: "只用本機", desc: "強制使用本機桌面 App；未啟動時會顯示錯誤，不退雲端" },
+                    { id: "cloud", name: "只用雲端", desc: "永遠使用雲端服務，不偵測本機" },
+                  ] as { id: ComputeMode; name: string; desc: string }[]
+                ).map((opt) => (
+                  <label
+                    key={opt.id}
+                    className="flex items-start gap-3 p-4 border border-border-hairline rounded-lg cursor-pointer hover:bg-base-200/60 transition-colors"
+                  >
+                    <input
+                      type="radio"
+                      name="computeMode"
+                      className="radio radio-primary mt-1"
+                      checked={computeMode === opt.id}
+                      onChange={() => handleComputeModeChange(opt.id)}
+                      disabled={redetecting}
+                    />
+                    <div className="flex-1">
+                      <div className="font-medium">{opt.name}</div>
+                      <div className="text-sm text-muted-foreground">{opt.desc}</div>
+                    </div>
+                  </label>
+                ))}
+              </div>
+
+              {computeMode !== "cloud" && (
+                <div className="mt-3 flex items-center gap-3 border-l-2 border-border-hairline pl-4">
+                  <span className="text-sm text-base-content/70">
+                    目前使用：
+                    {computeStatus.usingLocal ? "本機 sidecar" : "雲端"}
+                    {computeMode === "local" && computeStatus.localReachable === false
+                      ? "（本機未連線）"
+                      : ""}
+                  </span>
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm"
+                    onClick={handleRedetect}
+                    disabled={redetecting}
+                  >
+                    {redetecting ? "偵測中…" : "重新偵測"}
+                  </button>
+                </div>
+              )}
             </div>
 
             {saving && (
