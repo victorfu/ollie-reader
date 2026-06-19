@@ -1,10 +1,11 @@
 import { createContext } from "react";
-import type { TTSMode } from "../types/pdf";
+import type { TTSMode, TTSEngine } from "../types/pdf";
 
 export interface SpeechContextType {
   speechRate: number;
   isSpeaking: boolean;
   ttsMode: TTSMode;
+  ttsEngine: TTSEngine;
   setTtsMode: (mode: TTSMode) => void;
   isLoadingAudio: boolean;
   speechSupported: boolean;

@@ -15,6 +15,9 @@ export type ReadingMode = "word" | "selection";
 
 export type TTSMode = "browser" | "api";
 
+// API 模式下使用哪個後端 TTS 引擎（ttsMode === "api" 時生效）
+export type TTSEngine = "piper" | "kokoro" | "google";
+
 // 文字解析模式
 export type TextParsingMode = "frontend" | "backend";
 

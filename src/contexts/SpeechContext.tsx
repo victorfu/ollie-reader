@@ -6,9 +6,9 @@ import {
   useMemo,
   type ReactNode,
 } from "react";
-import type { TTSMode } from "../types/pdf";
+import type { TTSMode, TTSEngine } from "../types/pdf";
 import { SpeechContext, type SpeechContextType } from "./SpeechContextType";
-import { TTS_API_URL } from "../constants/api";
+import { TTS_ENGINE_URL } from "../constants/api";
 import { useSettings } from "../hooks/useSettings";
 import { ttsCache } from "../services/ttsCache";
 import { apiFetch } from "../utils/apiUtil";
@@ -21,8 +21,13 @@ interface SpeechProviderProps {
 /**
  * Fetch TTS audio blob from API or cache
  */
-async function fetchTTSBlob(text: string, speechRate: number, signal?: AbortSignal): Promise<Blob> {
-  const cacheKey = ttsCache.getCacheKey(text, speechRate);
+async function fetchTTSBlob(
+  text: string,
+  speechRate: number,
+  engine: TTSEngine,
+  signal?: AbortSignal,
+): Promise<Blob> {
+  const cacheKey = ttsCache.getCacheKey(text, speechRate, engine);
 
   // Check for pending request
   const pendingRequest = ttsCache.getPendingRequest(cacheKey);
@@ -36,19 +41,18 @@ async function fetchTTSBlob(text: string, speechRate: number, signal?: AbortSign
     return cachedBlob;
   }
 
-  // Cache miss - fetch from API (Piper /api/tts, 無需認證)
+  // Cache miss - fetch from API。統一格式 { text, speed }，後端依 engine 自行轉換
+  // （Piper: length_scale=1/speed；Google/Kokoro: 直接用 speed）。
+  // 只有 Google（付費）需要 Firebase 認證；Piper/Kokoro 免認證。
   const fetchPromise = (async () => {
-    // Piper 的 length_scale 與語速方向相反（值越大唸越慢），故取倒數。
-    // speechRate 介於 0.5–2.0，倒數仍落在 Piper 合法範圍，clamp 為防禦性處理。
-    const lengthScale = Math.min(2.0, Math.max(0.1, 1 / speechRate));
-
-    const response = await apiFetch(TTS_API_URL, {
+    const response = await apiFetch(TTS_ENGINE_URL[engine], {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      includeAuthToken: engine === "google",
       signal,
       body: JSON.stringify({
         text,
-        length_scale: lengthScale,
+        speed: speechRate,
       }),
     });
 
@@ -71,6 +75,7 @@ async function fetchTTSBlob(text: string, speechRate: number, signal?: AbortSign
 export const SpeechProvider = ({ children }: SpeechProviderProps) => {
   const {
     ttsMode,
+    ttsEngine,
     speechRate,
     updateTtsMode,
   } = useSettings();
@@ -192,7 +197,7 @@ export const SpeechProvider = ({ children }: SpeechProviderProps) => {
         setIsLoadingAudio(true);
         setIsSpeaking(false);
 
-        const blob = await fetchTTSBlob(text, speechRate, controller.signal);
+        const blob = await fetchTTSBlob(text, speechRate, ttsEngine, controller.signal);
         await playAudioBlob(blob);
       } catch (err: unknown) {
         if (isAbortError(err)) return;
@@ -202,7 +207,7 @@ export const SpeechProvider = ({ children }: SpeechProviderProps) => {
         throw new Error(message);
       }
     },
-    [speechRate, playAudioBlob],
+    [speechRate, ttsEngine, playAudioBlob],
   );
 
   const speak = useCallback(
@@ -263,7 +268,7 @@ export const SpeechProvider = ({ children }: SpeechProviderProps) => {
               setIsLoadingAudio(true);
               setIsSpeaking(false);
 
-              const blob = await fetchTTSBlob(text, speechRate, controller.signal);
+              const blob = await fetchTTSBlob(text, speechRate, ttsEngine, controller.signal);
 
               await playAudioBlob(
                 blob,
@@ -321,7 +326,7 @@ export const SpeechProvider = ({ children }: SpeechProviderProps) => {
         });
       }
     },
-    [pickEnglishVoice, speechRate, speechSupported, ttsMode, stopSpeaking, playAudioBlob],
+    [pickEnglishVoice, speechRate, ttsEngine, speechSupported, ttsMode, stopSpeaking, playAudioBlob],
   );
 
   const value: SpeechContextType = useMemo(
@@ -329,6 +334,7 @@ export const SpeechProvider = ({ children }: SpeechProviderProps) => {
       speechRate,
       isSpeaking,
       ttsMode,
+      ttsEngine,
       setTtsMode: handleSetTtsMode,
       isLoadingAudio,
       speechSupported,
@@ -340,6 +346,7 @@ export const SpeechProvider = ({ children }: SpeechProviderProps) => {
       speechRate,
       isSpeaking,
       ttsMode,
+      ttsEngine,
       handleSetTtsMode,
       isLoadingAudio,
       speechSupported,

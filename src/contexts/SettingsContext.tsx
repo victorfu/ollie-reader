@@ -3,7 +3,7 @@ import { useAuth } from "../hooks/useAuth";
 import { getUserSettings, saveUserSettings } from "../services/settingsService";
 import { SettingsContext } from "./SettingsContextType";
 import type { UserSettings } from "../types/settings";
-import type { TTSMode, ReadingMode, TextParsingMode } from "../types/pdf";
+import type { TTSMode, TTSEngine, ReadingMode, TextParsingMode } from "../types/pdf";
 
 interface SettingsProviderProps {
   children: ReactNode;
@@ -38,6 +38,7 @@ const getShowChineseTranslationFromStorage = (): boolean => {
 export const SettingsProvider = ({ children }: SettingsProviderProps) => {
   const { user } = useAuth();
   const [ttsMode, setTtsMode] = useState<TTSMode>("browser");
+  const [ttsEngine, setTtsEngine] = useState<TTSEngine>("piper");
   const [speechRate, setSpeechRate] = useState<number>(1);
   const [readingMode, setReadingMode] = useState<ReadingMode>("word");
   const [textParsingMode, setTextParsingMode] = useState<TextParsingMode>(getTextParsingModeFromStorage);
@@ -52,6 +53,7 @@ export const SettingsProvider = ({ children }: SettingsProviderProps) => {
     const loadSettings = async () => {
       if (!user) {
         setTtsMode("browser"); // Default when logged out
+        setTtsEngine("piper"); // Default when logged out
         setSpeechRate(1); // Default when logged out
         setReadingMode("word"); // Default when logged out
         // textParsingMode is managed by localStorage, no need to reset
@@ -66,12 +68,14 @@ export const SettingsProvider = ({ children }: SettingsProviderProps) => {
         const settings = await getUserSettings(user.uid);
         if (settings) {
           setTtsMode(settings.ttsMode);
+          setTtsEngine(settings.ttsEngine ?? "piper");
           setSpeechRate(settings.speechRate ?? 1);
           setReadingMode(settings.readingMode ?? "word");
           // textParsingMode is managed by localStorage
         } else {
           // No settings found, use defaults
           setTtsMode("browser");
+          setTtsEngine("piper");
           setSpeechRate(1);
           setReadingMode("word");
         }
@@ -90,7 +94,12 @@ export const SettingsProvider = ({ children }: SettingsProviderProps) => {
 
   // Generic setting update helper (for Firestore-synced settings)
   const updateSetting = useCallback(
-    async <K extends keyof Pick<UserSettings, "ttsMode" | "speechRate" | "readingMode">>(
+    async <
+      K extends keyof Pick<
+        UserSettings,
+        "ttsMode" | "ttsEngine" | "speechRate" | "readingMode"
+      >,
+    >(
       key: K,
       value: UserSettings[K],
       setter: (value: UserSettings[K]) => void,
@@ -117,6 +126,14 @@ export const SettingsProvider = ({ children }: SettingsProviderProps) => {
 
   const updateTtsMode = useCallback(
     (mode: TTSMode) => updateSetting("ttsMode", mode, setTtsMode),
+    [updateSetting],
+  );
+
+  const updateTtsEngine = useCallback(
+    (engine: TTSEngine) =>
+      updateSetting("ttsEngine", engine, (value) => {
+        if (value) setTtsEngine(value as TTSEngine);
+      }),
     [updateSetting],
   );
 
@@ -163,6 +180,7 @@ export const SettingsProvider = ({ children }: SettingsProviderProps) => {
   const value = useMemo(
     () => ({
       ttsMode,
+      ttsEngine,
       speechRate,
       readingMode,
       textParsingMode,
@@ -170,6 +188,7 @@ export const SettingsProvider = ({ children }: SettingsProviderProps) => {
       loading,
       error,
       updateTtsMode,
+      updateTtsEngine,
       updateSpeechRate,
       updateReadingMode,
       updateTextParsingMode,
@@ -177,6 +196,7 @@ export const SettingsProvider = ({ children }: SettingsProviderProps) => {
     }),
     [
       ttsMode,
+      ttsEngine,
       speechRate,
       readingMode,
       textParsingMode,
@@ -184,6 +204,7 @@ export const SettingsProvider = ({ children }: SettingsProviderProps) => {
       loading,
       error,
       updateTtsMode,
+      updateTtsEngine,
       updateSpeechRate,
       updateReadingMode,
       updateTextParsingMode,

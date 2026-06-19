@@ -3,18 +3,20 @@ import { useSettings } from "../../hooks/useSettings";
 import { useAuth } from "../../hooks/useAuth";
 import { resetGameProgress } from "../../services/gameProgressService";
 import { ConfirmModal } from "../common/ConfirmModal";
-import type { TTSMode, ReadingMode, TextParsingMode } from "../../types/pdf";
+import type { TTSMode, TTSEngine, ReadingMode, TextParsingMode } from "../../types/pdf";
 
 export const Settings = () => {
   const { user } = useAuth();
   const {
     ttsMode,
+    ttsEngine,
     speechRate,
     readingMode,
     textParsingMode,
     loading,
     error,
     updateTtsMode,
+    updateTtsEngine,
     updateSpeechRate,
     updateReadingMode,
     updateTextParsingMode,
@@ -31,6 +33,21 @@ export const Settings = () => {
 
     try {
       await updateTtsMode(mode);
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 3000);
+    } catch (err) {
+      console.error("Failed to save settings:", err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleTtsEngineChange = async (engine: TTSEngine) => {
+    setSaving(true);
+    setSaveSuccess(false);
+
+    try {
+      await updateTtsEngine(engine);
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
     } catch (err) {
@@ -182,6 +199,52 @@ export const Settings = () => {
                   </div>
                 </label>
               </div>
+
+              {/* AI 引擎子選單（僅在 API 模式顯示） */}
+              {ttsMode === "api" && (
+                <div className="mt-3 space-y-3 border-l-2 border-base-300 pl-4">
+                  <p className="text-sm text-base-content/70">選擇 AI 語音引擎</p>
+                  {(
+                    [
+                      {
+                        id: "piper",
+                        name: "Piper",
+                        desc: "本地模型，速度快、免費、隱私（預設）",
+                      },
+                      {
+                        id: "kokoro",
+                        name: "Kokoro",
+                        desc: "高品質神經語音；需後端本地啟用，未啟用會失敗",
+                      },
+                      {
+                        id: "google",
+                        name: "Google",
+                        desc: "雲端 WaveNet，品質高；需登入",
+                      },
+                    ] as { id: TTSEngine; name: string; desc: string }[]
+                  ).map((eng) => (
+                    <label
+                      key={eng.id}
+                      className="flex items-start gap-3 p-3 border border-base-300 rounded-lg cursor-pointer hover:bg-base-200 transition-colors"
+                    >
+                      <input
+                        type="radio"
+                        name="ttsEngine"
+                        className="radio radio-primary radio-sm mt-1"
+                        checked={ttsEngine === eng.id}
+                        onChange={() => handleTtsEngineChange(eng.id)}
+                        disabled={saving}
+                      />
+                      <div className="flex-1">
+                        <div className="font-medium">{eng.name}</div>
+                        <div className="text-sm text-base-content/60">
+                          {eng.desc}
+                        </div>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Divider */}

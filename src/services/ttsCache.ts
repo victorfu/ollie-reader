@@ -15,7 +15,7 @@ interface PendingRequest {
 
 const DB_NAME = "ollie-tts-cache";
 const STORE_NAME = "audio-blobs";
-const DB_VERSION = 3; // Bumped to clear stale Google MP3 blobs after switching to Piper WAV
+const DB_VERSION = 4; // Bumped: cache key now includes engine/voice (multi-engine TTS)
 const MAX_CACHE_SIZE = 50; // Maximum number of cached items in memory
 const CACHE_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 const PRUNE_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 hours
@@ -97,10 +97,22 @@ class TTSCacheService {
   }
 
   /**
-   * Generate cache key from TTS parameters
+   * Generate cache key from TTS parameters.
+   * Includes engine (and optional voice) so audio from different engines
+   * does not collide under the same text+rate key.
    */
-  getCacheKey(text: string, speakingRate: number): string {
-    return JSON.stringify({ text, speakingRate });
+  getCacheKey(
+    text: string,
+    speakingRate: number,
+    engine?: string,
+    voice?: string,
+  ): string {
+    return JSON.stringify({
+      text,
+      speakingRate,
+      engine: engine ?? "piper",
+      voice: voice ?? null,
+    });
   }
 
   /**
