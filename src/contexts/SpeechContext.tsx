@@ -42,13 +42,11 @@ async function fetchTTSBlob(
   }
 
   // Cache miss - fetch from API。統一格式 { text, speed }，後端依 engine 自行轉換
-  // （Piper: length_scale=1/speed；Google/Kokoro: 直接用 speed）。
-  // 只有 Google（付費）需要 Firebase 認證；Piper/Kokoro 免認證。
+  // （Piper: length_scale=1/speed；Kokoro: 直接用 speed）。兩者皆免認證。
   const fetchPromise = (async () => {
     const response = await apiFetch(TTS_ENGINE_URL[engine], {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      includeAuthToken: engine === "google",
       signal,
       body: JSON.stringify({
         text,

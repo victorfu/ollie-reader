@@ -1,7 +1,7 @@
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "../utils/firebaseUtil";
 import type { UserSettings } from "../types/settings";
-import type { TTSMode, TTSEngine, ReadingMode } from "../types/pdf";
+import type { TTSMode, ReadingMode } from "../types/pdf";
 
 const SETTINGS_COLLECTION = "userSettings";
 
@@ -20,7 +20,8 @@ export const getUserSettings = async (
       return {
         userId,
         ttsMode: (data.ttsMode as TTSMode) || "browser",
-        ttsEngine: (data.ttsEngine as TTSEngine) || "piper",
+        // 僅接受目前支援的引擎；舊資料（如已移除的 "google"）一律 fallback 到 piper
+        ttsEngine: data.ttsEngine === "kokoro" ? "kokoro" : "piper",
         speechRate: (data.speechRate as number) ?? 1,
         readingMode: (data.readingMode as ReadingMode) || "word",
         createdAt: data.createdAt?.toDate(),

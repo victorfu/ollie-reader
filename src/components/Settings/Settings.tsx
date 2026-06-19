@@ -216,11 +216,6 @@ export const Settings = () => {
                         name: "Kokoro",
                         desc: "高品質神經語音；需後端本地啟用，未啟用會失敗",
                       },
-                      {
-                        id: "google",
-                        name: "Google",
-                        desc: "雲端 WaveNet，品質高；需登入",
-                      },
                     ] as { id: TTSEngine; name: string; desc: string }[]
                   ).map((eng) => (
                     <label
