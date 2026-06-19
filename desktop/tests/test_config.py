@@ -76,3 +76,9 @@ def test_cors_appends_env_origins(load_config):
     assert "http://127.0.0.1:5173" in config.CORS_ORIGINS
     assert "https://ollie.example.app" in config.CORS_ORIGINS
     assert "https://b.app" in config.CORS_ORIGINS
+
+
+@pytest.mark.parametrize("origin", ["*", "https://*.example.com"])
+def test_cors_rejects_wildcard_origin(load_config, origin):
+    with pytest.raises(ValueError, match="OLLIE_CORS_ORIGINS"):
+        load_config(OLLIE_CORS_ORIGINS=f"https://ollie.example.app, {origin}")
