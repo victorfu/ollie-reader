@@ -237,6 +237,15 @@
     background: var(--accent-tint);
     color: var(--foreground);
   }
+
+  .react-pdf__Page__textContent ::selection,
+  .react-pdf__Page__textContent::selection,
+  .textLayer ::selection,
+  .textLayer::selection {
+    background: color-mix(in oklab, var(--accent) 26%, transparent);
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+  }
 }
 
 /* ============================================================
