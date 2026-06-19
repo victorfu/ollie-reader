@@ -1,9 +1,11 @@
 """PySide6 殼：系統匣 icon + 設定視窗，監督本機 sidecar。"""
 
+import signal
 import sys
+from pathlib import Path
 
 from PySide6.QtCore import QTimer, QUrl
-from PySide6.QtGui import QAction, QColor, QDesktopServices, QIcon, QPixmap
+from PySide6.QtGui import QAction, QDesktopServices, QIcon
 from PySide6.QtWidgets import (
   QApplication,
   QCheckBox,
@@ -22,10 +24,14 @@ from shell.sidecar import SidecarManager
 WEB_APP_URL = "http://localhost:5173"
 
 
-def _dot_icon(color: str) -> QIcon:
-  pix = QPixmap(16, 16)
-  pix.fill(QColor(color))
-  return QIcon(pix)
+def _resource_path(*parts: str) -> Path:
+  if getattr(sys, "frozen", False):
+    return Path(getattr(sys, "_MEIPASS", Path(sys.executable).resolve().parent), *parts)
+  return Path(__file__).resolve().parents[1].joinpath(*parts)
+
+
+def _tray_icon() -> QIcon:
+  return QIcon(str(_resource_path("assets", "tray-icon.png")))
 
 
 def _autostart_args(manager: SidecarManager) -> list[str]:
@@ -63,7 +69,8 @@ class SettingsDialog(QDialog):
     self._refresh()
 
   def _refresh(self) -> None:
-    ok = self.manager.health_check()
+    # 本機子行程存活檢查（poll()），零網路；不再每 2 秒打 /api/version。
+    ok = self.manager.is_running()
     self.status_label.setText("● 運行中" if ok else "○ 已停止")
 
   def _start_sidecar(self, _checked: bool = False) -> None:
@@ -87,7 +94,8 @@ class TrayApp:
     self.manager = SidecarManager(DEFAULT_PORT)
     self.dialog: SettingsDialog | None = None
 
-    self.tray = QSystemTrayIcon(_dot_icon("gray"), self.app)
+    self.tray_icon = _tray_icon()
+    self.tray = QSystemTrayIcon(self.tray_icon, self.app)
     self.menu = QMenu()
 
     self.status_action = QAction("狀態：啟動中…", self.menu)
@@ -131,8 +139,8 @@ class TrayApp:
     self._refresh()
 
   def _refresh(self) -> None:
-    ok = self.manager.health_check()
-    self.tray.setIcon(_dot_icon("green" if ok else "gray"))
+    # 本機子行程存活檢查（poll()），零網路；不再每 3 秒打 /api/version。
+    ok = self.manager.is_running()
     self.status_action.setText("狀態：● 運行中" if ok else "狀態：○ 已停止")
 
   def _start_sidecar(self, _checked: bool = False) -> None:
@@ -160,7 +168,17 @@ class TrayApp:
 
 def run_shell() -> None:
   app = QApplication(sys.argv)
+  app.setWindowIcon(_tray_icon())
   app.setQuitOnLastWindowClosed(False)
   tray = TrayApp(app)
   tray.start()
+
+  # Qt 的 C++ event loop 會吞掉 SIGINT，導致終端機按 Ctrl+C 關不掉。
+  # 攔截 SIGINT → app.quit()（觸發 aboutToQuit → manager.stop()，收掉 sidecar）；
+  # 再加一個短週期 timer 讓 Python 直譯器定期醒來，signal 才有機會被處理。
+  signal.signal(signal.SIGINT, lambda *_: app.quit())
+  sigint_timer = QTimer(app)
+  sigint_timer.timeout.connect(lambda: None)
+  sigint_timer.start(200)
+
   sys.exit(app.exec())

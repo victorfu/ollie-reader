@@ -20,6 +20,9 @@ hiddenimports += collect_submodules("shell")
 if Path("models").exists():
     datas.append(("models", "models"))
 
+if Path("assets").exists():
+    datas.append(("assets", "assets"))
+
 for pkg in (
     "kokoro",
     "torch",
