@@ -35,60 +35,62 @@ export const VocabularyRow = ({
   return (
     <motion.div
       layout
-      role="button"
-      tabIndex={0}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.15 }}
-      onClick={onSelect}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          onSelect();
-        }
-      }}
-      aria-current={isActive ? "true" : undefined}
-      className={`group flex w-full cursor-pointer items-start gap-2 rounded-lg px-3 py-2.5 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
-        isActive ? "bg-accent-tint text-accent" : "hover:bg-base-content/5"
+      className={`group flex items-stretch gap-1 rounded-lg pr-1 transition-colors ${
+        isActive ? "bg-accent-tint" : "hover:bg-base-content/5"
       }`}
     >
-      {word.emoji && (
-        <span className="text-lg leading-6 shrink-0" role="img" aria-label={word.word}>
-          {word.emoji}
-        </span>
-      )}
-      <span className="min-w-0 flex-1">
-        <span className="flex items-center gap-1.5">
-          {word.difficulty && (
-            <span
-              className={`size-1.5 shrink-0 rounded-full ${
-                difficultyDot[word.difficulty] ?? "bg-base-content/30"
-              }`}
-              title={word.difficulty}
-            />
-          )}
-          <span className="truncate text-sm font-semibold tracking-tight">
-            {word.word}
+      {/* Primary selector — the row's main click + keyboard target */}
+      <button
+        type="button"
+        onClick={onSelect}
+        aria-current={isActive ? "true" : undefined}
+        className={`flex min-w-0 flex-1 items-start gap-2 rounded-lg px-3 py-2.5 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
+          isActive ? "text-accent" : ""
+        }`}
+      >
+        {word.emoji && (
+          <span className="text-lg leading-6 shrink-0" role="img" aria-label={word.word}>
+            {word.emoji}
           </span>
-          {word.phonetic && (
-            <span className="truncate text-xs text-muted-foreground font-serif italic">
-              {word.phonetic}
+        )}
+        <span className="min-w-0 flex-1">
+          <span className="flex items-center gap-1.5">
+            {word.difficulty && (
+              <span
+                className={`size-1.5 shrink-0 rounded-full ${
+                  difficultyDot[word.difficulty] ?? "bg-base-content/30"
+                }`}
+                title={word.difficulty}
+              />
+            )}
+            <span className="truncate text-sm font-semibold tracking-tight">
+              {word.word}
+            </span>
+            {word.phonetic && (
+              <span className="truncate text-xs text-muted-foreground font-serif italic">
+                {word.phonetic}
+              </span>
+            )}
+          </span>
+          {previewDef && (
+            <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+              {def?.partOfSpeech ? (
+                <span className="mr-1 uppercase tracking-wider text-[10px] text-muted-foreground/70">
+                  {def.partOfSpeech}
+                </span>
+              ) : null}
+              {previewDef}
             </span>
           )}
         </span>
-        {previewDef && (
-          <span className="mt-0.5 block truncate text-xs text-muted-foreground">
-            {def?.partOfSpeech ? (
-              <span className="mr-1 uppercase tracking-wider text-[10px] text-muted-foreground/70">
-                {def.partOfSpeech}
-              </span>
-            ) : null}
-            {previewDef}
-          </span>
-        )}
-      </span>
-      <span className="flex shrink-0 items-center opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+      </button>
+
+      {/* Action buttons — siblings of the selector, not descendants */}
+      <span className="flex shrink-0 items-center self-center opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
         <button
           type="button"
           onClick={onPlay}
