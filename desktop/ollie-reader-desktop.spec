@@ -1,0 +1,60 @@
+# -*- mode: python ; coding: utf-8 -*-
+from pathlib import Path
+
+from PyInstaller.utils.hooks import collect_all, collect_submodules
+
+
+datas = []
+binaries = []
+hiddenimports = [
+    "server.app",
+    "uvicorn.logging",
+    "uvicorn.loops.auto",
+    "uvicorn.protocols.http.auto",
+    "uvicorn.protocols.websockets.auto",
+    "uvicorn.lifespan.on",
+]
+hiddenimports += collect_submodules("server")
+
+if Path("models").exists():
+    datas.append(("models", "models"))
+
+for pkg in (
+    "kokoro",
+    "torch",
+    "piper",
+    "soundfile",
+    "numpy",
+    "language_tags",
+    "espeakng_loader",
+    "en_core_web_sm",
+    "misaki",
+):
+    d, b, h = collect_all(pkg)
+    datas += d
+    binaries += b
+    hiddenimports += h
+
+a = Analysis(
+    ["main.py"],
+    pathex=["."],
+    binaries=binaries,
+    datas=datas,
+    hiddenimports=hiddenimports,
+    noarchive=False,
+)
+pyz = PYZ(a.pure)
+exe = EXE(
+    pyz,
+    a.scripts,
+    [],
+    exclude_binaries=True,
+    name="ollie-reader-desktop",
+    console=True,
+)
+coll = COLLECT(
+    exe,
+    a.binaries,
+    a.datas,
+    name="ollie-reader-desktop",
+)
