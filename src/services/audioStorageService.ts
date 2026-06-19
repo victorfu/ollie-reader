@@ -1,8 +1,8 @@
 import { apiFetch } from "../utils/apiUtil";
 import {
-  GCS_UPLOAD_URL,
-  GCS_DELETE_URL,
-  GCS_SIGNED_URL,
+  STORAGE_UPLOAD_URL,
+  STORAGE_DELETE_URL,
+  STORAGE_SIGNED_URL,
 } from "../constants/api";
 
 // 10MB max audio file size
@@ -10,23 +10,23 @@ export const MAX_AUDIO_SIZE_BYTES = 10 * 1024 * 1024;
 export const MAX_AUDIO_SIZE_MB = 10;
 
 /**
- * 取得音訊檔案在 GCS 的路徑
+ * 取得音訊檔案在儲存空間的路徑
  *
  * @param userId - 使用者 ID
  * @param recordId - 練習記錄 ID
- * @returns GCS 路徑
+ * @returns 儲存路徑
  */
 function getAudioPath(userId: string, recordId: string): string {
   return `speech-practice/${userId}/${recordId}.webm`;
 }
 
 /**
- * 上傳練習錄音檔案到 GCS
+ * 上傳練習錄音檔案到儲存空間
  *
  * @param userId - 使用者 ID
  * @param recordId - 練習記錄 ID
  * @param audioBlob - 音訊 Blob (webm 格式)
- * @returns GCS 檔案路徑
+ * @returns 儲存檔案路徑
  * @throws Error 如果檔案過大或上傳失敗
  */
 export async function uploadPracticeAudio(
@@ -52,7 +52,7 @@ export async function uploadPracticeAudio(
   formData.append("file", audioBlob, `${recordId}.webm`);
   formData.append("path", path);
 
-  const response = await apiFetch(GCS_UPLOAD_URL, {
+  const response = await apiFetch(STORAGE_UPLOAD_URL, {
     method: "POST",
     includeAuthToken: true,
     body: formData,
@@ -83,7 +83,7 @@ export async function deletePracticeAudio(
 
   try {
     const response = await apiFetch(
-      `${GCS_DELETE_URL}?path=${encodeURIComponent(path)}`,
+      `${STORAGE_DELETE_URL}?path=${encodeURIComponent(path)}`,
       {
         method: "DELETE",
         includeAuthToken: true,
@@ -114,7 +114,7 @@ export async function deletePracticeAudio(
 /**
  * 取得音訊檔案的簽名 URL（用於播放）
  *
- * @param path - GCS 檔案路徑
+ * @param path - 儲存檔案路徑
  * @param expirationMinutes - URL 有效期限（分鐘），預設 60 分鐘
  * @returns 簽名 URL
  */
@@ -127,7 +127,7 @@ export async function getAudioSignedUrl(
     expiration_minutes: expirationMinutes.toString(),
   });
 
-  const response = await apiFetch(`${GCS_SIGNED_URL}?${params}`, {
+  const response = await apiFetch(`${STORAGE_SIGNED_URL}?${params}`, {
     method: "GET",
     includeAuthToken: true,
   });

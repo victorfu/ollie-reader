@@ -173,7 +173,7 @@ export function useAudioUploads() {
           .toString(36)
           .substr(2, 9)}`;
 
-        // Upload file to GCS
+        // Upload file to storage
         const audioUrl = await uploadAudioFile(
           user.uid,
           tempId,

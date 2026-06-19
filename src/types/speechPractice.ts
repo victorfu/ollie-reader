@@ -15,7 +15,7 @@ export interface PracticeRecord {
   topicTitle: string;
   userId: string;
   durationSeconds: number;
-  recordingUrl?: string; // GCS file path for audio storage
+  recordingUrl?: string; // storage file path for audio
   notes?: string;
   script?: string; // AI-generated or user-edited speech script
   createdAt: Date;

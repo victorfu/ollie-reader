@@ -3,7 +3,7 @@ export interface AudioUpload {
   userId: string;
   title: string;
   description?: string;
-  audioUrl: string; // GCS file path for audio storage
+  audioUrl: string; // storage file path for audio
   durationSeconds: number;
   fileSize: number; // in bytes
   mimeType: string;

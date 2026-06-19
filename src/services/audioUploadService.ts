@@ -16,9 +16,9 @@ import {
 import { db } from "../utils/firebaseUtil";
 import { apiFetch } from "../utils/apiUtil";
 import {
-  GCS_UPLOAD_URL,
-  GCS_DELETE_URL,
-  GCS_SIGNED_URL,
+  STORAGE_UPLOAD_URL,
+  STORAGE_DELETE_URL,
+  STORAGE_SIGNED_URL,
 } from "../constants/api";
 import type { AudioUpload, AudioUploadUpdateInput } from "../types/audioUpload";
 import {
@@ -30,7 +30,7 @@ import {
 const COLLECTION_NAME = "audioUploads";
 
 /**
- * Get GCS path for audio upload
+ * Get storage path for audio upload
  */
 function getAudioUploadPath(
   userId: string,
@@ -76,7 +76,7 @@ const convertToAudioUpload = (id: string, data: DocumentData): AudioUpload => {
 };
 
 /**
- * Upload audio file to GCS
+ * Upload audio file to storage
  */
 export async function uploadAudioFile(
   userId: string,
@@ -112,7 +112,7 @@ export async function uploadAudioFile(
   formData.append("file", audioFile, fileName);
   formData.append("path", path);
 
-  const response = await apiFetch(GCS_UPLOAD_URL, {
+  const response = await apiFetch(STORAGE_UPLOAD_URL, {
     method: "POST",
     includeAuthToken: true,
     body: formData,
@@ -129,12 +129,12 @@ export async function uploadAudioFile(
 }
 
 /**
- * Delete audio file from GCS
+ * Delete audio file from storage
  */
 export async function deleteAudioFile(audioUrl: string): Promise<void> {
   try {
     const response = await apiFetch(
-      `${GCS_DELETE_URL}?path=${encodeURIComponent(audioUrl)}`,
+      `${STORAGE_DELETE_URL}?path=${encodeURIComponent(audioUrl)}`,
       {
         method: "DELETE",
         includeAuthToken: true,
@@ -172,7 +172,7 @@ export async function getAudioUploadSignedUrl(
     expiration_minutes: expirationMinutes.toString(),
   });
 
-  const response = await apiFetch(`${GCS_SIGNED_URL}?${params}`, {
+  const response = await apiFetch(`${STORAGE_SIGNED_URL}?${params}`, {
     method: "GET",
     includeAuthToken: true,
   });
@@ -272,7 +272,7 @@ export async function deleteAudioUpload(
   uploadId: string,
   audioUrl: string,
 ): Promise<void> {
-  // Delete audio file from GCS
+  // Delete audio file from storage
   try {
     await deleteAudioFile(audioUrl);
   } catch (error) {
