@@ -33,19 +33,24 @@ export const VocabularyRow = ({
     : "";
 
   return (
-    <motion.button
-      type="button"
+    <motion.div
       layout
+      role="button"
+      tabIndex={0}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.15 }}
       onClick={onSelect}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onSelect();
+        }
+      }}
       aria-current={isActive ? "true" : undefined}
-      className={`group flex w-full items-start gap-2 rounded-lg px-3 py-2.5 text-left transition-colors ${
-        isActive
-          ? "bg-accent-tint text-accent"
-          : "hover:bg-base-content/5"
+      className={`group flex w-full cursor-pointer items-start gap-2 rounded-lg px-3 py-2.5 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
+        isActive ? "bg-accent-tint text-accent" : "hover:bg-base-content/5"
       }`}
     >
       {word.emoji && (
@@ -84,25 +89,25 @@ export const VocabularyRow = ({
         )}
       </span>
       <span className="flex shrink-0 items-center opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
-        <span
-          role="button"
-          tabIndex={-1}
+        <button
+          type="button"
           onClick={onPlay}
           className="btn btn-ghost btn-xs btn-circle text-accent/70 hover:text-accent"
           title="播放發音"
+          aria-label="播放發音"
         >
           <SpeakerIcon />
-        </span>
-        <span
-          role="button"
-          tabIndex={-1}
+        </button>
+        <button
+          type="button"
           onClick={onDelete}
           className="btn btn-ghost btn-xs btn-circle text-error/60 hover:text-error"
           title="刪除單字"
+          aria-label="刪除單字"
         >
           <TrashIcon className="h-4 w-4" />
-        </span>
+        </button>
       </span>
-    </motion.button>
+    </motion.div>
   );
 };
