@@ -92,6 +92,7 @@ export async function refreshComputeBase(): Promise<string> {
   const mode = getComputeMode();
   if (mode === "cloud") {
     resolvedBase = API_BASE_URL;
+    // cloud：不探測，本機可達性無意義 → 視為未知
     localReachable = null;
     return resolvedBase;
   }
@@ -131,7 +132,11 @@ export function getComputeStatusSync(): ComputeStatus {
   };
 }
 
-/** 連線層級失敗（網路/連不上），非 HTTP 狀態碼錯誤。fetch 失敗會丟 TypeError。 */
+/**
+ * 連線層級失敗（網路/連不上），非 HTTP 狀態碼錯誤。
+ * 瀏覽器 fetch 對連線失敗會 reject 成 TypeError；auto 模式的雲端 fallback 全靠這個判斷。
+ * 勿在未重新確認 apiFetch 的 throw 來源前放寬此條件。
+ */
 export function isLocalConnectionError(err: unknown): boolean {
   return err instanceof TypeError;
 }
