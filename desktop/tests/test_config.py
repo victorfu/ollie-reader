@@ -1,4 +1,5 @@
 import importlib
+import os
 
 import pytest
 
@@ -10,12 +11,12 @@ _CONFIG_ENV_KEYS = (
 )
 
 
-def _reload_config(monkeypatch, **env):
+def _reload_config(**env):
     for key in _CONFIG_ENV_KEYS:
-        monkeypatch.delenv(key, raising=False)
+        os.environ.pop(key, None)
 
     for key, value in env.items():
-        monkeypatch.setenv(key, value)
+        os.environ[key] = value
 
     from server import config
 
@@ -23,9 +24,18 @@ def _reload_config(monkeypatch, **env):
 
 
 @pytest.fixture
-def load_config(monkeypatch):
-    yield lambda **env: _reload_config(monkeypatch, **env)
-    _reload_config(monkeypatch)
+def load_config():
+    original_env = {key: os.environ.get(key) for key in _CONFIG_ENV_KEYS}
+    yield _reload_config
+
+    for key, value in original_env.items():
+        if value is None:
+            os.environ.pop(key, None)
+        else:
+            os.environ[key] = value
+    _reload_config(
+        **{key: value for key, value in original_env.items() if value is not None}
+    )
 
 
 def test_default_port_and_host(load_config):
@@ -62,5 +72,7 @@ def test_cors_appends_env_origins(load_config):
     config = load_config(
         OLLIE_CORS_ORIGINS="https://ollie.example.app, https://b.app",
     )
+    assert "http://localhost:5173" in config.CORS_ORIGINS
+    assert "http://127.0.0.1:5173" in config.CORS_ORIGINS
     assert "https://ollie.example.app" in config.CORS_ORIGINS
     assert "https://b.app" in config.CORS_ORIGINS
