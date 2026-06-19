@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+pymupdf
+piper-tts
+soundfile
+numpy
+kokoro>=0.9.4
+torch
+PySide6
