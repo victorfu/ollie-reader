@@ -322,9 +322,9 @@ function PdfReader() {
         </div>
       )}
 
-      {/* Stop Speech Button */}
+      {/* Stop Speech Button — bottom-left so it clears the centre selection toolbar and the right-corner word-panel FAB */}
       {(isSpeaking || isLoadingAudio) && (
-        <div className="fixed bottom-6 right-6 z-50">
+        <div className="fixed bottom-6 left-6 z-50 lg:left-[calc(var(--app-sidebar-w)+1.5rem)]">
           <button
             type="button"
             onClick={stopSpeaking}
