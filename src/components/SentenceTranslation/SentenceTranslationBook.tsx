@@ -1,12 +1,17 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import type { FormEvent } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import { Search, Trash2, Volume2 } from "lucide-react";
 import { useSentenceTranslation } from "../../hooks/useSentenceTranslation";
 import { useSpeechState } from "../../hooks/useSpeechState";
 import { useDebounce } from "../../hooks/useDebounce";
 import type { SentenceTranslation } from "../../types/sentenceTranslation";
 import { Toast } from "../common/Toast";
 import { ConfirmModal } from "../common/ConfirmModal";
+import {
+  toolbarFieldClass,
+  toolbarPrimaryButtonClass,
+} from "../common/toolbarStyles";
 
 // Group sentences by date
 const groupSentencesByDate = (sentences: SentenceTranslation[]) => {
@@ -87,6 +92,16 @@ export const SentenceTranslationBook = ({ embedded = false, onCountChange }: Sen
 
   const groupedSentences = groupSentencesByDate(filteredSentences);
   const dateKeys = Object.keys(groupedSentences);
+  const rootClassName = embedded
+    ? "flex h-full min-h-0 flex-col"
+    : "mx-auto max-w-4xl";
+  const contentClassName = embedded
+    ? "mt-3 min-h-0 flex-1 overflow-y-auto pr-1 scrollbar-hide"
+    : "";
+  const listSpacingClassName = embedded ? "space-y-4" : "space-y-8";
+  const emptyStateClassName = embedded
+    ? "rounded-xl surface-card p-6 text-center"
+    : "py-20 text-center";
 
   // Report count changes to parent
   useEffect(() => {
@@ -165,7 +180,7 @@ export const SentenceTranslationBook = ({ embedded = false, onCountChange }: Sen
   );
 
   return (
-    <div className="max-w-4xl mx-auto">
+    <div className={rootClassName}>
       {/* Header — only in standalone mode */}
       {!embedded && (
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
@@ -180,17 +195,21 @@ export const SentenceTranslationBook = ({ embedded = false, onCountChange }: Sen
         </div>
       )}
 
-      {/* Manual sentence input */}
-      <div className="surface-card rounded-xl p-3 mb-4 flex flex-wrap gap-3 items-center">
+      <div
+        className={
+          embedded ? "shrink-0 space-y-2" : "mb-6 space-y-3 rounded-xl surface-card p-3"
+        }
+      >
+        {/* Manual sentence input */}
         <form
-          className="flex flex-1 min-w-0 gap-2 items-center"
+          className="flex min-w-0 gap-2"
           onSubmit={handleManualSubmit}
         >
           <input
             id={manualSentenceFieldId}
             type="text"
             placeholder="手動輸入英文句子"
-            className="input input-bordered flex-1 min-w-[12rem]"
+            className={`${toolbarFieldClass} flex-1`}
             value={manualSentence}
             onChange={(e) => setManualSentence(e.target.value)}
             disabled={isSubmittingManualSentence}
@@ -198,7 +217,7 @@ export const SentenceTranslationBook = ({ embedded = false, onCountChange }: Sen
           />
           <button
             type="submit"
-            className="btn btn-primary active:scale-[0.98]"
+            className={toolbarPrimaryButtonClass}
             disabled={
               isSubmittingManualSentence || manualSentence.trim().length === 0
             }
@@ -206,33 +225,22 @@ export const SentenceTranslationBook = ({ embedded = false, onCountChange }: Sen
             {isSubmittingManualSentence ? (
               <span className="loading loading-spinner loading-xs" />
             ) : (
-              "翻譯並加入"
+              embedded ? "翻譯" : "翻譯並加入"
             )}
           </button>
         </form>
-      </div>
 
-      {/* Search */}
-      <div className="mb-6">
+        {/* Search */}
         <div className="relative">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={1.5}
-              d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-            />
-          </svg>
+          <Search
+            className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+            strokeWidth={1.75}
+            aria-hidden="true"
+          />
           <input
             type="text"
             placeholder="搜尋句子..."
-            className="input input-bordered w-full pl-10"
+            className={`${toolbarFieldClass} w-full pl-9`}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
@@ -240,120 +248,121 @@ export const SentenceTranslationBook = ({ embedded = false, onCountChange }: Sen
       </div>
 
       {/* Content */}
-      {isLoading && sentences.length === 0 ? (
-        <div className="flex items-center justify-center py-20">
-          <span className="loading loading-spinner loading-lg text-primary" />
-        </div>
-      ) : sentences.length === 0 ? (
-        <div className="text-center py-20">
-          <div className="text-6xl mb-4">📝</div>
-          <h3 className="text-xl font-semibold mb-2">還沒有翻譯過的句子</h3>
-          <p className="text-muted-foreground">
-            在閱讀器中選取句子並點擊翻譯，句子就會自動儲存在這裡
-          </p>
-        </div>
-      ) : filteredSentences.length === 0 ? (
-        <div className="text-center py-20">
-          <div className="text-4xl mb-4">🔍</div>
-          <p className="text-muted-foreground">找不到符合的句子</p>
-        </div>
-      ) : (
-        <div className="space-y-8">
-          {dateKeys.map((date) => (
-            <div key={date}>
-              <h2 className="text-sm font-medium text-muted-foreground mb-3 sticky top-0 toolbar rounded-lg py-2 -mx-2 px-2 z-10">
-                {date}
-              </h2>
-              <div className="space-y-3">
-                <AnimatePresence mode="popLayout">
-                  {groupedSentences[date].map((sentence) => (
-                    <motion.div
-                      key={sentence.id}
-                      layout
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, scale: 0.95 }}
-                      className="card surface-card rounded-xl"
-                    >
-                      <div className="card-body p-4">
-                        {/* English */}
-                        <div className="flex items-start gap-3">
-                          <button
-                            type="button"
-                            onClick={() => handleSpeak(sentence.english)}
-                            className="btn btn-ghost btn-sm btn-circle shrink-0 mt-0.5"
-                            title="朗讀"
-                          >
-                            <svg
-                              xmlns="http://www.w3.org/2000/svg"
-                              className="h-4 w-4"
-                              fill="none"
-                              viewBox="0 0 24 24"
-                              stroke="currentColor"
+      <div className={contentClassName}>
+        {isLoading && sentences.length === 0 ? (
+          <div className="flex items-center justify-center py-16">
+            <span className="loading loading-spinner loading-lg text-primary" />
+          </div>
+        ) : sentences.length === 0 ? (
+          <div className={emptyStateClassName}>
+            <div className={embedded ? "mb-2 text-4xl" : "mb-4 text-6xl"}>
+              📝
+            </div>
+            <h3 className="mb-2 text-lg font-semibold">還沒有翻譯過的句子</h3>
+            <p className="text-sm text-muted-foreground">
+              在閱讀器中選取句子並點擊翻譯，句子就會自動儲存在這裡
+            </p>
+          </div>
+        ) : filteredSentences.length === 0 ? (
+          <div className={emptyStateClassName}>
+            <div className={embedded ? "mb-2 text-3xl" : "mb-4 text-4xl"}>
+              🔍
+            </div>
+            <p className="text-sm text-muted-foreground">找不到符合的句子</p>
+          </div>
+        ) : (
+          <div className={listSpacingClassName}>
+            {dateKeys.map((date) => (
+              <div key={date}>
+                <h2 className="sticky top-0 z-10 mb-1 flex items-center gap-2 rounded-lg toolbar px-2 py-1.5 text-xs font-semibold text-muted-foreground">
+                  <span className="size-1.5 rounded-full bg-accent/60" />
+                  {date}
+                  <span className="rounded-full bg-base-200 px-1.5 py-0.5 text-[10px] font-normal">
+                    {groupedSentences[date].length}
+                  </span>
+                </h2>
+                <div className={embedded ? "space-y-2" : "space-y-3"}>
+                  <AnimatePresence mode="popLayout">
+                    {groupedSentences[date].map((sentence) => (
+                      <motion.div
+                        key={sentence.id}
+                        layout
+                        initial={{ opacity: 0, y: embedded ? 8 : 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.95 }}
+                        className={`group rounded-lg transition-colors ${
+                          embedded
+                            ? "border border-border-hairline bg-background/70 shadow-soft hover:bg-background"
+                            : "surface-card"
+                        }`}
+                      >
+                        <div className={embedded ? "p-3" : "p-4"}>
+                          <div className="flex items-start gap-2">
+                            <button
+                              type="button"
+                              onClick={() => handleSpeak(sentence.english)}
+                              className="btn btn-ghost btn-xs btn-circle mt-0.5 shrink-0 text-accent/70 hover:text-accent"
+                              title="朗讀"
+                              aria-label="朗讀句子"
                             >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"
+                              <Volume2
+                                className="size-4"
+                                strokeWidth={1.75}
+                                aria-hidden="true"
                               />
-                            </svg>
-                          </button>
-                          <p className="text-base leading-relaxed flex-1">
-                            {sentence.english}
-                          </p>
-                          <button
-                            type="button"
-                            onClick={() => setDeleteId(sentence.id!)}
-                            className="btn btn-ghost btn-sm btn-circle shrink-0 text-base-content/40 hover:text-error"
-                            title="刪除"
-                          >
-                            <svg
-                              xmlns="http://www.w3.org/2000/svg"
-                              className="h-4 w-4"
-                              fill="none"
-                              viewBox="0 0 24 24"
-                              stroke="currentColor"
+                            </button>
+                            <div className="min-w-0 flex-1">
+                              <p
+                                className={
+                                  embedded
+                                    ? "text-sm font-medium leading-6"
+                                    : "text-base leading-relaxed"
+                                }
+                              >
+                                {sentence.english}
+                              </p>
+                              <p className="mt-1 text-sm text-muted-foreground">
+                                {sentence.chinese}
+                              </p>
+                              {sentence.sourcePdfName && (
+                                <p className="mt-1 truncate text-xs text-muted-foreground/70">
+                                  來源：{sentence.sourcePdfName}
+                                </p>
+                              )}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setDeleteId(sentence.id!)}
+                              className="btn btn-ghost btn-xs btn-circle shrink-0 text-error/60 opacity-0 transition-opacity hover:text-error group-hover:opacity-100 focus:opacity-100"
+                              title="刪除"
+                              aria-label="刪除句子"
                             >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={1.5}
-                                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                              <Trash2
+                                className="size-4"
+                                strokeWidth={1.75}
+                                aria-hidden="true"
                               />
-                            </svg>
-                          </button>
+                            </button>
+                          </div>
                         </div>
-
-                        {/* Chinese translation */}
-                        <p className="text-sm text-muted-foreground pl-11">
-                          {sentence.chinese}
-                        </p>
-
-                        {/* Source PDF */}
-                        {sentence.sourcePdfName && (
-                          <p className="text-xs text-muted-foreground pl-11 mt-1">
-                            來源：{sentence.sourcePdfName}
-                          </p>
-                        )}
-                      </div>
-                    </motion.div>
-                  ))}
-                </AnimatePresence>
+                      </motion.div>
+                    ))}
+                  </AnimatePresence>
+                </div>
               </div>
-            </div>
-          ))}
+            ))}
 
-          {/* Load more trigger */}
-          {hasMore && (
-            <div ref={loadMoreRef} className="flex justify-center py-8">
-              {isLoading && (
-                <span className="loading loading-spinner loading-md text-primary" />
-              )}
-            </div>
-          )}
-        </div>
-      )}
+            {/* Load more trigger */}
+            {hasMore && (
+              <div ref={loadMoreRef} className="flex justify-center py-6">
+                {isLoading && (
+                  <span className="loading loading-spinner loading-md text-primary" />
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Delete Confirm Modal */}
       <ConfirmModal

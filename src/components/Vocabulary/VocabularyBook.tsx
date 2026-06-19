@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import type { FormEvent } from "react";
 import { AnimatePresence } from "framer-motion";
+import { BookOpen, Languages } from "lucide-react";
 import { useVocabulary } from "../../hooks/useVocabulary";
 import { useSpeechState } from "../../hooks/useSpeechState";
 import { useDebounce } from "../../hooks/useDebounce";
@@ -19,6 +20,11 @@ import { SentenceTranslationBook } from "../SentenceTranslation/SentenceTranslat
 import { VocabularyRow } from "./VocabularyRow";
 import { WordDetailPanel } from "./WordDetailPanel";
 import { useIsDesktop } from "../../hooks/useMediaQuery";
+import {
+  toolbarFieldClass,
+  toolbarPrimaryButtonClass,
+  toolbarSelectClass,
+} from "../common/toolbarStyles";
 
 // Move groupWordsByDate outside component to prevent recreation on each render
 const groupWordsByDate = (words: VocabularyWord[]) => {
@@ -402,29 +408,33 @@ export const VocabularyBook = () => {
       />
 
       {/* Segmented control */}
-      <div className="mb-4 flex shrink-0 gap-1 rounded-xl surface-card p-1">
-        <button
-          type="button"
-          className={`h-10 flex-1 rounded-lg text-sm font-medium transition-all active:scale-[0.98] ${
-            activeTab === "words"
-              ? "bg-primary text-primary-content shadow-soft"
-              : "text-muted-foreground hover:bg-accent-tint hover:text-accent"
-          }`}
-          onClick={() => setActiveTab("words")}
-        >
-          📖 單字
-        </button>
-        <button
-          type="button"
-          className={`h-10 flex-1 rounded-lg text-sm font-medium transition-all active:scale-[0.98] ${
-            activeTab === "sentences"
-              ? "bg-primary text-primary-content shadow-soft"
-              : "text-muted-foreground hover:bg-accent-tint hover:text-accent"
-          }`}
-          onClick={() => setActiveTab("sentences")}
-        >
-          🌐 句子翻譯
-        </button>
+      <div className="mb-4 flex shrink-0 justify-start">
+        <div className="inline-flex w-full gap-1 rounded-lg border border-border-hairline bg-background/75 p-0.5 shadow-soft sm:w-auto">
+          <button
+            type="button"
+            className={`inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-medium transition-all active:scale-[0.98] sm:flex-none ${
+              activeTab === "words"
+                ? "bg-accent text-white shadow-soft"
+                : "text-muted-foreground hover:bg-accent-tint hover:text-accent"
+            }`}
+            onClick={() => setActiveTab("words")}
+          >
+            <BookOpen className="size-4" strokeWidth={1.75} aria-hidden="true" />
+            <span>單字</span>
+          </button>
+          <button
+            type="button"
+            className={`inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-medium transition-all active:scale-[0.98] sm:flex-none ${
+              activeTab === "sentences"
+                ? "bg-accent text-white shadow-soft"
+                : "text-muted-foreground hover:bg-accent-tint hover:text-accent"
+            }`}
+            onClick={() => setActiveTab("sentences")}
+          >
+            <Languages className="size-4" strokeWidth={1.75} aria-hidden="true" />
+            <span>句子翻譯</span>
+          </button>
+        </div>
       </div>
 
       {/* WORDS TAB */}
@@ -439,7 +449,7 @@ export const VocabularyBook = () => {
                   id={manualWordFieldId}
                   type="text"
                   placeholder="手動新增英文單字"
-                  className="input input-bordered input-sm min-w-0 flex-1"
+                  className={`${toolbarFieldClass} flex-1`}
                   value={manualWord}
                   onChange={(e) => setManualWord(e.target.value)}
                   disabled={isAddingManualWord}
@@ -447,7 +457,7 @@ export const VocabularyBook = () => {
                 />
                 <button
                   type="submit"
-                  className="btn btn-primary btn-sm active:scale-[0.98]"
+                  className={toolbarPrimaryButtonClass}
                   disabled={isAddingManualWord || isAdding || manualWord.trim().length === 0}
                 >
                   {isAddingManualWord || isAdding ? (
@@ -462,7 +472,7 @@ export const VocabularyBook = () => {
                 <input
                   type="text"
                   placeholder="搜尋單字..."
-                  className="input input-bordered input-sm w-full pr-16"
+                  className={`${toolbarFieldClass} w-full pr-16`}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
@@ -476,7 +486,7 @@ export const VocabularyBook = () => {
 
               <div className="flex items-center gap-2">
                 <select
-                  className="select select-bordered select-sm min-w-0 flex-1"
+                  className={`${toolbarSelectClass} flex-1`}
                   value={filters.sortBy}
                   onChange={(e) => handleFilterChange("sortBy", e.target.value)}
                 >
@@ -484,7 +494,7 @@ export const VocabularyBook = () => {
                   <option value="word">字母順序</option>
                 </select>
                 <select
-                  className="select select-bordered select-sm min-w-0 flex-1"
+                  className={`${toolbarSelectClass} flex-1`}
                   value={filters.sortOrder}
                   onChange={(e) => handleFilterChange("sortOrder", e.target.value)}
                 >
@@ -494,7 +504,7 @@ export const VocabularyBook = () => {
                 {words.length > 0 && !loading && (
                   <button
                     type="button"
-                    className="btn btn-primary btn-sm shrink-0 active:scale-[0.98]"
+                    className={`${toolbarPrimaryButtonClass} shrink-0`}
                     onClick={handleOpenReviewSettings}
                     disabled={isLoadingReview}
                     title="開始複習"
@@ -629,7 +639,7 @@ export const VocabularyBook = () => {
 
       {/* SENTENCES TAB */}
       {activeTab === "sentences" && (
-        <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="min-h-0 flex-1">
           <SentenceTranslationBook embedded />
         </div>
       )}
