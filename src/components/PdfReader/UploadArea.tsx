@@ -28,7 +28,7 @@ export const UploadArea = memo(
     isClearingCache,
   }: UploadAreaProps) => {
     return (
-      <div className="surface-card rounded-xl mb-2">
+      <div className="surface-card rounded-xl mb-2 w-full sm:w-fit">
         <div className="p-4">
           {/* Compact single row layout */}
           <div className="flex flex-col sm:flex-row gap-3 items-center">
