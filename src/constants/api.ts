@@ -17,3 +17,14 @@ export const OIKID_BOOKING_RECORDS_API_URL = `${API_BASE_URL}/api/oikid/booking-
 export const GCS_UPLOAD_URL = `${API_BASE_URL}/gcs/upload`;
 export const GCS_DELETE_URL = `${API_BASE_URL}/gcs/delete`;
 export const GCS_SIGNED_URL = `${API_BASE_URL}/gcs/signed-url`;
+
+// 本機 sidecar（desktop app）base，與雲端 API_BASE_URL 並存
+export const LOCAL_BASE_URL = "http://127.0.0.1:8765";
+
+// 可走本機運算的端點 path（其餘如 oikid/translate/gcs 永遠走雲端）
+export const TTS_ENGINE_PATH: Record<"piper" | "kokoro", string> = {
+  piper: "/api/tts",
+  kokoro: "/api/ktts",
+};
+export const PDF_EXTRACT_PATH = "/api/pdf/extract";
+export const VERSION_PATH = "/api/version";
