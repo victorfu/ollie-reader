@@ -163,3 +163,33 @@ def test_ktts_success(client, monkeypatch):
 def test_cors_allows_localhost_origin(client):
     resp = client.get("/api/version", headers={"Origin": "http://localhost:5173"})
     assert resp.headers.get("access-control-allow-origin") == "http://localhost:5173"
+
+
+def test_cors_allows_trusted_origin_pna_preflight(client):
+    resp = client.options(
+        "/api/version",
+        headers={
+            "Origin": "http://localhost:5173",
+            "Access-Control-Request-Method": "GET",
+            "Access-Control-Request-Private-Network": "true",
+        },
+    )
+
+    assert resp.status_code == 200
+    assert resp.headers.get("access-control-allow-origin") == "http://localhost:5173"
+    assert resp.headers.get("access-control-allow-private-network") == "true"
+
+
+def test_cors_rejects_untrusted_origin_pna_preflight(client):
+    resp = client.options(
+        "/api/version",
+        headers={
+            "Origin": "https://evil.example",
+            "Access-Control-Request-Method": "GET",
+            "Access-Control-Request-Private-Network": "true",
+        },
+    )
+
+    assert resp.status_code == 400
+    assert "origin" in resp.text
+    assert resp.headers.get("access-control-allow-origin") is None

@@ -24,6 +24,7 @@ def create_app() -> FastAPI:
         allow_origins=CORS_ORIGINS,
         allow_methods=["*"],
         allow_headers=["*"],
+        allow_private_network=True,
     )
 
     @app.get("/api/version", tags=["meta"])
