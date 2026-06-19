@@ -21,6 +21,9 @@ export type TTSEngine = "piper" | "kokoro";
 // 文字解析模式
 export type TextParsingMode = "frontend" | "backend";
 
+// 運算後端連線模式（per-device，存 localStorage，不同步 Firestore）
+export type ComputeMode = "auto" | "local" | "cloud";
+
 // PDF 單字位置資訊
 export interface WordPosition {
   word: string;
