@@ -57,9 +57,9 @@ class SettingsDialog(QDialog):
     self.autostart_cb.toggled.connect(self._toggle_autostart)
     layout.addRow(self.autostart_cb)
 
-    self.start_button = QPushButton("啟動 sidecar")
+    self.start_button = QPushButton("啟動本機服務")
     self.start_button.clicked.connect(self._start_sidecar)
-    self.stop_button = QPushButton("停止 sidecar")
+    self.stop_button = QPushButton("停止本機服務")
     self.stop_button.clicked.connect(self._stop_sidecar)
     layout.addRow(self.start_button, self.stop_button)
 
@@ -103,11 +103,11 @@ class TrayApp:
     self.menu.addAction(self.status_action)
     self.menu.addSeparator()
 
-    self.start_action = QAction("啟動 sidecar", self.menu)
+    self.start_action = QAction("啟動本機服務", self.menu)
     self.start_action.triggered.connect(self._start_sidecar)
     self.menu.addAction(self.start_action)
 
-    self.stop_action = QAction("停止 sidecar", self.menu)
+    self.stop_action = QAction("停止本機服務", self.menu)
     self.stop_action.triggered.connect(self._stop_sidecar)
     self.menu.addAction(self.stop_action)
 
@@ -115,7 +115,7 @@ class TrayApp:
     self.settings_action.triggered.connect(self._open_settings)
     self.menu.addAction(self.settings_action)
 
-    self.web_action = QAction("開啟 web app", self.menu)
+    self.web_action = QAction("開啟 Ollie Reader", self.menu)
     self.web_action.triggered.connect(self._open_web)
     self.menu.addAction(self.web_action)
 
