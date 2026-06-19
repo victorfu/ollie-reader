@@ -10,7 +10,7 @@ import type { TTSMode, TTSEngine } from "../types/pdf";
 import { SpeechContext, type SpeechContextType } from "./SpeechContextType";
 import { TTS_ENGINE_PATH } from "../constants/api";
 import { useSettings } from "../hooks/useSettings";
-import { getComputeBase } from "../services/localBackend";
+import { fetchWithComputeBase } from "../services/localBackend";
 import { ttsCache } from "../services/ttsCache";
 import { apiFetch } from "../utils/apiUtil";
 import { isAbortError } from "../utils/errorUtils";
@@ -41,13 +41,16 @@ async function fetchTTSBlob(
   }
 
   const fetchPromise = (async () => {
-    const base = await getComputeBase();
-    const response = await apiFetch(`${base}${TTS_ENGINE_PATH[engine]}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      signal,
-      body: JSON.stringify({ text, speed: speechRate }),
-    });
+    const response = await fetchWithComputeBase(
+      TTS_ENGINE_PATH[engine],
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        signal,
+        body: JSON.stringify({ text, speed: speechRate }),
+      },
+      apiFetch,
+    );
 
     // Kokoro 在本機/雲端都可能因缺 torch 回 503 → 自動降級 Piper，確保有聲音
     if (response.status === 503 && engine === "kokoro") {
