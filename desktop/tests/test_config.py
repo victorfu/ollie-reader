@@ -1,5 +1,7 @@
 import importlib
 import os
+import sys
+from pathlib import Path
 
 import pytest
 
@@ -21,6 +23,10 @@ def _reload_config(**env):
     from server import config
 
     return importlib.reload(config)
+
+
+def _desktop_model_path():
+    return Path(__file__).resolve().parents[1] / "models" / "en_US-lessac-medium.onnx"
 
 
 @pytest.fixture
@@ -46,7 +52,7 @@ def test_default_port_and_host(load_config):
 
 def test_default_model_settings(load_config):
     config = load_config()
-    assert config.PIPER_MODEL_PATH == "models/en_US-lessac-medium.onnx"
+    assert config.PIPER_MODEL_PATH == str(_desktop_model_path())
     assert config.KOKORO_LANG == "a"
     assert config.KOKORO_DEFAULT_VOICE == "af_heart"
 
@@ -60,6 +66,16 @@ def test_model_settings_use_env_overrides(load_config):
     assert config.PIPER_MODEL_PATH == "models/custom.onnx"
     assert config.KOKORO_LANG == "b"
     assert config.KOKORO_DEFAULT_VOICE == "bf_emma"
+
+
+def test_frozen_default_model_uses_meipass(load_config, monkeypatch, tmp_path):
+    monkeypatch.setattr(sys, "_MEIPASS", str(tmp_path), raising=False)
+
+    config = load_config()
+
+    assert config.PIPER_MODEL_PATH == str(
+        tmp_path / "models" / "en_US-lessac-medium.onnx"
+    )
 
 
 def test_cors_includes_localhost_dev(load_config):

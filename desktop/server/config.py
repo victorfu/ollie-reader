@@ -1,11 +1,31 @@
 import os
+import sys
+from pathlib import Path
 from typing import List
 
 VERSION = "0.1.0"
 HOST = "127.0.0.1"
 DEFAULT_PORT = 8765
 
-PIPER_MODEL_PATH = os.getenv("PIPER_MODEL_PATH", "models/en_US-lessac-medium.onnx")
+_PIPER_MODEL_RELATIVE_PATH = Path("models") / "en_US-lessac-medium.onnx"
+
+
+def _resource_root() -> Path:
+    if hasattr(sys, "_MEIPASS"):
+        return Path(sys._MEIPASS).resolve()
+    return Path(__file__).resolve().parents[1]
+
+
+def _default_piper_model_path() -> str:
+    return str(_resource_root() / _PIPER_MODEL_RELATIVE_PATH)
+
+
+_piper_model_path_override = os.getenv("PIPER_MODEL_PATH")
+PIPER_MODEL_PATH = (
+    _piper_model_path_override
+    if _piper_model_path_override is not None
+    else _default_piper_model_path()
+)
 KOKORO_LANG = os.getenv("KOKORO_LANG", "a")
 KOKORO_DEFAULT_VOICE = os.getenv("KOKORO_DEFAULT_VOICE", "af_heart")
 
