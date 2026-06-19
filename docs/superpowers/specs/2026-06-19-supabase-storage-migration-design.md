@@ -1,7 +1,9 @@
 # 設計:音訊儲存從 GCS 遷移到 Supabase Storage
 
-<status>Approved — 待後端 repo 實作</status>
+<status>Implemented — 後端 purism-ev-bot 已完成並通過測試 (302 passed)</status>
 <date>2026-06-19</date>
+
+> 實作備註：GCS 已**完整移除**(刪除 `gcs.py`、`google-cloud-storage` 依賴、`GCS_BUCKET_NAME` 設定與相關測試),不保留任何 fallback。bucket 名稱定為 **`ollie-reader`**。舊檔案歸零,由使用者自行重新上傳。
 
 ## 背景與問題
 
@@ -35,7 +37,7 @@ Firestore 裡存的 `audioUrl` 欄位其實是**儲存路徑(path)**,不是 URL;
 | 方向 | **A — 只改後端,前端零改動** |
 | 儲存後端 | Supabase Storage(private bucket) |
 | 前端改動 | **無**(端點路徑 `/gcs/*` 名稱保留即可) |
-| 安全模型 | 不變:後端驗 Firebase ID token + 用 service-role key 簽 URL |
+| 安全模型 | 不變:後端驗 Firebase ID token + 用 secret key 簽 URL |
 | 舊資料 | **歸零重來,不搬遷**(舊紀錄播放會 404,可接受) |
 
 ## 前端契約(後端必須照樣實作)
@@ -79,18 +81,18 @@ res = supabase.storage.from_(BUCKET).create_signed_url(path, expiration_minutes 
 ## Supabase 設定
 
 1. 註冊 Supabase 帳號(**免信用卡**)。
-2. 建立一個 **private bucket**,例如 `ollie-audio`。
+2. 建立一個 **private bucket**:**`ollie-reader`**。
 3. 後端環境變數:
    - `SUPABASE_URL`
-   - `SUPABASE_SERVICE_ROLE_KEY`(後端專用,**絕不可外洩到前端**)
-   - `SUPABASE_BUCKET`(如 `ollie-audio`)
-4. 後端用 service-role key 初始化 client;bucket 維持私有,所有讀取都透過後端簽出的短期 URL。
+   - `SUPABASE_SECRET_KEY`(新版 Secret key `sb_secret_...`;後端專用,**絕不可外洩到前端**)
+   - `SUPABASE_BUCKET`(預設 `ollie-reader`)
+4. 後端用 secret key 初始化 client;bucket 維持私有,所有讀取都透過後端簽出的短期 URL。
 
 ## 安全模型(不變)
 
 - 後端**繼續**驗證 Firebase ID token(沿用現有中介層),確認呼叫者身分。
 - Bucket **私有**;前端永遠拿不到長期憑證。
-- 後端以 service-role key 簽出有時效的 URL 給前端播放。
+- 後端以 secret key 簽出有時效的 URL 給前端播放。
 - → **不需要** Supabase RLS、也**不需要**把 Firebase Auth 橋接成 Supabase JWT。這是 Direction A 相對「前端直連」最大的省事點。
 
 ## 免費額度注意事項
@@ -106,11 +108,25 @@ res = supabase.storage.from_(BUCKET).create_signed_url(path, expiration_minutes 
 - **不**導入 RLS 或 Firebase↔Supabase Auth 橋接。
 - **不**改 Firestore schema(`audioUrl` 仍存 path)。
 
-## 下一步(在後端 repo 進行)
+## 實作結果(後端 repo `purism-ev-bot`)
 
-本前端 repo 無需變更。實作落在獨立的後端 repo:
+本前端 repo 無需變更。後端已完成以下改動並通過全部單元測試(`302 passed`):
 
-1. 加入 `supabase` 套件與上述環境變數。
-2. 依「前端契約」重寫 `/gcs/upload`、`/gcs/delete`、`/gcs/signed-url` 三個 handler 的內部,GCS client → Supabase。
-3. 端對端測試:錄音上傳 → 列表播放(signed URL)→ 刪除。
-4. (可選)端點路徑可日後更名為 `/storage/*`,但**那會需要同步改前端**,屬另一個變更,本次不做。
+- 新增 `supabase_storage.py`:`SupabaseStorageHelper`,與舊 `GCSHelper` 同介面(lazy client,缺環境變數時不會在啟動階段崩潰)。
+- `routes/gcs.py`:改用 `SupabaseStorageHelper`,`/gcs/*` 端點與契約不變。
+- `config.py`:新增 `SUPABASE_URL` / `SUPABASE_SECRET_KEY` / `SUPABASE_BUCKET`(預設 `ollie-reader`);移除 `GCS_BUCKET_NAME` 與其 fallback。
+- `requirements.txt`:加入 `supabase>=2.4.0`,移除 `google-cloud-storage`。
+- **完整移除 GCS**:刪除 `gcs.py` 與 `tests/unit/test_gcs.py`;清掉測試 fixture 中的 GCS mock。
+- 新增 `tests/unit/test_supabase_storage.py`(14 項,全綠)。
+- 更新 `.env.example`、`README.md`。
+
+### 上線前的人工步驟
+
+1. 在 Supabase 建立 private bucket `ollie-reader`。
+2. 在後端部署環境設定 `SUPABASE_URL`、`SUPABASE_SECRET_KEY`、(選用)`SUPABASE_BUCKET`。
+3. 端對端煙霧測試:錄音上傳 → 列表播放(signed URL)→ 刪除。
+4. 舊檔歸零,由使用者自行重新上傳。
+
+### 未來(選用)
+
+- 端點路徑可更名為 `/storage/*`,但**那會需要同步改前端**,屬另一個變更,本次不做。
