@@ -117,6 +117,7 @@ export const Settings = () => {
   };
 
   const handleComputeModeChange = async (mode: ComputeMode) => {
+    if (redetecting) return;
     updateComputeMode(mode);
     if (mode !== "cloud") {
       setRedetecting(true);
@@ -127,6 +128,7 @@ export const Settings = () => {
   };
 
   const handleRedetect = async () => {
+    if (redetecting) return;
     setRedetecting(true);
     await refreshComputeBase();
     setRedetecting(false);
