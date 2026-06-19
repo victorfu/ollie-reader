@@ -48,7 +48,7 @@ export const Toast = ({
       className="toast toast-top toast-center z-50 pointer-events-none"
     >
       <div
-        className={`${styles.bg} ${styles.border} ${styles.text} border rounded-lg px-4 py-3 pointer-events-auto flex items-center gap-3 shadow-lg backdrop-blur-sm`}
+        className={`${styles.bg} ${styles.border} ${styles.text} border rounded-xl px-4 py-3 pointer-events-auto flex items-center gap-3 shadow-floating backdrop-blur-md`}
       >
         <span className="text-sm font-medium">{message}</span>
         <button

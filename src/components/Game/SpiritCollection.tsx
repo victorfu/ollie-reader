@@ -18,10 +18,10 @@ export function SpiritCollection({ progress, onBack }: SpiritCollectionProps) {
   const totalCount = SPIRITS.length;
 
   return (
-    <div className="min-h-[calc(100vh-8rem)] flex flex-col p-4">
+    <div className="min-h-[calc(100vh-8rem)] flex flex-col p-4 sm:p-6">
       {/* 頂部導航 */}
       <div className="flex items-center justify-between mb-6">
-        <button onClick={onBack} className="btn btn-ghost btn-sm gap-2">
+        <button onClick={onBack} className="btn btn-ghost btn-sm gap-2 active:scale-[0.98]">
           <svg
             xmlns="http://www.w3.org/2000/svg"
             className="h-5 w-5"
@@ -38,8 +38,8 @@ export function SpiritCollection({ progress, onBack }: SpiritCollectionProps) {
         </button>
 
         <div className="text-right">
-          <h2 className="text-lg font-bold">精靈圖鑑</h2>
-          <p className="text-sm text-base-content/60">
+          <h2 className="text-lg font-semibold tracking-tight">精靈圖鑑</h2>
+          <p className="text-sm text-muted-foreground">
             已收集 {unlockedCount}/{totalCount}
           </p>
         </div>
@@ -70,7 +70,7 @@ export function SpiritCollection({ progress, onBack }: SpiritCollectionProps) {
               animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: index * 0.05 }}
               className={`
-                card bg-base-100 shadow-md overflow-hidden
+                card surface-card rounded-2xl overflow-hidden
                 ${isUnlocked ? "" : "opacity-60"}
               `}
             >
@@ -148,8 +148,8 @@ export function SpiritCollection({ progress, onBack }: SpiritCollectionProps) {
 
               {/* 精靈描述 */}
               {isUnlocked && (
-                <div className="p-3 border-t border-base-200">
-                  <p className="text-xs text-base-content/70 text-center line-clamp-2">
+                <div className="p-3 border-t border-border-hairline">
+                  <p className="text-xs text-muted-foreground text-center line-clamp-2">
                     {spirit.description}
                   </p>
                 </div>
@@ -166,7 +166,7 @@ export function SpiritCollection({ progress, onBack }: SpiritCollectionProps) {
           animate={{ opacity: 1 }}
           className="text-center mt-8"
         >
-          <p className="text-sm text-base-content/50">
+          <p className="text-sm text-muted-foreground">
             🎮 完成更多關卡來解鎖新的精靈！
           </p>
         </motion.div>
@@ -180,10 +180,10 @@ export function SpiritCollection({ progress, onBack }: SpiritCollectionProps) {
           className="mt-8 p-6 bg-gradient-to-r from-primary/20 to-secondary/20 rounded-2xl text-center"
         >
           <span className="text-4xl mb-2 block">🏆</span>
-          <h3 className="text-xl font-bold text-primary">
+          <h3 className="text-lg font-semibold text-primary">
             恭喜！全精靈收集完成！
           </h3>
-          <p className="text-sm text-base-content/70 mt-1">
+          <p className="text-sm text-muted-foreground mt-1">
             你已成為真正的語言大師！
           </p>
         </motion.div>

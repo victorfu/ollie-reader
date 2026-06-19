@@ -26,7 +26,7 @@ export function AchievementBadge({
       whileHover={isUnlocked ? { scale: 1.05 } : {}}
       className={`
         relative p-3 rounded-xl border-2 transition-all
-        ${isUnlocked ? `bg-gradient-to-br ${style.bg} ${style.border} shadow-lg ${style.glow}` : "bg-base-200/50 border-base-300 opacity-60"}
+        ${isUnlocked ? `bg-gradient-to-br ${style.bg} ${style.border} shadow-elevated ${style.glow}` : "bg-base-200/50 border-border-hairline opacity-60"}
       `}
     >
       {/* Icon */}
@@ -47,7 +47,7 @@ export function AchievementBadge({
 
       {/* Description on hover */}
       {isUnlocked && (
-        <p className="text-xs text-center text-base-content/60 mt-1">
+        <p className="text-xs text-center text-muted-foreground mt-1">
           {achievement.description}
         </p>
       )}
@@ -89,26 +89,26 @@ export function AchievementsPanel({
       <motion.div
         initial={{ scale: 0.9, y: 20 }}
         animate={{ scale: 1, y: 0 }}
-        className="bg-base-100 rounded-2xl shadow-2xl w-full max-w-lg max-h-[80vh] overflow-hidden"
+        className="glass rounded-2xl shadow-floating w-full max-w-lg max-h-[80vh] overflow-hidden"
       >
         {/* Header */}
-        <div className="p-4 border-b border-base-200 flex items-center justify-between bg-gradient-to-r from-primary/10 to-secondary/10">
+        <div className="p-4 border-b border-border-hairline flex items-center justify-between bg-gradient-to-r from-primary/10 to-secondary/10">
           <div>
-            <h2 className="text-xl font-bold flex items-center gap-2">
+            <h2 className="text-lg font-semibold tracking-tight flex items-center gap-2">
               <span>🏅</span>
               成就徽章
             </h2>
-            <p className="text-sm text-base-content/60">
+            <p className="text-sm text-muted-foreground">
               已解鎖 {unlockedCount}/{ACHIEVEMENTS.length}
             </p>
           </div>
-          <button onClick={onClose} className="btn btn-ghost btn-sm btn-circle">
+          <button onClick={onClose} className="btn btn-ghost btn-sm btn-circle active:scale-[0.98]">
             ✕
           </button>
         </div>
 
         {/* Progress bar */}
-        <div className="px-4 py-2 bg-base-200/30">
+        <div className="px-4 py-2 bg-base-200/40">
           <div className="w-full bg-base-300 rounded-full h-2">
             <motion.div
               className="h-full bg-gradient-to-r from-primary to-secondary rounded-full"
@@ -122,7 +122,7 @@ export function AchievementsPanel({
 
         {/* Achievement Grid */}
         <div className="p-4 overflow-y-auto max-h-[60vh]">
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             {ACHIEVEMENTS.map((achievement, index) => (
               <AchievementBadge
                 key={achievement.id}
@@ -135,8 +135,8 @@ export function AchievementsPanel({
         </div>
 
         {/* Footer tip */}
-        <div className="p-4 border-t border-base-200 text-center">
-          <p className="text-sm text-base-content/50">
+        <div className="p-4 border-t border-border-hairline text-center">
+          <p className="text-sm text-muted-foreground">
             💡 繼續冒險解鎖更多成就！
           </p>
         </div>

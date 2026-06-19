@@ -92,8 +92,8 @@ export function PracticeHistory({
     return (
       <div className="text-center py-8">
         <div className="text-6xl mb-4">📝</div>
-        <h3 className="text-xl font-bold mb-2">還沒有練習記錄</h3>
-        <p className="text-base-content/60">
+        <h3 className="text-lg font-semibold mb-2">還沒有練習記錄</h3>
+        <p className="text-muted-foreground">
           選擇一個主題開始練習，你的進步將會記錄在這裡
         </p>
       </div>
@@ -102,7 +102,7 @@ export function PracticeHistory({
 
   return (
     <div className="space-y-4">
-      <h2 className="text-xl font-bold flex items-center gap-2">
+      <h2 className="text-lg font-semibold flex items-center gap-2">
         📊 練習記錄
         <span className="badge badge-primary">{records.length}</span>
       </h2>
@@ -117,15 +117,15 @@ export function PracticeHistory({
           return (
             <div
               key={record.id}
-              className="card bg-base-100 shadow-sm hover:shadow transition-shadow"
+              className="surface-card rounded-xl transition-shadow duration-200 hover:shadow-elevated"
             >
-              <div className="card-body p-4">
+              <div className="p-4">
                 <div className="flex justify-between items-start gap-2">
                   <div className="flex-1 min-w-0">
                     <h3 className="font-semibold truncate">
                       {record.topicTitle}
                     </h3>
-                    <p className="text-sm text-base-content/60">
+                    <p className="text-sm text-muted-foreground">
                       {formatDate(record.createdAt)}
                     </p>
                   </div>
@@ -164,7 +164,7 @@ export function PracticeHistory({
                 </div>
 
                 {record.notes && (
-                  <p className="text-sm text-base-content/80 mt-2">
+                  <p className="text-sm text-muted-foreground mt-2">
                     📝 {record.notes}
                   </p>
                 )}
@@ -211,7 +211,7 @@ export function PracticeHistory({
                         您的瀏覽器不支援音訊播放
                       </audio>
                     ) : (
-                      <div className="text-sm text-base-content/60">
+                      <div className="text-sm text-muted-foreground">
                         載入中...
                       </div>
                     )}
@@ -255,8 +255,8 @@ export function PracticeHistory({
                     </button>
 
                     {expandedScriptId === record.id && (
-                      <div className="mt-2 p-3 bg-base-200 rounded-lg">
-                        <pre className="whitespace-pre-wrap font-sans text-sm text-base-content/80 leading-relaxed">
+                      <div className="mt-2 p-3 bg-base-200 rounded-lg border border-border-hairline">
+                        <pre className="whitespace-pre-wrap font-sans text-sm text-muted-foreground leading-relaxed">
                           {record.script}
                         </pre>
                       </div>
@@ -265,7 +265,7 @@ export function PracticeHistory({
                 )}
 
                 {topicInfo && (
-                  <div className="text-xs text-base-content/50 mt-1">
+                  <div className="text-xs text-muted-foreground mt-1">
                     建議時間：{formatTime(topicInfo.suggestedTimeSeconds)}
                   </div>
                 )}

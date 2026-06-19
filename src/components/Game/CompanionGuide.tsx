@@ -47,18 +47,18 @@ export function CompanionGuide({
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.9 }}
-          className="bg-white/95 backdrop-blur-md rounded-2xl shadow-xl border-2 border-pink-200 p-4 mb-2"
+          className="glass rounded-2xl shadow-floating p-4 mb-2"
         >
           {/* Header with close button */}
           <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-bold text-pink-600 flex items-center gap-1">
+            <span className="text-sm font-semibold text-primary flex items-center gap-1">
               <span className="text-lg">✨</span>
               {name}的小提示
             </span>
             {onDismiss && (
               <button
                 onClick={onDismiss}
-                className="text-base-content/40 hover:text-base-content/60 transition-colors"
+                className="text-muted-foreground hover:text-foreground transition-colors"
               >
                 ✕
               </button>
@@ -71,7 +71,7 @@ export function CompanionGuide({
             initial={{ opacity: 0, x: 10 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -10 }}
-            className="text-sm text-base-content/80 leading-relaxed"
+            className="text-sm text-foreground/80 leading-relaxed"
           >
             {tips[currentTip]}
           </motion.div>
@@ -84,8 +84,8 @@ export function CompanionGuide({
                 onClick={() => setCurrentTip(i)}
                 className={`w-1.5 h-1.5 rounded-full transition-all ${
                   i === currentTip
-                    ? "bg-pink-400 w-3"
-                    : "bg-pink-200 hover:bg-pink-300"
+                    ? "bg-primary w-3"
+                    : "bg-primary/30 hover:bg-primary/50"
                 }`}
               />
             ))}
@@ -175,7 +175,7 @@ export function CompanionGuide({
           <motion.div
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
-            className="absolute -top-1 -right-1 w-5 h-5 bg-pink-500 rounded-full flex items-center justify-center"
+            className="absolute -top-1 -right-1 w-5 h-5 bg-primary rounded-full flex items-center justify-center"
           >
             <span className="text-white text-xs">!</span>
           </motion.div>

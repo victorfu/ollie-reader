@@ -64,15 +64,15 @@ export function ScriptGeneratorModal({
 
   return (
     <dialog ref={modalRef} className="modal modal-bottom sm:modal-middle">
-      <div className="modal-box max-w-3xl max-h-[90vh] flex flex-col">
+      <div className="modal-box max-w-3xl max-h-[90vh] flex flex-col rounded-2xl border border-border-hairline shadow-floating">
         {/* Header */}
         <div className="flex justify-between items-start mb-4">
           <div>
-            <h3 className="font-bold text-lg flex items-center gap-2">
+            <h3 className="font-semibold text-lg flex items-center gap-2">
               ✨ AI 講稿生成器
             </h3>
             {topic && (
-              <p className="text-sm text-base-content/60 mt-1">
+              <p className="text-sm text-muted-foreground mt-1">
                 主題：{topic.titleChinese}
               </p>
             )}
@@ -106,7 +106,7 @@ export function ScriptGeneratorModal({
             <div className="flex justify-end">
               <button
                 type="button"
-                className="btn btn-primary btn-sm gap-2"
+                className="btn btn-primary btn-sm gap-2 active:scale-[0.98]"
                 onClick={onGenerate}
                 disabled={isGenerating || !prompt.trim()}
               >
@@ -175,9 +175,9 @@ export function ScriptGeneratorModal({
               <span className="badge badge-ghost badge-sm">可編輯</span>
             </label>
             {isGenerating ? (
-              <div className="bg-base-200 rounded-lg p-8 flex flex-col items-center justify-center gap-3">
+              <div className="bg-base-200 rounded-xl border border-border-hairline p-8 flex flex-col items-center justify-center gap-3">
                 <span className="loading loading-dots loading-lg text-primary" />
-                <p className="text-base-content/60">AI 正在努力撰寫講稿...</p>
+                <p className="text-muted-foreground">AI 正在努力撰寫講稿...</p>
               </div>
             ) : (
               <textarea
@@ -189,17 +189,17 @@ export function ScriptGeneratorModal({
               />
             )}
             {!isGenerating && (
-              <p className="text-xs text-base-content/50">
+              <p className="text-xs text-muted-foreground">
                 💡 提示：你可以直接編輯講稿，或使用 AI 生成後再修改
               </p>
             )}
           </div>
         </div>
 
-        <div className="modal-action pt-4 border-t border-base-300 mt-4">
+        <div className="modal-action pt-4 border-t border-border-hairline mt-4">
           <button
             type="button"
-            className="btn btn-ghost"
+            className="btn btn-ghost active:scale-[0.98]"
             onClick={onClose}
             disabled={isGenerating || isSaving}
           >
@@ -207,7 +207,7 @@ export function ScriptGeneratorModal({
           </button>
           <button
             type="button"
-            className="btn btn-primary gap-2"
+            className="btn btn-primary gap-2 active:scale-[0.98]"
             onClick={handleUseScript}
             disabled={isSaving || isGenerating || !generatedScript.trim()}
           >

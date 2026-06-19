@@ -88,19 +88,19 @@ export function QuizGame({
 
   return (
     <SceneBackground stageId={stage.id}>
-      <div className="min-h-[calc(100vh-8rem)] flex flex-col p-4">
+      <div className="min-h-[calc(100vh-8rem)] flex flex-col p-4 sm:p-6">
         {/* 頂部狀態列 */}
         <div className="flex items-center justify-between mb-4 mt-10">
           <button
             onClick={onQuit}
-            className="btn btn-ghost btn-sm bg-white/80 backdrop-blur-sm"
+            className="btn btn-ghost btn-sm glass rounded-full active:scale-[0.98]"
           >
             ✕ 離開
           </button>
 
           <div className="flex items-center gap-2 sm:gap-4">
             {/* 生命值 */}
-            <div className="flex items-center gap-1 bg-white/80 backdrop-blur-sm px-2 py-1 rounded-full">
+            <div className="flex items-center gap-1 glass px-3 py-1 rounded-full">
               {Array.from({ length: quizState.maxLives }).map((_, i) => (
                 <motion.span
                   key={i}
@@ -136,7 +136,7 @@ export function QuizGame({
         </div>
 
         {/* 進度條 */}
-        <div className="w-full bg-white/50 backdrop-blur-sm rounded-full h-3 mb-6 shadow-inner">
+        <div className="w-full glass rounded-full h-3 mb-6 overflow-hidden">
           <motion.div
             className="h-full bg-gradient-to-r from-secondary to-primary rounded-full"
             initial={{ width: 0 }}
@@ -175,13 +175,13 @@ export function QuizGame({
           key={quizState.currentIndex}
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="card bg-white/95 backdrop-blur-md shadow-xl w-full max-w-lg border-2 border-white/50"
+          className="card glass rounded-2xl shadow-floating w-full max-w-lg"
         >
           <div className="card-body">
             {/* 計時器 */}
             <div className="w-full mb-4">
               <div className="flex items-center justify-between mb-1">
-                <span className="text-sm text-base-content/70">
+                <span className="text-sm text-muted-foreground">
                   第 {quizState.currentIndex + 1} / {quizState.questions.length}{" "}
                   題
                 </span>
@@ -209,11 +209,11 @@ export function QuizGame({
                 {currentQuestion.word}
               </h2>
               {currentQuestion.phonetic && (
-                <p className="text-base-content/60">
+                <p className="text-muted-foreground">
                   {currentQuestion.phonetic}
                 </p>
               )}
-              <p className="text-sm text-base-content/50 mt-2">
+              <p className="text-sm text-muted-foreground mt-2">
                 這個單字是什麼意思？
               </p>
             </div>
@@ -225,18 +225,18 @@ export function QuizGame({
                 const isSelected = quizState.isAnswered;
 
                 let buttonClass =
-                  "btn btn-outline w-full justify-start text-left h-auto py-3 px-4";
+                  "btn btn-outline w-full justify-start text-left h-auto rounded-xl py-4 px-4 active:scale-[0.98]";
 
                 if (isSelected) {
                   if (isCorrect) {
                     buttonClass =
-                      "btn btn-success w-full justify-start text-left h-auto py-3 px-4";
+                      "btn btn-success w-full justify-start text-left h-auto rounded-xl py-4 px-4";
                   } else if (quizState.lastAnswerCorrect === false) {
                     buttonClass =
-                      "btn btn-error w-full justify-start text-left h-auto py-3 px-4 opacity-50";
+                      "btn btn-error w-full justify-start text-left h-auto rounded-xl py-4 px-4 opacity-50";
                   } else {
                     buttonClass =
-                      "btn btn-ghost w-full justify-start text-left h-auto py-3 px-4 opacity-50";
+                      "btn btn-ghost w-full justify-start text-left h-auto rounded-xl py-4 px-4 opacity-50";
                   }
                 }
 
@@ -266,7 +266,7 @@ export function QuizGame({
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0 }}
-                  className={`mt-4 p-3 rounded-lg text-center ${
+                  className={`mt-4 p-3 rounded-xl text-center ${
                     quizState.lastAnswerCorrect
                       ? "bg-success/20 text-success"
                       : "bg-error/20 text-error"
@@ -286,7 +286,7 @@ export function QuizGame({
 
       {/* 鍵盤提示 */}
       <div className="text-center mt-4">
-        <p className="text-xs text-base-content/60 bg-white/60 backdrop-blur-sm inline-block px-4 py-2 rounded-full">
+        <p className="text-xs text-muted-foreground glass inline-block px-4 py-2 rounded-full">
           💡 可使用數字鍵 1-4 快速作答
         </p>
       </div>

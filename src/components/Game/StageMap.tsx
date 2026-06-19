@@ -27,13 +27,13 @@ export function StageMap({
   return (
     <div className="min-h-[calc(100vh-8rem)] flex flex-col">
       {/* 頂部區域 - 固定顯示 */}
-      <div className="sticky top-0 z-10 bg-gradient-to-b from-base-200 via-base-200 to-transparent pb-4">
-        <div className="px-4 pt-4">
+      <div className="sticky top-0 z-10 toolbar pb-4">
+        <div className="px-4 sm:px-6 pt-4">
           {/* 返回按鈕與標題 */}
           <div className="flex items-center gap-3 mb-4">
             <button
               onClick={onBack}
-              className="btn btn-circle btn-ghost btn-sm"
+              className="btn btn-circle btn-ghost btn-sm active:scale-[0.98]"
               aria-label="返回"
             >
               <svg
@@ -50,8 +50,8 @@ export function StageMap({
               </svg>
             </button>
             <div className="flex-1">
-              <h1 className="text-xl font-bold">選擇關卡</h1>
-              <p className="text-sm text-base-content/60">
+              <h1 className="text-lg font-semibold tracking-tight">選擇關卡</h1>
+              <p className="text-sm text-muted-foreground">
                 挑戰關卡，收集精靈！
               </p>
             </div>
@@ -62,10 +62,10 @@ export function StageMap({
           </div>
 
           {/* 進度條 */}
-          <div className="bg-base-100 rounded-2xl p-3 shadow-sm">
+          <div className="surface-card rounded-2xl p-3">
             <div className="flex items-center justify-between mb-2">
               <span className="text-sm font-medium">冒險進度</span>
-              <span className="text-sm text-base-content/70">
+              <span className="text-sm text-muted-foreground">
                 {completedCount} / {stages.length} 關卡
               </span>
             </div>
@@ -78,19 +78,19 @@ export function StageMap({
               />
             </div>
             <div className="flex justify-between mt-1">
-              <span className="text-xs text-base-content/50">開始</span>
+              <span className="text-xs text-muted-foreground">開始</span>
               <span className="text-xs font-medium text-primary">
                 {progressPercent}%
               </span>
-              <span className="text-xs text-base-content/50">完成</span>
+              <span className="text-xs text-muted-foreground">完成</span>
             </div>
           </div>
         </div>
       </div>
 
       {/* 關卡列表 - 垂直捲動 */}
-      <div className="flex-1 overflow-y-auto px-4 pb-8">
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="flex-1 overflow-y-auto px-4 sm:px-6 pb-8">
+        <div className="grid gap-4 auto-grid">
           {stages.map((stage, index) => {
             const completed = isStageCompleted(index);
             const playable = isStagePlayable(index);
@@ -134,11 +134,11 @@ export function StageMap({
                     }
                     ${
                       playable && !completed && !isCurrent
-                        ? "bg-base-100 border-2 border-base-300 hover:border-primary/50 hover:shadow-md"
+                        ? "surface-card border-2 border-border-hairline hover:border-primary/50 hover:shadow-elevated"
                         : ""
                     }
                     ${
-                      locked ? "bg-base-200/50 border-2 border-base-300/30" : ""
+                      locked ? "bg-base-200/50 border-2 border-border-hairline" : ""
                     }
                   `}
                 >
@@ -241,7 +241,7 @@ export function StageMap({
                             SpiritComponent &&
                             !completed &&
                             !locked && (
-                              <span className="inline-flex items-center gap-1 text-base-content/60">
+                              <span className="inline-flex items-center gap-1 text-muted-foreground">
                                 <div className="w-5 h-5">
                                   <SpiritComponent size={20} animate={false} />
                                 </div>
@@ -312,9 +312,9 @@ export function StageMap({
       </div>
 
       {/* 底部提示 - 固定顯示 */}
-      <div className="sticky bottom-0 bg-gradient-to-t from-base-200 via-base-200 to-transparent pt-4 pb-4 px-4">
+      <div className="sticky bottom-0 toolbar pt-4 pb-4 px-4 sm:px-6">
         <div className="text-center">
-          <p className="text-sm text-base-content/50">
+          <p className="text-sm text-muted-foreground">
             👆 點擊可遊玩的關卡開始挑戰
           </p>
         </div>

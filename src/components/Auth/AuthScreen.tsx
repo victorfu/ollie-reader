@@ -1,3 +1,4 @@
+import { BookOpen } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
 
 export default function AuthScreen() {
@@ -10,21 +11,26 @@ export default function AuthScreen() {
   return (
     <div className="w-full max-w-md px-4">
       {/* Glass card with macOS HIG styling */}
-      <div className="rounded-2xl border border-black/5 dark:border-white/10 bg-base-100/70 backdrop-blur-xl shadow-lg">
-        <div className="p-8 space-y-8">
+      <div className="glass rounded-2xl">
+        <div className="space-y-8 p-8">
           {/* Header */}
-          <div className="text-center space-y-3">
-            <h1 className="text-3xl font-semibold tracking-tight text-base-content">
-              Ollie Reader
-            </h1>
-            <p className="text-base text-base-content/70">
-              上傳 PDF 文件，選取文字即可朗讀或翻譯
-            </p>
+          <div className="space-y-4 text-center">
+            <span className="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-accent text-white shadow-elevated">
+              <BookOpen className="size-7" strokeWidth={2} aria-hidden="true" />
+            </span>
+            <div className="space-y-2">
+              <h1 className="text-3xl font-semibold tracking-tight text-base-content">
+                Ollie Reader
+              </h1>
+              <p className="text-base text-muted-foreground">
+                上傳 PDF 文件，選取文字即可朗讀或翻譯
+              </p>
+            </div>
           </div>
 
           {/* Error alert */}
           {authError && (
-            <div className="rounded-lg bg-error/10 border border-error/20 px-4 py-3">
+            <div className="rounded-lg border border-error/20 bg-error/10 px-4 py-3">
               <p className="text-sm text-error">{authError}</p>
             </div>
           )}
@@ -32,7 +38,7 @@ export default function AuthScreen() {
           {/* Sign in button - macOS secondary button style */}
           <button
             type="button"
-            className="w-full flex items-center justify-center gap-3 h-11 px-4 rounded-lg bg-base-100 border border-black/10 dark:border-white/10 shadow-sm text-sm font-medium text-base-content transition-all duration-200 hover:bg-black/5 dark:hover:bg-white/5 active:scale-[0.98] active:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+            className="flex h-11 w-full items-center justify-center gap-3 rounded-lg border border-border-hairline bg-base-100 px-4 text-sm font-medium text-base-content shadow-soft transition-all duration-200 hover:bg-base-200 active:scale-[0.98] active:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
             onClick={handleGoogleSignIn}
           >
             <svg
@@ -61,7 +67,7 @@ export default function AuthScreen() {
           </button>
 
           {/* Footer hint */}
-          <p className="text-xs text-center text-base-content/50">
+          <p className="text-center text-xs text-muted-foreground">
             使用 Google 帳號登入即可開始使用
           </p>
         </div>

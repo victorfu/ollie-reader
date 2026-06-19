@@ -25,11 +25,11 @@ export const VocabularyCard = ({ word, onClick, onPlay, onDelete }: VocabularyCa
       exit={{ opacity: 0, scale: 0.95 }}
       whileHover={{ y: -4 }}
       transition={{ duration: 0.2 }}
-      className="card bg-base-100 shadow-sm hover:shadow-xl transition-shadow duration-slow cursor-pointer border border-base-200 overflow-hidden group h-full"
+      className="card surface-card rounded-xl shadow-soft hover:shadow-elevated transition-shadow duration-300 cursor-pointer overflow-hidden group h-full"
       onClick={onClick}
     >
       {/* Decorative gradient bar at top */}
-      <div className="h-1 w-full bg-gradient-to-r from-primary/30 to-secondary/30 group-hover:from-primary group-hover:to-secondary transition-all duration-500" />
+      <div className="h-1 w-full bg-gradient-to-r from-primary/40 to-accent/40 group-hover:from-primary group-hover:to-accent transition-all duration-300" />
       
       <div className="card-body p-3 sm:p-4 flex flex-col h-full">
         <div className="flex justify-between items-start mb-1">
@@ -40,20 +40,20 @@ export const VocabularyCard = ({ word, onClick, onPlay, onDelete }: VocabularyCa
                   {word.emoji}
                 </span>
               )}
-              <h3 className="text-lg font-bold truncate tracking-tight text-base-content group-hover:text-primary transition-colors">
+              <h3 className="text-lg font-semibold truncate tracking-tight text-foreground group-hover:text-accent transition-colors">
                 {word.word}
               </h3>
               <button
                 type="button"
                 onClick={onPlay}
-                className="btn btn-ghost btn-xs btn-circle text-primary/70 hover:text-primary hover:bg-primary/10 ml-1"
+                className="btn btn-ghost btn-xs btn-circle text-accent/70 hover:text-accent hover:bg-accent-tint ml-1"
                 title="播放發音"
               >
                 <SpeakerIcon />
               </button>
             </div>
             {word.phonetic && (
-              <p className="text-xs text-base-content/60 font-serif italic mt-0.5">
+              <p className="text-xs text-muted-foreground font-serif italic mt-0.5">
                 {word.phonetic}
               </p>
             )}
@@ -70,9 +70,9 @@ export const VocabularyCard = ({ word, onClick, onPlay, onDelete }: VocabularyCa
         </div>
 
         {word.definitions.length > 0 && (
-          <div className="bg-base-200/40 rounded-md p-2 mb-2 backdrop-blur-sm border border-base-200/50 flex-grow">
+          <div className="bg-base-200/40 rounded-lg p-2 mb-2 backdrop-blur-sm border border-border-hairline flex-grow">
             <p className="text-xs line-clamp-2 text-base-content/80 leading-relaxed">
-              <span className="inline-block px-1 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-base-content/5 text-base-content/60 mr-1.5 align-middle">
+              <span className="inline-block px-1 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-base-content/5 text-muted-foreground mr-1.5 align-middle">
                 {word.definitions[0].partOfSpeech}
               </span>
               <span className="align-middle">
@@ -104,20 +104,20 @@ export const VocabularyCard = ({ word, onClick, onPlay, onDelete }: VocabularyCa
           {word.tags.slice(0, 2).map((tag, index) => (
             <span
               key={`${index}-${tag}`}
-              className="badge badge-xs badge-ghost bg-base-200/60 text-base-content/70"
+              className="badge badge-xs badge-ghost bg-base-200/60 text-muted-foreground"
             >
               #{tag}
             </span>
           ))}
-          
+
           {word.tags.length > 2 && (
-            <span className="badge badge-xs badge-ghost bg-base-200/60 text-base-content/70">
+            <span className="badge badge-xs badge-ghost bg-base-200/60 text-muted-foreground">
               +{word.tags.length - 2}
             </span>
           )}
 
           {word.reviewCount > 0 && (
-             <div className="ml-auto flex items-center gap-1 text-xs text-base-content/40" title={`已複習 ${word.reviewCount} 次`}>
+             <div className="ml-auto flex items-center gap-1 text-xs text-muted-foreground" title={`已複習 ${word.reviewCount} 次`}>
                <ClockIcon />
                {word.reviewCount}
              </div>

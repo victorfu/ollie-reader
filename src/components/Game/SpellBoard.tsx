@@ -23,23 +23,20 @@ export function SpellBoard({ monster, onAttack, disabled }: SpellBoardProps) {
           className={`
             relative overflow-hidden group
             p-4 sm:p-5 lg:p-6 rounded-2xl
-            bg-gradient-to-br from-white/90 to-pink-50/90
-            backdrop-blur-xl
-            border-2 border-pink-200
-            text-slate-700 text-lg sm:text-xl lg:text-2xl font-bold
-            shadow-[0_4px_20px_rgba(236,72,153,0.15)]
-            hover:border-pink-400 hover:shadow-[0_0_25px_rgba(236,72,153,0.3)]
-            hover:from-white hover:to-pink-100/90
+            glass
+            text-foreground text-lg sm:text-xl lg:text-2xl font-bold
+            hover:border-primary/50 hover:shadow-floating
             transition-all duration-200
-            disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:hover:border-pink-200
+            disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100
             flex items-center justify-center
             min-h-[70px] sm:min-h-[80px] lg:min-h-[90px]
+            active:scale-[0.98]
           `}
           onClick={() => onAttack(index)}
           disabled={disabled}
         >
           {/* Shimmer Effect */}
-          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-pink-200/30 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
+          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-primary/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
 
           {/* Content */}
           <span className="relative z-10 text-center leading-tight">{def}</span>

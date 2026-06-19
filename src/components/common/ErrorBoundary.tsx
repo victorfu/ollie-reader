@@ -35,17 +35,17 @@ export class ErrorBoundary extends Component<Props, State> {
       }
 
       return (
-        <div className="min-h-screen bg-base-200 flex items-center justify-center px-4">
-          <div className="card bg-base-100 shadow-xl max-w-md w-full">
+        <div className="min-h-screen bg-background flex items-center justify-center px-4">
+          <div className="card bg-base-100 border border-border-hairline shadow-elevated max-w-md w-full">
             <div className="card-body text-center">
               <div className="text-6xl mb-4">😵</div>
-              <h2 className="text-2xl font-bold mb-2">發生錯誤</h2>
-              <p className="text-base-content/70 mb-4">
+              <h2 className="text-2xl font-semibold tracking-tight mb-2">發生錯誤</h2>
+              <p className="text-muted-foreground mb-4">
                 應用程式發生未預期的錯誤，請重新整理頁面或點擊下方按鈕重試。
               </p>
               {this.state.error && (
                 <details className="text-left mb-4">
-                  <summary className="cursor-pointer text-sm text-base-content/60">
+                  <summary className="cursor-pointer text-sm text-muted-foreground">
                     錯誤詳情
                   </summary>
                   <pre className="mt-2 p-2 bg-base-200 rounded text-xs overflow-auto max-h-32">

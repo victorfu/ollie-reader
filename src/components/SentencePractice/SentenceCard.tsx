@@ -81,16 +81,18 @@ export const SentenceCard = ({
 
   return (
     <div
-      className={`card bg-base-100 shadow-md hover:shadow-lg transition-shadow ${
-        isCurrentlyPlaying ? "ring-2 ring-primary ring-offset-2" : ""
+      className={`surface-card rounded-xl transition-all duration-200 hover:shadow-elevated ${
+        isCurrentlyPlaying
+          ? "ring-2 ring-primary ring-offset-2 ring-offset-base-100"
+          : ""
       }`}
     >
-      <div className="card-body p-4">
+      <div className="p-4">
         {/* English sentence */}
         <div className="flex items-start gap-2">
           {/* Drag handle - only this element triggers drag */}
           <div
-            className="shrink-0 mt-0.5 cursor-grab active:cursor-grabbing text-base-content/40 hover:text-base-content/60 touch-none select-none"
+            className="shrink-0 mt-0.5 cursor-grab active:cursor-grabbing text-muted-foreground/60 hover:text-foreground touch-none select-none transition-colors"
             title="拖曳排序"
             onPointerDown={(e) => {
               e.preventDefault();
@@ -157,7 +159,7 @@ export const SentenceCard = ({
                   <button
                     type="button"
                     onClick={handleCancelEdit}
-                    className="btn btn-ghost btn-sm"
+                    className="btn btn-ghost btn-sm active:scale-[0.98]"
                     disabled={isUpdating}
                   >
                     取消
@@ -165,7 +167,7 @@ export const SentenceCard = ({
                   <button
                     type="button"
                     onClick={handleSaveEdit}
-                    className="btn btn-primary btn-sm"
+                    className="btn btn-primary btn-sm active:scale-[0.98]"
                     disabled={isUpdating || !editedEnglish.trim()}
                   >
                     {isUpdating ? (
@@ -242,7 +244,7 @@ export const SentenceCard = ({
 
         {/* Chinese translation */}
         {!isEditing && (
-          <p className="text-base text-base-content/70 mt-2 ml-16 border-l-2 border-primary/30 pl-3">
+          <p className="text-base text-muted-foreground mt-2 ml-16 border-l-2 border-primary/40 pl-3">
             {sentence.chinese}
           </p>
         )}

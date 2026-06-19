@@ -27,7 +27,7 @@ export function MagicBattle() {
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          className="flex flex-col items-center justify-center text-slate-700 h-full"
+          className="flex flex-col items-center justify-center text-foreground h-full"
         >
           <motion.div
             animate={{ scale: [1, 1.2, 1], rotate: [0, 10, -10, 0] }}
@@ -36,7 +36,7 @@ export function MagicBattle() {
           >
             🌸✨
           </motion.div>
-          <p className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-pink-500 to-purple-500 bg-clip-text text-transparent">
+          <p className="text-xl sm:text-2xl font-semibold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
             正在召喚可愛怪獸...
           </p>
         </motion.div>
@@ -47,7 +47,7 @@ export function MagicBattle() {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="text-center text-slate-700 flex flex-col items-center justify-center h-full px-4"
+          className="text-center text-foreground flex flex-col items-center justify-center h-full px-4"
         >
           {/* Animated Character */}
           <motion.div
@@ -83,10 +83,10 @@ export function MagicBattle() {
             </motion.span>
           </motion.div>
 
-          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black mb-3 bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500 text-transparent bg-clip-text">
+          <h1 className="text-3xl sm:text-5xl lg:text-6xl font-semibold tracking-tight mb-3 bg-gradient-to-r from-primary via-secondary to-accent text-transparent bg-clip-text">
             Ollie 的魔法對決
           </h1>
-          <p className="text-base sm:text-lg lg:text-xl text-slate-500 mb-8 max-w-md mx-auto leading-relaxed">
+          <p className="text-base sm:text-lg lg:text-xl text-muted-foreground mb-8 max-w-md mx-auto leading-relaxed">
             用單字魔法打敗可愛的小怪獸吧！
           </p>
 
@@ -94,7 +94,7 @@ export function MagicBattle() {
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             onClick={startGame}
-            className="group relative px-8 py-4 sm:px-10 sm:py-5 text-xl sm:text-2xl font-bold text-white bg-gradient-to-r from-pink-400 via-purple-400 to-indigo-400 rounded-2xl shadow-[0_8px_30px_rgba(236,72,153,0.4)] hover:shadow-[0_8px_40px_rgba(236,72,153,0.6)] transition-all duration-300"
+            className="group relative px-8 py-4 sm:px-10 sm:py-5 text-xl sm:text-2xl font-bold text-white bg-gradient-to-r from-primary via-secondary to-accent rounded-2xl shadow-floating hover:shadow-elevated transition-all duration-300 active:scale-[0.98]"
           >
             <span className="flex items-center gap-3">
               <span>🎀</span>
@@ -119,12 +119,12 @@ export function MagicBattle() {
               key={stats.score}
               initial={{ scale: 1.2 }}
               animate={{ scale: 1 }}
-              className="bg-white/70 backdrop-blur-md px-4 py-2 rounded-xl border border-pink-200 shadow-md"
+              className="glass px-4 py-2 rounded-xl shadow-elevated"
             >
-              <span className="text-pink-500 font-bold text-sm sm:text-base mr-2">
+              <span className="text-primary font-bold text-sm sm:text-base mr-2">
                 SCORE
               </span>
-              <span className="text-slate-700 font-mono text-xl sm:text-2xl font-bold">
+              <span className="text-foreground font-mono text-xl sm:text-2xl font-bold">
                 {stats.score}
               </span>
             </motion.div>
@@ -134,9 +134,9 @@ export function MagicBattle() {
               key={progress.current}
               initial={{ scale: 1.1 }}
               animate={{ scale: 1 }}
-              className="bg-white/70 backdrop-blur-md px-4 py-2 rounded-xl border border-purple-200 shadow-md"
+              className="glass px-4 py-2 rounded-xl shadow-elevated"
             >
-              <span className="text-purple-500 font-bold text-sm sm:text-base">
+              <span className="text-secondary font-bold text-sm sm:text-base">
                 🌟 {progress.current}/{progress.total}
               </span>
             </motion.div>
@@ -146,7 +146,7 @@ export function MagicBattle() {
                 initial={{ scale: 0, rotate: -10 }}
                 animate={{ scale: 1, rotate: 0 }}
                 key={stats.combo}
-                className="bg-gradient-to-r from-pink-400 to-purple-400 px-4 py-2 rounded-xl shadow-lg"
+                className="bg-gradient-to-r from-primary to-secondary px-4 py-2 rounded-xl shadow-elevated"
               >
                 <span className="text-white font-black text-lg sm:text-xl">
                   💖 {stats.combo} COMBO!

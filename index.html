@@ -1,15 +1,28 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="ollielight">
 
 <head>
   <meta charset="UTF-8" />
   <link rel="icon" type="image/svg+xml" href="/ollie-reader.svg" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="description" content="A PDF reader application" />
-  <meta name="theme-color" content="#000000" />
+  <meta name="theme-color" content="#ffffff" />
   <link rel="manifest" href="/manifest.json" />
   <link rel="apple-touch-icon" href="/icon-192x192.png" />
   <title>Ollie Reader</title>
+  <!-- Apply the saved theme before first paint to avoid a flash of the wrong theme. -->
+  <script>
+    (function () {
+      try {
+        var stored = localStorage.getItem("ollie-theme"); // 'light' | 'dark' | 'system'
+        var sysDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+        var isDark = stored === "dark" || ((stored === "system" || !stored) && sysDark);
+        var root = document.documentElement;
+        root.classList.toggle("dark", isDark);
+        root.setAttribute("data-theme", isDark ? "olliedark" : "ollielight");
+      } catch (e) {}
+    })();
+  </script>
 </head>
 
 <body>

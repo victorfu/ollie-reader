@@ -135,7 +135,7 @@ export function AudioUploadList({
     return (
       <div className="flex flex-col items-center justify-center py-12">
         <span className="loading loading-spinner loading-lg text-primary mb-4" />
-        <p className="text-base-content/60">載入音訊列表...</p>
+        <p className="text-muted-foreground">載入音訊列表...</p>
       </div>
     );
   }
@@ -159,8 +159,8 @@ export function AudioUploadList({
             />
           </svg>
         </div>
-        <h3 className="text-xl font-bold mb-2">還沒有上傳的音訊</h3>
-        <p className="text-base-content/60 max-w-sm mx-auto">
+        <h3 className="text-xl font-semibold mb-2">還沒有上傳的音訊</h3>
+        <p className="text-muted-foreground max-w-sm mx-auto">
           拖放音訊檔案或點擊上方的「選擇檔案」按鈕開始上傳
         </p>
       </div>
@@ -178,16 +178,16 @@ export function AudioUploadList({
       )}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-bold flex items-center gap-2">
+          <h2 className="text-lg font-semibold flex items-center gap-2">
             🎧 我的音訊
           </h2>
-          <span className="text-sm text-base-content/60">
+          <span className="text-sm text-muted-foreground">
             共 {uploads.length} 個檔案
           </span>
         </div>
 
         {/* Audio Grid */}
-        <div className="grid gap-3">
+        <div className="grid gap-4">
           {uploads.map((upload) => {
             const hasSignedUrl = upload.id && audioUrls.has(upload.id);
             const hasError = upload.id && audioErrors.has(upload.id);
@@ -198,10 +198,10 @@ export function AudioUploadList({
             return (
               <div
                 key={upload.id}
-                className={`group relative bg-base-100 rounded-2xl border overflow-hidden transition-all duration-200 ${
+                className={`group relative rounded-2xl border overflow-hidden transition-all duration-200 ${
                   isActive
-                    ? "border-primary shadow-lg shadow-primary/10"
-                    : "border-base-200 hover:border-base-300 hover:shadow-md"
+                    ? "border-transparent ring-2 ring-accent bg-accent-tint shadow-elevated"
+                    : "border-border-hairline bg-card hover:border-accent/20 hover:shadow-soft"
                 }`}
               >
                 <div className="p-3 sm:p-4 overflow-hidden">
@@ -278,17 +278,17 @@ export function AudioUploadList({
                       <h3 className="font-semibold text-sm sm:text-base truncate">
                         {upload.title}
                       </h3>
-                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1 text-xs sm:text-sm text-base-content/60">
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1 text-xs sm:text-sm text-muted-foreground">
                         <span>{formatDuration(upload.durationSeconds)}</span>
-                        <span className="w-1 h-1 rounded-full bg-base-content/30" />
+                        <span className="w-1 h-1 rounded-full bg-muted-foreground/40" />
                         <span>{formatFileSize(upload.fileSize)}</span>
-                        <span className="hidden sm:inline w-1 h-1 rounded-full bg-base-content/30" />
+                        <span className="hidden sm:inline w-1 h-1 rounded-full bg-muted-foreground/40" />
                         <span className="hidden sm:inline">
                           {formatDate(upload.createdAt)}
                         </span>
                       </div>
                       {upload.description && (
-                        <p className="text-sm text-base-content/50 mt-1 truncate">
+                        <p className="text-sm text-muted-foreground/80 mt-1 truncate">
                           {upload.description}
                         </p>
                       )}
@@ -346,7 +346,7 @@ export function AudioUploadList({
                   {/* Audio Player - only one element, shown when active */}
                   {hasSignedUrl && upload.id && (
                     <div
-                      className={`mt-3 pt-3 border-t border-base-200 ${
+                      className={`mt-3 pt-3 border-t border-border-hairline ${
                         isActive ? "" : "hidden"
                       }`}
                       onClick={(e) => e.stopPropagation()} // Prevent clicks from bubbling

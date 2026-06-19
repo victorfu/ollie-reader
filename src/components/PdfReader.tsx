@@ -283,7 +283,7 @@ function PdfReader() {
         <div className="space-y-6">
           {/* PDF Viewer - Glass card with macOS HIG styling */}
           {pdfUrl && (
-            <div className="rounded-xl border border-black/5 dark:border-white/10 bg-base-100 shadow-lg overflow-hidden">
+            <div className="rounded-xl border border-border-hairline bg-base-100 shadow-elevated overflow-hidden">
               <div className="p-0">
                 <PdfViewer
                   url={pdfUrl}
@@ -328,7 +328,7 @@ function PdfReader() {
             type="button"
             onClick={stopSpeaking}
             disabled={isLoadingAudio}
-            className="flex items-center gap-2 h-10 px-4 rounded-xl text-sm font-medium border border-error/30 text-error bg-base-100/90 backdrop-blur-xl shadow-lg hover:bg-error/10 active:scale-[0.98] transition-all duration-200 disabled:opacity-50"
+            className="flex items-center gap-2 h-10 px-4 rounded-xl text-sm font-medium border border-error/30 text-error bg-base-100/90 backdrop-blur-xl shadow-floating hover:bg-error/10 active:scale-[0.98] transition-all duration-200 disabled:opacity-50"
           >
             {isLoadingAudio ? (
               <>
@@ -369,7 +369,7 @@ function PdfReader() {
         <button
           type="button"
           onClick={() => setVocabBrowserOpen(true)}
-          className="fixed left-6 bottom-6 z-40 w-12 h-12 rounded-full flex items-center justify-center bg-base-100/90 backdrop-blur-xl border border-black/5 dark:border-white/10 shadow-lg hover:scale-105 active:scale-[0.98] transition-all duration-200"
+          className="fixed left-6 bottom-6 z-40 w-12 h-12 rounded-full flex items-center justify-center bg-base-100/90 backdrop-blur-xl border border-border-hairline shadow-floating hover:scale-105 hover:text-accent active:scale-[0.98] transition-all duration-200 lg:left-[calc(var(--app-sidebar-w)+1.5rem)]"
           aria-label="搜尋生詞本"
         >
           <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">

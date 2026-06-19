@@ -78,7 +78,7 @@ export const SpeechSwitcher = ({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="btn btn-sm btn-ghost gap-1 normal-case"
+        className="btn btn-sm btn-ghost gap-1 normal-case active:scale-[0.98]"
       >
         <span className="font-medium truncate max-w-[12rem]">
           {current?.name || "選擇版本"}
@@ -94,9 +94,9 @@ export const SpeechSwitcher = ({
             className="fixed inset-0 z-40"
             onClick={close}
           />
-          <div className="absolute z-50 mt-1 right-0 sm:right-auto sm:left-0 w-72 rounded-[12px] border border-base-300 bg-base-100 shadow-xl backdrop-blur-xl">
+          <div className="glass absolute z-50 mt-1 right-0 sm:right-auto sm:left-0 w-72 rounded-xl shadow-floating">
             <div className="p-1">
-              <div className="px-3 py-2 text-xs font-semibold text-base-content/50">
+              <div className="px-3 py-2 text-xs font-semibold text-muted-foreground">
                 演講版本
               </div>
               <ul className="max-h-72 overflow-y-auto">
@@ -106,8 +106,10 @@ export const SpeechSwitcher = ({
                   return (
                     <li key={s.id}>
                       <div
-                        className={`group flex items-center gap-1 rounded-[6px] px-2 py-1.5 ${
-                          isActive ? "bg-primary/10" : "hover:bg-base-200"
+                        className={`group flex items-center gap-1 rounded-md px-2 py-1.5 transition-colors ${
+                          isActive
+                            ? "bg-accent-tint text-accent"
+                            : "hover:bg-accent-tint hover:text-accent"
                         }`}
                       >
                         {isEditing ? (
@@ -168,11 +170,11 @@ export const SpeechSwitcher = ({
                   );
                 })}
               </ul>
-              <div className="border-t border-base-300 my-1" />
+              <div className="border-t border-border-hairline my-1" />
               <button
                 type="button"
                 onClick={handleCreate}
-                className="flex w-full items-center gap-2 rounded-[6px] px-2 py-1.5 text-sm hover:bg-base-200"
+                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-accent-tint hover:text-accent"
               >
                 <Plus className="h-4 w-4" />
                 新增空白版本
@@ -181,7 +183,7 @@ export const SpeechSwitcher = ({
                 <button
                   type="button"
                   onClick={handleDuplicate}
-                  className="flex w-full items-center gap-2 rounded-[6px] px-2 py-1.5 text-sm hover:bg-base-200"
+                  className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-accent-tint hover:text-accent"
                 >
                   <Copy className="h-4 w-4" />
                   複製目前版本

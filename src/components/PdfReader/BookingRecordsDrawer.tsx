@@ -50,7 +50,7 @@ export const BookingRecordsDrawer = memo(
         <aside
           role="complementary"
           aria-label="課程預約紀錄"
-          className="absolute top-0 right-0 h-full w-80 bg-base-100/95 backdrop-blur-xl shadow-lg border-l border-black/5 dark:border-white/10 p-6 overflow-y-auto z-50 pointer-events-auto"
+          className="absolute top-0 right-0 h-full w-80 bg-base-100/95 backdrop-blur-xl shadow-lg border-l border-border-hairline p-6 overflow-y-auto z-50 pointer-events-auto"
           style={{ maxWidth: 320 }}
         >
           <div className="flex items-center justify-between mb-6">
@@ -76,7 +76,7 @@ export const BookingRecordsDrawer = memo(
                 <p className="text-sm text-error">{error}</p>
               </div>
               <button
-                className="btn btn-sm bg-base-100 border border-black/10 dark:border-white/10 shadow-sm hover:bg-black/5 dark:hover:bg-white/5 active:scale-[0.98] transition-all duration-200"
+                className="btn btn-sm bg-base-100 border border-border-hairline shadow-sm hover:bg-base-200 active:scale-[0.98] transition-all duration-200"
                 onClick={onRetry}
               >
                 重新載入
@@ -86,7 +86,7 @@ export const BookingRecordsDrawer = memo(
             <div className="flex flex-col items-center py-8">
               <p className="text-sm text-base-content/60 mb-4">目前沒有課程紀錄</p>
               <button
-                className="btn btn-sm bg-base-100 border border-black/10 dark:border-white/10 shadow-sm hover:bg-black/5 dark:hover:bg-white/5 active:scale-[0.98] transition-all duration-200"
+                className="btn btn-sm bg-base-100 border border-border-hairline shadow-sm hover:bg-base-200 active:scale-[0.98] transition-all duration-200"
                 onClick={onRetry}
               >
                 重新載入
@@ -97,7 +97,7 @@ export const BookingRecordsDrawer = memo(
               {bookingRecords.map((record) => (
                 <li key={record.id}>
                   <button
-                    className={`w-full text-left p-3 rounded-lg border border-black/5 dark:border-white/10 flex flex-col hover:bg-black/5 dark:hover:bg-white/5 active:scale-[0.98] transition-all duration-200 ${
+                    className={`w-full text-left p-3 rounded-lg border border-border-hairline flex flex-col hover:bg-base-200 active:scale-[0.98] transition-all duration-200 ${
                       loadingCourseId === record.id
                         ? "opacity-60 pointer-events-none"
                         : ""

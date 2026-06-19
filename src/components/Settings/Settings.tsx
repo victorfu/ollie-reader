@@ -1,12 +1,21 @@
 import { useState } from "react";
+import { Sun, Moon, Monitor } from "lucide-react";
 import { useSettings } from "../../hooks/useSettings";
 import { useAuth } from "../../hooks/useAuth";
+import { useTheme } from "../../hooks/useTheme";
 import { resetGameProgress } from "../../services/gameProgressService";
 import { ConfirmModal } from "../common/ConfirmModal";
 import type { TTSMode, TTSEngine, ReadingMode, TextParsingMode } from "../../types/pdf";
 
+const THEME_OPTIONS = [
+  { id: "light", label: "淺色", icon: Sun },
+  { id: "dark", label: "深色", icon: Moon },
+  { id: "system", label: "系統", icon: Monitor },
+] as const;
+
 export const Settings = () => {
   const { user } = useAuth();
+  const { theme, setTheme } = useTheme();
   const {
     ttsMode,
     ttsEngine,
@@ -121,7 +130,7 @@ export const Settings = () => {
   if (loading) {
     return (
       <div className="max-w-2xl mx-auto">
-        <div className="card bg-base-100 shadow-xl">
+        <div className="card bg-base-100 border border-border-hairline shadow-elevated">
           <div className="card-body">
             <div className="flex justify-center">
               <span className="loading loading-spinner loading-lg text-primary" />
@@ -136,7 +145,9 @@ export const Settings = () => {
     <div className="max-w-2xl mx-auto">
       <div className="card bg-base-100 shadow-xl">
         <div className="card-body">
-          <h2 className="card-title text-2xl mb-4">⚙️ 設定</h2>
+          <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight mb-4">
+            ⚙️ 設定
+          </h2>
 
           {error && (
             <div className="alert alert-error mb-4">
@@ -157,15 +168,49 @@ export const Settings = () => {
           )}
 
           <div className="space-y-6">
+            {/* Appearance / Theme */}
+            <div>
+              <h3 className="text-lg font-semibold mb-3">外觀主題</h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                選擇介面的明暗模式
+              </p>
+
+              <div className="inline-flex gap-1 rounded-lg bg-base-200 p-1">
+                {THEME_OPTIONS.map((opt) => {
+                  const Icon = opt.icon;
+                  const active = theme === opt.id;
+                  return (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => setTheme(opt.id)}
+                      aria-pressed={active}
+                      className={`inline-flex h-9 items-center gap-2 rounded-md px-4 text-sm font-medium transition-colors active:scale-[0.98] ${
+                        active
+                          ? "bg-base-100 text-accent shadow-soft"
+                          : "text-muted-foreground hover:text-base-content"
+                      }`}
+                    >
+                      <Icon className="size-4" strokeWidth={1.75} aria-hidden="true" />
+                      {opt.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Divider */}
+            <div className="divider"></div>
+
             {/* TTS Mode Selection */}
             <div>
               <h3 className="text-lg font-semibold mb-3">語音模式選擇</h3>
-              <p className="text-sm text-base-content/70 mb-4">
+              <p className="text-sm text-muted-foreground mb-4">
                 選擇文字轉語音的服務
               </p>
 
               <div className="space-y-3">
-                <label className="flex items-start gap-3 p-4 border border-base-300 rounded-lg cursor-pointer hover:bg-base-200 transition-colors">
+                <label className="flex items-start gap-3 p-4 border border-border-hairline rounded-lg cursor-pointer hover:bg-base-200/60 transition-colors">
                   <input
                     type="radio"
                     name="ttsMode"
@@ -176,13 +221,13 @@ export const Settings = () => {
                   />
                   <div className="flex-1">
                     <div className="font-medium">系統語音</div>
-                    <div className="text-sm text-base-content/60">
+                    <div className="text-sm text-muted-foreground">
                       使用瀏覽器內建的語音引擎（推薦）
                     </div>
                   </div>
                 </label>
 
-                <label className="flex items-start gap-3 p-4 border border-base-300 rounded-lg cursor-pointer hover:bg-base-200 transition-colors">
+                <label className="flex items-start gap-3 p-4 border border-border-hairline rounded-lg cursor-pointer hover:bg-base-200/60 transition-colors">
                   <input
                     type="radio"
                     name="ttsMode"
@@ -193,7 +238,7 @@ export const Settings = () => {
                   />
                   <div className="flex-1">
                     <div className="font-medium">AI 語音</div>
-                    <div className="text-sm text-base-content/60">
+                    <div className="text-sm text-muted-foreground">
                       使用 AI 語音合成服務，聲音更自然
                     </div>
                   </div>
@@ -202,7 +247,7 @@ export const Settings = () => {
 
               {/* AI 引擎子選單（僅在 API 模式顯示） */}
               {ttsMode === "api" && (
-                <div className="mt-3 space-y-3 border-l-2 border-base-300 pl-4">
+                <div className="mt-3 space-y-3 border-l-2 border-border-hairline pl-4">
                   <p className="text-sm text-base-content/70">選擇 AI 語音引擎</p>
                   {(
                     [
@@ -220,7 +265,7 @@ export const Settings = () => {
                   ).map((eng) => (
                     <label
                       key={eng.id}
-                      className="flex items-start gap-3 p-3 border border-base-300 rounded-lg cursor-pointer hover:bg-base-200 transition-colors"
+                      className="flex items-start gap-3 p-3 border border-border-hairline rounded-lg cursor-pointer hover:bg-base-200/60 transition-colors"
                     >
                       <input
                         type="radio"
@@ -232,7 +277,7 @@ export const Settings = () => {
                       />
                       <div className="flex-1">
                         <div className="font-medium">{eng.name}</div>
-                        <div className="text-sm text-base-content/60">
+                        <div className="text-sm text-muted-foreground">
                           {eng.desc}
                         </div>
                       </div>
@@ -248,11 +293,11 @@ export const Settings = () => {
             {/* Speech Rate Setting */}
             <div>
               <h3 className="text-lg font-semibold mb-3">語速設定</h3>
-              <p className="text-sm text-base-content/70 mb-4">
+              <p className="text-sm text-muted-foreground mb-4">
                 調整播放速度
               </p>
 
-              <div className="p-4 border border-base-300 rounded-lg">
+              <div className="p-4 border border-border-hairline rounded-lg">
                 <div className="flex items-center gap-4">
                   <span className="text-sm whitespace-nowrap">慢</span>
                   <input
@@ -281,12 +326,12 @@ export const Settings = () => {
             {/* Reading Mode Selection */}
             <div>
               <h3 className="text-lg font-semibold mb-3">閱讀模式</h3>
-              <p className="text-sm text-base-content/70 mb-4">
+              <p className="text-sm text-muted-foreground mb-4">
                 選擇點擊文字時的查詢方式
               </p>
 
               <div className="space-y-3">
-                <label className="flex items-start gap-3 p-4 border border-base-300 rounded-lg cursor-pointer hover:bg-base-200 transition-colors">
+                <label className="flex items-start gap-3 p-4 border border-border-hairline rounded-lg cursor-pointer hover:bg-base-200/60 transition-colors">
                   <input
                     type="radio"
                     name="readingMode"
@@ -297,13 +342,13 @@ export const Settings = () => {
                   />
                   <div className="flex-1">
                     <div className="font-medium">單字模式</div>
-                    <div className="text-sm text-base-content/60">
+                    <div className="text-sm text-muted-foreground">
                       點擊單字即可查詢（推薦）
                     </div>
                   </div>
                 </label>
 
-                <label className="flex items-start gap-3 p-4 border border-base-300 rounded-lg cursor-pointer hover:bg-base-200 transition-colors">
+                <label className="flex items-start gap-3 p-4 border border-border-hairline rounded-lg cursor-pointer hover:bg-base-200/60 transition-colors">
                   <input
                     type="radio"
                     name="readingMode"
@@ -314,7 +359,7 @@ export const Settings = () => {
                   />
                   <div className="flex-1">
                     <div className="font-medium">選取模式</div>
-                    <div className="text-sm text-base-content/60">
+                    <div className="text-sm text-muted-foreground">
                       選取文字範圍後查詢，適合查詢片語或句子
                     </div>
                   </div>
@@ -328,12 +373,12 @@ export const Settings = () => {
             {/* PDF Text Parsing Mode */}
             <div>
               <h3 className="text-lg font-semibold mb-3">PDF 文字解析</h3>
-              <p className="text-sm text-base-content/70 mb-4">
+              <p className="text-sm text-muted-foreground mb-4">
                 選擇如何從 PDF 擷取文字
               </p>
 
               <div className="space-y-3">
-                <label className="flex items-start gap-3 p-4 border border-base-300 rounded-lg cursor-pointer hover:bg-base-200 transition-colors">
+                <label className="flex items-start gap-3 p-4 border border-border-hairline rounded-lg cursor-pointer hover:bg-base-200/60 transition-colors">
                   <input
                     type="radio"
                     name="textParsingMode"
@@ -344,13 +389,13 @@ export const Settings = () => {
                   />
                   <div className="flex-1">
                     <div className="font-medium">後端解析</div>
-                    <div className="text-sm text-base-content/60">
+                    <div className="text-sm text-muted-foreground">
                       上傳 PDF 至伺服器解析（較準確）
                     </div>
                   </div>
                 </label>
 
-                <label className="flex items-start gap-3 p-4 border border-base-300 rounded-lg cursor-pointer hover:bg-base-200 transition-colors">
+                <label className="flex items-start gap-3 p-4 border border-border-hairline rounded-lg cursor-pointer hover:bg-base-200/60 transition-colors">
                   <input
                     type="radio"
                     name="textParsingMode"
@@ -361,7 +406,7 @@ export const Settings = () => {
                   />
                   <div className="flex-1">
                     <div className="font-medium">前端解析</div>
-                    <div className="text-sm text-base-content/60">
+                    <div className="text-sm text-muted-foreground">
                       直接在瀏覽器中使用 react-pdf 解析（較快，不需上傳）
                     </div>
                   </div>
@@ -382,7 +427,7 @@ export const Settings = () => {
             {/* Game Settings */}
             <div>
               <h3 className="text-lg font-semibold mb-3">🎮 遊戲設定</h3>
-              <p className="text-sm text-base-content/70 mb-4">
+              <p className="text-sm text-muted-foreground mb-4">
                 管理遊戲進度
               </p>
 
@@ -390,7 +435,7 @@ export const Settings = () => {
                 <div className="flex items-center justify-between">
                   <div>
                     <div className="font-medium text-error">重置遊戲進度</div>
-                    <div className="text-sm text-base-content/60">
+                    <div className="text-sm text-muted-foreground">
                       清除所有關卡進度、等級和收集的精靈（生詞本不受影響）
                     </div>
                   </div>

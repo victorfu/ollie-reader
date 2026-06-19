@@ -408,13 +408,13 @@ export const VocabularyBook = () => {
       />
 
       {/* Tab segmented control */}
-      <div className="flex gap-1 bg-base-200/50 rounded-xl p-1 mb-4">
+      <div className="flex gap-1 surface-card rounded-xl p-1 mb-4">
         <button
           type="button"
-          className={`flex-1 h-10 rounded-lg text-sm font-medium transition-all ${
+          className={`flex-1 h-11 rounded-lg text-sm font-medium transition-all active:scale-[0.98] ${
             activeTab === "words"
-              ? "bg-primary text-primary-content shadow-sm"
-              : "text-base-content/60 hover:bg-black/5 dark:hover:bg-white/5"
+              ? "bg-primary text-primary-content shadow-soft"
+              : "text-muted-foreground hover:bg-accent-tint hover:text-accent"
           }`}
           onClick={() => setActiveTab("words")}
         >
@@ -422,10 +422,10 @@ export const VocabularyBook = () => {
         </button>
         <button
           type="button"
-          className={`flex-1 h-10 rounded-lg text-sm font-medium transition-all ${
+          className={`flex-1 h-11 rounded-lg text-sm font-medium transition-all active:scale-[0.98] ${
             activeTab === "sentences"
-              ? "bg-primary text-primary-content shadow-sm"
-              : "text-base-content/60 hover:bg-black/5 dark:hover:bg-white/5"
+              ? "bg-primary text-primary-content shadow-soft"
+              : "text-muted-foreground hover:bg-accent-tint hover:text-accent"
           }`}
           onClick={() => setActiveTab("sentences")}
         >
@@ -437,7 +437,7 @@ export const VocabularyBook = () => {
       <div className={activeTab === "words" ? "" : "hidden"}>
 
       {/* Toolbar: Manual Add + Start Review */}
-      <div className="bg-base-100 rounded-lg shadow p-3 mb-4 flex flex-wrap gap-3 items-center">
+      <div className="surface-card rounded-xl p-3 mb-4 flex flex-wrap gap-3 items-center">
         <form
           className="flex flex-1 min-w-0 gap-2 items-center"
           onSubmit={handleManualSubmit}
@@ -446,7 +446,7 @@ export const VocabularyBook = () => {
             id={manualWordFieldId}
             type="text"
             placeholder="手動新增英文單字"
-            className="input input-bordered input-sm flex-1 min-w-[8rem]"
+            className="input input-bordered flex-1 min-w-[8rem]"
             value={manualWord}
             onChange={(e) => setManualWord(e.target.value)}
             disabled={isAddingManualWord}
@@ -454,7 +454,7 @@ export const VocabularyBook = () => {
           />
           <button
             type="submit"
-            className="btn btn-primary btn-sm"
+            className="btn btn-primary active:scale-[0.98]"
             disabled={
               isAddingManualWord || isAdding || manualWord.trim().length === 0
             }
@@ -469,7 +469,7 @@ export const VocabularyBook = () => {
         {words.length > 0 && !loading && (
           <button
             type="button"
-            className="btn btn-primary btn-sm gap-1"
+            className="btn btn-primary gap-1 active:scale-[0.98]"
             onClick={handleOpenReviewSettings}
             disabled={isLoadingReview}
           >
@@ -497,18 +497,18 @@ export const VocabularyBook = () => {
       </div>
 
       {/* Compact Filters and Search */}
-      <div className="bg-base-100 rounded-lg shadow p-4 mb-4">
+      <div className="surface-card rounded-xl p-4 mb-4">
         <div className="flex flex-col sm:flex-row sm:items-center gap-3">
           <div className="relative w-full sm:flex-1">
             <input
               type="text"
               placeholder="搜尋單字..."
-              className="input input-bordered input-sm w-full pr-24"
+              className="input input-bordered w-full pr-24"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
             {searchQuery.trim() && (
-              <div className="absolute inset-y-0 right-3 flex items-center gap-2 text-xs text-base-content/60">
+              <div className="absolute inset-y-0 right-3 flex items-center gap-2 text-xs text-muted-foreground">
                 {isSearching && (
                   <span className="loading loading-spinner loading-xs" />
                 )}
@@ -520,7 +520,7 @@ export const VocabularyBook = () => {
           <div className="grid grid-cols-2 sm:grid-cols-3 items-center gap-2">
             {/* Sort Options */}
             <select
-              className="select select-bordered select-sm w-full sm:w-auto"
+              className="select select-bordered w-full sm:w-auto"
               value={filters.sortBy}
               onChange={(e) => handleFilterChange("sortBy", e.target.value)}
             >
@@ -529,7 +529,7 @@ export const VocabularyBook = () => {
             </select>
 
             <select
-              className="select select-bordered select-sm w-full sm:w-auto"
+              className="select select-bordered w-full sm:w-auto"
               value={filters.sortOrder}
               onChange={(e) => handleFilterChange("sortOrder", e.target.value)}
             >
@@ -539,7 +539,7 @@ export const VocabularyBook = () => {
 
             <button
               type="button"
-              className="btn btn-ghost btn-sm sm:w-auto"
+              className="btn btn-ghost sm:w-auto"
               onClick={handleClearFilters}
               disabled={!hasActiveFilters}
             >
@@ -551,9 +551,9 @@ export const VocabularyBook = () => {
 
       {/* Initial Loading State */}
       {loading && words.length === 0 && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 py-2">
+        <div className="grid gap-4 auto-grid py-2">
           {Array.from({ length: 8 }).map((_, index) => (
-            <div key={index} className="card bg-base-100 border border-base-200">
+            <div key={index} className="card surface-card rounded-xl">
               <div className="card-body p-4">
                 <div className="h-6 w-2/3 rounded bg-base-300 animate-pulse" />
                 <div className="h-4 w-1/2 rounded bg-base-300 animate-pulse" />
@@ -566,11 +566,11 @@ export const VocabularyBook = () => {
 
       {/* Empty State - No words at all */}
       {!loading && searchResults === null && words.length === 0 && (
-        <div className="card bg-base-100 shadow-xl">
+        <div className="card surface-card rounded-2xl">
           <div className="card-body text-center py-12">
             <div className="text-6xl mb-4">📖</div>
-            <h2 className="text-2xl font-bold mb-2">還沒有收藏的單字</h2>
-            <p className="text-base-content/70">
+            <h2 className="text-2xl font-semibold tracking-tight mb-2">還沒有收藏的單字</h2>
+            <p className="text-muted-foreground">
               在閱讀 PDF 時選取單字，點擊「加入生詞本」按鈕開始收藏吧！
             </p>
           </div>
@@ -581,7 +581,7 @@ export const VocabularyBook = () => {
       {!loading && searchResults !== null && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold text-base-content/60 flex items-center gap-2">
+            <h2 className="text-lg font-semibold text-muted-foreground flex items-center gap-2">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 className="h-5 w-5"
@@ -613,16 +613,16 @@ export const VocabularyBook = () => {
           </div>
 
           {searchResults.length === 0 ? (
-            <div className="card bg-base-100 shadow-md">
+            <div className="card surface-card rounded-2xl">
               <div className="card-body text-center py-8">
                 <div className="text-4xl mb-2">🔍</div>
-                <p className="text-base-content/60">
+                <p className="text-muted-foreground">
                   找不到符合「{debouncedSearchQuery || searchQuery.trim()}」的單字
                 </p>
               </div>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+            <div className="grid gap-4 auto-grid">
               <AnimatePresence mode="popLayout">
                 {searchResults.map((word) => (
                   <VocabularyCard
@@ -657,14 +657,14 @@ export const VocabularyBook = () => {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.4 }}
               >
-                <h2 className="text-lg font-bold mb-4 text-base-content/60 flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-primary/60"></span>
+                <h2 className="text-lg font-semibold mb-4 text-muted-foreground flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-accent/60"></span>
                   {date}
                   <span className="text-xs font-normal bg-base-200 px-2 py-0.5 rounded-full">
                     {groupWords.length}
                   </span>
                 </h2>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                <div className="grid gap-4 auto-grid">
                   <AnimatePresence mode="popLayout">
                     {groupWords.map((word) => (
                       <VocabularyCard

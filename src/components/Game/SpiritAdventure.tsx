@@ -48,7 +48,7 @@ export function SpiritAdventure() {
       <div className="min-h-[calc(100vh-8rem)] flex items-center justify-center">
         <div className="text-center">
           <span className="loading loading-spinner loading-lg text-primary" />
-          <p className="mt-4 text-base-content/70">載入遊戲中...</p>
+          <p className="mt-4 text-muted-foreground">載入遊戲中...</p>
         </div>
       </div>
     );
@@ -57,14 +57,14 @@ export function SpiritAdventure() {
   // 錯誤
   if (error) {
     return (
-      <div className="min-h-[calc(100vh-8rem)] flex items-center justify-center p-4">
-        <div className="card bg-error/10 border border-error p-6 text-center max-w-md">
+      <div className="min-h-[calc(100vh-8rem)] flex items-center justify-center p-4 sm:p-6">
+        <div className="glass rounded-2xl shadow-floating p-6 text-center max-w-md">
           <span className="text-4xl mb-4">😢</span>
-          <h2 className="text-xl font-bold text-error mb-2">載入失敗</h2>
-          <p className="text-base-content/70 mb-4">{error}</p>
+          <h2 className="text-lg font-semibold text-error mb-2">載入失敗</h2>
+          <p className="text-muted-foreground mb-4">{error}</p>
           <button
             onClick={() => window.location.reload()}
-            className="btn btn-error btn-sm"
+            className="btn btn-error btn-sm active:scale-[0.98]"
           >
             重新載入
           </button>
@@ -79,7 +79,7 @@ export function SpiritAdventure() {
       <div className="min-h-[calc(100vh-8rem)] flex items-center justify-center">
         <div className="text-center">
           <span className="text-6xl mb-4 block">🎮</span>
-          <p className="text-base-content/70">請先登入以開始遊戲</p>
+          <p className="text-muted-foreground">請先登入以開始遊戲</p>
         </div>
       </div>
     );

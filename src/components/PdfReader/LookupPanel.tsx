@@ -77,7 +77,7 @@ const LookupItemCard = memo(
             ? { duration: 0.2 }
             : { duration: 0.2, layout: { duration: 0.14, ease: "easeOut" } }
         }
-        className={`bg-base-100 rounded-lg border border-black/5 dark:border-white/10 p-3 shadow-sm border-l-4 ${borderColor}`}
+        className={`bg-base-100 rounded-lg border border-border-hairline p-3 shadow-soft border-l-4 ${borderColor}`}
       >
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-center gap-1.5 min-w-0">
@@ -220,7 +220,7 @@ export const LookupPanel = memo(
           exit={{ opacity: 0, scale: 0.8 }}
           transition={{ duration: 0.2 }}
           onClick={() => setCollapsedToken(null)}
-          className="fixed right-6 bottom-6 z-40 w-14 h-14 rounded-full flex items-center justify-center bg-base-100/90 backdrop-blur-xl border border-black/5 dark:border-white/10 shadow-lg hover:scale-105 active:scale-[0.98] transition-all duration-200"
+          className="fixed right-6 bottom-6 z-40 w-14 h-14 rounded-full flex items-center justify-center bg-base-100/90 backdrop-blur-xl border border-border-hairline shadow-floating hover:scale-105 hover:text-accent active:scale-[0.98] transition-all duration-200"
           aria-label="展開查詢面板"
         >
           <div className="relative">
@@ -243,13 +243,13 @@ export const LookupPanel = memo(
           exit={{ opacity: 0, scale: 0.95 }}
           transition={{ duration: 0.2 }}
           style={{ ...panelStyle, overflow: "hidden" }}
-          className="bg-base-100/90 backdrop-blur-xl rounded-2xl border border-black/5 dark:border-white/10 shadow-xl flex flex-col"
+          className="bg-base-100/90 backdrop-blur-xl rounded-2xl border border-border-hairline shadow-floating flex flex-col"
         >
           {/* Header — draggable */}
           <div
             {...dragHandleProps}
             style={{ ...dragHandleProps.style, cursor: isDragging ? "grabbing" : "grab" }}
-            className="flex items-center justify-between px-4 py-3 border-b border-black/5 dark:border-white/10 shrink-0"
+            className="flex items-center justify-between px-4 py-3 border-b border-border-hairline shrink-0"
           >
             <div className="flex items-center gap-2">
               <BookOpenIcon className="w-4 h-4 text-accent" />
@@ -298,7 +298,7 @@ export const LookupPanel = memo(
 
           {/* Search row — type a word to look it up directly */}
           {onLookupWord && (
-            <div className="px-3 py-2 border-b border-black/5 dark:border-white/10 shrink-0">
+            <div className="px-3 py-2 border-b border-border-hairline shrink-0">
               <form
                 onSubmit={handleSearchSubmit}
                 onPointerDown={(e) => e.stopPropagation()}
@@ -315,7 +315,7 @@ export const LookupPanel = memo(
                   onChange={(e) => setSearchInput(e.target.value)}
                   placeholder="輸入單字查詢…"
                   aria-label="輸入單字查詢"
-                  className="w-full rounded-[6px] border border-black/5 dark:border-white/10 bg-base-200/50 py-1.5 pl-8 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-accent placeholder:text-base-content/40"
+                  className="w-full rounded-[6px] border border-border-hairline bg-base-200/50 py-1.5 pl-8 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-accent placeholder:text-base-content/40"
                 />
               </form>
             </div>

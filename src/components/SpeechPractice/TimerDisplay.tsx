@@ -48,7 +48,9 @@ export function TimerDisplay({
       >
         <div className="flex flex-col items-center">
           <span
-            className={`font-mono text-2xl ${isOverTime ? "text-error" : ""}`}
+            className={`font-mono text-2xl font-semibold tabular-nums tracking-tight ${
+              isOverTime ? "text-error" : ""
+            }`}
           >
             {formatTime(time)}
           </span>
@@ -58,7 +60,7 @@ export function TimerDisplay({
         </div>
       </div>
 
-      <div className="text-sm text-base-content/60">
+      <div className="text-sm text-muted-foreground">
         建議時間：{formatTime(suggestedTime)}
       </div>
 

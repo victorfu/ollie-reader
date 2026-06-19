@@ -28,7 +28,7 @@ export const UploadArea = memo(
     isClearingCache,
   }: UploadAreaProps) => {
     return (
-      <div className="rounded-xl border border-black/5 dark:border-white/10 bg-base-100/80 backdrop-blur-xl shadow-lg mb-2">
+      <div className="surface-card rounded-xl mb-2">
         <div className="p-4">
           {/* Compact single row layout */}
           <div className="flex flex-col sm:flex-row gap-3 items-center">
@@ -48,10 +48,10 @@ export const UploadArea = memo(
               />
               <label
                 htmlFor="file"
-                className={`flex items-center justify-center gap-2 h-8 px-3 rounded-lg text-sm font-medium cursor-pointer transition-all duration-200 w-full sm:w-auto border shadow-sm hover:bg-black/5 dark:hover:bg-white/5 active:scale-[0.98] ${
+                className={`flex items-center justify-center gap-2 h-8 px-3 rounded-lg text-sm font-medium cursor-pointer transition-all duration-200 w-full sm:w-auto border shadow-soft hover:bg-base-200 active:scale-[0.98] ${
                   selectedFile
                     ? "bg-success/10 border-success/30 text-success"
-                    : "bg-base-100 border-black/10 dark:border-white/10 text-base-content"
+                    : "bg-base-100 border-border-hairline text-base-content"
                 }`}
               >
                 <svg

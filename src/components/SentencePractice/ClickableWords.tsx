@@ -83,10 +83,10 @@ export const ClickableWords = ({
               className={`
                 ${
                   isClickable
-                    ? "cursor-pointer hover:bg-primary/20 hover:text-primary rounded px-0.5 transition-colors"
+                    ? "cursor-pointer rounded-md px-0.5 transition-colors duration-150 hover:bg-accent-tint hover:text-accent"
                     : ""
                 }
-                ${isActive ? "bg-primary/30 text-primary rounded px-0.5" : ""}
+                ${isActive ? "bg-accent-tint text-accent rounded-md px-0.5" : ""}
               `}
             >
               {word}
@@ -96,29 +96,29 @@ export const ClickableWords = ({
             {/* DaisyUI Dropdown for definition */}
             {isActive && (
               <div className="absolute left-0 top-full z-50 mt-1">
-                <div className="card bg-base-200 shadow-xl min-w-[200px] max-w-[300px]">
-                  <div className="card-body p-3">
+                <div className="glass rounded-xl shadow-floating min-w-[200px] max-w-[300px]">
+                  <div className="p-3">
                     <div className="flex justify-between items-start gap-2">
-                      <span className="font-bold text-primary">{clean}</span>
+                      <span className="font-semibold text-accent">{clean}</span>
                       <button
                         type="button"
                         onClick={handleCloseDropdown}
-                        className="btn btn-ghost btn-xs btn-circle"
+                        className="btn btn-ghost btn-xs btn-circle active:scale-[0.98]"
                       >
                         ✕
                       </button>
                     </div>
                     {isLoading ? (
-                      <div className="flex items-center gap-2 text-sm text-base-content/60">
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
                         <span className="loading loading-spinner loading-xs"></span>
                         查詢中...
                       </div>
                     ) : definition ? (
-                      <span className="text-sm text-base-content/80">
+                      <span className="text-sm text-foreground/90">
                         {definition}
                       </span>
                     ) : (
-                      <span className="text-sm text-base-content/60">
+                      <span className="text-sm text-muted-foreground">
                         無法取得解釋
                       </span>
                     )}

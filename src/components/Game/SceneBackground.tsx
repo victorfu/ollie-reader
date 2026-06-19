@@ -107,8 +107,8 @@ export function SceneBackground({ stageId, children }: SceneBackgroundProps) {
         animate={{ opacity: 1, y: 0 }}
         className="absolute top-4 left-4 z-20"
       >
-        <div className="bg-white/80 backdrop-blur-sm px-3 py-1.5 rounded-full shadow-md border border-white/50">
-          <span className="text-xs font-medium text-base-content/70 flex items-center gap-1">
+        <div className="glass px-3 py-1.5 rounded-full shadow-elevated">
+          <span className="text-xs font-medium text-muted-foreground flex items-center gap-1">
             <span>📍</span>
             {theme.name}
           </span>

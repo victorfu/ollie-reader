@@ -286,18 +286,17 @@ export const SentencePractice = () => {
       )}
 
       {/* Header */}
-      <div className="card bg-base-100 shadow-xl mb-6">
-        <div className="card-body">
-          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
+      <div className="surface-card rounded-2xl p-4 sm:p-5 md:p-6 mb-6">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
             <div className="flex-1 min-w-0">
-              <h1 className="text-2xl font-bold flex items-center gap-2">
+              <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight flex items-center gap-2">
                 ✍️ 英文演講
               </h1>
-              <p className="text-base-content/60 mt-1">
+              <p className="text-muted-foreground mt-1">
                 貼上英文段落，一句一句練習閱讀與發音
               </p>
               <div className="mt-3 flex items-center gap-2">
-                <span className="text-xs text-base-content/50">版本：</span>
+                <span className="text-xs text-muted-foreground">版本：</span>
                 <SpeechSwitcher
                   speeches={speeches}
                   currentSpeechId={currentSpeechId}
@@ -332,7 +331,7 @@ export const SentencePractice = () => {
                       });
                     });
                   }}
-                  className="btn btn-sm btn-outline btn-secondary"
+                  className="btn btn-sm btn-outline btn-secondary active:scale-[0.98]"
                   title="複製全部"
                 >
                   <svg
@@ -355,7 +354,7 @@ export const SentencePractice = () => {
                   type="button"
                   onClick={handlePlayAll}
                   disabled={isLoadingAudio}
-                  className={`btn btn-sm ${
+                  className={`btn btn-sm active:scale-[0.98] ${
                     isPlayingAll ? "btn-warning" : "btn-primary"
                   }`}
                   title={isPlayingAll ? "停止播放" : "播放全部"}
@@ -413,7 +412,7 @@ export const SentencePractice = () => {
                 <button
                   type="button"
                   onClick={() => setShowClearConfirm(true)}
-                  className="btn btn-outline btn-error btn-sm"
+                  className="btn btn-outline btn-error btn-sm active:scale-[0.98]"
                   title="清除全部"
                 >
                   <svg
@@ -434,7 +433,6 @@ export const SentencePractice = () => {
                 </button>
               </div>
             )}
-          </div>
         </div>
       </div>
 
@@ -444,7 +442,7 @@ export const SentencePractice = () => {
           <button
             type="button"
             onClick={() => setShowInputPanel(true)}
-            className="btn btn-primary w-full"
+            className="btn btn-primary w-full active:scale-[0.98]"
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -480,11 +478,11 @@ export const SentencePractice = () => {
             <span className="loading loading-spinner loading-lg text-primary"></span>
           </div>
         ) : sentences.length === 0 ? (
-          <div className="card bg-base-100 shadow-md">
-            <div className="card-body items-center text-center py-12">
+          <div className="surface-card rounded-2xl">
+            <div className="flex flex-col items-center text-center py-12 px-4">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
-                className="h-16 w-16 text-base-content/30"
+                className="h-16 w-16 text-muted-foreground/50"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -496,10 +494,10 @@ export const SentencePractice = () => {
                   d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
                 />
               </svg>
-              <h3 className="text-lg font-medium text-base-content/60 mt-4">
+              <h3 className="text-lg font-semibold text-muted-foreground mt-4">
                 還沒有句子
               </h3>
-              <p className="text-sm text-base-content/40">
+              <p className="text-sm text-muted-foreground/70">
                 在上方輸入英文文字開始練習
               </p>
             </div>
@@ -539,7 +537,7 @@ export const SentencePractice = () => {
                   type="button"
                   onClick={loadMore}
                   disabled={isLoadingMore}
-                  className="btn btn-outline btn-primary"
+                  className="btn btn-outline btn-primary active:scale-[0.98]"
                 >
                   {isLoadingMore ? (
                     <>
@@ -578,17 +576,17 @@ export const SentencePractice = () => {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.3 }}
-              className="fixed inset-0 z-50 bg-base-200/95 backdrop-blur-sm flex flex-col"
+              className="fixed inset-0 z-50 bg-base-200/80 backdrop-blur-2xl backdrop-saturate-150 flex flex-col"
             >
               {/* Header with progress */}
               <div className="flex justify-between items-center p-4 sm:p-6">
-                <div className="text-lg sm:text-xl font-medium text-base-content/70">
+                <div className="text-lg sm:text-xl font-medium text-muted-foreground tabular-nums">
                   {currentPlayingIndex + 1} / {sentences.length}
                 </div>
                 <button
                   type="button"
                   onClick={handlePlayAll}
-                  className="btn btn-circle btn-ghost btn-lg"
+                  className="btn btn-circle btn-ghost btn-lg active:scale-[0.98]"
                   title="關閉"
                 >
                   <svg
@@ -626,7 +624,7 @@ export const SentencePractice = () => {
                     />
                   </div>
                   {/* Chinese translation */}
-                  <p className="text-lg sm:text-xl md:text-2xl text-base-content/60">
+                  <p className="text-lg sm:text-xl md:text-2xl text-muted-foreground">
                     {sentences[currentPlayingIndex].chinese}
                   </p>
                 </motion.div>
@@ -639,7 +637,7 @@ export const SentencePractice = () => {
                   type="button"
                   onClick={handlePrevSentence}
                   disabled={currentPlayingIndex <= 0}
-                  className="btn btn-circle btn-ghost btn-lg disabled:opacity-30"
+                  className="btn btn-circle btn-ghost btn-lg disabled:opacity-30 active:scale-[0.98]"
                   title="上一句"
                 >
                   <svg
@@ -662,7 +660,7 @@ export const SentencePractice = () => {
                 <button
                   type="button"
                   onClick={handlePlayAll}
-                  className="btn btn-circle btn-warning btn-xl shadow-xl"
+                  className="btn btn-circle btn-warning btn-xl shadow-floating active:scale-[0.98]"
                   title="停止播放"
                 >
                   <svg
@@ -680,7 +678,7 @@ export const SentencePractice = () => {
                   type="button"
                   onClick={handleNextSentence}
                   disabled={currentPlayingIndex >= sentences.length - 1}
-                  className="btn btn-circle btn-ghost btn-lg disabled:opacity-30"
+                  className="btn btn-circle btn-ghost btn-lg disabled:opacity-30 active:scale-[0.98]"
                   title="下一句"
                 >
                   <svg
@@ -708,7 +706,7 @@ export const SentencePractice = () => {
         <button
           type="button"
           onClick={handlePlayAll}
-          className="fixed bottom-6 right-6 btn btn-circle btn-lg btn-warning shadow-2xl z-40 sm:hidden"
+          className="fixed bottom-6 right-6 btn btn-circle btn-lg btn-warning shadow-floating z-40 sm:hidden active:scale-[0.98]"
           title="停止播放"
         >
           <svg

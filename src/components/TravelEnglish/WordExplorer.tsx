@@ -57,14 +57,14 @@ export function WordExplorer({ scene, onBack, speak, travelProgress }: WordExplo
         >
           🎉
         </motion.span>
-        <p className="text-2xl font-bold">太棒了！</p>
-        <p className="text-base-content/60">你學會了所有單字！</p>
-        <p className="text-sm text-base-content/40">
+        <p className="text-2xl sm:text-3xl font-semibold tracking-tight">太棒了！</p>
+        <p className="text-muted-foreground">你學會了所有單字！</p>
+        <p className="text-sm text-muted-foreground">
           You learned all {vocab.length} words!
         </p>
         <button
           type="button"
-          className="btn btn-primary min-h-[44px] mt-4"
+          className="btn btn-primary min-h-[44px] mt-4 active:scale-[0.98]"
           onClick={onBack}
         >
           ← 返回任務
@@ -79,13 +79,13 @@ export function WordExplorer({ scene, onBack, speak, travelProgress }: WordExplo
       <div className="flex items-center justify-between">
         <button
           type="button"
-          className="btn btn-ghost btn-sm gap-1.5 min-h-[44px]"
+          className="btn btn-ghost btn-sm gap-1.5 min-h-[44px] active:scale-[0.98]"
           onClick={onBack}
         >
           <ArrowLeft className="w-4 h-4" />
           返回
         </button>
-        <span className="text-sm text-base-content/60">
+        <span className="pill text-sm text-muted-foreground">
           {currentIndex + 1} / {vocab.length} 單字
         </span>
       </div>
@@ -93,7 +93,7 @@ export function WordExplorer({ scene, onBack, speak, travelProgress }: WordExplo
       {/* Progress bar */}
       <div className="w-full h-2 bg-base-200 rounded-full overflow-hidden">
         <motion.div
-          className="h-full bg-gradient-to-r from-blue-400 to-blue-600 rounded-full"
+          className="h-full bg-gradient-to-r from-primary to-accent rounded-full"
           animate={{ width: `${((currentIndex + 1) / vocab.length) * 100}%` }}
           transition={{ duration: 0.3 }}
         />
@@ -114,14 +114,14 @@ export function WordExplorer({ scene, onBack, speak, travelProgress }: WordExplo
                 animate={{ rotateY: 0, opacity: 1 }}
                 exit={{ rotateY: -180, opacity: 0 }}
                 transition={{ duration: 0.4 }}
-                className={`flex flex-col items-center justify-center gap-3 p-6 rounded-[16px] border border-black/5 dark:border-white/10 shadow-lg min-h-[280px] ${scene.colorClass}`}
+                className={`flex flex-col items-center justify-center gap-3 p-6 rounded-2xl border border-border-hairline shadow-elevated min-h-[280px] ${scene.colorClass}`}
               >
                 <span className="text-5xl">{current.emoji}</span>
                 <p className="text-3xl font-bold mt-2">{current.word}</p>
                 {current.phonetic && (
-                  <p className="text-sm text-base-content/50">[{current.phonetic}]</p>
+                  <p className="text-sm text-muted-foreground">[{current.phonetic}]</p>
                 )}
-                <p className="text-xs text-base-content/40 mt-4">
+                <p className="text-xs text-muted-foreground mt-4">
                   👆 Tap to flip
                 </p>
               </motion.div>
@@ -132,7 +132,7 @@ export function WordExplorer({ scene, onBack, speak, travelProgress }: WordExplo
                 animate={{ rotateY: 0, opacity: 1 }}
                 exit={{ rotateY: 180, opacity: 0 }}
                 transition={{ duration: 0.4 }}
-                className="flex flex-col items-center justify-center gap-3 p-6 rounded-[16px] border border-black/5 dark:border-white/10 shadow-lg bg-base-100 min-h-[280px]"
+                className="surface-card flex flex-col items-center justify-center gap-3 p-6 rounded-2xl shadow-elevated min-h-[280px]"
               >
                 <p className="text-2xl font-semibold">{current.chinese}</p>
                 {current.example && (
@@ -142,7 +142,7 @@ export function WordExplorer({ scene, onBack, speak, travelProgress }: WordExplo
                     </p>
                     <button
                       type="button"
-                      className="btn btn-ghost btn-sm mt-2 min-h-[44px]"
+                      className="btn btn-ghost btn-sm mt-2 min-h-[44px] active:scale-[0.98]"
                       onClick={(e) => {
                         e.stopPropagation();
                         speak(current.example!);
@@ -165,7 +165,7 @@ export function WordExplorer({ scene, onBack, speak, travelProgress }: WordExplo
           <div
             key={i}
             className={`w-2 h-2 rounded-full transition-colors ${
-              i === currentIndex ? "bg-blue-500" : "bg-base-300"
+              i === currentIndex ? "bg-primary" : "bg-base-300"
             }`}
           />
         ))}
@@ -175,7 +175,7 @@ export function WordExplorer({ scene, onBack, speak, travelProgress }: WordExplo
       <div className="flex justify-between items-center px-4">
         <button
           type="button"
-          className="btn btn-ghost btn-sm min-h-[44px]"
+          className="btn btn-ghost btn-sm min-h-[44px] active:scale-[0.98]"
           onClick={goPrev}
           disabled={currentIndex === 0}
         >
@@ -183,7 +183,7 @@ export function WordExplorer({ scene, onBack, speak, travelProgress }: WordExplo
         </button>
         <button
           type="button"
-          className="btn btn-ghost btn-sm min-h-[44px]"
+          className="btn btn-ghost btn-sm min-h-[44px] active:scale-[0.98]"
           onClick={goNext}
           disabled={currentIndex === vocab.length - 1}
         >
@@ -195,14 +195,14 @@ export function WordExplorer({ scene, onBack, speak, travelProgress }: WordExplo
       <div className="flex justify-center gap-3 px-4">
         <button
           type="button"
-          className="btn btn-outline btn-sm flex-1 max-w-[180px] min-h-[44px]"
+          className="btn btn-outline btn-sm flex-1 max-w-[180px] min-h-[44px] active:scale-[0.98]"
           onClick={goNext}
         >
           😕 再看
         </button>
         <button
           type="button"
-          className="btn btn-primary btn-sm flex-1 max-w-[180px] min-h-[44px]"
+          className="btn btn-primary btn-sm flex-1 max-w-[180px] min-h-[44px] active:scale-[0.98]"
           onClick={handleKnown}
         >
           👍 我會了！
@@ -212,28 +212,28 @@ export function WordExplorer({ scene, onBack, speak, travelProgress }: WordExplo
       {/* Phrase cards */}
       {scene.phrases.length > 0 && (
         <div className="mt-8">
-          <h3 className="text-base font-semibold mb-3">
-            常用句型 <span className="text-sm font-normal text-base-content/50">Key Phrases</span>
+          <h3 className="text-lg font-semibold mb-3">
+            常用句型 <span className="text-sm font-normal text-muted-foreground">Key Phrases</span>
           </h3>
           <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
             {scene.phrases.map((phrase) => (
               <button
                 key={phrase.id}
                 type="button"
-                className="flex-shrink-0 w-64 p-3 rounded-[10px] border border-black/5 dark:border-white/10 bg-base-100 shadow-sm text-left min-h-[44px]"
+                className="surface-card flex-shrink-0 w-64 p-3 rounded-xl text-left min-h-[44px] hover:shadow-elevated active:scale-[0.98] transition-all"
                 onClick={() => speak(phrase.english)}
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <p className="text-sm font-medium">{phrase.english}</p>
-                    <p className="text-xs text-base-content/50 mt-0.5">{phrase.chinese}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{phrase.chinese}</p>
                     {phrase.situation && (
-                      <span className="inline-block mt-1 text-[10px] px-1.5 py-0.5 rounded bg-base-200 text-base-content/50">
+                      <span className="pill inline-block mt-1 text-[10px] px-1.5 py-0.5 text-muted-foreground">
                         {phrase.situation}
                       </span>
                     )}
                   </div>
-                  <Volume2 className="w-4 h-4 text-base-content/30 flex-shrink-0 mt-0.5" />
+                  <Volume2 className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-0.5" />
                 </div>
               </button>
             ))}

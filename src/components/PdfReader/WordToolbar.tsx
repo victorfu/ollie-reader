@@ -30,7 +30,7 @@ export const WordToolbar = memo(
         }}
       >
         {/* Main toolbar - using SelectionToolbar style */}
-        <div className="bg-accent text-accent-content rounded-full shadow-lg px-4 py-2 flex items-center gap-3 border border-accent/20">
+        <div className="bg-accent text-accent-content rounded-full shadow-floating px-4 py-2 flex items-center gap-3 border border-accent/20">
           {/* Speak button */}
           <button
             type="button"
@@ -116,7 +116,7 @@ export const WordToolbar = memo(
         {/* Definition result */}
         {(isLoading || definition) && (
           <div className="mt-2 w-full max-w-xs">
-            <div className="bg-base-100 rounded-xl border border-black/5 dark:border-white/10 shadow-lg p-3 animate-in slide-in-from-top-2">
+            <div className="bg-base-100 rounded-xl border border-border-hairline shadow-floating p-3 animate-in slide-in-from-top-2">
               {isLoading ? (
                 <div className="flex items-center gap-2 text-sm text-base-content/60">
                   <span className="loading loading-spinner loading-xs"></span>

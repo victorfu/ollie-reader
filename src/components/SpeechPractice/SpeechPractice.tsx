@@ -215,52 +215,58 @@ export function SpeechPractice() {
       )}
 
       {/* Header */}
-      <div className="card bg-base-100 shadow-xl mb-4">
-        <div className="card-body">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div>
-              <h1 className="text-2xl font-bold flex items-center gap-2">
-                🎤 演講練習
-              </h1>
-              <p className="text-base-content/60 mt-1">
-                選擇主題、計時練習、錄音回放，追蹤你的進步
-              </p>
-            </div>
+      <div className="surface-card rounded-2xl p-4 sm:p-5 md:p-6 mb-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight flex items-center gap-2">
+              🎤 演講練習
+            </h1>
+            <p className="text-muted-foreground mt-1">
+              選擇主題、計時練習、錄音回放，追蹤你的進步
+            </p>
+          </div>
 
-            {/* View Mode Tabs */}
-            <div className="tabs tabs-boxed">
-              <button
-                type="button"
-                className={`tab ${viewMode === "select" ? "tab-active" : ""}`}
-                onClick={() => {
-                  if (!timer.isRunning) {
-                    setViewMode("select");
-                  }
-                }}
-                disabled={timer.isRunning}
-              >
-                主題選擇
-              </button>
-              <button
-                type="button"
-                className={`tab ${viewMode === "history" ? "tab-active" : ""}`}
-                onClick={() => {
-                  if (!timer.isRunning) {
-                    setViewMode("history");
-                  }
-                }}
-                disabled={timer.isRunning}
-              >
-                練習記錄
-              </button>
-            </div>
+          {/* View Mode Tabs (segmented control) */}
+          <div className="inline-flex shrink-0 gap-1 rounded-lg bg-base-200 p-1">
+            <button
+              type="button"
+              className={`btn btn-sm border-0 ${
+                viewMode === "select"
+                  ? "bg-base-100 shadow-soft"
+                  : "btn-ghost bg-transparent"
+              }`}
+              onClick={() => {
+                if (!timer.isRunning) {
+                  setViewMode("select");
+                }
+              }}
+              disabled={timer.isRunning}
+            >
+              主題選擇
+            </button>
+            <button
+              type="button"
+              className={`btn btn-sm border-0 ${
+                viewMode === "history"
+                  ? "bg-base-100 shadow-soft"
+                  : "btn-ghost bg-transparent"
+              }`}
+              onClick={() => {
+                if (!timer.isRunning) {
+                  setViewMode("history");
+                }
+              }}
+              disabled={timer.isRunning}
+            >
+              練習記錄
+            </button>
           </div>
         </div>
       </div>
 
       {/* Main Content */}
-      <div className="card bg-base-100 shadow-xl">
-        <div className="card-body">
+      <div className="surface-card rounded-2xl">
+        <div className="p-4 sm:p-5 md:p-6">
           {/* Topic Selection View */}
           {viewMode === "select" && (
             <TopicSelector
@@ -277,11 +283,11 @@ export function SpeechPractice() {
           {viewMode === "practice" && selectedTopic && (
             <div className="space-y-6">
               {/* Topic Info - Compact */}
-              <div className="text-center pb-2 border-b border-base-200">
-                <h2 className="text-xl font-bold">
+              <div className="text-center pb-2 border-b border-border-hairline">
+                <h2 className="text-lg font-semibold">
                   {selectedTopic.titleChinese}
                 </h2>
-                <p className="text-sm text-base-content/60">
+                <p className="text-sm text-muted-foreground">
                   建議 {formatTime(selectedTopic.suggestedTimeSeconds)}
                 </p>
               </div>
@@ -314,7 +320,7 @@ export function SpeechPractice() {
 
               {/* Script Display - Collapsible */}
               {script && (
-                <div className="collapse collapse-arrow bg-base-200 rounded-lg">
+                <div className="collapse collapse-arrow bg-base-200 rounded-xl border border-border-hairline">
                   <input
                     type="checkbox"
                     checked={isScriptExpanded}
@@ -328,7 +334,7 @@ export function SpeechPractice() {
                   </div>
                   <div className="collapse-content">
                     <div className="prose max-w-none">
-                      <pre className="whitespace-pre-wrap font-sans text-base-content/80 bg-base-100 p-4 rounded-lg text-xl leading-relaxed">
+                      <pre className="whitespace-pre-wrap font-sans text-muted-foreground bg-base-100 p-4 rounded-lg border border-border-hairline text-xl leading-relaxed">
                         {script}
                       </pre>
                     </div>
@@ -389,7 +395,7 @@ export function SpeechPractice() {
                   <div className="flex flex-col sm:flex-row gap-3">
                     <button
                       type="button"
-                      className="btn btn-primary flex-1"
+                      className="btn btn-primary flex-1 active:scale-[0.98]"
                       onClick={handleSavePractice}
                       disabled={isSaving}
                     >
@@ -404,7 +410,7 @@ export function SpeechPractice() {
                     </button>
                     <button
                       type="button"
-                      className="btn btn-ghost flex-1"
+                      className="btn btn-ghost flex-1 active:scale-[0.98]"
                       onClick={handleCancelPractice}
                       disabled={isSaving}
                     >
@@ -431,15 +437,15 @@ export function SpeechPractice() {
       {viewMode === "practice" &&
         selectedTopic &&
         !(!timer.isRunning && timer.time > 0) && (
-          <div className="fixed bottom-0 left-0 right-0 z-50 p-4 bg-gradient-to-t from-base-100 via-base-100 to-transparent">
+          <div className="fixed bottom-0 left-0 right-0 z-50 p-4 bg-gradient-to-t from-base-100 via-base-100/90 to-transparent">
             <div className="max-w-md mx-auto">
-              <div className="bg-base-200 rounded-2xl shadow-2xl p-3 flex items-center justify-center gap-3">
+              <div className="glass rounded-2xl shadow-floating p-3 flex items-center justify-center gap-3">
                 {/* Not started yet */}
                 {!timer.isRunning && timer.time === 0 && (
                   <>
                     <button
                       type="button"
-                      className="btn btn-ghost btn-sm"
+                      className="btn btn-ghost btn-sm active:scale-[0.98]"
                       onClick={handleCancelPractice}
                     >
                       <svg
@@ -456,7 +462,7 @@ export function SpeechPractice() {
                     </button>
                     <button
                       type="button"
-                      className="btn btn-primary btn-lg gap-2 flex-1 max-w-xs"
+                      className="btn btn-primary btn-lg gap-2 flex-1 max-w-xs active:scale-[0.98]"
                       onClick={handleStart}
                     >
                       <svg
@@ -480,7 +486,7 @@ export function SpeechPractice() {
                     {timer.isPaused ? (
                       <button
                         type="button"
-                        className="btn btn-circle btn-primary btn-lg"
+                        className="btn btn-circle btn-primary btn-lg active:scale-[0.98]"
                         onClick={handleResume}
                         title="繼續"
                       >
@@ -496,7 +502,7 @@ export function SpeechPractice() {
                     ) : (
                       <button
                         type="button"
-                        className="btn btn-circle btn-warning btn-lg"
+                        className="btn btn-circle btn-warning btn-lg active:scale-[0.98]"
                         onClick={handlePause}
                         title="暫停"
                       >
@@ -514,10 +520,10 @@ export function SpeechPractice() {
                     {/* Timer Display */}
                     <div className="flex flex-col items-center min-w-[80px]">
                       <span
-                        className={`font-mono text-2xl font-bold ${
+                        className={`font-mono text-2xl font-semibold tabular-nums tracking-tight ${
                           timer.time > selectedTopic.suggestedTimeSeconds
                             ? "text-error"
-                            : ""
+                            : "text-primary"
                         }`}
                       >
                         {formatTime(timer.time)}
@@ -537,7 +543,7 @@ export function SpeechPractice() {
                     {/* Stop Button */}
                     <button
                       type="button"
-                      className="btn btn-circle btn-error btn-lg"
+                      className="btn btn-circle btn-error btn-lg active:scale-[0.98]"
                       onClick={handleStop}
                       title="結束練習"
                     >
@@ -556,7 +562,7 @@ export function SpeechPractice() {
 
               {/* Recording status indicator */}
               {!timer.isRunning && timer.time === 0 && recorder.isSupported && (
-                <p className="text-center text-xs text-base-content/50 mt-2">
+                <p className="text-center text-xs text-muted-foreground mt-2">
                   🎙️ 開始練習將自動錄音
                 </p>
               )}

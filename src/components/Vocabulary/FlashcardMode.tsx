@@ -210,8 +210,8 @@ export const FlashcardMode = ({
   if (cards.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-64">
-        <p className="text-lg text-base-content/70">沒有單字可以複習</p>
-        <button className="btn btn-primary mt-4" onClick={onClose}>
+        <p className="text-lg text-muted-foreground">沒有單字可以複習</p>
+        <button className="btn btn-primary mt-4 active:scale-[0.98]" onClick={onClose}>
           返回
         </button>
       </div>
@@ -222,29 +222,29 @@ export const FlashcardMode = ({
 
   if (isFinished) {
     return (
-      <div className="fixed inset-0 z-50 bg-base-200/95 flex items-center justify-center p-4">
-        <div className="bg-base-100 rounded-2xl shadow-xl max-w-md w-full p-8 text-center">
+      <div className="fixed inset-0 z-50 bg-base-200/80 backdrop-blur-xl flex items-center justify-center p-4">
+        <div className="glass rounded-2xl shadow-floating max-w-md w-full p-8 text-center">
           <div className="text-6xl mb-6">🎉</div>
-          <h2 className="text-2xl font-bold mb-6">複習完成！</h2>
+          <h2 className="text-2xl font-semibold tracking-tight mb-6">複習完成！</h2>
 
           {/* Stats */}
           <div className="grid grid-cols-2 gap-4 mb-8">
-            <div className="bg-success/10 rounded-xl p-4">
+            <div className="bg-success/10 border border-border-hairline rounded-xl p-4">
               <div className="text-3xl font-bold text-success">
                 {stats.remembered}
               </div>
-              <div className="text-sm text-base-content/60">記住了</div>
+              <div className="text-sm text-muted-foreground">記住了</div>
             </div>
-            <div className="bg-error/10 rounded-xl p-4">
+            <div className="bg-error/10 border border-border-hairline rounded-xl p-4">
               <div className="text-3xl font-bold text-error">
                 {stats.forgot}
               </div>
-              <div className="text-sm text-base-content/60">忘記了</div>
+              <div className="text-sm text-muted-foreground">忘記了</div>
             </div>
           </div>
 
           {/* Encouragement based on performance */}
-          <p className="text-base-content/70 mb-8">
+          <p className="text-muted-foreground mb-8">
             {totalReviewed === 0
               ? "下次試著多複習幾個單字吧！"
               : stats.remembered >= totalReviewed * 0.8
@@ -255,10 +255,10 @@ export const FlashcardMode = ({
           </p>
 
           <div className="flex gap-3">
-            <button className="btn btn-outline flex-1" onClick={onClose}>
+            <button className="btn btn-outline flex-1 active:scale-[0.98]" onClick={onClose}>
               返回列表
             </button>
-            <button className="btn btn-primary flex-1" onClick={handleRestart}>
+            <button className="btn btn-primary flex-1 active:scale-[0.98]" onClick={handleRestart}>
               再次複習
             </button>
           </div>
@@ -268,7 +268,7 @@ export const FlashcardMode = ({
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-base-200/95 flex flex-col items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 bg-base-200/80 backdrop-blur-xl flex flex-col items-center justify-center p-4">
       {/* Header */}
       <div className="absolute top-4 right-4 flex items-center gap-2">
         {/* Auto-play button */}
@@ -319,7 +319,7 @@ export const FlashcardMode = ({
       </div>
 
       {/* Progress */}
-      <div className="w-full max-w-md mb-6 flex items-center justify-between text-sm font-medium text-base-content/60">
+      <div className="w-full max-w-md mb-6 flex items-center justify-between text-sm font-medium text-muted-foreground">
         <span>進度</span>
         <span>
           {currentIndex + 1} / {cards.length}
@@ -348,15 +348,15 @@ export const FlashcardMode = ({
           style={{ transformStyle: "preserve-3d" }}
         >
           {/* Front */}
-          <div className="absolute inset-0 backface-hidden bg-base-100 rounded-2xl shadow-xl flex flex-col items-center justify-center p-8 border-2 border-base-200 overflow-hidden">
-            <span className="text-sm uppercase tracking-widest text-base-content/40 mb-4 flex-shrink-0">
+          <div className="absolute inset-0 backface-hidden glass rounded-2xl shadow-floating flex flex-col items-center justify-center p-8 overflow-hidden">
+            <span className="text-sm uppercase tracking-widest text-muted-foreground mb-4 flex-shrink-0">
               單字
             </span>
             <h2 className="text-5xl sm:text-6xl font-bold text-center mb-2 break-words w-full flex-shrink-0">
               {currentCard?.word}
             </h2>
             {currentCard?.phonetic && (
-              <p className="text-xl text-base-content/60 font-serif mb-4">
+              <p className="text-xl text-muted-foreground font-serif mb-4">
                 {currentCard.phonetic}
               </p>
             )}
@@ -438,7 +438,7 @@ export const FlashcardMode = ({
 
                 <div className="h-6 flex items-center justify-center">
                   {isListening ? (
-                    <span className="text-sm text-base-content/60 animate-pulse">
+                    <span className="text-sm text-muted-foreground animate-pulse">
                       請大聲唸出單字...
                     </span>
                   ) : showFeedback === "correct" ? (
@@ -462,11 +462,11 @@ export const FlashcardMode = ({
                       太棒了！
                     </motion.span>
                   ) : transcript ? (
-                    <span className="text-sm text-base-content/40">
+                    <span className="text-sm text-muted-foreground">
                       聽到: "{transcript}"
                     </span>
                   ) : (
-                    <span className="text-xs text-base-content/40">
+                    <span className="text-xs text-muted-foreground">
                       點擊麥克風練習發音
                     </span>
                   )}
@@ -474,7 +474,7 @@ export const FlashcardMode = ({
               </div>
             )}
 
-            <div className="mt-8 text-sm text-base-content/40 flex items-center gap-2">
+            <div className="mt-8 text-sm text-muted-foreground flex items-center gap-2">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 className="h-4 w-4"
@@ -495,11 +495,11 @@ export const FlashcardMode = ({
 
           {/* Back */}
           <div
-            className="absolute inset-0 backface-hidden bg-base-100 rounded-2xl shadow-xl flex flex-col p-8 border-2 border-primary/20 overflow-y-auto"
+            className="absolute inset-0 backface-hidden glass rounded-2xl shadow-floating flex flex-col p-8 ring-1 ring-accent/20 overflow-y-auto"
             style={{ transform: "rotateY(180deg)" }}
           >
             <div className="flex justify-between items-start mb-4">
-              <span className="text-sm uppercase tracking-widest text-primary/60">
+              <span className="text-sm uppercase tracking-widest text-accent/70">
                 釋義
               </span>
               <button
@@ -543,13 +543,13 @@ export const FlashcardMode = ({
               ))}
 
               {currentCard?.examples && currentCard.examples.length > 0 && (
-                <div className="mt-6 pt-4 border-t border-base-200">
-                  <p className="text-xs text-base-content/50 mb-2">例句</p>
+                <div className="mt-6 pt-4 border-t border-border-hairline">
+                  <p className="text-xs text-muted-foreground mb-2">例句</p>
                   <p className="italic text-base-content/80">
                     "{currentCard.examples[0].sentence}"
                   </p>
                   {currentCard.examples[0].translation && (
-                    <p className="text-sm text-base-content/60 mt-1">
+                    <p className="text-sm text-muted-foreground mt-1">
                       {currentCard.examples[0].translation}
                     </p>
                   )}
@@ -572,7 +572,7 @@ export const FlashcardMode = ({
               className="flex flex-col gap-3"
             >
               <button
-                className="btn btn-primary btn-lg w-full shadow-lg gap-2"
+                className="btn btn-primary btn-lg w-full shadow-soft gap-2 active:scale-[0.98]"
                 onClick={handleFlip}
               >
                 <svg
@@ -593,7 +593,7 @@ export const FlashcardMode = ({
               </button>
               <div className="flex gap-2 justify-center">
                 <button
-                  className="btn btn-ghost btn-sm text-base-content/50 gap-1"
+                  className="btn btn-ghost btn-sm text-muted-foreground gap-1"
                   onClick={handlePrev}
                   disabled={currentIndex === 0}
                 >
@@ -614,7 +614,7 @@ export const FlashcardMode = ({
                   上一個
                 </button>
                 <button
-                  className="btn btn-ghost btn-sm text-base-content/50 gap-1"
+                  className="btn btn-ghost btn-sm text-muted-foreground gap-1"
                   onClick={handleNextCard}
                   disabled={currentIndex === cards.length - 1}
                 >

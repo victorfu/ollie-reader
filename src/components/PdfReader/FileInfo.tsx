@@ -10,8 +10,8 @@ interface FileInfoProps {
 export const FileInfo = memo(
   ({ result, onClearCache, isClearingCache }: FileInfoProps) => {
     return (
-    <div className="rounded-xl border border-black/5 dark:border-white/10 bg-base-100/80 backdrop-blur-xl shadow-lg w-full">
-      <div className="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-black/5 dark:divide-white/10">
+    <div className="surface-card rounded-xl w-full">
+      <div className="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-border-hairline">
         {/* Filename */}
         <div className="p-4 flex items-center gap-4">
           <div className="text-primary">

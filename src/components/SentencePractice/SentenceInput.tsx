@@ -46,10 +46,10 @@ export const SentenceInput = ({
   if (!isOpen) return null;
 
   return (
-    <div className="card bg-base-100 shadow-xl mb-6">
-      <div className="card-body">
+    <div className="surface-card rounded-2xl mb-6">
+      <div className="p-4 sm:p-5 md:p-6">
         <div className="flex items-center justify-between">
-          <h2 className="card-title text-lg">
+          <h2 className="text-lg font-semibold flex items-center gap-2">
             <svg
               xmlns="http://www.w3.org/2000/svg"
               className="h-5 w-5"
@@ -70,7 +70,7 @@ export const SentenceInput = ({
             type="button"
             onClick={onClose}
             disabled={isProcessing}
-            className="btn btn-ghost btn-sm btn-circle"
+            className="btn btn-ghost btn-sm btn-circle active:scale-[0.98]"
             title="關閉"
           >
             <svg
@@ -89,7 +89,7 @@ export const SentenceInput = ({
             </svg>
           </button>
         </div>
-        <p className="text-sm text-base-content/60 mb-2">
+        <p className="text-sm text-muted-foreground mb-2">
           貼上英文段落或句子，系統會自動分句並翻譯成中文
         </p>
         <textarea
@@ -101,15 +101,15 @@ export const SentenceInput = ({
           className="textarea textarea-bordered w-full h-32 text-base"
           disabled={isProcessing}
         />
-        <div className="card-actions justify-between items-center mt-2">
-          <span className="text-xs text-base-content/50">
+        <div className="flex flex-wrap gap-2 justify-between items-center mt-3">
+          <span className="text-xs text-muted-foreground">
             按 Ctrl + Enter 快速提交，Esc 關閉
           </span>
           <button
             type="button"
             onClick={handleSubmit}
             disabled={!text.trim() || isProcessing}
-            className="btn btn-primary"
+            className="btn btn-primary active:scale-[0.98]"
           >
             {isProcessing ? (
               <>

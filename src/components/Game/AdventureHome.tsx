@@ -38,7 +38,7 @@ export function AdventureHome({
   ).length;
 
   return (
-    <div className="min-h-[calc(100vh-8rem)] flex flex-col items-center justify-center p-4">
+    <div className="min-h-[calc(100vh-8rem)] flex flex-col items-center justify-center p-4 sm:p-6">
       {/* 成就面板 */}
       {showAchievements && (
         <AchievementsPanel
@@ -49,10 +49,10 @@ export function AdventureHome({
 
       {/* 背景裝飾 - 增強可愛風格 */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none -z-10">
-        <div className="absolute top-20 left-10 w-32 h-32 bg-pink-200/40 rounded-full blur-3xl animate-pulse" />
-        <div className="absolute bottom-20 right-10 w-40 h-40 bg-purple-200/40 rounded-full blur-3xl animate-pulse" />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-yellow-100/30 rounded-full blur-3xl" />
-        <div className="absolute top-1/4 right-1/3 w-24 h-24 bg-cyan-200/30 rounded-full blur-2xl animate-pulse" />
+        <div className="absolute top-20 left-10 w-32 h-32 bg-primary/15 rounded-full blur-3xl animate-pulse" />
+        <div className="absolute bottom-20 right-10 w-40 h-40 bg-secondary/15 rounded-full blur-3xl animate-pulse" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-warning/10 rounded-full blur-3xl" />
+        <div className="absolute top-1/4 right-1/3 w-24 h-24 bg-accent/10 rounded-full blur-2xl animate-pulse" />
 
         {/* 飄動的可愛裝飾 */}
         {["🌸", "✨", "💫", "🌟", "💖", "🎀"].map((emoji, i) => (
@@ -83,22 +83,22 @@ export function AdventureHome({
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="card bg-base-100 shadow-xl w-full max-w-md"
+        className="surface-card rounded-2xl w-full max-w-md"
       >
         <div className="card-body items-center text-center">
           {/* 標題 */}
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
             ✨ 精靈探險 ✨
           </h1>
-          <p className="text-base-content/70 text-sm">
+          <p className="text-muted-foreground text-sm">
             收集單字精靈，成為最強的語言大師！
           </p>
 
           {/* 玩家資訊 */}
-          <div className="w-full mt-4 p-4 bg-base-200 rounded-xl">
+          <div className="w-full mt-4 p-4 bg-base-200/60 rounded-xl border border-border-hairline">
             <div className="flex items-center justify-between mb-2">
               <span className="text-sm font-medium">等級 {progress.level}</span>
-              <span className="text-xs text-base-content/60">
+              <span className="text-xs text-muted-foreground">
                 {expInCurrentLevel} / {expNeededForLevel} EXP
               </span>
             </div>
@@ -115,23 +115,23 @@ export function AdventureHome({
 
             {/* 統計數據 */}
             <div className="grid grid-cols-3 gap-2 mt-4 text-center">
-              <div className="p-2 bg-base-100 rounded-lg">
+              <div className="p-2 bg-base-100/70 rounded-lg border border-border-hairline">
                 <div className="text-lg font-bold text-primary">
                   {progress.unlockedSpiritIds.length}
                 </div>
-                <div className="text-xs text-base-content/60">精靈</div>
+                <div className="text-xs text-muted-foreground">精靈</div>
               </div>
-              <div className="p-2 bg-base-100 rounded-lg">
+              <div className="p-2 bg-base-100/70 rounded-lg border border-border-hairline">
                 <div className="text-lg font-bold text-secondary">
                   {progress.totalQuizCompleted}
                 </div>
-                <div className="text-xs text-base-content/60">通關</div>
+                <div className="text-xs text-muted-foreground">通關</div>
               </div>
-              <div className="p-2 bg-base-100 rounded-lg">
+              <div className="p-2 bg-base-100/70 rounded-lg border border-border-hairline">
                 <div className="text-lg font-bold text-accent">
                   {progress.highestCombo}
                 </div>
-                <div className="text-xs text-base-content/60">最高連擊</div>
+                <div className="text-xs text-muted-foreground">最高連擊</div>
               </div>
             </div>
           </div>
@@ -156,7 +156,7 @@ export function AdventureHome({
                 );
               })}
               {progress.unlockedSpiritIds.length > 3 && (
-                <div className="w-12 h-12 rounded-full bg-base-200 flex items-center justify-center text-sm font-medium text-base-content/60">
+                <div className="w-12 h-12 rounded-full bg-base-200/70 border border-border-hairline flex items-center justify-center text-sm font-medium text-muted-foreground">
                   +{progress.unlockedSpiritIds.length - 3}
                 </div>
               )}
@@ -169,7 +169,7 @@ export function AdventureHome({
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
               onClick={onStartAdventure}
-              className="btn btn-primary btn-lg w-full gap-2 shadow-lg shadow-primary/30"
+              className="btn btn-primary btn-lg w-full gap-2 shadow-elevated active:scale-[0.98]"
             >
               <span className="text-xl">🗺️</span>
               開始冒險
@@ -211,7 +211,7 @@ export function AdventureHome({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.5 }}
-        className="text-center text-sm text-base-content/50 mt-6"
+        className="text-center text-sm text-muted-foreground mt-6"
       >
         💡 完成關卡可獲得經驗值和新精靈！
       </motion.p>

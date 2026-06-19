@@ -100,26 +100,24 @@ export function ShowSubtitlesPage() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto pb-8">
+    <div className="max-w-4xl mx-auto p-4 sm:p-5 md:p-6 space-y-6">
       {/* Header */}
-      <div className="card bg-base-100 shadow-xl mb-6">
-        <div className="card-body">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div>
-              <h1 className="text-2xl font-bold flex items-center gap-2">
-                Gabby's Dollhouse
-              </h1>
-              <p className="text-base-content/60 mt-1">
-                觀看影集字幕，學習日常英文對話
-              </p>
+      <div className="surface-card p-4 sm:p-5 md:p-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight flex items-center gap-2">
+              Gabby's Dollhouse
+            </h1>
+            <p className="text-muted-foreground mt-1">
+              觀看影集字幕，學習日常英文對話
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="badge badge-lg badge-outline gap-1">
+              {seasons.length} 季
             </div>
-            <div className="flex items-center gap-2">
-              <div className="badge badge-lg badge-outline gap-1">
-                {seasons.length} 季
-              </div>
-              <div className="badge badge-lg badge-outline gap-1">
-                {seasons.reduce((sum, s) => sum + s.episodes.length, 0)} 集
-              </div>
+            <div className="badge badge-lg badge-outline gap-1">
+              {seasons.reduce((sum, s) => sum + s.episodes.length, 0)} 集
             </div>
           </div>
         </div>
@@ -127,26 +125,23 @@ export function ShowSubtitlesPage() {
 
       {/* Season Selector */}
       {seasons.length > 0 && (
-        <div className="card bg-base-100 shadow-xl mb-6">
-          <div className="card-body">
-            <h2 className="text-lg font-bold mb-3">選擇季數</h2>
-            <SeasonSelector
-              seasonCount={seasons.length}
-              selectedSeason={selectedSeason}
-              onSelectSeason={selectSeason}
-            />
-          </div>
+        <div className="surface-card p-4 sm:p-5 md:p-6">
+          <h2 className="text-lg font-semibold mb-3">選擇季數</h2>
+          <SeasonSelector
+            seasonCount={seasons.length}
+            selectedSeason={selectedSeason}
+            onSelectSeason={selectSeason}
+          />
         </div>
       )}
 
       {/* Episode list or Transcript viewer */}
-      <div className="card bg-base-100 shadow-xl">
-        <div className="card-body" onMouseUp={handleTextSelection}>
+      <div className="surface-card p-4 sm:p-5 md:p-6" onMouseUp={handleTextSelection}>
           {selectedEpisode ? (
             <>
               <button
                 type="button"
-                className="btn btn-ghost btn-sm gap-1 self-start mb-2 -ml-2"
+                className="btn btn-ghost btn-sm gap-1 self-start mb-3 -ml-2 active:scale-[0.98]"
                 onClick={clearTranscript}
                 aria-label="返回集數列表"
               >
@@ -175,7 +170,7 @@ export function ShowSubtitlesPage() {
             </>
           ) : (
             <>
-              <h2 className="text-lg font-bold mb-3">
+              <h2 className="text-lg font-semibold mb-3">
                 Season {selectedSeason} 集數
               </h2>
               <EpisodeList
@@ -185,7 +180,6 @@ export function ShowSubtitlesPage() {
               />
             </>
           )}
-        </div>
       </div>
 
       {/* Selection toolbar */}

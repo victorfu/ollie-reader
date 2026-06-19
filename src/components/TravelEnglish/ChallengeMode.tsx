@@ -166,24 +166,24 @@ export function ChallengeMode({ scene, onBack, speak, travelProgress }: Challeng
     return (
       <div className="flex flex-col items-center justify-center gap-4 py-16 text-center">
         <span className="text-5xl">😢</span>
-        <p className="text-2xl font-bold">Game Over</p>
-        <p className="text-base-content/60">
+        <p className="text-2xl sm:text-3xl font-semibold tracking-tight">Game Over</p>
+        <p className="text-muted-foreground">
           沒關係！再試一次！
         </p>
-        <p className="text-sm text-base-content/40">
+        <p className="text-sm text-muted-foreground">
           You got {correctCount}/{total} correct
         </p>
         <div className="flex gap-3 mt-4">
           <button
             type="button"
-            className="btn btn-primary min-h-[44px]"
+            className="btn btn-primary min-h-[44px] active:scale-[0.98]"
             onClick={handleRestart}
           >
             🔄 再試一次
           </button>
           <button
             type="button"
-            className="btn btn-outline min-h-[44px]"
+            className="btn btn-outline min-h-[44px] active:scale-[0.98]"
             onClick={onBack}
           >
             ← 返回
@@ -207,7 +207,7 @@ export function ChallengeMode({ scene, onBack, speak, travelProgress }: Challeng
         >
           🎉
         </motion.span>
-        <p className="text-2xl font-bold">太棒了！Challenge Complete!</p>
+        <p className="text-2xl sm:text-3xl font-semibold tracking-tight">太棒了！Challenge Complete!</p>
         <div className="flex gap-1">
           {[1, 2, 3].map((n) => (
             <motion.div
@@ -218,35 +218,35 @@ export function ChallengeMode({ scene, onBack, speak, travelProgress }: Challeng
             >
               <Star
                 className={`w-8 h-8 ${
-                  n <= starCount ? "text-amber-400 fill-amber-400" : "text-base-content/20"
+                  n <= starCount ? "text-warning fill-warning" : "text-base-content/20"
                 }`}
               />
             </motion.div>
           ))}
         </div>
-        <p className="text-base-content/60">
+        <p className="text-muted-foreground">
           你答對了 {correctCount} / {total} 題！
         </p>
         <div className="flex gap-1">
           {Array.from({ length: lives }).map((_, i) => (
-            <Heart key={i} className="w-5 h-5 text-red-500 fill-red-500" />
+            <Heart key={i} className="w-5 h-5 text-error fill-error" />
           ))}
-          <span className="text-sm text-base-content/50 ml-1">剩餘生命</span>
+          <span className="text-sm text-muted-foreground ml-1">剩餘生命</span>
         </div>
         {starCount > 0 && (
-          <p className="text-sm text-amber-500 font-medium">🛂 獲得護照印章！</p>
+          <p className="text-sm text-warning font-medium">🛂 獲得護照印章！</p>
         )}
         <div className="flex gap-3 mt-4">
           <button
             type="button"
-            className="btn btn-outline min-h-[44px]"
+            className="btn btn-outline min-h-[44px] active:scale-[0.98]"
             onClick={handleRestart}
           >
             🔄 再玩一次
           </button>
           <button
             type="button"
-            className="btn btn-primary min-h-[44px]"
+            className="btn btn-primary min-h-[44px] active:scale-[0.98]"
             onClick={onBack}
           >
             ← 返回任務
@@ -264,7 +264,7 @@ export function ChallengeMode({ scene, onBack, speak, travelProgress }: Challeng
       <div className="flex items-center justify-between">
         <button
           type="button"
-          className="btn btn-ghost btn-sm gap-1.5 min-h-[44px]"
+          className="btn btn-ghost btn-sm gap-1.5 min-h-[44px] active:scale-[0.98]"
           onClick={onBack}
         >
           <X className="w-4 h-4" />
@@ -279,7 +279,7 @@ export function ChallengeMode({ scene, onBack, speak, travelProgress }: Challeng
             >
               <Heart
                 className={`w-5 h-5 ${
-                  i < lives ? "text-red-500 fill-red-500" : "text-base-content/20"
+                  i < lives ? "text-error fill-error" : "text-base-content/20"
                 }`}
               />
             </motion.div>
@@ -289,13 +289,13 @@ export function ChallengeMode({ scene, onBack, speak, travelProgress }: Challeng
 
       {/* Progress */}
       <div>
-        <div className="flex justify-between text-xs text-base-content/50 mb-1">
+        <div className="flex justify-between text-xs text-muted-foreground mb-1">
           <span>⭐ 挑戰</span>
           <span>{currentIdx + 1}/{total}</span>
         </div>
         <div className="w-full h-2 bg-base-200 rounded-full overflow-hidden">
           <motion.div
-            className="h-full bg-gradient-to-r from-amber-400 to-amber-600 rounded-full"
+            className="h-full bg-gradient-to-r from-warning to-warning rounded-full"
             animate={{ width: `${((currentIdx + 1) / total) * 100}%` }}
             transition={{ duration: 0.3 }}
           />
@@ -303,14 +303,14 @@ export function ChallengeMode({ scene, onBack, speak, travelProgress }: Challeng
       </div>
 
       {/* Question card */}
-      <div className="bg-base-100 rounded-[12px] border border-black/5 dark:border-white/10 shadow-sm p-5 text-center">
+      <div className="surface-card rounded-2xl p-5 sm:p-6 text-center">
         {question.type === "listen" && (
           <>
-            <p className="text-sm font-medium text-base-content/60 mb-1">🔊 Listen and choose</p>
-            <p className="text-xs text-base-content/40 mb-4">{question.promptChinese}</p>
+            <p className="text-sm font-medium text-muted-foreground mb-1">🔊 Listen and choose</p>
+            <p className="text-xs text-muted-foreground mb-4">{question.promptChinese}</p>
             <button
               type="button"
-              className="btn btn-primary btn-lg min-h-[56px] gap-2"
+              className="btn btn-primary btn-lg min-h-[56px] gap-2 active:scale-[0.98]"
               onClick={() => question.audioText && speak(question.audioText)}
             >
               <Volume2 className="w-5 h-5" /> 播放
@@ -319,33 +319,33 @@ export function ChallengeMode({ scene, onBack, speak, travelProgress }: Challeng
         )}
         {question.type === "translate" && (
           <>
-            <p className="text-xs text-base-content/40 mb-2">{question.promptChinese}</p>
+            <p className="text-xs text-muted-foreground mb-2">{question.promptChinese}</p>
             <p className="text-xl font-semibold">{question.prompt}</p>
           </>
         )}
         {question.type === "fillblank" && (
           <>
-            <p className="text-xs text-base-content/40 mb-2">Fill in the blank</p>
+            <p className="text-xs text-muted-foreground mb-2">Fill in the blank</p>
             <p className="text-lg font-medium">{question.prompt}</p>
-            <p className="text-xs text-base-content/50 mt-1">{question.promptChinese}</p>
+            <p className="text-xs text-muted-foreground mt-1">{question.promptChinese}</p>
           </>
         )}
       </div>
 
       {/* Options */}
-      <div className={`grid gap-2 ${question.options.length === 4 ? "grid-cols-2" : "grid-cols-1"}`}>
+      <div className={`grid gap-3 ${question.options.length === 4 ? "grid-cols-2" : "grid-cols-1"}`}>
         {question.options.map((option, i) => {
           const isSelected = selected === option;
           const isCorrectOption = option === question.correctAnswer;
-          let optionClass = "border-black/5 dark:border-white/10 bg-base-100 hover:shadow-md";
+          let optionClass = "surface-card hover:shadow-elevated";
 
           if (answered) {
             if (isCorrectOption) {
-              optionClass = "border-green-400 bg-green-50 dark:bg-green-900/20";
+              optionClass = "border border-success/50 bg-success/15";
             } else if (isSelected && !correct) {
-              optionClass = "border-red-400 bg-red-50 dark:bg-red-900/20";
+              optionClass = "border border-error/50 bg-error/15";
             } else {
-              optionClass = "opacity-50 border-black/5 dark:border-white/10 bg-base-100";
+              optionClass = "surface-card opacity-50";
             }
           }
 
@@ -355,7 +355,7 @@ export function ChallengeMode({ scene, onBack, speak, travelProgress }: Challeng
               type="button"
               animate={isSelected && !correct ? { x: [0, -6, 6, -3, 3, 0] } : {}}
               transition={{ duration: 0.5 }}
-              className={`p-3 rounded-[10px] border min-h-[44px] text-sm font-medium transition-all cursor-pointer active:scale-[0.98] ${optionClass}`}
+              className={`px-4 py-3.5 rounded-xl min-h-[44px] text-sm font-medium transition-all cursor-pointer active:scale-[0.98] ${optionClass}`}
               onClick={() => handleSelect(option)}
               disabled={answered}
             >
@@ -374,9 +374,9 @@ export function ChallengeMode({ scene, onBack, speak, travelProgress }: Challeng
             className="text-center"
           >
             {correct ? (
-              <p className="text-green-500 font-medium">✅ 正確！</p>
+              <p className="text-success font-medium">✅ 正確！</p>
             ) : (
-              <p className="text-red-500 font-medium">
+              <p className="text-error font-medium">
                 ❌ 正確答案: {question.correctAnswer}
               </p>
             )}

@@ -52,13 +52,13 @@ export function ReviewSettingsModal({
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
           {/* Backdrop */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="absolute inset-0 bg-black/50"
+            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
             onClick={onClose}
           />
 
@@ -67,12 +67,12 @@ export function ReviewSettingsModal({
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            className="relative bg-base-100 rounded-2xl shadow-xl w-full max-w-md overflow-hidden"
+            className="relative glass rounded-t-2xl sm:rounded-2xl shadow-floating w-full max-w-md overflow-hidden"
           >
             {/* Header */}
             <div className="p-6 pb-4">
               <div className="flex items-center justify-between mb-2">
-                <h2 className="text-xl font-bold">複習設定</h2>
+                <h2 className="text-xl font-semibold tracking-tight">複習設定</h2>
                 <button
                   className="btn btn-ghost btn-sm btn-circle"
                   onClick={onClose}
@@ -93,7 +93,7 @@ export function ReviewSettingsModal({
                   </svg>
                 </button>
               </div>
-              <p className="text-sm text-base-content/60">
+              <p className="text-sm text-muted-foreground">
                 你有 {totalWords} 個單字可以複習
               </p>
             </div>
@@ -110,17 +110,17 @@ export function ReviewSettingsModal({
                     type="button"
                     onClick={() => setMode("smart")}
                     className={`
-                      w-full p-4 rounded-xl border-2 text-left transition-all flex items-start gap-3
+                      w-full p-4 rounded-xl border text-left transition-all flex items-start gap-3 active:scale-[0.98]
                       ${mode === "smart"
-                        ? "border-primary bg-primary/10"
-                        : "border-base-300 hover:border-primary/50"
+                        ? "border-accent bg-accent-tint"
+                        : "border-border-hairline hover:border-accent/50 hover:bg-accent-tint"
                       }
                     `}
                   >
                     <span className="text-2xl">🧠</span>
                     <div>
                       <div className="font-semibold">智慧選字</div>
-                      <div className="text-xs text-base-content/60">
+                      <div className="text-xs text-muted-foreground">
                         優先選擇久未複習、容易忘記的單字
                       </div>
                     </div>
@@ -131,10 +131,10 @@ export function ReviewSettingsModal({
                     onClick={() => setMode("tag")}
                     disabled={availableTags.length === 0}
                     className={`
-                      w-full p-4 rounded-xl border-2 text-left transition-all flex items-start gap-3
+                      w-full p-4 rounded-xl border text-left transition-all flex items-start gap-3 active:scale-[0.98]
                       ${mode === "tag"
-                        ? "border-primary bg-primary/10"
-                        : "border-base-300 hover:border-primary/50"
+                        ? "border-accent bg-accent-tint"
+                        : "border-border-hairline hover:border-accent/50 hover:bg-accent-tint"
                       }
                       ${availableTags.length === 0 ? "opacity-40 cursor-not-allowed" : ""}
                     `}
@@ -142,7 +142,7 @@ export function ReviewSettingsModal({
                     <span className="text-2xl">🏷️</span>
                     <div>
                       <div className="font-semibold">標籤選字</div>
-                      <div className="text-xs text-base-content/60">
+                      <div className="text-xs text-muted-foreground">
                         選擇特定標籤的所有單字
                       </div>
                     </div>
@@ -168,16 +168,16 @@ export function ReviewSettingsModal({
                           disabled={isDisabled}
                           onClick={() => setWordCount(option.value)}
                           className={`
-                            p-3 rounded-xl border-2 text-left transition-all
+                            p-3 rounded-xl border text-left transition-all active:scale-[0.98]
                             ${isSelected
-                              ? "border-primary bg-primary/10"
-                              : "border-base-300 hover:border-primary/50"
+                              ? "border-accent bg-accent-tint"
+                              : "border-border-hairline hover:border-accent/50 hover:bg-accent-tint"
                             }
                             ${isDisabled ? "opacity-40 cursor-not-allowed" : ""}
                           `}
                         >
                           <div className="font-semibold">{option.label}</div>
-                          <div className="text-xs text-base-content/60">
+                          <div className="text-xs text-muted-foreground">
                             {option.description}
                           </div>
                         </button>
@@ -212,7 +212,7 @@ export function ReviewSettingsModal({
                     ))}
                   </div>
                   {availableTags.length === 0 && (
-                    <p className="text-sm text-base-content/60">
+                    <p className="text-sm text-muted-foreground">
                       還沒有標籤，請先為單字加上標籤
                     </p>
                   )}
@@ -223,7 +223,7 @@ export function ReviewSettingsModal({
             {/* Footer */}
             <div className="p-6 pt-0">
               <button
-                className="btn btn-primary w-full gap-2 min-h-11"
+                className="btn btn-primary w-full gap-2 min-h-11 active:scale-[0.98]"
                 onClick={handleStart}
                 disabled={isLoading || !canStart}
               >
@@ -254,7 +254,7 @@ export function ReviewSettingsModal({
                 {startButtonLabel}
               </button>
               {!canStart && (
-                <p className="mt-2 text-xs text-base-content/60">
+                <p className="mt-2 text-xs text-muted-foreground">
                   {mode === "tag"
                     ? "請先選擇一個標籤再開始。"
                     : "目前生詞本為空，先加入單字後再複習。"}

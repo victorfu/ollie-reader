@@ -52,8 +52,8 @@ export function AudioUploadEditModal({
 
   return (
     <dialog className="modal modal-bottom sm:modal-middle modal-open">
-      <div className="modal-box">
-        <h3 className="font-bold text-lg mb-4">編輯音訊資訊</h3>
+      <div className="modal-box rounded-2xl border border-border-hairline shadow-floating">
+        <h3 className="text-lg font-semibold mb-4">編輯音訊資訊</h3>
 
         <form onSubmit={handleSubmit}>
           <div className="space-y-4">
@@ -65,7 +65,7 @@ export function AudioUploadEditModal({
               <input
                 id="edit-title"
                 type="text"
-                className="input input-bordered w-full"
+                className="input input-bordered w-full h-11"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="輸入音訊標題"
@@ -103,7 +103,7 @@ export function AudioUploadEditModal({
             </button>
             <button
               type="submit"
-              className="btn btn-primary"
+              className="btn btn-primary active:scale-[0.98]"
               disabled={isSaving || !title.trim()}
             >
               {isSaving ? (

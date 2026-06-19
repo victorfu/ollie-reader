@@ -15,10 +15,10 @@ export function SeasonSelector({
         <button
           key={season}
           type="button"
-          className={`btn btn-sm transition-all duration-200 ${
+          className={`btn btn-sm transition-all duration-200 active:scale-[0.98] ${
             selectedSeason === season
               ? "btn-primary"
-              : "btn-ghost bg-base-200/50 hover:bg-base-200"
+              : "btn-ghost bg-base-200/50 hover:bg-accent-tint hover:text-accent"
           }`}
           onClick={() => onSelectSeason(season)}
         >

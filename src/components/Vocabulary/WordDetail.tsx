@@ -119,13 +119,13 @@ export const WordDetail = ({
   };
 
   return (
-    <div className="modal modal-open">
-      <div className="modal-box max-w-3xl max-h-[90vh] overflow-y-auto">
+    <div className="modal modal-open modal-bottom sm:modal-middle">
+      <div className="modal-box max-w-3xl max-h-[90vh] overflow-y-auto rounded-2xl border border-border-hairline shadow-floating">
         {/* Header */}
         <div className="flex justify-between items-start mb-6">
           <div className="flex-1">
             <div className="flex items-center gap-3 mb-2">
-              <h2 className="text-4xl font-bold">{word.word}</h2>
+              <h2 className="text-3xl sm:text-4xl font-semibold tracking-tight">{word.word}</h2>
               <button
                 type="button"
                 onClick={handleSpeak}
@@ -175,7 +175,7 @@ export const WordDetail = ({
               </button>
             </div>
             {word.phonetic && (
-              <p className="text-lg text-base-content/60">{word.phonetic}</p>
+              <p className="text-lg text-muted-foreground">{word.phonetic}</p>
             )}
           </div>
           <button
@@ -241,7 +241,7 @@ export const WordDetail = ({
                 {/* Tag suggestions */}
                 {tagSuggestions.length > 0 && (
                   <div className="mt-2">
-                    <span className="text-xs text-base-content/60 mb-1 block">快速選擇：</span>
+                    <span className="text-xs text-muted-foreground mb-1 block">快速選擇：</span>
                     <div className="flex flex-wrap gap-1">
                       {tagSuggestions.slice(0, 10).map((tag) => (
                         <button
@@ -334,7 +334,7 @@ export const WordDetail = ({
             <div className="flex items-center justify-between mb-3">
               <h3 className="font-semibold text-lg">📖 定義</h3>
               <label className="flex items-center gap-2 cursor-pointer text-sm select-none">
-                <span className="text-base-content/60">顯示中文</span>
+                <span className="text-muted-foreground">顯示中文</span>
                 <input
                   type="checkbox"
                   className="toggle toggle-sm toggle-accent"
@@ -345,9 +345,9 @@ export const WordDetail = ({
             </div>
             <div className="space-y-3">
               {word.definitions.map((def, index) => (
-                <div key={index} className="pl-4 border-l-4 border-primary">
+                <div key={index} className="pl-4 border-l-4 border-accent">
                   <div className="flex justify-between items-start gap-2">
-                    <p className="font-medium text-primary capitalize mb-1">
+                    <p className="font-medium text-accent capitalize mb-1">
                       {def.partOfSpeech}
                     </p>
                     <button
@@ -376,7 +376,7 @@ export const WordDetail = ({
                     {def.definition || def.definitionChinese}
                   </p>
                   {showChineseTranslation && def.definitionChinese && def.definition && (
-                    <p className="text-base-content/60 text-sm mt-1">
+                    <p className="text-muted-foreground text-sm mt-1">
                       {def.definitionChinese}
                     </p>
                   )}
@@ -392,7 +392,7 @@ export const WordDetail = ({
             <h3 className="font-semibold text-lg mb-3">💡 例句</h3>
             <div className="space-y-3">
               {word.examples.map((example, index) => (
-                <div key={index} className="bg-base-200 p-3 rounded-lg">
+                <div key={index} className="bg-base-200/60 border border-border-hairline p-3 rounded-lg">
                   <div className="flex justify-between items-start gap-2 mb-1">
                     <p className="italic flex-1">{example.sentence}</p>
                     <button
@@ -418,7 +418,7 @@ export const WordDetail = ({
                     </button>
                   </div>
                   {example.translation && (
-                    <p className="text-sm text-base-content/60">
+                    <p className="text-sm text-muted-foreground">
                       {example.translation}
                     </p>
                   )}
@@ -429,7 +429,7 @@ export const WordDetail = ({
         )}
 
         {/* Stats */}
-        <div className="stats shadow w-full">
+        <div className="stats surface-card rounded-xl w-full">
           <div className="stat">
             <div className="stat-title">加入時間</div>
             <div className="stat-value text-lg">

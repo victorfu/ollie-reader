@@ -171,10 +171,10 @@ const WordItem = memo(
       exit={{ opacity: 0, y: -10 }}
       transition={{ duration: 0.15 }}
       onClick={onToggle}
-      className={`rounded-lg border border-black/5 dark:border-white/10 p-2.5 cursor-pointer transition-colors ${
+      className={`rounded-lg border border-border-hairline p-2.5 cursor-pointer transition-colors ${
         isExpanded
-          ? "border-l-4 border-l-accent bg-accent/5"
-          : "hover:bg-black/5 dark:hover:bg-white/10"
+          ? "border-l-4 border-l-accent bg-accent-tint"
+          : "hover:bg-base-200/60"
       }`}
     >
       {/* Compact header */}
@@ -248,16 +248,20 @@ export const VocabularyBrowserPanel = memo(
         maxSize: { width: 500, height: 600 },
       });
 
-    // Auto-focus the search input when the panel opens
+    // Auto-focus the search input when the panel opens, and reset state when it
+    // closes. The reset runs in cleanup (when isOpen flips back to false or the
+    // panel unmounts) rather than synchronously in the effect body, which avoids
+    // the cascading-render lint while keeping the same reset-on-close behaviour
+    // (clearSearch is a stable useCallback, so the effect only re-runs on isOpen).
     useEffect(() => {
-      if (isOpen) {
-        // Small delay so the panel animation can start
-        const timer = setTimeout(() => inputRef.current?.focus(), 100);
-        return () => clearTimeout(timer);
-      }
-      // Reset state when closing
-      setExpandedId(null);
-      clearSearch();
+      if (!isOpen) return;
+      // Small delay so the panel animation can start
+      const timer = setTimeout(() => inputRef.current?.focus(), 100);
+      return () => {
+        clearTimeout(timer);
+        setExpandedId(null);
+        clearSearch();
+      };
     }, [isOpen, clearSearch]);
 
     const handleToggleExpand = (wordId: string) => {
@@ -274,7 +278,7 @@ export const VocabularyBrowserPanel = memo(
           exit={{ opacity: 0, scale: 0.95 }}
           transition={{ duration: 0.2 }}
           style={{ ...panelStyle, overflow: "hidden" }}
-          className="bg-base-100/90 backdrop-blur-xl rounded-2xl border border-black/5 dark:border-white/10 shadow-xl flex flex-col"
+          className="bg-base-100/90 backdrop-blur-xl rounded-2xl border border-border-hairline shadow-floating flex flex-col"
         >
           {/* Header — draggable */}
           <div
@@ -283,7 +287,7 @@ export const VocabularyBrowserPanel = memo(
               ...dragHandleProps.style,
               cursor: isDragging ? "grabbing" : "grab",
             }}
-            className="flex items-center justify-between px-4 py-3 border-b border-black/5 dark:border-white/10 shrink-0"
+            className="flex items-center justify-between px-4 py-3 border-b border-border-hairline shrink-0"
           >
             <div className="flex items-center gap-2">
               <BookMarkedIcon className="w-4 h-4 text-accent" />
@@ -328,7 +332,7 @@ export const VocabularyBrowserPanel = memo(
           </div>
 
           {/* Search input — sticky below header */}
-          <div className="px-3 py-2 border-b border-black/5 dark:border-white/10 shrink-0">
+          <div className="px-3 py-2 border-b border-border-hairline shrink-0">
             <div className="relative">
               <SearchIcon className="w-4 h-4 text-base-content/40 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
               <input

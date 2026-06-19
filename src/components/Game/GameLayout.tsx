@@ -20,13 +20,13 @@ export function GameLayout({ children }: GameLayoutProps) {
   const particles = PARTICLES;
 
   return (
-    <div className="h-[calc(100vh-7rem)] sm:h-[calc(100vh-8rem)] w-full bg-gradient-to-b from-pink-100 via-purple-100 to-indigo-100 rounded-2xl shadow-2xl border border-pink-200 p-4 flex flex-col items-center justify-center relative overflow-hidden">
+    <div className="h-[calc(100vh-7rem)] sm:h-[calc(100vh-8rem)] w-full bg-gradient-to-b from-primary/10 via-secondary/10 to-accent/10 rounded-2xl shadow-floating border border-border-hairline p-4 sm:p-6 flex flex-col items-center justify-center relative overflow-hidden">
       {/* Background Elements - Soft pastel glows */}
-      <div className="absolute inset-0 opacity-50 pointer-events-none">
-        <div className="absolute top-10 left-10 w-32 h-32 bg-pink-300 rounded-full blur-[100px] animate-pulse" />
-        <div className="absolute bottom-10 right-10 w-40 h-40 bg-purple-300 rounded-full blur-[100px] animate-pulse delay-1000" />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-indigo-200/40 rounded-full blur-[120px]" />
-        <div className="absolute top-1/4 right-1/4 w-24 h-24 bg-yellow-200 rounded-full blur-[80px] animate-pulse delay-500" />
+      <div className="absolute inset-0 opacity-60 pointer-events-none">
+        <div className="absolute top-10 left-10 w-32 h-32 bg-primary/30 rounded-full blur-[100px] animate-pulse" />
+        <div className="absolute bottom-10 right-10 w-40 h-40 bg-secondary/30 rounded-full blur-[100px] animate-pulse delay-1000" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-accent/20 rounded-full blur-[120px]" />
+        <div className="absolute top-1/4 right-1/4 w-24 h-24 bg-warning/30 rounded-full blur-[80px] animate-pulse delay-500" />
       </div>
 
       {/* Floating Kawaii Particles */}

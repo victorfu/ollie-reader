@@ -77,7 +77,7 @@ export function RewardModal({ reward, onClaim }: RewardModalProps) {
         initial={{ scale: 0.8, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         transition={{ type: "spring", damping: 15 }}
-        className="card bg-base-100 shadow-2xl w-full max-w-md overflow-hidden"
+        className="card glass rounded-2xl shadow-floating w-full max-w-md overflow-hidden"
       >
         {/* 頂部裝飾 */}
         <div className="h-24 bg-gradient-to-r from-primary via-secondary to-accent relative overflow-hidden">
@@ -109,7 +109,7 @@ export function RewardModal({ reward, onClaim }: RewardModalProps) {
             initial={{ y: 20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             transition={{ delay: 0.3 }}
-            className="text-2xl font-bold"
+            className="text-2xl font-semibold tracking-tight"
           >
             🏆 關卡完成！
           </motion.h2>
@@ -175,7 +175,7 @@ export function RewardModal({ reward, onClaim }: RewardModalProps) {
                 </span>
               </div>
 
-              <p className="text-sm text-base-content/70 mt-3">
+              <p className="text-sm text-muted-foreground mt-3">
                 {reward.newSpirit.description}
               </p>
             </motion.div>
@@ -202,7 +202,7 @@ export function RewardModal({ reward, onClaim }: RewardModalProps) {
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             onClick={onClaim}
-            className="btn btn-primary btn-lg w-full mt-6"
+            className="btn btn-primary btn-lg w-full mt-6 shadow-elevated active:scale-[0.98]"
           >
             太棒了！繼續冒險
           </motion.button>

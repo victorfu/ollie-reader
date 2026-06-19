@@ -170,7 +170,7 @@ export function AudioUploads() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto pb-8">
+    <div className="max-w-4xl mx-auto p-4 sm:p-5 md:p-6 space-y-6">
       {/* Toast Notification */}
       {toastMessage && (
         <Toast
@@ -181,19 +181,18 @@ export function AudioUploads() {
       )}
 
       {/* Header */}
-      <div className="card bg-base-100 shadow-xl mb-6">
-        <div className="card-body">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div>
-              <h1 className="text-2xl font-bold flex items-center gap-2">
-                🎵 音訊庫
-              </h1>
-              <p className="text-base-content/60 mt-1">
-                上傳、管理和播放你的音訊檔案
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="badge badge-lg badge-outline gap-1">
+      <div className="surface-card p-4 sm:p-5 md:p-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight flex items-center gap-2">
+              🎵 音訊庫
+            </h1>
+            <p className="text-muted-foreground mt-1">
+              上傳、管理和播放你的音訊檔案
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="badge badge-lg badge-outline gap-1">
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
                   className="h-4 w-4"
@@ -210,27 +209,25 @@ export function AudioUploads() {
                 </svg>
                 {uploads.length} 個音訊
               </div>
-            </div>
           </div>
         </div>
       </div>
 
       {/* Modern Upload Area */}
-      <div className="card bg-base-100 shadow-xl mb-6 overflow-hidden">
-        <div className="card-body p-0">
-          {/* Drag & Drop Zone */}
-          <div
-            className={`relative p-4 sm:p-6 md:p-8 transition-all duration-300 ${
-              isDragging
-                ? "bg-primary/10 border-primary"
-                : selectedFile
-                ? "bg-success/5"
-                : "bg-base-200/50"
-            }`}
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
-          >
+      <div className="surface-card overflow-hidden">
+        {/* Drag & Drop Zone */}
+        <div
+          className={`relative p-4 sm:p-6 md:p-8 transition-all duration-300 ${
+            isDragging
+              ? "bg-primary/10 border-primary"
+              : selectedFile
+              ? "bg-success/5"
+              : "bg-base-200/40"
+          }`}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+        >
             {/* Hidden file input */}
             <input
               ref={fileInputRef}
@@ -249,7 +246,7 @@ export function AudioUploads() {
                   className={`mx-auto w-20 h-20 rounded-full flex items-center justify-center mb-4 transition-all duration-300 ${
                     isDragging
                       ? "bg-primary text-primary-content scale-110"
-                      : "bg-base-300 text-base-content/60"
+                      : "bg-base-300 text-muted-foreground"
                   }`}
                 >
                   <svg
@@ -270,13 +267,13 @@ export function AudioUploads() {
                 <h3 className="text-lg font-semibold mb-2">
                   {isDragging ? "放開以上傳檔案" : "拖放音訊檔案到這裡"}
                 </h3>
-                <p className="text-base-content/60 text-sm mb-4">
+                <p className="text-muted-foreground text-sm mb-4">
                   支援 MP3, WAV, M4A, WebM, OGG, AAC, MP4（最大 {MAX_UPLOAD_SIZE_MB}
                   MB）
                 </p>
                 <label
                   htmlFor="audio-file"
-                  className="btn btn-primary btn-outline gap-2 cursor-pointer"
+                  className="btn btn-primary btn-outline gap-2 cursor-pointer active:scale-[0.98]"
                 >
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
@@ -299,7 +296,7 @@ export function AudioUploads() {
               // File selected - show preview and title input
               <div className="w-full sm:max-w-lg mx-auto">
                 {/* File Preview Card */}
-                <div className="bg-base-100 rounded-2xl p-4 shadow-lg border border-base-300 mb-4">
+                <div className="glass rounded-2xl p-4 shadow-elevated mb-4">
                   <div className="flex items-center gap-4">
                     {/* Audio Icon */}
                     <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center flex-shrink-0">
@@ -323,7 +320,7 @@ export function AudioUploads() {
                       <p className="font-medium truncate">
                         {selectedFile.name}
                       </p>
-                      <p className="text-sm text-base-content/60">
+                      <p className="text-sm text-muted-foreground">
                         {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
                       </p>
                     </div>
@@ -361,7 +358,7 @@ export function AudioUploads() {
                   <input
                     id="audio-title"
                     type="text"
-                    className="input input-bordered w-full focus:input-primary"
+                    className="input input-bordered w-full focus:input-primary h-11"
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
                     placeholder="輸入音訊標題"
@@ -372,7 +369,7 @@ export function AudioUploads() {
                 {/* Upload Button */}
                 <button
                   type="button"
-                  className="btn btn-primary w-full gap-2"
+                  className="btn btn-primary w-full gap-2 active:scale-[0.98]"
                   onClick={handleUpload}
                   disabled={uploading || !title.trim()}
                 >
@@ -403,23 +400,20 @@ export function AudioUploads() {
                 </button>
               </div>
             )}
-          </div>
         </div>
       </div>
 
       {/* Upload List */}
-      <div className="card bg-base-100 shadow-xl">
-        <div className="card-body">
-          <AudioUploadList
-            uploads={uploads}
-            loading={loading}
-            audioUrls={audioUrls}
-            onEdit={handleEdit}
-            onDelete={handleDelete}
-            onRefreshUrl={handleRefreshUrl}
-            onLoadUrl={getSignedUrl}
-          />
-        </div>
+      <div className="surface-card p-4 sm:p-5 md:p-6">
+        <AudioUploadList
+          uploads={uploads}
+          loading={loading}
+          audioUrls={audioUrls}
+          onEdit={handleEdit}
+          onDelete={handleDelete}
+          onRefreshUrl={handleRefreshUrl}
+          onLoadUrl={getSignedUrl}
+        />
       </div>
 
       {/* Edit Modal */}

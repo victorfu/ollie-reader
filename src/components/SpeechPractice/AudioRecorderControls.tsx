@@ -84,8 +84,10 @@ export function AudioRecorderControls({
                 isPaused ? "bg-warning" : "bg-error animate-pulse"
               }`}
             />
-            <span className="font-mono text-lg">{formatTime(recordingTime)}</span>
-            <span className="text-sm text-base-content/60">
+            <span className="font-mono text-lg tabular-nums">
+              {formatTime(recordingTime)}
+            </span>
+            <span className="text-sm text-muted-foreground">
               {isPaused ? "(暫停)" : "錄音中..."}
             </span>
           </div>
@@ -96,7 +98,7 @@ export function AudioRecorderControls({
           {!isRecording && !audioUrl && (
             <button
               type="button"
-              className="btn btn-primary gap-2"
+              className="btn btn-primary gap-2 active:scale-[0.98]"
               onClick={onStartRecording}
             >
               <svg
@@ -117,7 +119,7 @@ export function AudioRecorderControls({
               {isPaused ? (
                 <button
                   type="button"
-                  className="btn btn-primary gap-2"
+                  className="btn btn-primary gap-2 active:scale-[0.98]"
                   onClick={onResumeRecording}
                 >
                   <svg
@@ -133,7 +135,7 @@ export function AudioRecorderControls({
               ) : (
                 <button
                   type="button"
-                  className="btn btn-warning gap-2"
+                  className="btn btn-warning gap-2 active:scale-[0.98]"
                   onClick={onPauseRecording}
                 >
                   <svg
@@ -150,7 +152,7 @@ export function AudioRecorderControls({
 
               <button
                 type="button"
-                className="btn btn-error gap-2"
+                className="btn btn-error gap-2 active:scale-[0.98]"
                 onClick={onStopRecording}
               >
                 <svg
@@ -169,7 +171,7 @@ export function AudioRecorderControls({
           {audioUrl && !isRecording && (
             <button
               type="button"
-              className="btn btn-outline gap-2"
+              className="btn btn-outline gap-2 active:scale-[0.98]"
               onClick={onResetRecording}
             >
               <svg

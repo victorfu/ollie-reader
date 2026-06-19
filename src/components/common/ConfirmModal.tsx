@@ -55,13 +55,13 @@ export function ConfirmModal({
 
   return (
     <dialog ref={modalRef} className="modal modal-bottom sm:modal-middle">
-      <div className="modal-box">
-        <h3 className="font-bold text-lg">{title}</h3>
-        <p className="py-4 text-base-content/80">{message}</p>
+      <div className="modal-box rounded-2xl border border-border-hairline shadow-floating">
+        <h3 className="text-lg font-semibold tracking-tight">{title}</h3>
+        <p className="py-4 text-muted-foreground">{message}</p>
         <div className="modal-action">
           <button
             type="button"
-            className="btn btn-ghost"
+            className="btn btn-ghost active:scale-[0.98]"
             onClick={onCancel}
             disabled={isLoading}
           >
@@ -69,7 +69,7 @@ export function ConfirmModal({
           </button>
           <button
             type="button"
-            className={`btn ${confirmButtonClass}`}
+            className={`btn ${confirmButtonClass} active:scale-[0.98]`}
             onClick={onConfirm}
             disabled={isLoading}
           >

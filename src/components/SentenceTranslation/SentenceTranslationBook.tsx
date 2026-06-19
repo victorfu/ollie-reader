@@ -173,7 +173,7 @@ export const SentenceTranslationBook = ({ embedded = false, onCountChange }: Sen
             <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">
               句子翻譯
             </h1>
-            <p className="text-sm text-base-content/60 mt-1">
+            <p className="text-sm text-muted-foreground mt-1">
               {sentences.length} 個已翻譯句子
             </p>
           </div>
@@ -181,7 +181,7 @@ export const SentenceTranslationBook = ({ embedded = false, onCountChange }: Sen
       )}
 
       {/* Manual sentence input */}
-      <div className="bg-base-100 rounded-lg shadow p-3 mb-4 flex flex-wrap gap-3 items-center">
+      <div className="surface-card rounded-xl p-3 mb-4 flex flex-wrap gap-3 items-center">
         <form
           className="flex flex-1 min-w-0 gap-2 items-center"
           onSubmit={handleManualSubmit}
@@ -190,7 +190,7 @@ export const SentenceTranslationBook = ({ embedded = false, onCountChange }: Sen
             id={manualSentenceFieldId}
             type="text"
             placeholder="手動輸入英文句子"
-            className="input input-bordered input-sm flex-1 min-w-[12rem]"
+            className="input input-bordered flex-1 min-w-[12rem]"
             value={manualSentence}
             onChange={(e) => setManualSentence(e.target.value)}
             disabled={isSubmittingManualSentence}
@@ -198,7 +198,7 @@ export const SentenceTranslationBook = ({ embedded = false, onCountChange }: Sen
           />
           <button
             type="submit"
-            className="btn btn-primary btn-sm"
+            className="btn btn-primary active:scale-[0.98]"
             disabled={
               isSubmittingManualSentence || manualSentence.trim().length === 0
             }
@@ -217,7 +217,7 @@ export const SentenceTranslationBook = ({ embedded = false, onCountChange }: Sen
         <div className="relative">
           <svg
             xmlns="http://www.w3.org/2000/svg"
-            className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-base-content/40"
+            className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -232,7 +232,7 @@ export const SentenceTranslationBook = ({ embedded = false, onCountChange }: Sen
           <input
             type="text"
             placeholder="搜尋句子..."
-            className="input input-bordered w-full pl-10 bg-base-100/50"
+            className="input input-bordered w-full pl-10"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
@@ -248,20 +248,20 @@ export const SentenceTranslationBook = ({ embedded = false, onCountChange }: Sen
         <div className="text-center py-20">
           <div className="text-6xl mb-4">📝</div>
           <h3 className="text-xl font-semibold mb-2">還沒有翻譯過的句子</h3>
-          <p className="text-base-content/60">
+          <p className="text-muted-foreground">
             在閱讀器中選取句子並點擊翻譯，句子就會自動儲存在這裡
           </p>
         </div>
       ) : filteredSentences.length === 0 ? (
         <div className="text-center py-20">
           <div className="text-4xl mb-4">🔍</div>
-          <p className="text-base-content/60">找不到符合的句子</p>
+          <p className="text-muted-foreground">找不到符合的句子</p>
         </div>
       ) : (
         <div className="space-y-8">
           {dateKeys.map((date) => (
             <div key={date}>
-              <h2 className="text-sm font-medium text-base-content/50 mb-3 sticky top-14 bg-base-200/95 backdrop-blur-sm py-2 -mx-2 px-2 z-10">
+              <h2 className="text-sm font-medium text-muted-foreground mb-3 sticky top-14 toolbar rounded-lg py-2 -mx-2 px-2 z-10">
                 {date}
               </h2>
               <div className="space-y-3">
@@ -273,7 +273,7 @@ export const SentenceTranslationBook = ({ embedded = false, onCountChange }: Sen
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, scale: 0.95 }}
-                      className="card bg-base-100 border border-black/5 dark:border-white/10 shadow-sm"
+                      className="card surface-card rounded-xl"
                     >
                       <div className="card-body p-4">
                         {/* English */}
@@ -326,13 +326,13 @@ export const SentenceTranslationBook = ({ embedded = false, onCountChange }: Sen
                         </div>
 
                         {/* Chinese translation */}
-                        <p className="text-sm text-base-content/70 pl-11">
+                        <p className="text-sm text-muted-foreground pl-11">
                           {sentence.chinese}
                         </p>
 
                         {/* Source PDF */}
                         {sentence.sourcePdfName && (
-                          <p className="text-xs text-base-content/40 pl-11 mt-1">
+                          <p className="text-xs text-muted-foreground pl-11 mt-1">
                             來源：{sentence.sourcePdfName}
                           </p>
                         )}

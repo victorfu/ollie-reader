@@ -48,7 +48,7 @@ export function BattleScene({ player, monster, feedback }: BattleSceneProps) {
           {/* Wizard Container */}
           <div className="relative w-24 h-24 sm:w-36 sm:h-36 lg:w-44 lg:h-44">
             {/* Glow Effect */}
-            <div className="absolute inset-0 bg-gradient-to-b from-pink-300/40 to-purple-300/40 rounded-full blur-2xl animate-pulse" />
+            <div className="absolute inset-0 bg-gradient-to-b from-primary/30 to-secondary/30 rounded-full blur-2xl animate-pulse" />
 
             {/* Main Character */}
             <div className="relative z-10 flex flex-col items-center justify-center h-full">
@@ -86,7 +86,7 @@ export function BattleScene({ player, monster, feedback }: BattleSceneProps) {
             <motion.div
               initial={{ opacity: 1, y: 0, scale: 0.5 }}
               animate={{ opacity: 0, y: -60, scale: 1.5 }}
-              className="absolute -top-8 left-1/2 -translate-x-1/2 text-3xl sm:text-5xl font-black text-pink-500"
+              className="absolute -top-8 left-1/2 -translate-x-1/2 text-3xl sm:text-5xl font-black text-primary"
               style={{ textShadow: "2px 2px 0 #fff, -2px -2px 0 #fff" }}
             >
               💫
@@ -95,7 +95,7 @@ export function BattleScene({ player, monster, feedback }: BattleSceneProps) {
         </motion.div>
 
         {/* Name Tag */}
-        <div className="text-slate-700 font-bold text-sm sm:text-lg bg-gradient-to-r from-pink-200/90 to-purple-200/90 px-3 py-1 sm:px-4 sm:py-1.5 rounded-full backdrop-blur-md border border-pink-300/50 shadow-lg">
+        <div className="text-foreground font-semibold text-sm sm:text-lg glass px-3 py-1 sm:px-4 sm:py-1.5 rounded-full shadow-elevated">
           ✨ {player.name}
         </div>
       </div>
@@ -104,7 +104,7 @@ export function BattleScene({ player, monster, feedback }: BattleSceneProps) {
       <motion.div
         animate={{ scale: [1, 1.1, 1], rotate: [0, 5, -5, 0] }}
         transition={{ repeat: Infinity, duration: 2 }}
-        className="hidden sm:flex text-pink-300/50 text-4xl lg:text-6xl font-black absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none"
+        className="hidden sm:flex text-primary/40 text-4xl lg:text-6xl font-black absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none"
       >
         ⭐
       </motion.div>
@@ -125,13 +125,13 @@ export function BattleScene({ player, monster, feedback }: BattleSceneProps) {
               initial={{ scale: 0, opacity: 0, y: 10 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
-              className="bg-gradient-to-br from-white to-pink-50 text-slate-800 px-4 py-2 sm:px-6 sm:py-4 rounded-2xl shadow-[0_8px_30px_rgba(236,72,153,0.2)] border-4 border-pink-300 text-center relative"
+              className="glass text-foreground px-4 py-2 sm:px-6 sm:py-4 rounded-2xl shadow-floating border-4 border-primary/40 text-center relative"
             >
               <h3 className="text-xl sm:text-3xl lg:text-4xl font-black tracking-wide">
                 {monster.word}
               </h3>
               {/* Speech Bubble Tail */}
-              <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[12px] border-r-[12px] border-t-[12px] border-l-transparent border-r-transparent border-t-pink-300"></div>
+              <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[12px] border-r-[12px] border-t-[12px] border-l-transparent border-r-transparent border-t-primary/40"></div>
             </motion.div>
 
             {/* Monster Character */}
@@ -150,7 +150,7 @@ export function BattleScene({ player, monster, feedback }: BattleSceneProps) {
             >
               <div className="w-24 h-24 sm:w-36 sm:h-36 lg:w-44 lg:h-44 flex items-center justify-center">
                 {/* Glow Effect */}
-                <div className="absolute inset-0 bg-gradient-to-b from-pink-300/30 to-purple-300/30 rounded-full blur-2xl" />
+                <div className="absolute inset-0 bg-gradient-to-b from-secondary/30 to-accent/30 rounded-full blur-2xl" />
 
                 {/* Monster Emoji */}
                 <span className="text-6xl sm:text-8xl lg:text-9xl relative z-10 filter drop-shadow-lg">
@@ -171,7 +171,7 @@ export function BattleScene({ player, monster, feedback }: BattleSceneProps) {
             </motion.div>
 
             {/* Monster Name Tag */}
-            <div className="text-slate-700 font-bold text-sm sm:text-lg bg-gradient-to-r from-pink-200/90 to-purple-200/90 px-3 py-1 sm:px-4 sm:py-1.5 rounded-full backdrop-blur-md border border-pink-300/50 shadow-lg">
+            <div className="text-foreground font-semibold text-sm sm:text-lg glass px-3 py-1 sm:px-4 sm:py-1.5 rounded-full shadow-elevated">
               {monster.name}
             </div>
           </motion.div>

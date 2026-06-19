@@ -21,7 +21,7 @@ export function GameResult({
       initial={{ opacity: 0, scale: 0.9, y: 20 }}
       animate={{ opacity: 1, scale: 1, y: 0 }}
       transition={{ type: "spring", stiffness: 200, damping: 20 }}
-      className="bg-gradient-to-br from-white/90 to-pink-50/90 backdrop-blur-2xl p-6 sm:p-8 rounded-3xl border border-pink-200 text-center max-w-sm sm:max-w-md w-full shadow-2xl"
+      className="glass p-6 sm:p-8 rounded-2xl text-center max-w-sm sm:max-w-md w-full shadow-floating"
     >
       {/* Character Animation */}
       <motion.div
@@ -37,42 +37,42 @@ export function GameResult({
       </motion.div>
 
       <h2
-        className={`text-3xl sm:text-4xl font-black mb-2 ${
+        className={`text-2xl sm:text-3xl font-semibold tracking-tight mb-2 ${
           isVictory
-            ? "bg-gradient-to-r from-pink-500 to-purple-500 bg-clip-text text-transparent"
-            : "text-purple-400"
+            ? "bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent"
+            : "text-secondary"
         }`}
       >
         {isVictory ? "太厲害了！" : "Ollie 累了..."}
       </h2>
 
-      <p className="text-slate-500 mb-6 text-base sm:text-lg">
+      <p className="text-muted-foreground mb-6 text-base sm:text-lg">
         {isVictory ? "你是最棒的小魔法師！✨" : "沒關係，我們再試一次吧！💖"}
       </p>
 
       {/* Stats Grid */}
       <div className="grid grid-cols-2 gap-3 mb-6">
-        <div className="bg-white/70 backdrop-blur-md p-3 sm:p-4 rounded-2xl border border-pink-100 shadow-sm">
-          <div className="text-xs sm:text-sm text-slate-400 mb-1">總分</div>
-          <div className="text-2xl sm:text-3xl font-bold text-slate-700">
+        <div className="surface-card p-3 sm:p-4 rounded-2xl">
+          <div className="text-xs sm:text-sm text-muted-foreground mb-1">總分</div>
+          <div className="text-2xl sm:text-3xl font-bold text-foreground">
             {stats.score}
           </div>
         </div>
-        <div className="bg-white/70 backdrop-blur-md p-3 sm:p-4 rounded-2xl border border-pink-100 shadow-sm">
-          <div className="text-xs sm:text-sm text-slate-400 mb-1">最大連擊</div>
-          <div className="text-2xl sm:text-3xl font-bold text-pink-500">
+        <div className="surface-card p-3 sm:p-4 rounded-2xl">
+          <div className="text-xs sm:text-sm text-muted-foreground mb-1">最大連擊</div>
+          <div className="text-2xl sm:text-3xl font-bold text-primary">
             💖 {stats.maxCombo}
           </div>
         </div>
-        <div className="bg-white/70 backdrop-blur-md p-3 sm:p-4 rounded-2xl border border-pink-100 shadow-sm">
-          <div className="text-xs sm:text-sm text-slate-400 mb-1">擊敗怪獸</div>
-          <div className="text-2xl sm:text-3xl font-bold text-purple-500">
+        <div className="surface-card p-3 sm:p-4 rounded-2xl">
+          <div className="text-xs sm:text-sm text-muted-foreground mb-1">擊敗怪獸</div>
+          <div className="text-2xl sm:text-3xl font-bold text-secondary">
             {stats.monstersDefeated}
           </div>
         </div>
-        <div className="bg-white/70 backdrop-blur-md p-3 sm:p-4 rounded-2xl border border-pink-100 shadow-sm">
-          <div className="text-xs sm:text-sm text-slate-400 mb-1">答對率</div>
-          <div className="text-2xl sm:text-3xl font-bold text-indigo-500">
+        <div className="surface-card p-3 sm:p-4 rounded-2xl">
+          <div className="text-xs sm:text-sm text-muted-foreground mb-1">答對率</div>
+          <div className="text-2xl sm:text-3xl font-bold text-accent">
             {stats.correctAnswers + stats.wrongAnswers > 0
               ? Math.round(
                   (stats.correctAnswers /
@@ -91,7 +91,7 @@ export function GameResult({
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.98 }}
           onClick={onRestart}
-          className="w-full py-3 sm:py-4 text-lg sm:text-xl font-bold text-white bg-gradient-to-r from-pink-400 via-purple-400 to-indigo-400 rounded-2xl shadow-lg hover:shadow-xl transition-shadow"
+          className="w-full py-3 sm:py-4 text-lg sm:text-xl font-bold text-white bg-gradient-to-r from-primary via-secondary to-accent rounded-2xl shadow-elevated hover:shadow-floating transition-shadow active:scale-[0.98]"
         >
           🎀 再玩一次
         </motion.button>
@@ -99,7 +99,7 @@ export function GameResult({
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.98 }}
           onClick={onQuit}
-          className="w-full py-3 text-base sm:text-lg font-medium text-slate-400 hover:text-slate-600 hover:bg-pink-50 rounded-2xl transition-colors"
+          className="w-full py-3 text-base sm:text-lg font-medium text-muted-foreground hover:text-foreground hover:bg-base-200/60 rounded-2xl transition-colors"
         >
           返回主選單
         </motion.button>

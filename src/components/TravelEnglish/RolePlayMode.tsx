@@ -188,8 +188,8 @@ export function RolePlayMode({ scene, onBack, speak, travelProgress }: RolePlayM
         >
           🎉
         </motion.span>
-        <p className="text-2xl font-bold">角色扮演完成！</p>
-        <p className="text-base-content/60">
+        <p className="text-2xl sm:text-3xl font-semibold tracking-tight">角色扮演完成！</p>
+        <p className="text-muted-foreground">
           你答對了 {correctCount}/{totalQuestions} 題！
         </p>
         <div className="flex gap-1">
@@ -197,7 +197,7 @@ export function RolePlayMode({ scene, onBack, speak, travelProgress }: RolePlayM
             <Star
               key={n}
               className={`w-6 h-6 ${
-                n <= starCount ? "text-amber-400 fill-amber-400" : "text-base-content/20"
+                n <= starCount ? "text-warning fill-warning" : "text-base-content/20"
               }`}
             />
           ))}
@@ -205,14 +205,14 @@ export function RolePlayMode({ scene, onBack, speak, travelProgress }: RolePlayM
         <div className="flex gap-3 mt-4">
           <button
             type="button"
-            className="btn btn-outline min-h-[44px]"
+            className="btn btn-outline min-h-[44px] active:scale-[0.98]"
             onClick={handleRestart}
           >
             🔄 再玩一次
           </button>
           <button
             type="button"
-            className="btn btn-primary min-h-[44px]"
+            className="btn btn-primary min-h-[44px] active:scale-[0.98]"
             onClick={onBack}
           >
             ← 返回任務
@@ -228,23 +228,23 @@ export function RolePlayMode({ scene, onBack, speak, travelProgress }: RolePlayM
       <div className="flex items-center justify-between">
         <button
           type="button"
-          className="btn btn-ghost btn-sm gap-1.5 min-h-[44px]"
+          className="btn btn-ghost btn-sm gap-1.5 min-h-[44px] active:scale-[0.98]"
           onClick={onBack}
         >
           <ArrowLeft className="w-4 h-4" />
           返回
         </button>
-        <span className="text-sm text-base-content/60">🎭 角色扮演</span>
+        <span className="pill text-sm text-muted-foreground">🎭 角色扮演</span>
       </div>
 
       {/* Dialogue info */}
       <div className="text-center">
         <p className="font-semibold text-sm">{dialogue.title}</p>
-        <p className="text-xs text-base-content/60">{dialogue.titleChinese}</p>
+        <p className="text-xs text-muted-foreground">{dialogue.titleChinese}</p>
       </div>
 
       {/* Chat area */}
-      <div className="bg-base-100 rounded-[12px] border border-black/5 dark:border-white/10 p-4 min-h-[200px]">
+      <div className="surface-card rounded-2xl p-4 sm:p-5 min-h-[200px]">
         <AnimatePresence>
           {visibleLines.map((line, index) => {
             const isYou = line.speaker === "A";
@@ -256,18 +256,18 @@ export function RolePlayMode({ scene, onBack, speak, travelProgress }: RolePlayM
                 transition={{ duration: 0.3 }}
                 className={`flex flex-col mb-3 ${isYou ? "items-end" : "items-start"}`}
               >
-                <span className="text-xs text-base-content/40 mb-1">
+                <span className="text-xs text-muted-foreground mb-1">
                   {getAvatar(line.role)} {line.role}
                 </span>
                 <div
-                  className={`px-4 py-2.5 max-w-[85%] ${
+                  className={`px-4 py-2.5 max-w-[85%] shadow-soft ${
                     isYou
-                      ? "bg-green-500/10 rounded-2xl rounded-br-md"
+                      ? "bg-success/10 rounded-2xl rounded-br-md"
                       : "bg-base-200 rounded-2xl rounded-bl-md"
                   }`}
                 >
                   <p className="text-sm">{line.english}</p>
-                  <p className="text-xs text-base-content/50 mt-1">{line.chinese}</p>
+                  <p className="text-xs text-muted-foreground mt-1">{line.chinese}</p>
                 </div>
               </motion.div>
             );
@@ -281,10 +281,10 @@ export function RolePlayMode({ scene, onBack, speak, travelProgress }: RolePlayM
             animate={{ x: 0, opacity: 1 }}
             className="flex flex-col items-end mb-3"
           >
-            <span className="text-xs text-base-content/40 mb-1">
+            <span className="text-xs text-muted-foreground mb-1">
               {getAvatar(currentQuestion.role)} {currentQuestion.role}
             </span>
-            <div className="px-4 py-2.5 max-w-[85%] bg-green-500/15 border border-green-500/20 rounded-2xl rounded-br-md">
+            <div className="px-4 py-2.5 max-w-[85%] bg-success/15 border border-success/20 rounded-2xl rounded-br-md shadow-soft">
               <div className="flex items-center gap-2">
                 <p className="text-sm">✅ {currentQuestion.english}</p>
                 <button
@@ -295,7 +295,7 @@ export function RolePlayMode({ scene, onBack, speak, travelProgress }: RolePlayM
                   <Volume2 className="w-3.5 h-3.5" />
                 </button>
               </div>
-              <p className="text-xs text-base-content/50 mt-1">{currentQuestion.chinese}</p>
+              <p className="text-xs text-muted-foreground mt-1">{currentQuestion.chinese}</p>
             </div>
           </motion.div>
         )}
@@ -304,7 +304,7 @@ export function RolePlayMode({ scene, onBack, speak, travelProgress }: RolePlayM
         {showChoices && !isCorrect && (
           <div className="text-center py-3">
             <p className="text-sm font-medium">🤔 你會怎麼說？</p>
-            <p className="text-xs text-base-content/50">What would you say?</p>
+            <p className="text-xs text-muted-foreground">What would you say?</p>
           </div>
         )}
       </div>
@@ -321,10 +321,10 @@ export function RolePlayMode({ scene, onBack, speak, travelProgress }: RolePlayM
                 type="button"
                 animate={isWrong ? { x: [0, -8, 8, -4, 4, 0] } : {}}
                 transition={{ duration: 0.5 }}
-                className={`w-full text-left p-3 rounded-[10px] border min-h-[44px] transition-all ${
+                className={`surface-card w-full text-left px-4 py-3.5 rounded-xl min-h-[44px] transition-all ${
                   isDisabled
-                    ? "opacity-40 cursor-not-allowed border-red-300 bg-red-50/50 dark:bg-red-900/10"
-                    : "cursor-pointer border-black/5 dark:border-white/10 bg-base-100 hover:shadow-md active:scale-[0.98]"
+                    ? "opacity-40 cursor-not-allowed border-error/40 bg-error/10"
+                    : "cursor-pointer hover:shadow-elevated active:scale-[0.98]"
                 }`}
                 onClick={() => !isDisabled && handleChoice(choice)}
                 disabled={isDisabled}
@@ -336,7 +336,7 @@ export function RolePlayMode({ scene, onBack, speak, travelProgress }: RolePlayM
             );
           })}
           {wrongAttempts > 0 && wrongAttempts < 2 && (
-            <p className="text-center text-sm text-amber-500">再試一次！Try again!</p>
+            <p className="text-center text-sm text-warning">再試一次！Try again!</p>
           )}
         </div>
       )}
@@ -347,13 +347,13 @@ export function RolePlayMode({ scene, onBack, speak, travelProgress }: RolePlayM
           <motion.p
             initial={{ scale: 0.8, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
-            className="text-lg font-bold text-green-500"
+            className="text-lg font-bold text-success"
           >
             🎉 {wrongAttempts < 2 ? "正確！Great job!" : "答案揭曉！"}
           </motion.p>
           <button
             type="button"
-            className="btn btn-primary min-h-[44px]"
+            className="btn btn-primary min-h-[44px] active:scale-[0.98]"
             onClick={handleContinue}
           >
             繼續 →

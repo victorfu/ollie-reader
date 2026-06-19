@@ -19,14 +19,14 @@ export function JourneyMap({ onSelectScene, travelProgress, passportOpen, setPas
   return (
     <>
       {/* Sticky Header */}
-      <div className="sticky top-14 z-20 bg-base-100/90 backdrop-blur-md border-b border-black/5 dark:border-white/10 -mx-2 px-4 py-3 sm:-mx-4">
+      <div className="toolbar sticky top-14 z-20 -mx-4 px-4 py-3 sm:-mx-6 sm:px-6">
         <div className="flex items-center justify-between">
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight">
+          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">
             🌏 新加坡冒險
           </h1>
           <button
             type="button"
-            className="btn btn-ghost btn-sm gap-1.5 min-h-[44px]"
+            className="btn btn-ghost btn-sm gap-1.5 min-h-[44px] active:scale-[0.98]"
             onClick={() => setPassportOpen(true)}
             aria-label="打開護照"
           >
@@ -36,13 +36,13 @@ export function JourneyMap({ onSelectScene, travelProgress, passportOpen, setPas
         </div>
         {/* Progress bar */}
         <div className="mt-2">
-          <div className="flex items-center justify-between text-xs text-base-content/50 mb-1">
+          <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
             <span>探索進度</span>
             <span>{overall.percentage}%</span>
           </div>
           <div className="w-full h-2 bg-base-200 rounded-full overflow-hidden">
             <motion.div
-              className="h-full bg-gradient-to-r from-blue-400 to-blue-600 rounded-full"
+              className="h-full bg-gradient-to-r from-primary to-accent rounded-full"
               initial={{ width: 0 }}
               animate={{ width: `${overall.percentage}%` }}
               transition={{ duration: 0.5, ease: "easeOut" }}
@@ -58,7 +58,7 @@ export function JourneyMap({ onSelectScene, travelProgress, passportOpen, setPas
             <h2 className="flex items-center gap-2 text-lg font-semibold mb-4">
               <span className="text-xl">{section.emoji}</span>
               <span>{section.titleChinese}</span>
-              <span className="text-sm text-base-content/40 font-normal">
+              <span className="text-sm text-muted-foreground font-normal">
                 {section.title}
               </span>
             </h2>
@@ -76,17 +76,17 @@ export function JourneyMap({ onSelectScene, travelProgress, passportOpen, setPas
                     whileHover={{ y: -2 }}
                     whileTap={{ scale: 0.96 }}
                     transition={{ duration: 0.15 }}
-                    className={`group w-full text-left rounded-[10px] border shadow-sm hover:shadow-md transition-shadow cursor-pointer p-4 ${
+                    className={`group surface-card w-full text-left rounded-xl hover:shadow-elevated transition-shadow cursor-pointer p-4 ${
                       isCompleted
-                        ? "border-amber-300/50 bg-amber-50/30 dark:bg-amber-900/10 dark:border-amber-500/20"
-                        : "border-black/5 dark:border-white/10 bg-base-100"
+                        ? "border-warning/30 bg-warning/10"
+                        : ""
                     } ${index % 2 === 1 ? "lg:transform-none ml-auto mr-0 sm:ml-auto sm:mr-0 lg:ml-0" : "mr-auto ml-0 lg:mr-0"}`}
                     style={{ maxWidth: "85%" }}
                     onClick={() => onSelectScene(scene.id)}
                   >
                     <div className="flex items-center gap-3">
                       <span
-                        className={`flex-shrink-0 w-12 h-12 rounded-[10px] flex items-center justify-center text-2xl ${scene.colorClass}`}
+                        className={`flex-shrink-0 w-12 h-12 rounded-xl flex items-center justify-center text-2xl shadow-elevated ${scene.colorClass}`}
                       >
                         {scene.emoji}
                       </span>
@@ -94,7 +94,7 @@ export function JourneyMap({ onSelectScene, travelProgress, passportOpen, setPas
                         <h3 className="text-sm font-semibold leading-tight truncate">
                           {scene.title}
                         </h3>
-                        <p className="text-xs text-base-content/60 mt-0.5 truncate">
+                        <p className="text-xs text-muted-foreground mt-0.5 truncate">
                           {scene.titleChinese}
                         </p>
                         {/* Stars */}
@@ -104,7 +104,7 @@ export function JourneyMap({ onSelectScene, travelProgress, passportOpen, setPas
                               key={n}
                               className={`w-3.5 h-3.5 ${
                                 n <= stars
-                                  ? "text-amber-400 fill-amber-400"
+                                  ? "text-warning fill-warning"
                                   : "text-base-content/20"
                               }`}
                             />

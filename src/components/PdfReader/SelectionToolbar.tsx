@@ -38,7 +38,7 @@ export const SelectionToolbar = memo(
 
   return (
     <div className={containerClasses} style={containerStyle}>
-      <div className="bg-accent text-accent-content rounded-full shadow-lg px-6 py-3 flex items-center gap-3 border border-accent/20">
+      <div className="bg-accent text-accent-content rounded-full shadow-floating px-6 py-3 flex items-center gap-3 border border-accent/20">
         <div className="flex gap-2">
           {/* Speak button */}
           <button

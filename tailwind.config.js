@@ -1,39 +1,7 @@
 /** @type {import('tailwindcss').Config} */
+// Tailwind v4 + DaisyUI v5. Design tokens, theme colours, the `dark` variant and
+// custom utilities are all defined in `src/index.css` (via `@theme`, `@plugin
+// "daisyui/theme"` and `@custom-variant`). This file only declares content sources.
 export default {
-  content: [
-    "./index.html",
-    "./src/**/*.{js,ts,jsx,tsx}",
-  ],
-  theme: {
-    extend: {
-      colors: {
-        background: "var(--background)",
-        "sidebar-bg": "var(--sidebar-bg)",
-        card: "var(--card)",
-        accent: "var(--accent)",
-        destructive: "var(--destructive)",
-        success: "var(--success)",
-        "border-hairline": "var(--border-hairline)",
-      },
-      borderRadius: {
-        sm: "var(--radius-sm)",
-        md: "var(--radius-md)",
-        lg: "var(--radius-lg)",
-        xl: "var(--radius-xl)",
-        "2xl": "var(--radius-2xl)",
-      },
-      transitionDuration: {
-        fast: "var(--duration-fast)",
-        normal: "var(--duration-normal)",
-        slow: "var(--duration-slow)",
-      },
-      backdropBlur: {
-        glass: "20px",
-      },
-      backdropSaturate: {
-        glass: "180%",
-      },
-    },
-  },
-  plugins: [],
-}
+  content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx}"],
+};

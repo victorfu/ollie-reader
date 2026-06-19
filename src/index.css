@@ -1,46 +1,319 @@
 @import "tailwindcss";
 @plugin "daisyui";
 
-/* Design System Tokens - CLAUDE.md 規範 */
+/* Drive Tailwind's `dark:` variant from the `.dark` class (set by ThemeContext)
+   instead of the OS media query, so an explicit theme toggle flips everything. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ============================================================
+   DaisyUI v5 themes — macOS HIG "Liquid Glass" palette (OKLCH)
+   These drive every DaisyUI component (btn, card, modal, input,
+   badge, menu, alert, dropdown, tabs, toggle…) app-wide.
+   Switched via `data-theme` on <html>.
+   ============================================================ */
+@plugin "daisyui/theme" {
+  name: "ollielight";
+  default: true;
+  prefersdark: false;
+  color-scheme: light;
+
+  --color-base-100: oklch(1 0 0);
+  --color-base-200: oklch(0.97 0 0);
+  --color-base-300: oklch(0.935 0 0);
+  --color-base-content: oklch(0.18 0.01 256);
+
+  --color-primary: oklch(0.6 0.2 250); /* macOS blue */
+  --color-primary-content: oklch(1 0 0);
+  --color-secondary: oklch(0.62 0.19 280);
+  --color-secondary-content: oklch(1 0 0);
+  --color-accent: oklch(0.6 0.2 250);
+  --color-accent-content: oklch(1 0 0);
+  --color-neutral: oklch(0.3 0.01 256);
+  --color-neutral-content: oklch(0.98 0 0);
+
+  --color-info: oklch(0.6 0.2 250);
+  --color-info-content: oklch(1 0 0);
+  --color-success: oklch(0.65 0.2 145);
+  --color-success-content: oklch(1 0 0);
+  --color-warning: oklch(0.72 0.18 75);
+  --color-warning-content: oklch(0.2 0.05 80);
+  --color-error: oklch(0.577 0.245 27.325);
+  --color-error-content: oklch(1 0 0);
+
+  --radius-selector: 1rem; /* checkbox, toggle, badge */
+  --radius-field: 0.375rem; /* button, input, select, tab → 6px */
+  --radius-box: 0.625rem; /* card, modal, alert → 10px */
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 0;
+  --noise: 0;
+}
+
+@plugin "daisyui/theme" {
+  name: "olliedark";
+  default: false;
+  prefersdark: true;
+  color-scheme: dark;
+
+  --color-base-100: oklch(0.18 0 0);
+  --color-base-200: oklch(0.15 0 0);
+  --color-base-300: oklch(0.225 0 0);
+  --color-base-content: oklch(0.96 0.004 256);
+
+  --color-primary: oklch(0.65 0.22 250); /* brighter blue for dark */
+  --color-primary-content: oklch(1 0 0);
+  --color-secondary: oklch(0.67 0.2 280);
+  --color-secondary-content: oklch(1 0 0);
+  --color-accent: oklch(0.65 0.22 250);
+  --color-accent-content: oklch(1 0 0);
+  --color-neutral: oklch(0.3 0.01 256);
+  --color-neutral-content: oklch(0.98 0 0);
+
+  --color-info: oklch(0.65 0.22 250);
+  --color-info-content: oklch(1 0 0);
+  --color-success: oklch(0.68 0.2 145);
+  --color-success-content: oklch(0.12 0 0);
+  --color-warning: oklch(0.75 0.18 75);
+  --color-warning-content: oklch(0.2 0.05 80);
+  --color-error: oklch(0.62 0.24 27);
+  --color-error-content: oklch(1 0 0);
+
+  --radius-selector: 1rem;
+  --radius-field: 0.375rem;
+  --radius-box: 0.625rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 0;
+  --noise: 0;
+}
+
+/* ============================================================
+   Custom design tokens (Liquid Glass) — consumed by the app
+   shell, glass utilities and hand-polished screens.
+   Light values live in :root; dark overrides flip together
+   with DaisyUI via both `.dark` and `[data-theme="olliedark"]`.
+   ============================================================ */
 @layer base {
   :root {
-    /* 背景色 - OKLCH */
     --background: oklch(0.985 0 0);
-    --sidebar-bg: oklch(0.97 0 0 / 90%);
-    --card: oklch(1 0 0 / 70%);
+    --foreground: oklch(0.18 0.01 256);
+    --muted: oklch(0.97 0 0);
+    --muted-foreground: oklch(0.45 0.015 256);
+    --card: oklch(1 0 0 / 0.7);
+    --sidebar-bg: oklch(0.97 0 0 / 0.9);
 
-    /* 主題色 */
     --accent: oklch(0.6 0.2 250);
+    --accent-foreground: oklch(1 0 0);
+    --accent-tint: oklch(0.6 0.2 250 / 0.1);
+    --border-hairline: oklch(0 0 0 / 0.08);
+
     --destructive: oklch(0.577 0.245 27.325);
     --success: oklch(0.65 0.2 145);
+    --warning: oklch(0.72 0.18 75);
 
-    /* 邊框 */
-    --border-hairline: oklch(0 0 0 / 8%);
+    --shadow-soft: 0 1px 3px oklch(0 0 0 / 0.04), 0 1px 2px oklch(0 0 0 / 0.06);
+    --shadow-elevated: 0 4px 16px oklch(0 0 0 / 0.08),
+      0 2px 4px oklch(0 0 0 / 0.04);
+    --shadow-floating: 0 12px 40px oklch(0 0 0 / 0.12),
+      0 4px 12px oklch(0 0 0 / 0.08);
 
-    /* 圓角 */
     --radius-sm: 6px;
     --radius-md: 8px;
     --radius-lg: 10px;
     --radius-xl: 12px;
     --radius-2xl: 16px;
+    --radius-full: 9999px;
 
-    /* 動畫時長 */
     --duration-fast: 150ms;
     --duration-normal: 200ms;
     --duration-slow: 300ms;
+
+    --glass-saturate: 180%;
+    --glass-rim-top: oklch(1 0 0 / 0.4);
+    --glass-rim-bottom: oklch(1 0 0 / 0.1);
+    --glass-inner-glow: oklch(1 0 0 / 0.05);
   }
 
   .dark,
-  [data-theme="dark"] {
+  [data-theme="olliedark"] {
+    color-scheme: dark;
     --background: oklch(0.13 0 0);
-    --sidebar-bg: oklch(0.15 0 0 / 90%);
-    --card: oklch(0.18 0 0 / 70%);
+    --foreground: oklch(0.96 0.004 256);
+    --muted: oklch(0.2 0.005 256);
+    --muted-foreground: oklch(0.62 0.01 256);
+    --card: oklch(0.24 0 0 / 0.75);
+    --sidebar-bg: oklch(0.15 0 0 / 0.9);
+
     --accent: oklch(0.65 0.22 250);
-    --border-hairline: oklch(1 0 0 / 8%);
+    --accent-foreground: oklch(1 0 0);
+    --accent-tint: oklch(0.65 0.22 250 / 0.14);
+    --border-hairline: oklch(1 0 0 / 0.08);
+
+    --destructive: oklch(0.62 0.24 27);
+    --success: oklch(0.68 0.2 145);
+    --warning: oklch(0.75 0.18 75);
+
+    --shadow-soft: 0 1px 3px oklch(0 0 0 / 0.2), 0 1px 2px oklch(0 0 0 / 0.16);
+    --shadow-elevated: 0 4px 16px oklch(0 0 0 / 0.28),
+      0 2px 4px oklch(0 0 0 / 0.2);
+    --shadow-floating: 0 12px 40px oklch(0 0 0 / 0.4),
+      0 4px 12px oklch(0 0 0 / 0.28);
+
+    --glass-saturate: 120%;
+    --glass-rim-top: oklch(1 0 0 / 0.2);
+    --glass-rim-bottom: oklch(0 0 0 / 0.1);
+    --glass-inner-glow: oklch(1 0 0 / 0.03);
   }
 }
 
+/* ============================================================
+   Expose curated tokens as Tailwind v4 utilities.
+   Names intentionally avoid DaisyUI's own color namespaces
+   (base, primary, secondary, accent, neutral, info, success,
+   warning, error) so they compose rather than collide.
+   → bg-background, text-foreground, text-muted-foreground,
+     bg-card, bg-sidebar-bg, bg-accent-tint, border-border-hairline,
+     shadow-soft / shadow-elevated / shadow-floating
+   ============================================================ */
+@theme {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-card: var(--card);
+  --color-sidebar-bg: var(--sidebar-bg);
+  --color-accent-tint: var(--accent-tint);
+  --color-border-hairline: var(--border-hairline);
+
+  --shadow-soft: var(--shadow-soft);
+  --shadow-elevated: var(--shadow-elevated);
+  --shadow-floating: var(--shadow-floating);
+
+  /* macOS HIG radius scale → rounded-sm/md/lg/xl/2xl utilities */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --radius-xl: 12px;
+  --radius-2xl: 16px;
+}
+
+/* ============================================================
+   Global base styles — typography, materials, selection.
+   ============================================================ */
+@layer base {
+  :root {
+    font-family:
+      -apple-system, "SF Pro Text", "SF Pro Display", BlinkMacSystemFont,
+      "Segoe UI", system-ui, sans-serif;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background-color: var(--background);
+    background-image: radial-gradient(
+        circle at 20% 15%,
+        color-mix(in oklab, var(--accent) 4%, transparent),
+        transparent 45%
+      ),
+      radial-gradient(
+        circle at 80% 85%,
+        color-mix(in oklab, var(--success) 3%, transparent),
+        transparent 50%
+      ),
+      linear-gradient(
+        180deg,
+        var(--background),
+        color-mix(in oklab, var(--background) 98%, var(--muted))
+      );
+    color: var(--foreground);
+  }
+
+  ::selection {
+    background: var(--accent-tint);
+    color: var(--foreground);
+  }
+}
+
+/* ============================================================
+   Glass materials & component utilities (Liquid Glass).
+   ============================================================ */
+@layer components {
+  .glass {
+    background: var(--card);
+    backdrop-filter: blur(24px) saturate(var(--glass-saturate));
+    border-top: 1px solid var(--glass-rim-top);
+    border-bottom: 1px solid var(--glass-rim-bottom);
+    border-left: 1px solid var(--border-hairline);
+    border-right: 1px solid var(--border-hairline);
+    box-shadow: var(--shadow-elevated), inset 0 0 20px var(--glass-inner-glow);
+  }
+
+  .surface-card {
+    background: color-mix(in oklab, var(--card) 96%, transparent);
+    border-top: 1px solid var(--glass-rim-top);
+    border-bottom: 1px solid var(--glass-rim-bottom);
+    border-left: 1px solid var(--border-hairline);
+    border-right: 1px solid var(--border-hairline);
+    box-shadow: var(--shadow-soft), inset 0 0 12px var(--glass-inner-glow);
+    backdrop-filter: blur(16px) saturate(var(--glass-saturate));
+  }
+
+  .toolbar {
+    background: color-mix(in oklab, var(--card) 88%, transparent);
+    border-top: 1px solid var(--glass-rim-top);
+    border-bottom: 1px solid var(--glass-rim-bottom);
+    border-left: 1px solid var(--border-hairline);
+    border-right: 1px solid var(--border-hairline);
+    backdrop-filter: blur(20px) saturate(var(--glass-saturate));
+  }
+
+  .glass-panel {
+    background: color-mix(in oklab, var(--card) 94%, transparent);
+    border: 1px solid var(--border-hairline);
+    border-radius: 16px;
+    box-shadow: var(--shadow-elevated);
+    backdrop-filter: blur(20px) saturate(140%);
+    padding: 24px;
+  }
+
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    border-radius: var(--radius-full);
+    padding: 0.5rem 1rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.025em;
+    background: var(--accent-tint);
+    color: var(--foreground);
+    border: 1px solid var(--border-hairline);
+  }
+
+  .focus-ring {
+    outline: none;
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--accent) 50%, transparent),
+      0 0 0 5px color-mix(in oklab, var(--accent) 18%, transparent);
+  }
+}
+
+/* ============================================================
+   Utilities — helpers, grids, scrollbar.
+   ============================================================ */
 @layer utilities {
+  .text-secondary {
+    color: var(--muted-foreground);
+  }
+
+  .backdrop-strong {
+    backdrop-filter: blur(28px) saturate(170%);
+  }
+
   .scrollbar-hide {
     -ms-overflow-style: none;
     scrollbar-width: none;
@@ -48,55 +321,159 @@
   .scrollbar-hide::-webkit-scrollbar {
     display: none;
   }
+
+  /* Responsive card grid that wraps automatically */
+  .auto-grid {
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  }
+
+  /* Masonry-style form grid: 4 cols → 2 (tablet) → 1 (mobile) */
+  .form-grid {
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .field-xs,
+  .field-sm,
+  .field-md {
+    grid-column: span 1;
+  }
+  .field-lg {
+    grid-column: span 2;
+  }
+  .field-xl {
+    grid-column: span 3;
+  }
+  .field-full {
+    grid-column: 1 / -1;
+  }
+  @media (max-width: 1023px) {
+    .form-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .field-lg,
+    .field-xl {
+      grid-column: span 2;
+    }
+  }
+  @media (max-width: 639px) {
+    .form-grid {
+      grid-template-columns: 1fr;
+    }
+    .form-grid > .field-xs,
+    .form-grid > .field-sm,
+    .form-grid > .field-md,
+    .form-grid > .field-lg,
+    .form-grid > .field-xl {
+      grid-column: 1 / -1;
+    }
+  }
 }
 
-/* Floating animation for game particles */
-@keyframes float {
-  0%,
-  100% {
-    transform: translateY(0) rotate(0deg);
-    opacity: 0.3;
+/* ============================================================
+   Keyframes & animations.
+   ============================================================ */
+@layer utilities {
+  /* Floating particles (game backgrounds) */
+  @keyframes float {
+    0%,
+    100% {
+      transform: translateY(0) rotate(0deg);
+      opacity: 0.3;
+    }
+    50% {
+      transform: translateY(-20px) rotate(10deg);
+      opacity: 0.5;
+    }
   }
-  50% {
-    transform: translateY(-20px) rotate(10deg);
-    opacity: 0.5;
+  .animate-float {
+    animation: float ease-in-out infinite;
   }
-}
 
-.animate-float {
-  animation: float ease-in-out infinite;
-}
-
-/* Mobile bottom drawer slide-up animation */
-@keyframes slide-up {
-  from {
-    transform: translateY(100%);
+  /* Gentle bob for hero / decorative elements */
+  @keyframes float-soft {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-8px);
+    }
   }
-  to {
-    transform: translateY(0);
+  .animate-float-soft {
+    animation: float-soft 12s ease-in-out infinite;
   }
-}
 
-.animate-slide-up {
-  animation: slide-up 0.3s ease-out;
-}
-
-/* Mobile top drawer slide-down animation */
-@keyframes slide-down {
-  from {
-    transform: translateY(-100%);
+  @keyframes shimmer {
+    0% {
+      background-position: -200% 0;
+    }
+    100% {
+      background-position: 200% 0;
+    }
   }
-  to {
-    transform: translateY(0);
+  .animate-shimmer {
+    animation: shimmer 2s linear infinite;
   }
-}
 
-.animate-slide-down {
-  animation: slide-down 0.2s ease-out;
+  @keyframes breathe {
+    0%,
+    100% {
+      opacity: 0.5;
+    }
+    50% {
+      opacity: 0.7;
+    }
+  }
+  .animate-breathe {
+    animation: breathe 8s ease-in-out infinite;
+  }
+
+  /* Mobile drawers */
+  @keyframes slide-up {
+    from {
+      transform: translateY(100%);
+    }
+    to {
+      transform: translateY(0);
+    }
+  }
+  .animate-slide-up {
+    animation: slide-up 0.3s ease-out;
+  }
+
+  @keyframes slide-down {
+    from {
+      transform: translateY(-100%);
+    }
+    to {
+      transform: translateY(0);
+    }
+  }
+  .animate-slide-down {
+    animation: slide-down 0.2s ease-out;
+  }
+
+  @keyframes slide-in-left {
+    from {
+      transform: translateX(-100%);
+    }
+    to {
+      transform: translateX(0);
+    }
+  }
+  .animate-slide-in-left {
+    animation: slide-in-left 0.25s ease-out;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .animate-slide-down {
-    animation: none;
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

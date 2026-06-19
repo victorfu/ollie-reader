@@ -96,14 +96,14 @@ function DialogueStory({
       {/* Dialogue title */}
       <div className="mb-3">
         <p className="font-semibold">{dialogue.title}</p>
-        <p className="text-sm text-base-content/60">{dialogue.titleChinese}</p>
-        <p className="text-xs text-base-content/40 mt-1">{dialogue.description}</p>
+        <p className="text-sm text-muted-foreground">{dialogue.titleChinese}</p>
+        <p className="text-xs text-muted-foreground mt-1">{dialogue.description}</p>
       </div>
 
       {/* Chat area */}
       <div
         ref={containerRef}
-        className="bg-base-100 rounded-[12px] border border-black/5 dark:border-white/10 p-4 min-h-[300px] max-h-[400px] overflow-y-auto cursor-pointer"
+        className="surface-card rounded-2xl p-4 sm:p-5 min-h-[300px] max-h-[400px] overflow-y-auto cursor-pointer"
         onClick={handleTap}
       >
         <AnimatePresence>
@@ -117,13 +117,13 @@ function DialogueStory({
                 transition={{ duration: 0.3, ease: "easeOut" }}
                 className={`flex flex-col mb-3 ${isYou ? "items-end" : "items-start"}`}
               >
-                <span className="text-xs text-base-content/40 mb-1">
+                <span className="text-xs text-muted-foreground mb-1">
                   {getAvatar(line.role)} {line.role}
                 </span>
                 <div
-                  className={`px-4 py-2.5 max-w-[85%] cursor-pointer ${
+                  className={`px-4 py-2.5 max-w-[85%] cursor-pointer shadow-soft ${
                     isYou
-                      ? "bg-blue-500/10 rounded-2xl rounded-br-md"
+                      ? "bg-primary/10 rounded-2xl rounded-br-md"
                       : "bg-base-200 rounded-2xl rounded-bl-md"
                   }`}
                   onClick={(e) => {
@@ -133,7 +133,7 @@ function DialogueStory({
                 >
                   <p className="text-sm">{line.english}</p>
                   {showChinese && (
-                    <p className="text-xs text-base-content/50 mt-1">{line.chinese}</p>
+                    <p className="text-xs text-muted-foreground mt-1">{line.chinese}</p>
                   )}
                 </div>
               </motion.div>
@@ -142,7 +142,7 @@ function DialogueStory({
         </AnimatePresence>
 
         {!allVisible && !autoPlay && (
-          <p className="text-center text-xs text-base-content/30 mt-4 animate-pulse">
+          <p className="text-center text-xs text-muted-foreground mt-4 animate-pulse">
             👆 Tap to continue
           </p>
         )}
@@ -152,21 +152,21 @@ function DialogueStory({
       <div className="flex justify-center gap-2 mt-3">
         <button
           type="button"
-          className="btn btn-ghost btn-sm min-h-[44px]"
+          className="btn btn-ghost btn-sm min-h-[44px] active:scale-[0.98]"
           onClick={() => speak(dialogue.lines[visibleCount - 1]?.english ?? "")}
         >
           <Volume2 className="w-4 h-4" /> 聽
         </button>
         <button
           type="button"
-          className={`btn btn-sm min-h-[44px] ${showChinese ? "btn-primary" : "btn-outline"}`}
+          className={`btn btn-sm min-h-[44px] active:scale-[0.98] ${showChinese ? "btn-primary" : "btn-outline"}`}
           onClick={() => setShowChinese(!showChinese)}
         >
           中/英
         </button>
         <button
           type="button"
-          className={`btn btn-sm min-h-[44px] ${autoPlay ? "btn-error" : "btn-outline"}`}
+          className={`btn btn-sm min-h-[44px] active:scale-[0.98] ${autoPlay ? "btn-error" : "btn-outline"}`}
           onClick={() => {
             if (autoPlay) {
               setAutoPlay(false);
@@ -200,13 +200,13 @@ export function StoryMode({ scene, onBack, speak, speakAsync, stopSpeaking, trav
       <div className="flex items-center justify-between">
         <button
           type="button"
-          className="btn btn-ghost btn-sm gap-1.5 min-h-[44px]"
+          className="btn btn-ghost btn-sm gap-1.5 min-h-[44px] active:scale-[0.98]"
           onClick={onBack}
         >
           <ArrowLeft className="w-4 h-4" />
           返回
         </button>
-        <span className="text-sm text-base-content/60">
+        <span className="pill text-sm text-muted-foreground">
           📖 看故事 {dialogueIndex + 1} / {total}
         </span>
       </div>
@@ -235,7 +235,7 @@ export function StoryMode({ scene, onBack, speak, speakAsync, stopSpeaking, trav
         <div className="flex justify-between items-center mt-4">
           <button
             type="button"
-            className="btn btn-ghost btn-sm min-h-[44px]"
+            className="btn btn-ghost btn-sm min-h-[44px] active:scale-[0.98]"
             disabled={dialogueIndex === 0}
             onClick={() => setDialogueIndex((i) => i - 1)}
           >
@@ -246,14 +246,14 @@ export function StoryMode({ scene, onBack, speak, speakAsync, stopSpeaking, trav
               <div
                 key={i}
                 className={`w-2 h-2 rounded-full ${
-                  i === dialogueIndex ? "bg-blue-500" : "bg-base-300"
+                  i === dialogueIndex ? "bg-primary" : "bg-base-300"
                 }`}
               />
             ))}
           </div>
           <button
             type="button"
-            className="btn btn-ghost btn-sm min-h-[44px]"
+            className="btn btn-ghost btn-sm min-h-[44px] active:scale-[0.98]"
             disabled={dialogueIndex === total - 1}
             onClick={() => setDialogueIndex((i) => i + 1)}
           >

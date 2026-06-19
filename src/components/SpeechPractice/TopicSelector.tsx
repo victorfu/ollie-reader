@@ -29,10 +29,10 @@ export function TopicSelector({
 
   return (
     <div className="space-y-4">
-      <h2 className="text-xl font-bold">🎯 選擇練習主題</h2>
+      <h2 className="text-lg font-semibold">🎯 選擇練習主題</h2>
 
       {/* Topic Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid gap-4 auto-grid">
         {SPEECH_TOPICS.map((topic) => {
           const practiceCount = topicCounts.get(topic.id) || 0;
           const hasScript = topicScripts.has(topic.id);
@@ -41,17 +41,17 @@ export function TopicSelector({
           return (
             <div
               key={topic.id}
-              className={`card bg-base-100 shadow cursor-pointer transition-all hover:shadow-lg ${
+              className={`surface-card rounded-xl cursor-pointer transition-all duration-200 hover:shadow-elevated active:scale-[0.99] ${
                 isSelected
-                  ? "ring-2 ring-primary ring-offset-2 ring-offset-base-200"
+                  ? "ring-2 ring-primary ring-offset-2 ring-offset-base-100"
                   : ""
               }`}
               onClick={() => onSelect(topic)}
             >
-              <div className="card-body p-6">
-                <h3 className="card-title text-lg">{topic.titleChinese}</h3>
+              <div className="p-5 sm:p-6">
+                <h3 className="text-lg font-semibold">{topic.titleChinese}</h3>
 
-                <p className="text-base text-base-content/80 mt-2">
+                <p className="text-base text-muted-foreground mt-2">
                   {topic.descriptionChinese}
                 </p>
 
@@ -73,10 +73,10 @@ export function TopicSelector({
 
                 {/* Action buttons when selected */}
                 {isSelected && (
-                  <div className="flex flex-col sm:flex-row gap-2 mt-4 pt-3 border-t border-base-300">
+                  <div className="flex flex-col sm:flex-row gap-2 mt-4 pt-3 border-t border-border-hairline">
                     <button
                       type="button"
-                      className="btn btn-primary btn-sm flex-1 gap-1"
+                      className="btn btn-primary btn-sm flex-1 gap-1 active:scale-[0.98]"
                       onClick={(e) => {
                         e.stopPropagation();
                         onStartPractice();
@@ -94,7 +94,7 @@ export function TopicSelector({
                     </button>
                     <button
                       type="button"
-                      className="btn btn-secondary btn-sm flex-1 gap-1"
+                      className="btn btn-secondary btn-sm flex-1 gap-1 active:scale-[0.98]"
                       onClick={(e) => {
                         e.stopPropagation();
                         onGenerateScript();
