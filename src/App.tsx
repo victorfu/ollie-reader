@@ -1,4 +1,4 @@
-import { Suspense, useState, useEffect, type CSSProperties } from "react";
+import { Suspense, useState, useEffect, useRef, type CSSProperties } from "react";
 import {
   BrowserRouter,
   Routes,
@@ -21,6 +21,7 @@ import {
   Menu,
   X,
   PanelLeft,
+  ChevronsUpDown,
 } from "lucide-react";
 import { useAuth } from "./hooks/useAuth";
 import { PdfProvider } from "./contexts/PdfContext";
@@ -113,6 +114,126 @@ function AccountAvatar({
   );
 }
 
+// Avatar-triggered account menu: keeps Settings + Sign out tucked away instead
+// of exposing them directly in the sidebar. Closes on outside click / Escape.
+function AccountMenu({
+  initial,
+  label,
+  email,
+  collapsed = false,
+  onSignOut,
+}: {
+  initial: string;
+  label: string;
+  email?: string | null;
+  collapsed?: boolean;
+  onSignOut: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handlePointerDown = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [open]);
+
+  return (
+    <div ref={menuRef} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        title={label}
+        className={`flex w-full items-center rounded-lg text-left transition-colors duration-200 hover:bg-accent-tint ${
+          collapsed ? "justify-center p-1" : "gap-2.5 px-2 py-1.5"
+        }`}
+      >
+        <AccountAvatar initial={initial} size={collapsed ? "sm" : "md"} />
+        {!collapsed && (
+          <>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-sm font-semibold">
+                {label}
+              </span>
+              {email && (
+                <span className="block truncate text-xs text-muted-foreground">
+                  {email}
+                </span>
+              )}
+            </span>
+            <ChevronsUpDown
+              className="size-4 shrink-0 text-muted-foreground"
+              strokeWidth={1.75}
+              aria-hidden="true"
+            />
+          </>
+        )}
+      </button>
+
+      {open && (
+        <div
+          role="menu"
+          className={`absolute bottom-full z-50 mb-2 overflow-hidden rounded-xl border border-border-hairline bg-background/90 p-1 shadow-floating backdrop-blur-xl ${
+            collapsed ? "left-0 w-56" : "inset-x-0"
+          }`}
+        >
+          <div className="border-b border-border-hairline px-3 py-2">
+            <div className="truncate text-sm font-semibold">{label}</div>
+            {email && (
+              <div className="truncate text-xs text-muted-foreground">
+                {email}
+              </div>
+            )}
+          </div>
+          <Link
+            to="/settings"
+            role="menuitem"
+            onClick={() => setOpen(false)}
+            className="mt-1 flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium text-base-content/80 transition-colors hover:bg-accent-tint hover:text-accent"
+          >
+            <SettingsIcon
+              className="size-4 shrink-0"
+              strokeWidth={1.75}
+              aria-hidden="true"
+            />
+            <span>設定</span>
+          </Link>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              setOpen(false);
+              onSignOut();
+            }}
+            className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium text-error transition-colors hover:bg-error/10"
+          >
+            <LogOut
+              className="size-4 shrink-0"
+              strokeWidth={1.75}
+              aria-hidden="true"
+            />
+            <span>登出</span>
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function AppContent() {
   const { user, loading, authError, signOutUser } = useAuth();
   const location = useLocation();
@@ -194,11 +315,10 @@ function AppContent() {
     { to: "/audio-uploads", label: "音訊庫", icon: Music },
     { to: "/show", label: "影集字幕", icon: MonitorPlay },
     { to: "/game", label: "精靈探險", icon: Gamepad2 },
-    { to: "/settings", label: "設定", icon: SettingsIcon },
   ];
   const currentLabel =
     navItems.find((item) => item.to === location.pathname)?.label ??
-    "Ollie Reader";
+    (location.pathname === "/settings" ? "設定" : "Ollie Reader");
 
   return (
     <div
@@ -269,42 +389,19 @@ function AppContent() {
           })}
         </nav>
 
-        {/* Account + sign out */}
+        {/* Account menu */}
         <div
           className={`border-t border-border-hairline ${
-            sidebarCollapsed ? "space-y-1 p-2" : "space-y-2 p-3"
+            sidebarCollapsed ? "p-2" : "p-3"
           }`}
         >
-          {sidebarCollapsed ? (
-            <div className="flex justify-center py-1">
-              <AccountAvatar initial={accountInitial} size="sm" />
-            </div>
-          ) : (
-            <div className="flex items-center gap-3 px-1">
-              <AccountAvatar initial={accountInitial} size="md" />
-              <div className="min-w-0">
-                <div className="truncate text-sm font-semibold">
-                  {accountLabel}
-                </div>
-                {accountEmail && (
-                  <div className="truncate text-xs text-muted-foreground">
-                    {accountEmail}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-          <button
-            type="button"
-            onClick={handleSignOut}
-            title="登出"
-            className={`flex w-full items-center rounded-lg text-sm font-medium text-error transition-colors duration-200 hover:bg-error/10 ${
-              sidebarCollapsed ? "justify-center p-2" : "gap-3 px-3 py-2"
-            }`}
-          >
-            <LogOut className="size-5 shrink-0" strokeWidth={1.75} aria-hidden="true" />
-            {!sidebarCollapsed && <span>登出</span>}
-          </button>
+          <AccountMenu
+            initial={accountInitial}
+            label={accountLabel}
+            email={accountEmail}
+            collapsed={sidebarCollapsed}
+            onSignOut={handleSignOut}
+          />
         </div>
       </aside>
 
@@ -394,8 +491,8 @@ function AppContent() {
                 </button>
               </div>
 
-              {/* Account */}
-              <div className="border-b border-border-hairline p-3">
+              {/* Account menu */}
+              <div className="space-y-1 border-b border-border-hairline p-3">
                 <div className="flex items-center gap-3 rounded-lg bg-base-200/60 px-3 py-2.5">
                   <AccountAvatar initial={accountInitial} size="md" />
                   <div className="min-w-0 flex-1">
@@ -410,6 +507,25 @@ function AppContent() {
                   </div>
                   <ThemeToggle />
                 </div>
+                <Link
+                  to="/settings"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-base-content transition-colors duration-200 hover:bg-accent-tint hover:text-accent active:scale-[0.98]"
+                >
+                  <SettingsIcon className="size-5 shrink-0" strokeWidth={1.75} aria-hidden="true" />
+                  <span>設定</span>
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsMobileMenuOpen(false);
+                    handleSignOut();
+                  }}
+                  className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-error transition-colors duration-200 hover:bg-error/10 active:scale-[0.98]"
+                >
+                  <LogOut className="size-5 shrink-0" strokeWidth={1.75} aria-hidden="true" />
+                  <span>登出</span>
+                </button>
               </div>
 
               {/* Navigation */}
@@ -435,21 +551,6 @@ function AppContent() {
                   );
                 })}
               </nav>
-
-              {/* Sign out */}
-              <div className="border-t border-border-hairline p-3">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsMobileMenuOpen(false);
-                    handleSignOut();
-                  }}
-                  className="flex w-full items-center justify-center gap-2 rounded-lg border border-error/30 bg-error/10 px-3 py-2.5 text-sm font-medium text-error transition-colors duration-200 hover:bg-error/20 active:scale-[0.98]"
-                >
-                  <LogOut className="size-5" strokeWidth={1.75} aria-hidden="true" />
-                  登出
-                </button>
-              </div>
             </div>
           </div>
         )}
