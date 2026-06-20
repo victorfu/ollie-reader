@@ -1,5 +1,6 @@
 """PySide6 殼：系統匣 icon + 設定視窗，監督本機 sidecar。"""
 
+import os
 import signal
 import sys
 from pathlib import Path
@@ -21,7 +22,22 @@ from server.config import DEFAULT_PORT
 from shell import autostart
 from shell.sidecar import SidecarManager
 
-WEB_APP_URL = "http://localhost:5173"
+DEV_WEB_APP_URL = "http://localhost:5173"
+PROD_WEB_APP_URL = "https://ollie-reader.web.app"
+
+
+def _web_app_url() -> str:
+  """托盤「開啟 Ollie Reader」要打開的網址。
+
+  dev（從原始碼跑）→ Vite 開發伺服器；production（凍結後）→ 已部署的網站。
+  可用環境變數 OLLIE_WEB_APP_URL 覆寫。
+  """
+  override = os.getenv("OLLIE_WEB_APP_URL")
+  if override:
+    return override
+  if getattr(sys, "frozen", False):
+    return PROD_WEB_APP_URL
+  return DEV_WEB_APP_URL
 
 
 def _resource_path(*parts: str) -> Path:
@@ -159,7 +175,7 @@ class TrayApp:
     self.dialog.activateWindow()
 
   def _open_web(self, _checked: bool = False) -> None:
-    QDesktopServices.openUrl(QUrl(WEB_APP_URL))
+    QDesktopServices.openUrl(QUrl(_web_app_url()))
 
   def _quit(self, _checked: bool = False) -> None:
     self.manager.stop()
