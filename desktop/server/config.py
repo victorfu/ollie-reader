@@ -16,6 +16,28 @@ def _resource_root() -> Path:
     return Path(__file__).resolve().parents[1]
 
 
+def _configure_bundled_hf_cache() -> None:
+    """When frozen, point Hugging Face Hub at the bundled offline cache.
+
+    Kokoro loads its config/weights/voices via huggingface_hub.hf_hub_download,
+    which respects HF_HOME/HF_HUB_CACHE/HF_HUB_OFFLINE. The PyInstaller bundle
+    ships the cache under <_MEIPASS>/hf, so the desktop app needs no network.
+    Must run before huggingface_hub is imported (Kokoro import is lazy, so this
+    module-level call is early enough).
+    """
+    if not hasattr(sys, "_MEIPASS"):
+        return
+    bundled_hf = _resource_root() / "hf"
+    if not (bundled_hf / "hub").exists():
+        return
+    os.environ.setdefault("HF_HOME", str(bundled_hf))
+    os.environ.setdefault("HF_HUB_CACHE", str(bundled_hf / "hub"))
+    os.environ.setdefault("HF_HUB_OFFLINE", "1")
+
+
+_configure_bundled_hf_cache()
+
+
 def _default_piper_model_path() -> str:
     return str(_resource_root() / _PIPER_MODEL_RELATIVE_PATH)
 
@@ -28,6 +50,9 @@ PIPER_MODEL_PATH = (
 )
 KOKORO_LANG = os.getenv("KOKORO_LANG", "a")
 KOKORO_DEFAULT_VOICE = os.getenv("KOKORO_DEFAULT_VOICE", "af_heart")
+# Repo backing the bundled offline cache; passing it to KPipeline also silences
+# kokoro's "Defaulting repo_id" warning.
+KOKORO_REPO_ID = os.getenv("KOKORO_REPO_ID", "hexgrad/Kokoro-82M")
 
 
 def _cors_origins() -> List[str]:

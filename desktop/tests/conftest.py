@@ -35,8 +35,9 @@ def mock_kokoro(monkeypatch):
   import server.tts_kokoro as k
 
   class _FakePipeline:
-    def __init__(self, lang_code="a"):
+    def __init__(self, lang_code="a", repo_id=None):
       self.lang_code = lang_code
+      self.repo_id = repo_id
 
     def __call__(self, text, voice=None, speed=1.0):
       yield ("g", "p", real_np.zeros(2400, dtype="float32"))

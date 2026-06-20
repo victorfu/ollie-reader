@@ -25,8 +25,13 @@ uv run pytest -v
 
 ```bash
 uv run pyinstaller ollie-reader-desktop.spec --noconfirm
-# 產物：dist/ollie-reader-desktop/ollie-reader-desktop
+# 產物：dist/ollie-reader/ollie-reader
 ```
+
+打包時 spec 會把本機 HF cache 內的 Kokoro 模型（`hexgrad/Kokoro-82M`：config + 權重 + voices）
+一起收進 bundle（`_internal/hf/`），frozen 後自動設 `HF_HOME` 並開 `HF_HUB_OFFLINE=1`，
+所以 Kokoro 與 Piper 都能完全離線。前提是打包機器先跑過一次 Kokoro（讓模型進 HF cache）；
+若 cache 不存在,spec 會印 warning 並略過,該包的 Kokoro 就需要連網下載。
 
 ## Piper 模型
 

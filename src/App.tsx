@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState, useEffect, type CSSProperties } from "react";
+import { Suspense, useState, useEffect, type CSSProperties } from "react";
 import {
   BrowserRouter,
   Routes,
@@ -30,36 +30,40 @@ import { ThemeProvider } from "./contexts/ThemeContext";
 import { ThemeToggle } from "./components/common/ThemeToggle";
 import { useWarmServerOnRouteChange } from "./hooks/useWarmServer";
 import { ErrorBoundary } from "./components/common/ErrorBoundary";
+import { lazyWithReload } from "./utils/lazyWithReload";
 
-// Lazy load route components for code splitting
-const AuthScreen = lazy(() => import("./components/Auth/AuthScreen"));
-const PdfReader = lazy(() => import("./components/PdfReader"));
-const VocabularyBook = lazy(() =>
+// Lazy load route components for code splitting. lazyWithReload recovers from
+// stale-chunk errors (old hashed chunks gone after a deploy) by reloading once.
+const AuthScreen = lazyWithReload(() => import("./components/Auth/AuthScreen"));
+const PdfReader = lazyWithReload(() => import("./components/PdfReader"));
+const VocabularyBook = lazyWithReload(() =>
   import("./components/Vocabulary/VocabularyBook").then((module) => ({
     default: module.VocabularyBook,
   })),
 );
-const Settings = lazy(() =>
+const Settings = lazyWithReload(() =>
   import("./components/Settings/Settings").then((module) => ({
     default: module.Settings,
   })),
 );
-const SpeechPractice = lazy(
+const SpeechPractice = lazyWithReload(
   () => import("./components/SpeechPractice/SpeechPractice"),
 );
-const SentencePractice = lazy(
+const SentencePractice = lazyWithReload(
   () => import("./components/SentencePractice/SentencePractice"),
 );
-const AudioUploads = lazy(
+const AudioUploads = lazyWithReload(
   () => import("./components/AudioUploads/AudioUploads"),
 );
-const SpiritAdventure = lazy(() => import("./components/Game/SpiritAdventure"));
-const ShowSubtitlesPage = lazy(() =>
+const SpiritAdventure = lazyWithReload(
+  () => import("./components/Game/SpiritAdventure"),
+);
+const ShowSubtitlesPage = lazyWithReload(() =>
   import("./components/ShowSubtitles/ShowSubtitlesPage").then((module) => ({
     default: module.ShowSubtitlesPage,
   })),
 );
-const TravelEnglishPage = lazy(() =>
+const TravelEnglishPage = lazyWithReload(() =>
   import("./components/TravelEnglish/TravelEnglishPage").then((module) => ({
     default: module.TravelEnglishPage,
   })),

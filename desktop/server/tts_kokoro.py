@@ -83,8 +83,10 @@ class KokoroTTSService:
     pipeline = cls._pipelines.get(lang_code)
     if pipeline is None:
       try:
+        from server.config import KOKORO_REPO_ID
+
         _np, _sf, KPipeline = _import_kokoro_deps()
-        pipeline = KPipeline(lang_code=lang_code)
+        pipeline = KPipeline(lang_code=lang_code, repo_id=KOKORO_REPO_ID)
       except KokoroTTSError:
         raise
       except Exception as e:

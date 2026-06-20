@@ -62,12 +62,14 @@ def test_synthesize_reuses_pipeline_per_lang_and_passes_voice_speed(monkeypatch)
   import numpy as real_np
 
   created_langs = []
+  created_repo_ids = []
   calls = []
 
   class _RecordingPipeline:
-    def __init__(self, lang_code="a"):
+    def __init__(self, lang_code="a", repo_id=None):
       self.lang_code = lang_code
       created_langs.append(lang_code)
+      created_repo_ids.append(repo_id)
 
     def __call__(self, text, voice=None, speed=1.0):
       calls.append(
@@ -93,7 +95,11 @@ def test_synthesize_reuses_pipeline_per_lang_and_passes_voice_speed(monkeypatch)
   kokoro_synthesize_speech("two", speed=0.8, voice="af_heart")
   kokoro_synthesize_speech("three", speed=1.1, voice="bf_emma")
 
+  from server.config import KOKORO_REPO_ID
+
   assert created_langs == ["a", "b"]
+  # repo_id must be forwarded so the bundled offline HF cache is used.
+  assert created_repo_ids == [KOKORO_REPO_ID, KOKORO_REPO_ID]
   assert calls == [
     {"lang_code": "a", "text": "one", "voice": "af_heart", "speed": 1.25},
     {"lang_code": "a", "text": "two", "voice": "af_heart", "speed": 0.8},
