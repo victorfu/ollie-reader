@@ -583,7 +583,7 @@ export const SentencePractice = () => {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.3 }}
-              className="fixed inset-0 z-50 bg-base-200/80 backdrop-blur-2xl backdrop-saturate-150 flex flex-col"
+              className="fixed inset-y-0 left-0 right-0 z-50 flex flex-col bg-base-200/80 backdrop-blur-2xl backdrop-saturate-150 lg:left-[var(--app-sidebar-w)]"
             >
               {/* Header with progress */}
               <div className="flex justify-between items-center p-4 sm:p-6">
