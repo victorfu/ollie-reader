@@ -42,9 +42,11 @@
 
 ## 3. 範圍
 
-**v1 納入**：本機 `/api/version`(健康檢查)、`/api/pdf/extract`、`/api/tts`（Piper）、`/api/ktts`（Kokoro）。
+**v1 納入**：本機 `/api/version`(健康檢查)、`/api/pdf/extract`、`/api/fetch-url`、`/api/tts`（Piper）、`/api/ktts`（Kokoro）。
 
-**v1 排除**：OIKID / booking-records、`/api/fetch-url`、GCS、translate、LINE/Slack/1NCE —— 全部維持走 Cloud Run（purism-ev-bot）+ Firebase，不動。
+**v1 排除**：OIKID / booking-records、GCS（storage）、translate、LINE/Slack/1NCE —— 全部維持走 Cloud Run（purism-ev-bot）+ Firebase，不動。
+
+> **2026-06-20 更新**：`/api/fetch-url` 原列「v1 排除」，但實作時已一併放進本機 sidecar（`desktop/server/fetch_url.py` + `app.py` 的 `GET /api/fetch-url`，合約與雲端一致）；web app 透過 `fetchWithComputeBase` 對它採 localhost 優先、雲端 fallback。已從「排除」移到「納入」。
 
 ---
 
@@ -65,8 +67,9 @@
  │ ollie-reader/desktop       │  │            FastAPI 完整版                   │
  │ 自包含 FastAPI (REST)      │  │  • /api/pdf/extract   • /api/tts (Piper)    │
  │ • /api/version             │  │  • /api/ktts → 503（無 torch）              │
- │ • /api/pdf/extract         │  │  • /api/oikid/booking-records (Firebase)    │
- │ • /api/tts   (Piper)       │  │  • /api/fetch-url、translate、gcs …         │
+ │ • /api/pdf/extract         │  │  • /api/fetch-url（本機優先→雲端 fallback） │
+ │ • /api/fetch-url           │  │  • /api/oikid/booking-records (Firebase)    │
+ │ • /api/tts   (Piper)       │  │  • translate、gcs …                         │
  │ • /api/ktts  (Kokoro+torch)│  └──────────────────────────────────────────┘
  └─────────────▲─────────────┘
                │ spawn / 監控 / 健康檢查
@@ -99,7 +102,7 @@ app.add_middleware(
     allow_origins=LOCAL_CORS_ORIGINS,   # web prod origin + http://localhost:5173 + 127.0.0.1:5173
     allow_methods=["*"], allow_headers=["*"],
 )
-# /api/version, /api/pdf/extract, /api/tts, /api/ktts
+# /api/version, /api/pdf/extract, /api/fetch-url, /api/tts, /api/ktts
 ```
 
 - **合約必須與雲端一致**：`/api/tts`、`/api/ktts` 收 `SpeechRequest {text, speed, voice?}`;`/api/pdf/extract` 收 multipart file、回 `ExtractResponse {pages:[{page_number, text}]}`。如此 web app 不論打本機或雲端都同一套程式碼。
@@ -126,7 +129,7 @@ app.add_middleware(
 ### 5.4 Web app resolver — `ollie-reader/src/`
 
 - 新增 `resolveApiBase()`：載入時對 `http://127.0.0.1:8765/api/version` 發短 timeout(~300ms)fetch。通 → pdf/tts/ktts 的 base 指向本機;不通 → 用 `VITE_API_BASE_URL`(雲端)。結果快取，失敗時重探。
-- 走本機的端點：`/api/pdf/extract`、`/api/tts`、`/api/ktts`(+ `/api/version` 探測)。OIKID/translate/gcs **永遠走雲端**。
+- 走本機的端點：`/api/pdf/extract`、`/api/fetch-url`、`/api/tts`、`/api/ktts`(+ `/api/version` 探測)。OIKID/booking/translate/storage **永遠走雲端**。
 - 既有 `TTS_ENGINE_URL` map 只需換 base，其餘幾乎不動(合約已統一)。
 - **Kokoro 未就緒**：若本機 `/api/ktts` 回 503，前端提示「請確認 desktop app 已啟動 / Kokoro 已載入」或退回 Piper(雲端 ktts 同為 503，不對 Kokoro 做雲端 fallback)。
 - **混合內容 / 本機網路存取(關鍵假設，需實測 — 見 §9)**：Chrome/Edge 允許 https 頁面打 `http://127.0.0.1`(localhost secure-context 豁免);但 **Safari 較嚴**、且 Chrome 的 **PNA** 可能要求 preflight + 本機回 `Access-Control-Allow-Private-Network: true`。**P1 必須先用目標瀏覽器實測。**
@@ -159,7 +162,7 @@ P0+P1 即可驗證整個價值假設，不必等打包。
 ## 8. 未來(v1 之外)
 
 - **WebSocket 傳輸**：見 §10。若日後要串流首字延遲/進度/取消，再把傳輸升級成 WS。
-- **OIKID 本地化**：若哪天要連 OIKID 也本機化，再把 booking + fetch-url 代理搬進 sidecar，OIKID 帳密存 macOS Keychain。**目前明確不做。**
+- **OIKID 本地化**：若哪天要連 OIKID 也本機化，再把 booking 代理搬進 sidecar，OIKID 帳密存 macOS Keychain。**目前明確不做。**（`/api/fetch-url` 已在 sidecar，不在此列。）
 - **按需下載 Kokoro**：只有要對外發佈、在意體積時才需要。
 
 ---

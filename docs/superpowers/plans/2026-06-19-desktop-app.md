@@ -16,6 +16,8 @@
 - 前端目前**沒有單元測試 runner**（`package.json` 只有 `lint`、`build`）。前端任務沿用既有做法：`npx tsc -b` + `npx eslint` + 手動驗證，**不新增 vitest**。Python sidecar 則用 pytest 做 TDD。
 - engine wrapper（Piper/Kokoro/PDF）是從 `purism-ev-bot` 複製精簡而來，合約必須與雲端一致。
 
+> **實作後變更（2026-06-20）**：本 plan 原規劃 `/api/fetch-url` **維持雲端**（見下方 File Structure 與 Task 7/8 的相關註記）。實際實作時已改為**走 compute-base 並放進本機 sidecar**：`desktop/server/fetch_url.py` + `app.py` 的 `GET /api/fetch-url`，前端 `PdfContext` 經 `fetchWithComputeBase(FETCH_URL_PATH)` 採 localhost 優先、雲端 fallback。下方步驟內凡標「fetch-url 維持雲端」者均已過時，**以本註記為準**（spec `2026-06-19-desktop-app-design.md` 已同步更新）。
+
 ---
 
 ## File Structure
@@ -26,7 +28,7 @@ ollie-reader/
 │   ├── services/localBackend.ts      # 新：resolveApiBase() / getComputeBase()（探測 + 快取 + fallback）
 │   ├── constants/api.ts              # 改：新增 LOCAL_BASE_URL + TTS_ENGINE_PATH，pdf/tts/ktts 改用動態 base
 │   ├── contexts/SpeechContext.tsx    # 改：fetchTTSBlob 用 getComputeBase()；ktts 503 → 降級 Piper
-│   └── contexts/PdfContext.tsx       # 改：/api/pdf/extract 用 getComputeBase()（fetch-url 維持雲端）
+│   └── contexts/PdfContext.tsx       # 改：pdf/extract + fetch-url 皆走 getComputeBase()（見頂部「實作後變更」）
 └── desktop/                          # 新：Python（不納入 tsconfig/eslint）
     ├── main.py                       # 進入點：無旗標→殼；--serve→uvicorn
     ├── requirements.txt
