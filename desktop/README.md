@@ -28,12 +28,16 @@ uv run pyinstaller ollie-reader-desktop.spec --noconfirm
 # 產物：dist/ollie-reader/ollie-reader
 ```
 
-打包時 spec 會把本機 HF cache 內的 Kokoro 模型（`hexgrad/Kokoro-82M`：config + 權重 + voices）
-一起收進 bundle（`_internal/hf/`），frozen 後自動設 `HF_HOME` 並開 `HF_HUB_OFFLINE=1`，
-所以 Kokoro 與 Piper 都能完全離線。前提是打包機器先跑過一次 Kokoro（讓模型進 HF cache）；
-若 cache 不存在,spec 會印 warning 並略過,該包的 Kokoro 就需要連網下載。
+Piper 與 Kokoro 的模型檔都放在 `models/`、由 spec 一起收進 bundle，frozen 後從
+`sys._MEIPASS/models/` 載入，**完全離線、不需網路、不需 PyTorch**（Kokoro 走 ONNX Runtime）。
 
-## Piper 模型
+## 模型檔（放在 `desktop/models/`）
 
-從 Piper releases 下載 `en_US-lessac-medium.onnx`（與 `.onnx.json`）放到 `desktop/models/`，
-或用環境變數 `PIPER_MODEL_PATH` 指定。
+| 引擎 | 檔案 | 來源 | env 覆寫 |
+|------|------|------|----------|
+| Piper | `en_US-lessac-medium.onnx`（+ `.onnx.json`） | Piper releases | `PIPER_MODEL_PATH` |
+| Kokoro | `kokoro-v1.0.fp16.onnx` | [kokoro-onnx releases](https://github.com/thewh1teagle/kokoro-onnx/releases/tag/model-files-v1.0) | `KOKORO_MODEL_PATH` |
+| Kokoro | `voices-v1.0.bin` | 同上 | `KOKORO_VOICES_PATH` |
+
+Kokoro 還有 `kokoro-v1.0.onnx`（fp32, 310MB）與 `kokoro-v1.0.int8.onnx`（88MB）可選；
+換檔後同步調整 `server/config.py` 的 `_KOKORO_MODEL_RELATIVE_PATH`（或用 env）。

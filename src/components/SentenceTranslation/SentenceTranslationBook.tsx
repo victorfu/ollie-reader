@@ -99,6 +99,12 @@ export const SentenceTranslationBook = ({ embedded = false, onCountChange }: Sen
     ? "mt-3 min-h-0 flex-1 overflow-y-auto pr-1 scrollbar-hide"
     : "";
   const listSpacingClassName = embedded ? "space-y-4" : "space-y-8";
+  // Responsive auto-fill grid: cards flow into as many ~18rem columns as fit,
+  // collapsing to a single column on narrow screens. Avoids short phrases
+  // stretching across the full content width.
+  const cardGridClassName = embedded
+    ? "grid grid-cols-[repeat(auto-fill,minmax(18rem,1fr))] gap-2"
+    : "grid grid-cols-[repeat(auto-fill,minmax(18rem,1fr))] gap-3";
   const emptyStateClassName = embedded
     ? "rounded-xl surface-card p-6 text-center"
     : "py-20 text-center";
@@ -281,7 +287,7 @@ export const SentenceTranslationBook = ({ embedded = false, onCountChange }: Sen
                     {groupedSentences[date].length}
                   </span>
                 </h2>
-                <div className={embedded ? "space-y-2" : "space-y-3"}>
+                <div className={cardGridClassName}>
                   <AnimatePresence mode="popLayout">
                     {groupedSentences[date].map((sentence) => (
                       <motion.div
