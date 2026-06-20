@@ -5,6 +5,7 @@ import {
   Route,
   Link,
   useLocation,
+  useNavigate,
 } from "react-router-dom";
 import {
   BookOpen,
@@ -15,6 +16,7 @@ import {
   Music,
   MonitorPlay,
   Gamepad2,
+  Joystick,
   Settings as SettingsIcon,
   LogOut,
   AlertTriangle,
@@ -64,6 +66,14 @@ const TravelEnglishPage = lazy(() =>
     default: module.TravelEnglishPage,
   })),
 );
+const LittleGamesHub = lazy(() => import("./components/LittleGames/GameHub"));
+const BunnyJumper = lazy(() => import("./components/LittleGames/BunnyJumper"));
+const MeteorGlider = lazy(
+  () => import("./components/LittleGames/MeteorGlider"),
+);
+const MushroomAdventure = lazy(
+  () => import("./components/LittleGames/MushroomAdventure"),
+);
 
 const SIDEBAR_COLLAPSED_KEY = "ollie-sidebar-collapsed";
 
@@ -112,6 +122,7 @@ function AccountAvatar({
 function AppContent() {
   const { user, loading, authError, signOutUser } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [prevPathname, setPrevPathname] = useState(location.pathname);
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
@@ -190,6 +201,7 @@ function AppContent() {
     { to: "/audio-uploads", label: "音訊庫", icon: Music },
     { to: "/show", label: "影集字幕", icon: MonitorPlay },
     { to: "/game", label: "精靈探險", icon: Gamepad2 },
+    { to: "/games", label: "小遊戲", icon: Joystick },
     { to: "/settings", label: "設定", icon: SettingsIcon },
   ];
   const currentLabel =
@@ -484,6 +496,26 @@ function AppContent() {
                       <Route path="/audio-uploads" element={<AudioUploads />} />
                       <Route path="/show" element={<ShowSubtitlesPage />} />
                       <Route path="/game" element={<SpiritAdventure />} />
+                      <Route path="/games" element={<LittleGamesHub />} />
+                      <Route
+                        path="/games/bunny"
+                        element={<BunnyJumper onExit={() => navigate("/games")} />}
+                      />
+                      <Route
+                        path="/games/meteor"
+                        element={
+                          <MeteorGlider
+                            onExit={() => navigate("/games")}
+                            onPlayBunny={() => navigate("/games/bunny")}
+                          />
+                        }
+                      />
+                      <Route
+                        path="/games/mushroom"
+                        element={
+                          <MushroomAdventure onExit={() => navigate("/games")} />
+                        }
+                      />
                       <Route path="/travel" element={<TravelEnglishPage />} />
                       <Route path="/settings" element={<Settings />} />
                     </Routes>
