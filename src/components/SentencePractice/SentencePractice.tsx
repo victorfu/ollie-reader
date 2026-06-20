@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback, forwardRef } from "react";
+import { useState, useEffect, useCallback, forwardRef } from "react";
 import {
   Reorder,
   useDragControls,
@@ -120,73 +120,80 @@ export const SentencePractice = () => {
     null,
   );
 
-  // Play all sentences state
+  // Play-all state. Playback is driven by a SINGLE effect keyed on
+  // `currentPlayingIndex` (the source of truth), so at most one sentence ever
+  // plays at a time. Prev/Next just move the index; the effect stops the
+  // in-flight audio and plays the new sentence.
+  //
+  // The previous implementation had two independent drivers — a for-loop in
+  // handlePlayAll AND the prev/next handlers — each calling speakAsync. Because
+  // stopSpeaking() let the loop's awaited speakAsync resolve without cancelling
+  // the loop, navigating spawned overlapping playbacks (many voices at once).
   const [isPlayingAll, setIsPlayingAll] = useState(false);
   const [currentPlayingIndex, setCurrentPlayingIndex] = useState(-1);
-  const playAllRef = useRef<{ cancelled: boolean }>({ cancelled: false });
 
-  // Play all sentences sequentially
-  const handlePlayAll = useCallback(async () => {
+  // Start at the first sentence, or stop if already playing.
+  const handlePlayAll = useCallback(() => {
     if (sentences.length === 0) return;
-
-    // If already playing, stop
     if (isPlayingAll) {
-      playAllRef.current.cancelled = true;
-      stopSpeaking();
       setIsPlayingAll(false);
       setCurrentPlayingIndex(-1);
+      stopSpeaking();
+      return;
+    }
+    setIsPlayingAll(true);
+    setCurrentPlayingIndex(0);
+  }, [sentences.length, isPlayingAll, stopSpeaking]);
+
+  // Manual navigation: only move the index. The playback effect below reacts to
+  // the change — stopping the current audio and starting the new sentence — so
+  // navigation can never produce overlapping speech.
+  const handlePrevSentence = useCallback(() => {
+    setCurrentPlayingIndex((index) => (index > 0 ? index - 1 : index));
+  }, []);
+
+  const handleNextSentence = useCallback(() => {
+    setCurrentPlayingIndex((index) =>
+      index >= 0 && index < sentences.length - 1 ? index + 1 : index,
+    );
+  }, [sentences.length]);
+
+  // Single playback driver: speak the current sentence, then auto-advance.
+  // Re-runs on every index change (including Prev/Next); its cleanup stops the
+  // in-flight speech before the next run starts, guaranteeing no overlap.
+  useEffect(() => {
+    if (!isPlayingAll) return;
+    if (currentPlayingIndex < 0 || currentPlayingIndex >= sentences.length) {
       return;
     }
 
-    setIsPlayingAll(true);
-    playAllRef.current.cancelled = false;
+    let cancelled = false;
 
-    for (let i = 0; i < sentences.length; i++) {
-      if (playAllRef.current.cancelled) break;
-
-      setCurrentPlayingIndex(i);
-
+    (async () => {
       try {
-        // Use speakAsync to wait for the actual speech to finish
-        await speakAsync(sentences[i].english);
+        await speakAsync(sentences[currentPlayingIndex].english);
       } catch (err) {
         console.error("Speech error:", err);
       }
+      // A newer index (Prev/Next), Stop, or unmount superseded this run.
+      if (cancelled) return;
 
-      // Small pause between sentences
-      if (!playAllRef.current.cancelled && i < sentences.length - 1) {
+      // Natural end of this sentence → brief pause, then advance.
+      if (currentPlayingIndex < sentences.length - 1) {
         await new Promise((resolve) => setTimeout(resolve, 500));
+        if (cancelled) return;
+        setCurrentPlayingIndex((index) => index + 1);
+      } else {
+        setIsPlayingAll(false);
+        setCurrentPlayingIndex(-1);
       }
-    }
+    })();
 
-    setIsPlayingAll(false);
-    setCurrentPlayingIndex(-1);
-  }, [sentences, isPlayingAll, speakAsync, stopSpeaking]);
-
-  // Manual navigation during playback
-  const handlePrevSentence = useCallback(() => {
-    if (!isPlayingAll || currentPlayingIndex <= 0) return;
-    stopSpeaking();
-    const newIndex = currentPlayingIndex - 1;
-    setCurrentPlayingIndex(newIndex);
-    speakAsync(sentences[newIndex].english);
-  }, [isPlayingAll, currentPlayingIndex, sentences, stopSpeaking, speakAsync]);
-
-  const handleNextSentence = useCallback(() => {
-    if (!isPlayingAll || currentPlayingIndex >= sentences.length - 1) return;
-    stopSpeaking();
-    const newIndex = currentPlayingIndex + 1;
-    setCurrentPlayingIndex(newIndex);
-    speakAsync(sentences[newIndex].english);
-  }, [isPlayingAll, currentPlayingIndex, sentences, stopSpeaking, speakAsync]);
-
-  // Cleanup on unmount
-  useEffect(() => {
-    const ref = playAllRef.current;
     return () => {
-      ref.cancelled = true;
+      cancelled = true;
+      stopSpeaking();
     };
-  }, []);
+  }, [isPlayingAll, currentPlayingIndex, sentences, speakAsync, stopSpeaking]);
 
   // Handle reorder with optimistic update and Firestore persistence
   const handleReorder = async (reorderedList: PracticeSentence[]) => {
