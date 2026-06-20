@@ -34,7 +34,7 @@ export const TravelEnglishPage = () => {
   }, [topicId, selectedTopic, setSearchParams]);
 
   return (
-    <div className="max-w-5xl mx-auto px-4 sm:px-6">
+    <div className="mx-auto max-w-6xl px-4 sm:px-6">
       <AnimatePresence mode="wait">
         {!selectedTopic ? (
           <motion.div

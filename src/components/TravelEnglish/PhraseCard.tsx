@@ -1,3 +1,4 @@
+import { Clock3 } from "lucide-react";
 import type { TravelPhrase } from "../../types/travelEnglish";
 import { situationLabel } from "../../data/travelTopics";
 import { SpeakerButton } from "./SpeakerButton";
@@ -10,7 +11,7 @@ interface PhraseCardProps {
 /** 句子卡：使用時機標籤 + 英文 + 中文 + 朗讀 */
 export function PhraseCard({ phrase, speak }: PhraseCardProps) {
   return (
-    <div className="surface-card flex items-center gap-2 p-4 rounded-2xl">
+    <div className="surface-card flex items-center gap-2 rounded-2xl p-4">
       {/* 點句子區發音 */}
       <button
         type="button"
@@ -19,8 +20,9 @@ export function PhraseCard({ phrase, speak }: PhraseCardProps) {
         aria-label={`播放句子 ${phrase.english}`}
       >
         {phrase.situation && (
-          <span className="pill text-[11px] px-2 py-0.5 mb-1.5 text-muted-foreground">
-            🕒 {situationLabel(phrase.situation)}
+          <span className="pill mb-1.5 px-2 py-0.5 text-[11px] text-muted-foreground">
+            <Clock3 className="size-3" />
+            {situationLabel(phrase.situation)}
           </span>
         )}
         <p className="text-base sm:text-lg font-semibold leading-snug">{phrase.english}</p>

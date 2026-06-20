@@ -71,13 +71,18 @@ export interface PracticeItem {
 
 /** 旅遊主題的子分組（一個主題底下可有多個分組，例如機場分「出發 / 入境」、動物園分各園區） */
 export interface TravelTopicGroup {
-  emoji?: string;
+  /** 來源場景 ID */
+  sceneId?: string;
   /** 英文小標（多分組時顯示） */
   label?: string;
   /** 中文小標（多分組時顯示） */
   labelChinese?: string;
+  /** 場景說明 */
+  description?: string;
   vocabulary: TravelVocab[];
   phrases: TravelPhrase[];
+  dialogues?: TravelDialogue[];
+  funFacts?: FunFact[];
 }
 
 /** 旅遊主題（重新設計後的精簡版資料模型，分情境呈現必學單字與實用句子） */
@@ -85,11 +90,22 @@ export interface TravelTopic {
   id: string;
   /** 首頁分區：核心情境 / 更多情境 */
   section: "core" | "more";
-  emoji: string;
+  /** 旅行學習路徑順序 */
+  stage: number;
+  /** 旅行節點短標 */
+  stageLabel: string;
   /** 英文副標 */
   title: string;
   /** 中文主標 */
   titleChinese: string;
+  /** 首頁與詳情頁的情境摘要 */
+  summary: string;
+  /** 本主題要達成的學習目標 */
+  learningGoals: string[];
+  /** 情境任務 */
+  mission: string;
+  /** 複習提示 */
+  reviewPrompt: string;
   /** 卡片底色，沿用來源場景的 colorClass */
   colorClass: string;
   groups: TravelTopicGroup[];
