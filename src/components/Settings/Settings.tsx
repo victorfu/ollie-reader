@@ -174,7 +174,7 @@ export const Settings = () => {
 
   if (loading) {
     return (
-      <div className="max-w-5xl mx-auto">
+      <div className="max-w-5xl">
         <GlassCard>
           <div className="flex justify-center p-10">
             <span className="loading loading-spinner loading-lg text-primary" />
@@ -185,7 +185,7 @@ export const Settings = () => {
   }
 
   return (
-    <div className="mx-auto max-w-5xl">
+    <div className="max-w-5xl">
       <div className="lg:flex lg:items-start lg:gap-6">
         {/* Category navigation (sidebar on desktop, segmented control on mobile) */}
         <aside className="lg:sticky lg:top-[4.5rem] lg:w-56 lg:shrink-0">
