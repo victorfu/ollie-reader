@@ -13,7 +13,7 @@ NPM     := npm
 
 .PHONY: help setup install desktop-setup \
         dev build lint preview \
-        desktop-serve desktop-run desktop-test desktop-package desktop-clean \
+        desktop-serve desktop-run desktop-test desktop-package desktop-package-clean desktop-clean \
         test clean
 
 help: ## List available targets
@@ -52,8 +52,11 @@ desktop-run: ## Run the PySide6 tray shell (it manages the sidecar)
 desktop-test: ## Run the desktop pytest suite
 	$(UV) run --directory $(DESKTOP) pytest -v
 
-desktop-package: ## Build the frozen binary with PyInstaller (-> desktop/dist/)
+desktop-package: ## Build the frozen binary with PyInstaller (incremental -> desktop/dist/)
 	$(UV) run --directory $(DESKTOP) pyinstaller ollie-reader-desktop.spec --noconfirm
+
+desktop-package-clean: ## Clean build of the frozen binary (drops PyInstaller cache)
+	$(UV) run --directory $(DESKTOP) pyinstaller ollie-reader-desktop.spec --noconfirm --clean
 
 desktop-clean: ## Remove PyInstaller build/dist artifacts
 	rm -rf $(DESKTOP)/build $(DESKTOP)/dist

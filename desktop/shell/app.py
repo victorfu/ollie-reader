@@ -1,9 +1,12 @@
 """PySide6 殼：系統匣 icon + 設定視窗，監督本機 sidecar。"""
 
+import os
+import signal
 import sys
+from pathlib import Path
 
 from PySide6.QtCore import QTimer, QUrl
-from PySide6.QtGui import QAction, QColor, QDesktopServices, QIcon, QPixmap
+from PySide6.QtGui import QAction, QDesktopServices, QIcon
 from PySide6.QtWidgets import (
   QApplication,
   QCheckBox,
@@ -19,13 +22,32 @@ from server.config import DEFAULT_PORT
 from shell import autostart
 from shell.sidecar import SidecarManager
 
-WEB_APP_URL = "http://localhost:5173"
+DEV_WEB_APP_URL = "http://localhost:5173"
+PROD_WEB_APP_URL = "https://ollie-reader.web.app"
 
 
-def _dot_icon(color: str) -> QIcon:
-  pix = QPixmap(16, 16)
-  pix.fill(QColor(color))
-  return QIcon(pix)
+def _web_app_url() -> str:
+  """托盤「開啟 Ollie Reader」要打開的網址。
+
+  dev（從原始碼跑）→ Vite 開發伺服器；production（凍結後）→ 已部署的網站。
+  可用環境變數 OLLIE_WEB_APP_URL 覆寫。
+  """
+  override = os.getenv("OLLIE_WEB_APP_URL")
+  if override:
+    return override
+  if getattr(sys, "frozen", False):
+    return PROD_WEB_APP_URL
+  return DEV_WEB_APP_URL
+
+
+def _resource_path(*parts: str) -> Path:
+  if getattr(sys, "frozen", False):
+    return Path(getattr(sys, "_MEIPASS", Path(sys.executable).resolve().parent), *parts)
+  return Path(__file__).resolve().parents[1].joinpath(*parts)
+
+
+def _tray_icon() -> QIcon:
+  return QIcon(str(_resource_path("assets", "tray-icon.png")))
 
 
 def _autostart_args(manager: SidecarManager) -> list[str]:
@@ -51,9 +73,9 @@ class SettingsDialog(QDialog):
     self.autostart_cb.toggled.connect(self._toggle_autostart)
     layout.addRow(self.autostart_cb)
 
-    self.start_button = QPushButton("啟動 sidecar")
+    self.start_button = QPushButton("啟動本機服務")
     self.start_button.clicked.connect(self._start_sidecar)
-    self.stop_button = QPushButton("停止 sidecar")
+    self.stop_button = QPushButton("停止本機服務")
     self.stop_button.clicked.connect(self._stop_sidecar)
     layout.addRow(self.start_button, self.stop_button)
 
@@ -63,7 +85,8 @@ class SettingsDialog(QDialog):
     self._refresh()
 
   def _refresh(self) -> None:
-    ok = self.manager.health_check()
+    # 本機子行程存活檢查（poll()），零網路；不再每 2 秒打 /api/version。
+    ok = self.manager.is_running()
     self.status_label.setText("● 運行中" if ok else "○ 已停止")
 
   def _start_sidecar(self, _checked: bool = False) -> None:
@@ -87,7 +110,8 @@ class TrayApp:
     self.manager = SidecarManager(DEFAULT_PORT)
     self.dialog: SettingsDialog | None = None
 
-    self.tray = QSystemTrayIcon(_dot_icon("gray"), self.app)
+    self.tray_icon = _tray_icon()
+    self.tray = QSystemTrayIcon(self.tray_icon, self.app)
     self.menu = QMenu()
 
     self.status_action = QAction("狀態：啟動中…", self.menu)
@@ -95,11 +119,11 @@ class TrayApp:
     self.menu.addAction(self.status_action)
     self.menu.addSeparator()
 
-    self.start_action = QAction("啟動 sidecar", self.menu)
+    self.start_action = QAction("啟動本機服務", self.menu)
     self.start_action.triggered.connect(self._start_sidecar)
     self.menu.addAction(self.start_action)
 
-    self.stop_action = QAction("停止 sidecar", self.menu)
+    self.stop_action = QAction("停止本機服務", self.menu)
     self.stop_action.triggered.connect(self._stop_sidecar)
     self.menu.addAction(self.stop_action)
 
@@ -107,7 +131,7 @@ class TrayApp:
     self.settings_action.triggered.connect(self._open_settings)
     self.menu.addAction(self.settings_action)
 
-    self.web_action = QAction("開啟 web app", self.menu)
+    self.web_action = QAction("開啟 Ollie Reader", self.menu)
     self.web_action.triggered.connect(self._open_web)
     self.menu.addAction(self.web_action)
 
@@ -131,8 +155,8 @@ class TrayApp:
     self._refresh()
 
   def _refresh(self) -> None:
-    ok = self.manager.health_check()
-    self.tray.setIcon(_dot_icon("green" if ok else "gray"))
+    # 本機子行程存活檢查（poll()），零網路；不再每 3 秒打 /api/version。
+    ok = self.manager.is_running()
     self.status_action.setText("狀態：● 運行中" if ok else "狀態：○ 已停止")
 
   def _start_sidecar(self, _checked: bool = False) -> None:
@@ -151,7 +175,7 @@ class TrayApp:
     self.dialog.activateWindow()
 
   def _open_web(self, _checked: bool = False) -> None:
-    QDesktopServices.openUrl(QUrl(WEB_APP_URL))
+    QDesktopServices.openUrl(QUrl(_web_app_url()))
 
   def _quit(self, _checked: bool = False) -> None:
     self.manager.stop()
@@ -160,7 +184,17 @@ class TrayApp:
 
 def run_shell() -> None:
   app = QApplication(sys.argv)
+  app.setWindowIcon(_tray_icon())
   app.setQuitOnLastWindowClosed(False)
   tray = TrayApp(app)
   tray.start()
+
+  # Qt 的 C++ event loop 會吞掉 SIGINT，導致終端機按 Ctrl+C 關不掉。
+  # 攔截 SIGINT → app.quit()（觸發 aboutToQuit → manager.stop()，收掉 sidecar）；
+  # 再加一個短週期 timer 讓 Python 直譯器定期醒來，signal 才有機會被處理。
+  signal.signal(signal.SIGINT, lambda *_: app.quit())
+  sigint_timer = QTimer(app)
+  sigint_timer.timeout.connect(lambda: None)
+  sigint_timer.start(200)
+
   sys.exit(app.exec())

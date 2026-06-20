@@ -12,22 +12,19 @@ dependencies = [
     "piper-tts",
     "soundfile",
     "numpy",
-    "kokoro>=0.9.4",
-    "torch",
+    # Kokoro via ONNX Runtime (no PyTorch). Pulls onnxruntime + phonemizer-fork
+    # + espeakng-loader for G2P. Model/voices files live in models/ (bundled).
+    "kokoro-onnx",
     "PySide6",
-    # spaCy model used by misaki/kokoro for English G2P; not on PyPI, pinned below.
-    "en-core-web-sm",
+    # outbound HTTP client for /api/fetch-url (URL proxy, e.g. remote PDFs).
+    "httpx",
 ]
 
 [dependency-groups]
 dev = [
     "pytest",
-    "httpx",
     "pyinstaller",
 ]
-
-[tool.uv.sources]
-en-core-web-sm = { url = "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl" }
 
 # This is a run-from-source app (main.py + server/ + shell/), not an installable
 # distribution, so uv manages only the environment — it does not build the project.

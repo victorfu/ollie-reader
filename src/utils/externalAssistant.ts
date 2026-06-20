@@ -1,6 +1,6 @@
 export type ExternalAssistantOpenBehavior = "deep-link" | "copy-then-open";
 
-export type ExternalAssistantTargetId = "chatgpt" | "claude" | "gemini";
+export type ExternalAssistantTargetId = "chatgpt";
 
 export type ExternalAssistantTarget = {
   id: ExternalAssistantTargetId;
@@ -38,18 +38,6 @@ export const externalAssistantTargets: ExternalAssistantTarget[] = [
     label: "ChatGPT",
     behavior: "deep-link",
     buildUrl: (prompt) => `https://chatgpt.com/?q=${encodeURIComponent(prompt)}`,
-  },
-  {
-    id: "claude",
-    label: "Claude",
-    behavior: "deep-link",
-    buildUrl: (prompt) => `https://claude.ai/new?q=${encodeURIComponent(prompt)}`,
-  },
-  {
-    id: "gemini",
-    label: "Gemini",
-    behavior: "copy-then-open",
-    buildUrl: () => "https://gemini.google.com/",
   },
 ];
 

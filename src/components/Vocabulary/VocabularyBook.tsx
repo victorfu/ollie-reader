@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import type { FormEvent } from "react";
+import { useSearchParams } from "react-router-dom";
 import { AnimatePresence } from "framer-motion";
 import { BookOpen, Languages } from "lucide-react";
 import { useVocabulary } from "../../hooks/useVocabulary";
@@ -137,7 +138,40 @@ export const VocabularyBook = () => {
   const [showReviewSettings, setShowReviewSettings] = useState(false);
   const [totalWordCount, setTotalWordCount] = useState(0);
   const [availableTags, setAvailableTags] = useState<string[]>([]);
-  const [activeTab, setActiveTab] = useState<"words" | "sentences">("words");
+  // Tab selection is reflected in the URL query (?tab=words | ?tab=sentences)
+  // so the active tab is always explicit, shareable, bookmarkable, and
+  // survives a refresh.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabParam = searchParams.get("tab");
+  const activeTab: "words" | "sentences" =
+    tabParam === "sentences" ? "sentences" : "words";
+  const setActiveTab = useCallback(
+    (tab: "words" | "sentences") => {
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          next.set("tab", tab);
+          return next;
+        },
+        { replace: true },
+      );
+    },
+    [setSearchParams],
+  );
+  // Canonicalize the tab query so the active tab is always explicit in the URL
+  // (e.g. /vocabulary -> /vocabulary?tab=words, or an unknown value -> words).
+  useEffect(() => {
+    if (tabParam !== "words" && tabParam !== "sentences") {
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          next.set("tab", "words");
+          return next;
+        },
+        { replace: true },
+      );
+    }
+  }, [tabParam, setSearchParams]);
   const manualWordFieldId = "manual-word-input";
   const loadMoreRef = useRef<HTMLDivElement>(null);
   const searchRequestIdRef = useRef(0);

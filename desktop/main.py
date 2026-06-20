@@ -8,7 +8,7 @@ import argparse
 
 
 def main():
-    parser = argparse.ArgumentParser(prog="ollie-reader-desktop")
+    parser = argparse.ArgumentParser(prog="ollie-reader")
     parser.add_argument("--serve", action="store_true", help="run the local API sidecar")
     parser.add_argument("--port", type=int, default=None, help="sidecar port")
     args, _ = parser.parse_known_args()

@@ -1,17 +1,20 @@
-"""Kokoro TTS（複製自 purism-ev-bot services/kokoro_service.py，改用 server.config）。
+"""Kokoro TTS via ONNX Runtime（kokoro-onnx，不需 PyTorch）。
 
 所有重量級 import 延遲到 _import_kokoro_deps；缺相依時回 KokoroTTSError(503)。
+模型與 voices 檔放在 models/（打包進 bundle，路徑見 server.config）。
+單一 Kokoro 引擎即可處理所有語言（lang 是 create 的逐次參數）。
 """
 
 import io
 import logging
 from dataclasses import dataclass
 from threading import Lock
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
-_KNOWN_LANG_PREFIXES = {"a", "b", "e", "f", "h", "i", "j", "p", "z"}
+# voice 第一個字母 → kokoro-onnx 語言碼（a=美式英語、b=英式英語）。
+_VOICE_PREFIX_LANG = {"a": "en-us", "b": "en-gb"}
 
 
 @dataclass
@@ -31,27 +34,26 @@ def _import_kokoro_deps():
   try:
     import numpy as np
     import soundfile as sf
-    from kokoro import KPipeline
+    from kokoro_onnx import Kokoro
 
-    return np, sf, KPipeline
+    return np, sf, Kokoro
   except Exception as e:
     raise KokoroTTSError(
-      f"Kokoro 不可用（缺少相依套件或模型）: {type(e).__name__}: {e}",
+      f"Kokoro 不可用（缺少相依套件）: {type(e).__name__}: {e}",
       status_code=503,
     )
 
 
 def _lang_from_voice(voice: str, default_lang: str) -> str:
-  if voice and voice[0] in _KNOWN_LANG_PREFIXES:
-    return voice[0]
+  if voice and voice[0] in _VOICE_PREFIX_LANG:
+    return _VOICE_PREFIX_LANG[voice[0]]
   return default_lang
 
 
 class KokoroTTSService:
   _instance: Optional["KokoroTTSService"] = None
-  _pipelines: Dict[str, Any] = {}
+  _engine: Any = None
   _lock: Lock = Lock()
-  _initialized: bool = False
 
   def __new__(cls) -> "KokoroTTSService":
     if cls._instance is None:
@@ -69,22 +71,22 @@ class KokoroTTSService:
       return False
 
   @classmethod
-  def initialize(cls, lang_code: Optional[str] = None) -> None:
-    if lang_code is None:
-      from server.config import KOKORO_LANG
+  def initialize(cls) -> None:
+    """預先載入引擎（torch-free，但仍有 onnx 模型載入成本）。
 
-      lang_code = KOKORO_LANG
+    可在 sidecar 啟動時於背景呼叫，把首次合成的延遲挪離使用者第一次朗讀。
+    """
     with cls._lock:
-      cls._get_pipeline_locked(lang_code)
-      cls._initialized = True
+      cls._get_engine_locked()
 
   @classmethod
-  def _get_pipeline_locked(cls, lang_code: str):
-    pipeline = cls._pipelines.get(lang_code)
-    if pipeline is None:
+  def _get_engine_locked(cls):
+    if cls._engine is None:
+      from server.config import KOKORO_MODEL_PATH, KOKORO_VOICES_PATH
+
       try:
-        _np, _sf, KPipeline = _import_kokoro_deps()
-        pipeline = KPipeline(lang_code=lang_code)
+        _np, _sf, Kokoro = _import_kokoro_deps()
+        cls._engine = Kokoro(KOKORO_MODEL_PATH, KOKORO_VOICES_PATH)
       except KokoroTTSError:
         raise
       except Exception as e:
@@ -92,15 +94,14 @@ class KokoroTTSService:
           f"Kokoro 初始化失敗: {type(e).__name__}: {e}",
           status_code=503,
         ) from e
-      cls._pipelines[lang_code] = pipeline
-    return pipeline
+    return cls._engine
 
   @classmethod
-  def _get_pipeline(cls, lang_code: str):
-    if cls._pipelines.get(lang_code) is not None:
-      return cls._pipelines[lang_code]
+  def _get_engine(cls):
+    if cls._engine is not None:
+      return cls._engine
     with cls._lock:
-      return cls._get_pipeline_locked(lang_code)
+      return cls._get_engine_locked()
 
   @classmethod
   def synthesize(
@@ -108,26 +109,22 @@ class KokoroTTSService:
     text: str,
     speed: float = 1.0,
     voice: Optional[str] = None,
-    lang_code: Optional[str] = None,
+    lang: Optional[str] = None,
   ) -> KokoroTTSResult:
-    from server.config import KOKORO_DEFAULT_VOICE, KOKORO_LANG
+    from server.config import KOKORO_DEFAULT_LANG, KOKORO_DEFAULT_VOICE
 
     voice = voice or KOKORO_DEFAULT_VOICE
-    if lang_code is None:
-      lang_code = _lang_from_voice(voice, KOKORO_LANG)
+    if lang is None:
+      lang = _lang_from_voice(voice, KOKORO_DEFAULT_LANG)
 
     try:
-      np, sf, _KPipeline = _import_kokoro_deps()
-      pipeline = cls._get_pipeline(lang_code)
-      chunks = [
-        np.asarray(audio)
-        for _, _, audio in pipeline(text, voice=voice, speed=speed)
-      ]
-      if not chunks:
+      np, sf, _Kokoro = _import_kokoro_deps()
+      engine = cls._get_engine()
+      samples, sample_rate = engine.create(text, voice=voice, speed=speed, lang=lang)
+      if samples is None or len(samples) == 0:
         raise KokoroTTSError("Kokoro 未產生任何音訊", status_code=500)
-      audio = np.concatenate(chunks)
       audio_buffer = io.BytesIO()
-      sf.write(audio_buffer, audio, 24000, format="WAV")
+      sf.write(audio_buffer, np.asarray(samples), sample_rate, format="WAV")
       return KokoroTTSResult(
         audio_data=audio_buffer.getvalue(),
         content_type="audio/wav",

@@ -98,7 +98,7 @@ export const PageTextArea = memo(
               <button
                 type="button"
                 onClick={() => onSpeak(text)}
-                className={`flex items-center gap-2 h-9 sm:h-10 px-4 rounded-lg text-sm font-medium shadow-md transition-all hover:scale-105 active:scale-95 disabled:opacity-50 ${
+                className={`inline-flex items-center justify-center gap-1.5 h-8 px-2.5 rounded-md text-xs font-semibold shadow-sm transition-all duration-200 active:scale-[0.98] disabled:opacity-50 ${
                   isSpeaking
                     ? "bg-base-300/90 text-base-content"
                     : "bg-success/90 hover:bg-success text-success-content"
@@ -107,14 +107,14 @@ export const PageTextArea = memo(
               >
                 {isLoadingAudio ? (
                   <>
-                    <span className="loading loading-spinner loading-sm"></span>
+                    <span className="loading loading-spinner loading-xs"></span>
                     生成中
                   </>
                 ) : (
                   <>
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
-                      className="h-5 w-5"
+                      className="h-3.5 w-3.5"
                       fill="none"
                       viewBox="0 0 24 24"
                       stroke="currentColor"

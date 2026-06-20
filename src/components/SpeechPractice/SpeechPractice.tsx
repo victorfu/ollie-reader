@@ -437,7 +437,7 @@ export function SpeechPractice() {
       {viewMode === "practice" &&
         selectedTopic &&
         !(!timer.isRunning && timer.time > 0) && (
-          <div className="fixed bottom-0 left-0 right-0 z-50 p-4 bg-gradient-to-t from-base-100 via-base-100/90 to-transparent">
+          <div className="fixed bottom-0 left-0 right-0 z-50 p-4 bg-gradient-to-t from-base-100 via-base-100/90 to-transparent lg:left-[var(--app-sidebar-w)]">
             <div className="max-w-md mx-auto">
               <div className="glass rounded-2xl shadow-floating p-3 flex items-center justify-center gap-3">
                 {/* Not started yet */}

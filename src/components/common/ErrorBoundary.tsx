@@ -1,4 +1,7 @@
 import { Component, type ReactNode, type ErrorInfo } from "react";
+import { logger } from "../../utils/logger";
+import { isChunkLoadError } from "../../utils/chunkErrors";
+import { reloadOnceForStaleChunk } from "../../utils/lazyWithReload";
 
 interface Props {
   children: ReactNode;
@@ -8,28 +11,50 @@ interface Props {
 interface State {
   hasError: boolean;
   error: Error | null;
+  isStaleChunk: boolean;
 }
 
 export class ErrorBoundary extends Component<Props, State> {
   constructor(props: Props) {
     super(props);
-    this.state = { hasError: false, error: null };
+    this.state = { hasError: false, error: null, isStaleChunk: false };
   }
 
   static getDerivedStateFromError(error: Error): State {
-    return { hasError: true, error };
+    return { hasError: true, error, isStaleChunk: isChunkLoadError(error) };
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error("ErrorBoundary caught an error:", error, errorInfo);
+    if (isChunkLoadError(error)) {
+      // Stale chunk after a deploy: reload once to fetch the latest build.
+      // If we've already reloaded and it still fails, surface the real error.
+      if (!reloadOnceForStaleChunk()) {
+        this.setState({ isStaleChunk: false });
+      }
+      return;
+    }
+    logger.error("ErrorBoundary caught an error:", error, errorInfo);
   }
 
   handleReset = () => {
-    this.setState({ hasError: false, error: null });
+    this.setState({ hasError: false, error: null, isStaleChunk: false });
   };
 
   render() {
     if (this.state.hasError) {
+      if (this.state.isStaleChunk) {
+        // A reload is in flight; show a neutral loading state, not the error
+        // card, so the recovery is invisible to the user.
+        return (
+          <div className="min-h-screen bg-background flex items-center justify-center">
+            <span
+              className="loading loading-spinner loading-lg text-primary"
+              aria-label="正在載入最新版本"
+            />
+          </div>
+        );
+      }
+
       if (this.props.fallback) {
         return this.props.fallback;
       }

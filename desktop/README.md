@@ -25,10 +25,19 @@ uv run pytest -v
 
 ```bash
 uv run pyinstaller ollie-reader-desktop.spec --noconfirm
-# 產物：dist/ollie-reader-desktop/ollie-reader-desktop
+# 產物：dist/ollie-reader/ollie-reader
 ```
 
-## Piper 模型
+Piper 與 Kokoro 的模型檔都放在 `models/`、由 spec 一起收進 bundle，frozen 後從
+`sys._MEIPASS/models/` 載入，**完全離線、不需網路、不需 PyTorch**（Kokoro 走 ONNX Runtime）。
 
-從 Piper releases 下載 `en_US-lessac-medium.onnx`（與 `.onnx.json`）放到 `desktop/models/`，
-或用環境變數 `PIPER_MODEL_PATH` 指定。
+## 模型檔（放在 `desktop/models/`）
+
+| 引擎 | 檔案 | 來源 | env 覆寫 |
+|------|------|------|----------|
+| Piper | `en_US-lessac-medium.onnx`（+ `.onnx.json`） | Piper releases | `PIPER_MODEL_PATH` |
+| Kokoro | `kokoro-v1.0.fp16.onnx` | [kokoro-onnx releases](https://github.com/thewh1teagle/kokoro-onnx/releases/tag/model-files-v1.0) | `KOKORO_MODEL_PATH` |
+| Kokoro | `voices-v1.0.bin` | 同上 | `KOKORO_VOICES_PATH` |
+
+Kokoro 還有 `kokoro-v1.0.onnx`（fp32, 310MB）與 `kokoro-v1.0.int8.onnx`（88MB）可選；
+換檔後同步調整 `server/config.py` 的 `_KOKORO_MODEL_RELATIVE_PATH`（或用 env）。

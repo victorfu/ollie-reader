@@ -69,14 +69,28 @@ export interface PracticeItem {
   hint?: string;
 }
 
-/** 場景分組 */
-export interface SceneSection {
-  id: string;
-  title: string;
-  titleChinese: string;
-  emoji: string;
-  scenes: TravelScene[];
+/** 旅遊主題的子分組（一個主題底下可有多個分組，例如機場分「出發 / 入境」、動物園分各園區） */
+export interface TravelTopicGroup {
+  emoji?: string;
+  /** 英文小標（多分組時顯示） */
+  label?: string;
+  /** 中文小標（多分組時顯示） */
+  labelChinese?: string;
+  vocabulary: TravelVocab[];
+  phrases: TravelPhrase[];
 }
 
-/** 活動類型 */
-export type ActivityType = "words" | "story" | "roleplay" | "challenge";
+/** 旅遊主題（重新設計後的精簡版資料模型，分情境呈現必學單字與實用句子） */
+export interface TravelTopic {
+  id: string;
+  /** 首頁分區：核心情境 / 更多情境 */
+  section: "core" | "more";
+  emoji: string;
+  /** 英文副標 */
+  title: string;
+  /** 中文主標 */
+  titleChinese: string;
+  /** 卡片底色，沿用來源場景的 colorClass */
+  colorClass: string;
+  groups: TravelTopicGroup[];
+}

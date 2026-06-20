@@ -1,7 +1,6 @@
 export const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
 export const API_URL = `${API_BASE_URL}/api/pdf/extract`;
-export const FETCH_URL_API = `${API_BASE_URL}/api/fetch-url`;
 export const TTS_API_URL = `${API_BASE_URL}/api/tts`; // Piper
 export const KTTS_API_URL = `${API_BASE_URL}/api/ktts`; // Kokoro
 
@@ -27,4 +26,5 @@ export const TTS_ENGINE_PATH: Record<"piper" | "kokoro", string> = {
   kokoro: "/api/ktts",
 };
 export const PDF_EXTRACT_PATH = "/api/pdf/extract";
+export const FETCH_URL_PATH = "/api/fetch-url";
 export const VERSION_PATH = "/api/version";
