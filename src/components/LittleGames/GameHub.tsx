@@ -2,15 +2,15 @@ import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getBestScore } from "./lib/game-utils";
 import {
-  getWordRunnerBestScore,
-  WORD_RUNNER_BEST_SCORE_KEY,
-} from "./kaplay-runner/wordRunnerData";
+  getMonsterAcademyBest,
+  MONSTER_ACADEMY_BEST_KEY,
+} from "./monster-academy/monsterAcademyData";
 
 const METEOR_BEST_KEY = "meteor-glider-best";
 const MUSHROOM_BEST_KEY = "mushroom-adventure-best";
 
 type GameCard = {
-  id: "bunny" | "meteor" | "mushroom" | "kaplay-runner";
+  id: "bunny" | "meteor" | "mushroom" | "monster-academy";
   to: string;
   title: string;
   blurb: string;
@@ -31,20 +31,20 @@ export default function GameHub() {
   const [bunnyBest] = useState(() => getBestScore());
   const [meteorBest] = useState(() => readBest(METEOR_BEST_KEY));
   const [mushroomBest] = useState(() => readBest(MUSHROOM_BEST_KEY));
-  const [wordRunnerBest] = useState(() =>
-    getWordRunnerBestScore(localStorage),
+  const [monsterAcademyBest] = useState(() =>
+    getMonsterAcademyBest(localStorage),
   );
 
   const cards: GameCard[] = useMemo(
     () => [
       {
-        id: "kaplay-runner",
-        to: "/games/kaplay-runner",
-        title: "Ollie Word Runner",
-        blurb: "KAPLAY pilot：在天空圖書館跑酷，收集符合提示的英文單字。",
-        tag: "KAPLAY Pilot",
-        emoji: "🦉",
-        best: wordRunnerBest,
+        id: "monster-academy",
+        to: "/games/monster-academy",
+        title: "Ollie Monster Academy",
+        blurb: "全螢幕 KAPLAY RPG：探索魔法學院、挑戰可愛怪獸、修復水晶鐘。",
+        tag: "RPG",
+        emoji: "✨",
+        best: monsterAcademyBest,
       },
       {
         id: "bunny",
@@ -74,11 +74,11 @@ export default function GameHub() {
         best: meteorBest,
       },
     ],
-    [bunnyBest, meteorBest, mushroomBest, wordRunnerBest],
+    [bunnyBest, meteorBest, mushroomBest, monsterAcademyBest],
   );
 
   const openGame = (card: GameCard) => {
-    if (card.id === "kaplay-runner") {
+    if (card.id === "monster-academy") {
       window.open(card.to, "_blank", "noopener,noreferrer");
       return;
     }
@@ -121,9 +121,9 @@ export default function GameHub() {
             <div className="mt-4 flex items-center justify-between">
               <span className="text-xs text-muted-foreground">
                 {card.best && card.best > 0
-                  ? `最高分 ${card.best}`
-                  : card.id === "kaplay-runner"
-                    ? `保存在 ${WORD_RUNNER_BEST_SCORE_KEY}`
+                  ? `最高星星 ${card.best}`
+                  : card.id === "monster-academy"
+                    ? `保存在 ${MONSTER_ACADEMY_BEST_KEY}`
                     : "尚無紀錄"}
               </span>
               <button
@@ -131,7 +131,7 @@ export default function GameHub() {
                 onClick={() => openGame(card)}
                 className="btn btn-primary btn-sm rounded-[6px]"
               >
-                {card.id === "kaplay-runner" ? "新分頁開啟" : "開始遊戲"}
+                {card.id === "monster-academy" ? "新分頁開啟" : "開始遊戲"}
               </button>
             </div>
           </article>

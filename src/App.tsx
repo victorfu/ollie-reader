@@ -83,8 +83,8 @@ const MeteorGlider = lazyWithReload(
 const MushroomAdventure = lazyWithReload(
   () => import("./components/LittleGames/MushroomAdventure"),
 );
-const WordRunnerPage = lazyWithReload(
-  () => import("./components/LittleGames/kaplay-runner/WordRunnerPage"),
+const MonsterAcademyPage = lazyWithReload(
+  () => import("./components/LittleGames/monster-academy/MonsterAcademyPage"),
 );
 
 const SIDEBAR_COLLAPSED_KEY = "ollie-sidebar-collapsed";
@@ -297,15 +297,15 @@ function AppContent() {
   }, [isMobileMenuOpen]);
 
   const normalizedPathname = location.pathname.replace(/\/+$/, "") || "/";
-  const isStandaloneWordRunner =
-    normalizedPathname === "/games/kaplay-runner";
+  const isStandaloneMonsterAcademy =
+    normalizedPathname === "/games/monster-academy";
 
-  if (isStandaloneWordRunner) {
+  if (isStandaloneMonsterAcademy) {
     if (loading) {
       return (
-        <div className="flex min-h-screen items-center justify-center bg-[#e8f4ff]">
+        <div className="flex min-h-screen items-center justify-center bg-[#101426]">
           <span
-            className="loading loading-spinner loading-lg text-primary"
+            className="loading loading-spinner loading-lg text-warning"
             aria-label="載入遊戲"
           />
         </div>
@@ -317,7 +317,7 @@ function AppContent() {
         <SpeechProvider>
           <PdfProvider>
             <Suspense fallback={<RouteLoadingFallback />}>
-              <WordRunnerPage standalone onExit={() => navigate("/games")} />
+              <MonsterAcademyPage onExit={() => navigate("/games")} />
             </Suspense>
           </PdfProvider>
         </SpeechProvider>

@@ -20,7 +20,7 @@ export function scheduleKaplayInit(
   action: () => void,
   scheduler: KaplayInitScheduler = browserInitScheduler,
 ): () => void {
-  const timeoutId = scheduler.setTimeout(action, 0);
+  const timeoutId = scheduler.setTimeout(action, 350);
 
   return () => {
     scheduler.clearTimeout(timeoutId);
@@ -29,7 +29,7 @@ export function scheduleKaplayInit(
 
 export function startKaplaySceneWhenReady(
   k: KaplaySceneLoader,
-  scene = "runner",
+  scene = "academy",
 ): void {
   if (k.loadProgress() >= 1) {
     k.go(scene);
