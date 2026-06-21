@@ -24,6 +24,10 @@ interface ImportMetaEnv {
 
   // Backend API
   readonly VITE_API_BASE_URL?: string;
+
+  // Supabase Storage（前端直連）
+  readonly VITE_SUPABASE_URL: string;
+  readonly VITE_SUPABASE_PUBLISHABLE_KEY: string;
 }
 
 interface ImportMeta {
