@@ -155,13 +155,13 @@ export function useBookingRecords(): UseBookingRecordsReturn {
     setError(null);
   }, []);
 
-  // 自動載入預約記錄，並在卸載時清理
+  // 卸載時取消進行中的請求。抓取改由「開啟預約抽屜」觸發（lazy），
+  // 不在 mount 自動抓，避免未使用預約功能時的多餘請求與背景 400。
   useEffect(() => {
-    fetchBookingRecords();
     return () => {
       abortControllerRef.current?.abort();
     };
-  }, [fetchBookingRecords]);
+  }, []);
 
   return {
     bookingRecords,

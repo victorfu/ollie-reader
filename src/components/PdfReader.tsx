@@ -68,6 +68,14 @@ function PdfReader() {
   const [wordPanelOpen, setWordPanelOpen] = useState(false);
   const [loadingCourseId, setLoadingCourseId] = useState<string | null>(null);
 
+  // 打開「課程預約」抽屜時才抓取（lazy）：避免未使用預約功能時的多餘請求與背景 400，
+  // 並讓「未設定 OIKID 帳密」的訊息在使用者真正開啟抽屜時才出現。
+  useEffect(() => {
+    if (drawerOpen) {
+      fetchBookingRecords();
+    }
+  }, [drawerOpen, fetchBookingRecords]);
+
   // Keyboard shortcut: Cmd/Ctrl+K to toggle the word panel
   useEffect(() => {
     if (!result) return;

@@ -12,6 +12,7 @@ import {
   setWordRunnerBestScore,
   type WordRunnerRound,
 } from "./wordRunnerData";
+import { startKaplaySceneWhenReady } from "./kaplayLifecycle";
 
 export const WORD_RUNNER_WIDTH = 1280;
 export const WORD_RUNNER_HEIGHT = 800;
@@ -557,9 +558,7 @@ export function createWordRunnerGame({
     updateHud();
   });
 
-  k.onLoad(() => {
-    k.go("runner");
-  });
+  startKaplaySceneWhenReady(k);
 
   k.onLoadError((name, failedAsset) => {
     throw new Error(

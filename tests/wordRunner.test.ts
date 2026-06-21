@@ -7,6 +7,7 @@ import {
   getWordRunnerBestScore,
   setWordRunnerBestScore,
 } from "../src/components/LittleGames/kaplay-runner/wordRunnerData.ts";
+import { startKaplaySceneWhenReady } from "../src/components/LittleGames/kaplay-runner/kaplayLifecycle.ts";
 import type { GameWord } from "../src/services/gameService.ts";
 
 function createMemoryStorage(initial: Record<string, string> = {}): Storage {
@@ -117,4 +118,20 @@ test("does not lower an existing best score", () => {
   setWordRunnerBestScore(200, storage);
 
   assert.equal(getWordRunnerBestScore(storage), 300);
+});
+
+test("starts the runner scene immediately when KAPLAY assets are already loaded", () => {
+  const calls: string[] = [];
+
+  startKaplaySceneWhenReady({
+    loadProgress: () => 1,
+    onLoad: () => {
+      calls.push("onLoad");
+    },
+    go: (scene) => {
+      calls.push(`go:${scene}`);
+    },
+  });
+
+  assert.deepEqual(calls, ["go:runner"]);
 });
