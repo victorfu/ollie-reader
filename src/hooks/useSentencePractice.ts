@@ -109,23 +109,24 @@ export const useSentencePractice = (speechId: string | null) => {
           speechId,
         }));
 
-        const docIds = await addSentences(sentencesToSave);
+        const saved = await addSentences(sentencesToSave);
 
-        const currentLength = sentences.length;
         const newSentences: PracticeSentence[] = parsedSentences.map(
           (s, index) => ({
-            id: docIds[index],
+            id: saved[index].id,
             english: s.english,
             chinese: s.chinese,
             userId: user.uid,
             speechId,
-            order: currentLength + index,
+            order: saved[index].order,
             createdAt: new Date(),
             updatedAt: new Date(),
           }),
         );
 
-        setSentences((prev) => [...prev, ...newSentences]);
+        // Newest first: prepend so freshly added sentences sit at the top,
+        // matching their below-minimum order persisted by addSentences.
+        setSentences((prev) => [...newSentences, ...prev]);
 
         const hasFailedTranslation = parsedSentences.some((s) =>
           s.chinese.includes("翻譯失敗"),
@@ -147,7 +148,7 @@ export const useSentencePractice = (speechId: string | null) => {
         setIsProcessing(false);
       }
     },
-    [user, speechId, sentences.length],
+    [user, speechId],
   );
 
   const translateSingle = useCallback(

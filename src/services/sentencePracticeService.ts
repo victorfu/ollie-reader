@@ -53,35 +53,53 @@ export const getMaxOrder = async (speechId: string): Promise<number> => {
   return snapshot.docs[0].data().order ?? -1;
 };
 
+// Min order within a speech; null when the speech has no sentences yet.
+export const getMinOrder = async (speechId: string): Promise<number | null> => {
+  const q = query(
+    collection(db, COLLECTION_NAME),
+    where("speechId", "==", speechId),
+    orderBy("order", "asc"),
+    limit(1),
+  );
+  const snapshot = await getDocs(q);
+  if (snapshot.empty) return null;
+  return snapshot.docs[0].data().order ?? null;
+};
+
 export const addSentences = async (
   sentences: Omit<PracticeSentence, "id" | "createdAt" | "updatedAt">[],
-): Promise<string[]> => {
+): Promise<{ id: string; order: number }[]> => {
   if (sentences.length === 0) return [];
 
   const speechId = sentences[0].speechId;
-  const maxOrder = await getMaxOrder(speechId);
+  // New sentences go to the TOP of the list (easier to drag/reorder right
+  // after adding), so assign them orders below the current minimum while
+  // preserving their parse order among themselves. List sorts by order asc.
+  const minOrder = await getMinOrder(speechId);
+  const baseOrder = minOrder === null ? 0 : minOrder - sentences.length;
 
   const now = Timestamp.now();
   const batch = writeBatch(db);
-  const docRefs: string[] = [];
+  const saved: { id: string; order: number }[] = [];
 
   for (let i = 0; i < sentences.length; i++) {
     const s = sentences[i];
     const docRef = doc(collection(db, COLLECTION_NAME));
+    const order = baseOrder + i;
     batch.set(docRef, {
       english: s.english,
       chinese: s.chinese,
       userId: s.userId,
       speechId: s.speechId,
-      order: maxOrder + 1 + i,
+      order,
       createdAt: now,
       updatedAt: now,
     });
-    docRefs.push(docRef.id);
+    saved.push({ id: docRef.id, order });
   }
 
   await batch.commit();
-  return docRefs;
+  return saved;
 };
 
 export const addSentence = async (
