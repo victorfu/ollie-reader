@@ -67,3 +67,16 @@ def test_clear_removes_credentials(memory_keyring):
 def test_clear_when_absent_is_noop(memory_keyring):
     clear_oikid_credentials()  # 不應拋例外
     assert get_oikid_credentials() is None
+
+
+def test_one_sided_blank_treated_as_unset(memory_keyring):
+    set_oikid_credentials("alice", "")
+    assert get_oikid_credentials() is None
+
+
+def test_wrong_json_keys_treated_as_unset(memory_keyring):
+    import json
+    memory_keyring.set_password(
+        "ollie-reader-oikid", "credentials", json.dumps({"user": "alice", "pass": "x"})
+    )
+    assert get_oikid_credentials() is None

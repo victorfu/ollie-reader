@@ -20,7 +20,7 @@ export const STORAGE_SIGNED_URL = `${API_BASE_URL}/storage/signed-url`;
 // 本機 sidecar（desktop app）base，與雲端 API_BASE_URL 並存
 export const LOCAL_BASE_URL = "http://127.0.0.1:8765";
 
-// 可走本機運算的端點 path（其餘如 oikid/translate/storage 永遠走雲端）
+// 可走本機運算（local/auto/cloud compute-mode）的端點 path：pdf/tts/ktts/fetch-url/oikid。storage 永遠走雲端。
 export const TTS_ENGINE_PATH: Record<"piper" | "kokoro", string> = {
   piper: "/api/tts",
   kokoro: "/api/ktts",

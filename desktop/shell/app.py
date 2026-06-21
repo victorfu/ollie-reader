@@ -125,7 +125,7 @@ class SettingsDialog(QDialog):
     username = self.oikid_user_edit.text().strip()
     password = self.oikid_pw_edit.text()
     if not username or not password:
-      self.oikid_status_label.setText("帳號與密碼皆不可空白")
+      self.oikid_status_label.setText("請輸入 OIKID 帳號與密碼")
       return
     set_oikid_credentials(username, password)
     self.oikid_pw_edit.clear()

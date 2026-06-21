@@ -313,3 +313,4 @@ def test_oikid_upstream_error_maps_502(client, monkeypatch):
     resp = client.get("/api/oikid/booking-records")
 
     assert resp.status_code == 502
+    assert resp.json()["detail"] == "OIKID fetch error"
