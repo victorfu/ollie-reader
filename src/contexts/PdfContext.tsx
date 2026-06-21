@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import type { ExtractResponse } from "../types/pdf";
-import { FETCH_URL_API, PDF_EXTRACT_PATH } from "../constants/api";
+import { FETCH_URL_PATH, PDF_EXTRACT_PATH } from "../constants/api";
 import { fetchWithComputeBase, getComputeMode, localUnavailableMessage } from "../services/localBackend";
 import { pdfSessionCache } from "../services/pdfSessionCache";
 import { isAbortError } from "../utils/errorUtils";
@@ -199,13 +199,11 @@ export const PdfProvider = ({ children }: PdfProviderProps) => {
     abortRef.current = controller;
 
     try {
-      const apiUrl = new URL(FETCH_URL_API);
-      apiUrl.searchParams.set("url", url);
-      apiUrl.searchParams.set("follow_redirects", "true");
-
-      const response = await fetch(apiUrl.toString(), {
-        signal: controller.signal,
-      });
+      const params = new URLSearchParams({ url, follow_redirects: "true" });
+      const response = await fetchWithComputeBase(
+        `${FETCH_URL_PATH}?${params.toString()}`,
+        { signal: controller.signal },
+      );
 
       if (!response.ok) {
         let errorMessage = `無法載入 PDF: ${response.status}`;
