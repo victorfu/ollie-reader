@@ -13,7 +13,8 @@ NPM     := npm
 
 .PHONY: help setup install desktop-setup \
         dev build lint preview \
-        desktop-serve desktop-run desktop-test desktop-package desktop-package-clean desktop-clean \
+        desktop-serve desktop-run desktop-test desktop-icon desktop-package desktop-package-clean desktop-clean \
+        desktop-verify desktop-dmg desktop-release \
         test clean
 
 help: ## List available targets
@@ -52,6 +53,9 @@ desktop-run: ## Run the PySide6 tray shell (it manages the sidecar)
 desktop-test: ## Run the desktop pytest suite
 	$(UV) run --directory $(DESKTOP) pytest -v
 
+desktop-icon: ## Generate assets/AppIcon.icns from tray-icon.png
+	bash $(DESKTOP)/release/make_icon.sh
+
 desktop-package: ## Build the frozen binary with PyInstaller (incremental -> desktop/dist/)
 	$(UV) run --directory $(DESKTOP) pyinstaller ollie-reader-desktop.spec --noconfirm
 
@@ -60,6 +64,15 @@ desktop-package-clean: ## Clean build of the frozen binary (drops PyInstaller ca
 
 desktop-clean: ## Remove PyInstaller build/dist artifacts
 	rm -rf $(DESKTOP)/build $(DESKTOP)/dist
+
+desktop-verify: ## Scan the built .app for secrets/.env (fails if any found)
+	$(UV) run --directory $(DESKTOP) python release/verify_bundle.py dist/ollie-reader.app
+
+desktop-dmg: ## Build a signed + notarized dmg (requires .env.package)
+	bash $(DESKTOP)/release/package_macos.sh
+
+desktop-release: desktop-dmg ## Publish the dmg to GitHub Releases as desktop-v<version>
+	bash $(DESKTOP)/release/release_github.sh
 
 # ── Aggregate ─────────────────────────────────────────────────────────────
 test: desktop-test ## Run all test suites
