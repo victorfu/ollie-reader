@@ -77,6 +77,15 @@ export default function GameHub() {
     [bunnyBest, meteorBest, mushroomBest, wordRunnerBest],
   );
 
+  const openGame = (card: GameCard) => {
+    if (card.id === "kaplay-runner") {
+      window.open(card.to, "_blank", "noopener,noreferrer");
+      return;
+    }
+
+    navigate(card.to);
+  };
+
   return (
     <div className="mx-auto max-w-5xl">
       <header className="mb-6">
@@ -119,10 +128,10 @@ export default function GameHub() {
               </span>
               <button
                 type="button"
-                onClick={() => navigate(card.to)}
+                onClick={() => openGame(card)}
                 className="btn btn-primary btn-sm rounded-[6px]"
               >
-                開始遊戲
+                {card.id === "kaplay-runner" ? "新分頁開啟" : "開始遊戲"}
               </button>
             </div>
           </article>

@@ -29,6 +29,25 @@ export type WordRunnerResult = {
   roundCount: number;
 };
 
+export function shouldStartWordRunnerGame({
+  hasUser,
+  vocabularyReady,
+}: {
+  hasUser: boolean;
+  vocabularyReady: boolean;
+}): boolean {
+  return !hasUser || vocabularyReady;
+}
+
+export function compactRunnerText(value: string, maxLength = 24): string {
+  const normalized = value.trim().replace(/\s+/g, " ");
+  const chars = Array.from(normalized);
+
+  if (chars.length <= maxLength) return normalized;
+
+  return `${chars.slice(0, Math.max(0, maxLength - 1)).join("")}…`;
+}
+
 type NormalizedGameWord = {
   word: string;
   definition: string;

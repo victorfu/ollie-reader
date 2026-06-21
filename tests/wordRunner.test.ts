@@ -4,10 +4,15 @@ import assert from "node:assert/strict";
 import {
   WORD_RUNNER_BEST_SCORE_KEY,
   buildWordRunnerRounds,
+  compactRunnerText,
   getWordRunnerBestScore,
   setWordRunnerBestScore,
+  shouldStartWordRunnerGame,
 } from "../src/components/LittleGames/kaplay-runner/wordRunnerData.ts";
-import { startKaplaySceneWhenReady } from "../src/components/LittleGames/kaplay-runner/kaplayLifecycle.ts";
+import {
+  scheduleKaplayInit,
+  startKaplaySceneWhenReady,
+} from "../src/components/LittleGames/kaplay-runner/kaplayLifecycle.ts";
 import type { GameWord } from "../src/services/gameService.ts";
 
 function createMemoryStorage(initial: Record<string, string> = {}): Storage {
@@ -134,4 +139,58 @@ test("starts the runner scene immediately when KAPLAY assets are already loaded"
   });
 
   assert.deepEqual(calls, ["go:runner"]);
+});
+
+test("cancels deferred KAPLAY initialization before creating an instance", () => {
+  const calls: string[] = [];
+  const tasks: Array<() => void> = [];
+  const cancelledTaskIds = new Set<number>();
+
+  const cancel = scheduleKaplayInit(
+    () => {
+      calls.push("create");
+    },
+    {
+      setTimeout: (task) => {
+        tasks.push(task);
+        return tasks.length - 1;
+      },
+      clearTimeout: (taskId) => {
+        cancelledTaskIds.add(taskId);
+      },
+    },
+  );
+
+  cancel();
+  tasks.forEach((task, taskId) => {
+    if (!cancelledTaskIds.has(taskId)) task();
+  });
+
+  assert.deepEqual(calls, []);
+});
+
+test("waits for authenticated vocabulary before mounting the runner host", () => {
+  assert.equal(
+    shouldStartWordRunnerGame({ hasUser: true, vocabularyReady: false }),
+    false,
+  );
+  assert.equal(
+    shouldStartWordRunnerGame({ hasUser: true, vocabularyReady: true }),
+    true,
+  );
+  assert.equal(
+    shouldStartWordRunnerGame({ hasUser: false, vocabularyReady: false }),
+    true,
+  );
+});
+
+test("compacts long runner text for the in-canvas HUD", () => {
+  const compacted = compactRunnerText(
+    "某事物被設計用來執行的特別用途或工作（功能）。",
+    18,
+  );
+
+  assert.equal(compactRunnerText("短提示", 18), "短提示");
+  assert.ok(compacted.endsWith("…"));
+  assert.ok(Array.from(compacted).length <= 18);
 });

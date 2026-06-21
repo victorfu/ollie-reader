@@ -296,6 +296,35 @@ function AppContent() {
     };
   }, [isMobileMenuOpen]);
 
+  const normalizedPathname = location.pathname.replace(/\/+$/, "") || "/";
+  const isStandaloneWordRunner =
+    normalizedPathname === "/games/kaplay-runner";
+
+  if (isStandaloneWordRunner) {
+    if (loading) {
+      return (
+        <div className="flex min-h-screen items-center justify-center bg-[#e8f4ff]">
+          <span
+            className="loading loading-spinner loading-lg text-primary"
+            aria-label="載入遊戲"
+          />
+        </div>
+      );
+    }
+
+    return (
+      <SettingsProvider>
+        <SpeechProvider>
+          <PdfProvider>
+            <Suspense fallback={<RouteLoadingFallback />}>
+              <WordRunnerPage standalone onExit={() => navigate("/games")} />
+            </Suspense>
+          </PdfProvider>
+        </SpeechProvider>
+      </SettingsProvider>
+    );
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -626,12 +655,6 @@ function AppContent() {
                         path="/games/mushroom"
                         element={
                           <MushroomAdventure onExit={() => navigate("/games")} />
-                        }
-                      />
-                      <Route
-                        path="/games/kaplay-runner"
-                        element={
-                          <WordRunnerPage onExit={() => navigate("/games")} />
                         }
                       />
                       <Route path="/travel" element={<TravelEnglishPage />} />

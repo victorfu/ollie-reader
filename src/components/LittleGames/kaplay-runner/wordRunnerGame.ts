@@ -1,6 +1,7 @@
 import kaplay, {
   type GameObj,
   type KAPLAYCtx,
+  type OpacityComp,
   type TextComp,
   type Vec2,
 } from "kaplay";
@@ -8,6 +9,7 @@ import { playSound } from "../../../services/gameService";
 import type { GameWordSeed } from "../../../services/gameWords";
 import {
   buildWordRunnerRounds,
+  compactRunnerText,
   getWordRunnerBestScore,
   setWordRunnerBestScore,
   type WordRunnerRound,
@@ -44,22 +46,29 @@ export type WordRunnerGameOptions = {
 
 export type WordRunnerGameController = {
   quit: () => void;
+  setLeftPressed: (pressed: boolean) => void;
+  setRightPressed: (pressed: boolean) => void;
+  jump: () => void;
+  togglePause: () => void;
+  restart: () => void;
 };
 
 type AnswerMeta = {
   roundIndex: number;
   isCorrect: boolean;
-  label: GameObj;
+  label: GameObj<TextComp & OpacityComp>;
 };
 
-const WORLD_SPEED = 165;
+const WORLD_SPEED = 145;
 const MANUAL_SPEED = 145;
 const JUMP_FORCE = 760;
 const PLATFORM_Y = 655;
-const ROUND_SPACING = 430;
+const ROUND_SPACING = 950;
 const START_X = 170;
-const FIRST_ROUND_X = 650;
+const FIRST_ROUND_X = 700;
 const ROUND_COUNT = 10;
+const ANSWER_OPTION_SPACING = 200;
+const ANSWER_LABEL_WIDTH = 210;
 
 function addFixedLabel(
   k: KAPLAYCtx,
@@ -67,9 +76,12 @@ function addFixedLabel(
   x: number,
   y: number,
   size = 22,
+  width?: number,
 ): GameObj<TextComp> {
+  const textOptions = width ? { size, width } : { size };
+
   return k.add([
-    k.text(value, { size }),
+    k.text(value, textOptions),
     k.pos(x, y),
     k.fixed(),
     k.color("#102033"),
@@ -118,6 +130,29 @@ function playEffect(effect: Parameters<typeof playSound>[0]): void {
   playSound(effect);
 }
 
+function getAnswerLabelSize(value: string): number {
+  const length = Array.from(value).length;
+
+  if (length <= 8) return 25;
+  if (length <= 13) return 21;
+  if (length <= 18) return 18;
+
+  return 15;
+}
+
+function getPromptLabel(round?: WordRunnerRound): string {
+  return round
+    ? `Find: ${compactRunnerText(round.definition, 28)}`
+    : "Run to the flag";
+}
+
+function isAnswerLabelInView(x: number): boolean {
+  return (
+    x > ANSWER_LABEL_WIDTH / 2 &&
+    x < WORD_RUNNER_WIDTH - ANSWER_LABEL_WIDTH / 2
+  );
+}
+
 function createAnswer(
   k: KAPLAYCtx,
   round: WordRunnerRound,
@@ -131,8 +166,9 @@ function createAnswer(
   const isCorrect = option.id === round.correctOptionId;
   const spriteName = isCorrect ? "token-correct" : "card-wrong";
   const itemScale = isCorrect ? 0.27 : 0.22;
-  const labelY = isCorrect ? y + 6 : y + 88;
+  const labelY = isCorrect ? y - 46 : y + 72;
   const labelColor = isCorrect ? "#064e3b" : "#7f1d1d";
+  const displayWord = compactRunnerText(option.word, 18);
 
   const answer = k.add([
     k.sprite(spriteName),
@@ -146,14 +182,15 @@ function createAnswer(
   ]);
 
   const label = k.add([
-    k.text(option.word, {
+    k.text(displayWord, {
       align: "center",
-      size: option.word.length > 11 ? 21 : 26,
-      width: 180,
+      size: getAnswerLabelSize(displayWord),
+      width: ANSWER_LABEL_WIDTH,
     }),
     k.pos(x, labelY),
     k.anchor("center"),
     k.color(labelColor),
+    k.opacity(isAnswerLabelInView(x) ? 1 : 0),
     k.z(45),
     "scroll",
   ]);
@@ -202,6 +239,13 @@ export function createWordRunnerGame({
 
   const rounds = buildWordRunnerRounds(words, ROUND_COUNT);
   const sceneCleanups = new Set<() => void>();
+  const externalControls: Omit<WordRunnerGameController, "quit"> = {
+    setLeftPressed: () => {},
+    setRightPressed: () => {},
+    jump: () => {},
+    togglePause: () => {},
+    restart: () => {},
+  };
 
   k.scene("runner", () => {
     k.debug.timeScale = 1;
@@ -242,14 +286,14 @@ export function createWordRunnerGame({
 
     rounds.forEach((round, roundIndex) => {
       const baseX = FIRST_ROUND_X + roundIndex * ROUND_SPACING;
-      const y = roundIndex % 2 === 0 ? 560 : 530;
+      const y = roundIndex % 2 === 0 ? 540 : 510;
 
       round.options.forEach((_, optionIndex) => {
         createAnswer(
           k,
           round,
           optionIndex,
-          baseX + optionIndex * 126,
+          baseX + optionIndex * ANSWER_OPTION_SPACING,
           y,
           answerMeta,
           roundObjects,
@@ -279,59 +323,42 @@ export function createWordRunnerGame({
       "player",
     ]);
 
-    addGlassPanel(k, 28, 22, 340, 94);
-    addGlassPanel(k, WORD_RUNNER_WIDTH - 210, 22, 180, 78);
-    addGlassPanel(k, 414, 22, 452, 78);
+    addGlassPanel(k, 28, 22, 260, 86);
+    addGlassPanel(k, 332, 22, 590, 86);
+    addGlassPanel(k, WORD_RUNNER_WIDTH - 190, 22, 160, 72);
 
-    addFixedLabel(k, "Ollie Word Runner", 48, 44, 24);
-    const scoreText = addFixedLabel(k, "Score 0", 48, 78, 20);
+    addFixedLabel(k, "Ollie Runner", 48, 44, 21);
+    const scoreText = addFixedLabel(k, "Score 0", 48, 78, 18);
     const bestText = addFixedLabel(
       k,
       `Best ${getWordRunnerBestScore()}`,
-      190,
+      154,
       78,
-      20,
+      18,
     );
     const promptText = addFixedLabel(
       k,
-      rounds[0] ? `Find: ${rounds[0].definition}` : "Find the word",
-      438,
-      50,
-      22,
+      getPromptLabel(rounds[0]),
+      356,
+      48,
+      19,
+      530,
     );
-    const statusText = addFixedLabel(k, "Collect the green word", 438, 78, 18);
-    const pauseText = addFixedLabel(k, "Pause", WORD_RUNNER_WIDTH - 164, 50, 22);
-
-    k.add([
-      k.circle(58),
-      k.pos(112, WORD_RUNNER_HEIGHT - 92),
-      k.fixed(),
-      k.color("#eaf3ff"),
-      k.opacity(0.68),
-      k.outline(3, k.rgb("#ffffff"), 0.72),
-      k.z(110),
-    ]);
-    addFixedLabel(k, "←", 88, WORD_RUNNER_HEIGHT - 112, 42);
-    k.add([
-      k.circle(58),
-      k.pos(252, WORD_RUNNER_HEIGHT - 92),
-      k.fixed(),
-      k.color("#eaf3ff"),
-      k.opacity(0.68),
-      k.outline(3, k.rgb("#ffffff"), 0.72),
-      k.z(110),
-    ]);
-    addFixedLabel(k, "→", 228, WORD_RUNNER_HEIGHT - 112, 42);
-    k.add([
-      k.circle(66),
-      k.pos(WORD_RUNNER_WIDTH - 116, WORD_RUNNER_HEIGHT - 96),
-      k.fixed(),
-      k.color("#eaf3ff"),
-      k.opacity(0.72),
-      k.outline(3, k.rgb("#ffffff"), 0.75),
-      k.z(110),
-    ]);
-    addFixedLabel(k, "Jump", WORD_RUNNER_WIDTH - 150, WORD_RUNNER_HEIGHT - 107, 24);
+    const statusText = addFixedLabel(
+      k,
+      "Collect the green word",
+      356,
+      78,
+      16,
+      530,
+    );
+    const pauseText = addFixedLabel(
+      k,
+      "Pause",
+      WORD_RUNNER_WIDTH - 158,
+      50,
+      20,
+    );
 
     callbacks?.onScoreChange?.(score);
     callbacks?.onBestScoreChange?.(getWordRunnerBestScore());
@@ -340,11 +367,9 @@ export function createWordRunnerGame({
       scoreText.text = `Score ${score}`;
       bestText.text = `Best ${getWordRunnerBestScore()}`;
       const currentRound = rounds[currentRoundIndex];
-      promptText.text = currentRound
-        ? `Find: ${currentRound.definition}`
-        : "Run to the flag";
+      promptText.text = getPromptLabel(currentRound);
       statusText.text = gameEnded
-        ? "Press Enter or tap to restart"
+        ? "Enter or tap to restart"
         : `Lives ${"♥".repeat(lives)}${"♡".repeat(Math.max(0, 3 - lives))}`;
       callbacks?.onScoreChange?.(score);
     };
@@ -362,7 +387,23 @@ export function createWordRunnerGame({
       paused = nextPaused;
       k.debug.timeScale = paused ? 0 : 1;
       pauseText.text = paused ? "Resume" : "Pause";
-      statusText.text = paused ? "Paused" : "Collect the green word";
+      statusText.text = paused
+        ? "Paused"
+        : `Lives ${"♥".repeat(lives)}${"♡".repeat(Math.max(0, 3 - lives))}`;
+    };
+
+    externalControls.setLeftPressed = (pressed: boolean) => {
+      input.left = pressed && !gameEnded;
+      if (pressed) input.right = false;
+    };
+    externalControls.setRightPressed = (pressed: boolean) => {
+      input.right = pressed && !gameEnded;
+      if (pressed) input.left = false;
+    };
+    externalControls.jump = jump;
+    externalControls.togglePause = () => setPaused(!paused);
+    externalControls.restart = () => {
+      if (gameEnded) k.go("runner");
     };
 
     const endGame = (victory: boolean) => {
@@ -370,12 +411,13 @@ export function createWordRunnerGame({
 
       gameEnded = true;
       const bestScore = setWordRunnerBestScore(score);
+      bestText.text = `Best ${bestScore}`;
       callbacks?.onBestScoreChange?.(bestScore);
       callbacks?.onGameOver?.({ score, bestScore, victory });
       playEffect(victory ? "levelup" : "wrong");
       statusText.text = victory
-        ? "Nice run. Press Enter or tap to restart"
-        : "Try again. Press Enter or tap to restart";
+        ? "Nice run. Enter or tap to restart"
+        : "Try again. Enter or tap to restart";
     };
 
     const clearRound = (roundIndex: number) => {
@@ -546,6 +588,10 @@ export function createWordRunnerGame({
       k.query({ include: "scroll" }).forEach((obj) => {
         obj.move(-WORLD_SPEED, 0);
       });
+      answerMeta.forEach((meta, answer) => {
+        if (!answer.exists() || !meta.label.exists()) return;
+        meta.label.opacity = isAnswerLabelInView(answer.pos.x) ? 1 : 0;
+      });
       cloudLayer.pos.x = -((k.time() * 14) % 70);
 
       if (player.pos.y > WORD_RUNNER_HEIGHT + 260) {
@@ -572,6 +618,21 @@ export function createWordRunnerGame({
       sceneCleanups.clear();
       k.debug.timeScale = 1;
       k.quit();
+    },
+    setLeftPressed: (pressed: boolean) => {
+      externalControls.setLeftPressed(pressed);
+    },
+    setRightPressed: (pressed: boolean) => {
+      externalControls.setRightPressed(pressed);
+    },
+    jump: () => {
+      externalControls.jump();
+    },
+    togglePause: () => {
+      externalControls.togglePause();
+    },
+    restart: () => {
+      externalControls.restart();
     },
   };
 }
