@@ -1,78 +1,80 @@
-# Wonder Academy RPG Design
+# Wonder Academy RPG 設計規格
 
-Date: 2026-06-21
+日期：2026-06-21
 
-## Status
+## 狀態
 
-Approved for design documentation. This spec replaces the current academy battle prototype direction with a full cute companion-collection RPG world. It is a design document only; implementation planning comes next.
+本設計已通過方向確認，準備作為後續實作計畫的基礎。這份文件只描述遊戲設計，不包含程式實作。
 
-## Design Goals
+## 設計目標
 
-- Build a real RPG world, not a small demo.
-- Keep the game friendly, cute, warm, and collectible while still having RPG depth.
-- Avoid monster terminology. The collectible beings are called **Wonderlings**.
-- Let the player choose and nickname their starter.
-- Support long-term expansion across multiple chapters, regions, skills, careers, and collections.
-- Keep built-in assets original. The game may support local custom guest slots, but the repo must not include recognizable third-party IP assets or names.
+- 做成一個真正有世界觀、章節、隊伍、成長與收藏的 RPG，不是小型 demo。
+- 整體感覺要可愛、溫暖、療癒，但仍保留 RPG 策略深度。
+- 避免使用 monster / battle / capture 這類打怪語彙。
+- 可收集角色統稱為 **Wonderlings**。
+- 玩家身份是 **Wonder Keeper**。
+- Starter 必須能讓玩家自訂名字。
+- 內建角色與資產全部使用原創設定。
+- 可以支援本機自訂角色槽，但專案不內建、不產生、不提交可識別第三方 IP 角色或名稱。
 
-## Core Vocabulary
+## 核心名詞
 
-| Concept | In-game term |
+| 概念 | 遊戲內名詞 |
 | --- | --- |
-| Game | Wonder Academy |
-| Player role | Wonder Keeper |
-| Collectible beings | Wonderlings |
-| Collection book | Wonderdex |
-| Building a connection | Attune |
-| Battle/challenge | Mood Trial |
-| Player party | Keeper Team |
-| Region boss | Warden |
-| Legendary beings | Mythlings |
-| Custom local character slot | Guest Wonderling Slot |
+| 遊戲 | Wonder Academy |
+| 玩家身份 | Wonder Keeper |
+| 可收集角色 | Wonderlings |
+| 圖鑑 | Wonderdex |
+| 建立連結 | Attune |
+| 挑戰 / 戰鬥系統 | Mood Trial |
+| 玩家隊伍 | Keeper Team |
+| 區域守護者 | Warden |
+| 傳說級角色 | Mythlings |
+| 本機自訂角色槽 | Guest Wonderling Slot |
 
-## Premise
+## 核心概念
 
-Wonder Academy is a floating academy connected to many cozy regions: glowing forests, glassy coasts, clocktower dorms, cloud markets, snowy villages, dream festivals, star trains, and the Crystal Bell Tower.
+Wonder Academy 是一所漂浮在雲海上的學院，連接著許多溫暖奇幻的區域：發光森林、玻璃海岸、鐘塔宿舍、雲端市集、雪鈴山脊、夢境祭典、星空列車，以及最終的 Crystal Bell Tower。
 
-The player is a new Wonder Keeper. On the first school day, the Crystal Bell loses its voice. The bell normally keeps the academy and Wonderlings emotionally in tune. Without it, Wardens and Wonderlings become anxious, guarded, shy, or lost. They are not enemies; they need help being understood.
+玩家是剛入學的新生 Wonder Keeper。入學日當天，維繫整個學院與各地區情緒節奏的 **Crystal Bell** 突然失去聲音。鐘聲消失後，Wonderlings 和 Wardens 開始變得焦躁、害羞、封閉或迷路。牠們不是敵人，也不是壞掉了，而是需要被理解。
 
-The player chooses one starter Wonderling, gives it a nickname, and travels with teachers, classmates, and their Keeper Team to recover the Bell Tones held across the world.
+玩家會選擇一隻初始夥伴 Wonderling，替牠取名字，並和老師、同學與 Keeper Team 一起前往各地，找回散落的 Bell Tones，逐步讓 Crystal Bell 重新響起。
 
-## Tone
+## 故事調性
 
-- Warm, playful, and emotionally safe.
-- Cute first, strategic second, but not shallow.
-- Conflict comes from misunderstanding, anxiety, loneliness, lost memories, and broken trust.
-- A Mood Trial should feel like calming, understanding, and connecting, not defeating.
-- The story can have mystery, but it should stay suitable for parent-child play.
+- 溫暖、可愛、適合親子一起玩。
+- 有神秘感，但不陰暗。
+- 衝突來自誤解、孤單、害怕、記憶遺失與信任破裂。
+- Mood Trial 的目標不是擊敗對方，而是安撫、理解、建立連結。
+- 小孩能理解主要目標，大人能看到隊伍、技能、職業與圖鑑策略。
 
-## Starter System
+## Starter 系統
 
-The game begins with four starter Wonderlings. Each can be renamed by the player.
+遊戲開局提供四隻初始夥伴 Wonderlings。玩家從中選一隻作為第一個夥伴，並可以替牠輸入暱稱。
 
-Stored identity:
+資料儲存方式：
 
-- `speciesName`: fixed species label, such as `Lumi`.
-- `nickname`: player-entered name.
-- `displayName`: nickname if present, otherwise species name.
+- `speciesName`：固定物種名稱，例如 `Lumi`。
+- `nickname`：玩家輸入的暱稱。
+- `displayName`：若有 nickname 就顯示 nickname，否則顯示 speciesName。
 
 ### Lumi
 
-- Species: starlight fox
-- Elements: Light / Spark
-- Roles: Striker / Trickster
-- Personality: clever, impatient, eager to prove itself
-- Playstyle: fast turns, timing interactions, high pressure, Attune support through dazzling effects
-- Field Skill: **Light Trail**, reveals hidden paths and stardust items
+- 物種：星光小狐
+- 屬性：Light / Spark
+- 定位：Striker / Trickster
+- 個性：聰明、急性子、很想證明自己
+- 玩法：速度快、互動多、擅長連擊與干擾，也能提高 Attune 成功率
+- Field Skill：**Light Trail**，照亮隱藏路線並找出星塵道具
 
-Bond forms:
+Bond Forms：
 
 - Lumi
 - Lumi Tailglow
 - Lumi Prismtail
 - Lumi Aurorafox
 
-Signature skills:
+代表技能：
 
 - Tiny Flash
 - Zip Spark
@@ -82,21 +84,21 @@ Signature skills:
 
 ### Momo
 
-- Species: cloud kitten
-- Elements: Dream / Tide
-- Roles: Healer / Guardian
-- Personality: sleepy, gentle, slow to react, dependable when needed
-- Playstyle: high safety, shields, healing, better tolerance for mistakes
-- Field Skill: **Soft Float**, crosses gaps and reaches cloud platforms
+- 物種：雲朵小貓
+- 屬性：Dream / Tide
+- 定位：Healer / Guardian
+- 個性：愛睡、溫柔、慢半拍，但關鍵時刻很可靠
+- 玩法：回復、護盾、容錯高，適合穩健與療癒玩法
+- Field Skill：**Soft Float**，讓隊伍跨過裂縫或飄到雲平台
 
-Bond forms:
+Bond Forms：
 
 - Momo
 - Momo Rainpuff
 - Momo Mooncloud
 - Momo Dreamnimbus
 
-Signature skills:
+代表技能：
 
 - Bubble Pat
 - Cozy Shield
@@ -106,21 +108,21 @@ Signature skills:
 
 ### Pico
 
-- Species: stardust fairy
-- Elements: Star / Leaf
-- Roles: Trickster / Healer / Scout
-- Personality: curious, playful, mischievous, great at finding secrets
-- Playstyle: exploration, Attune bonuses, hidden routes, support and status effects
-- Field Skill: **Secret Sense**, finds hidden Wonderlings, chests, and side-paths
+- 物種：星塵小妖精
+- 屬性：Star / Leaf
+- 定位：Trickster / Healer / Scout
+- 個性：好奇、愛惡作劇、很會發現秘密
+- 玩法：探索、收集、狀態效果、Attune 加成與支援
+- Field Skill：**Secret Sense**，發現隱藏 Wonderlings、寶箱與支線入口
 
-Bond forms:
+Bond Forms：
 
 - Pico
 - Pico Budspark
 - Pico Wishpetal
 - Pico Celestibloom
 
-Signature skills:
+代表技能：
 
 - Leaf Wink
 - Stardust Peek
@@ -130,21 +132,21 @@ Signature skills:
 
 ### Nibi
 
-- Species: mini dragon
-- Elements: Ember / Crystal
-- Roles: Guardian / Striker
-- Personality: brave, proud, secretly afraid of being alone
-- Playstyle: durable, strong in Warden trials, counterattacks, obstacle breaking
-- Field Skill: **Crystal Push**, opens stone gates and clears crystal barriers
+- 物種：迷你小龍
+- 屬性：Ember / Crystal
+- 定位：Guardian / Striker
+- 個性：勇敢、逞強，其實怕寂寞
+- 玩法：耐久高、反擊強、適合 Warden Trial 與障礙突破
+- Field Skill：**Crystal Push**，推開石門並清除晶化障礙
 
-Bond forms:
+Bond Forms：
 
 - Nibi
 - Nibi Pebblehorn
 - Nibi Embercrest
 - Nibi Hearthdrake
 
-Signature skills:
+代表技能：
 
 - Warm Puff
 - Crystal Brace
@@ -152,195 +154,197 @@ Signature skills:
 - Hearth Guard
 - Bond Skill: Hearth Crystal Roar
 
-## Main Cast
+## 主要角色
 
 ### Professor Bellwyn
 
-The academy head. Bellwyn protects the Crystal Bell tradition and knows more than they initially reveal. They are cautious because they witnessed a past Keeper's failure.
+Wonder Academy 的院長，負責 Crystal Bell 傳統與 Wonder Keeper 儀式。Bellwyn 年輕時見過上一段 Keeper 歷史的失敗，因此一開始會過度保護學生，也隱瞞了一些真相。
 
 ### Keeper Mira
 
-The new-student mentor. Mira teaches the first systems: starter selection, Wonderdex, Keeper Team, and safe Mood Trials.
+新生導師，負責教學、任務、隊伍管理與早期探索。Mira 個性俐落，但很照顧學生，是前期最常出現的引導 NPC。
 
 ### Chef Pippa
 
-Snack workshop teacher. Pippa teaches recipes used for recovery, Attune bonuses, special encounters, and Warden quests.
+點心工坊老師。她教玩家製作 snacks，用來回復 Mood、提高 Attune 成功率、吸引特定 Wonderlings，或解開特定事件。
 
 ### Inventor Tink
 
-Workshop teacher. Tink introduces charms, gadgets, field tools, hidden paths, and region mechanisms.
+工房老師。負責 charms、探索道具、場景機關與區域工具，例如 Firefly Lantern、Tide Shell Compass。
 
 ### Ranger Rowan
 
-Field teacher. Rowan teaches tracking, rare encounters, Warden ecology, and exploration safety.
+野外老師。教玩家追蹤、探索、稀有 Wonderlings 出現條件與 Warden 生態。
 
 ### Archivist Lune
 
-Library teacher. Lune manages Bell Pages, Wonderdex lore, and Crystal Bell history.
+圖書館老師，負責 Wonderdex、Bell Pages、Crystal Bell 歷史與傳說線索。她是中後期主線真相的重要角色。
 
 ### Kiki
 
-The player's friendly rival and classmate. Kiki is not a villain. She tests the player with recurring Mood Trials and learns that a strong team is not only about winning quickly.
+玩家的同班同學與友善競爭者。Kiki 不是反派。她一開始比較急著變強，後來會學到 Keeper Team 的價值不是只看勝負。
 
 ### The First Keeper
 
-A historical figure, not a present-day villain. Their attempt to control the Crystal Bell caused lasting harm and made Bellheart distrust Keepers.
+歷史人物，不是現代反派。The First Keeper 曾試圖用力量控制 Crystal Bell，導致 Bellheart 對 Keepers 失去信任。後期與 postgame 會補完這段故事。
 
 ### The Silent Bellheart
 
-The final Warden and heart of the Crystal Bell. The final conflict is to restore trust through Attune, not to destroy it.
+Crystal Bell 的心，也是最終 Warden。最終目標不是破壞或擊敗牠，而是讓牠重新願意相信 Wonder Keepers，並完成最後的 Attune。
 
-## Player Careers
+## 玩家職業
 
-The player starts as a **Wonder Keeper Trainee**. A career unlocks after the early chapters. Careers can be switched at the academy, but each career has its own level.
+玩家一開始是 **Wonder Keeper Trainee**。中前期解鎖職業後，可以在學院切換職業。職業不永久鎖死，但每個職業有自己的等級與技能樹。
 
 ### Chef Keeper
 
-- Core: snacks, recovery, Attune
-- Passive: snack effects improve
-- Battle Support: share a snack for team recovery
-- Field: cook special snacks that attract specific Wonderlings
-- Progression source: recipes, snack use, snack-based Attune
+- 核心：snack、回復、Attune
+- Passive：snack 效果提升
+- Battle Support：分享 snack，全隊小回復
+- Field：製作特殊 snack，引出特定 Wonderlings
+- 經驗來源：料理、snack 使用、snack-based Attune
 
 ### Inventor Keeper
 
-- Core: charms, tools, mechanisms
-- Passive: charm effects improve
-- Battle Support: deploy a gadget for shield or disruption
-- Field: repair bridges, open devices, detect hidden items
-- Progression source: gadgets, charms, mechanisms
+- 核心：charm、工具、機關
+- Passive：charm 效果提升
+- Battle Support：部署 gadget，提供護盾或干擾
+- Field：修橋、開裝置、偵測隱藏物
+- 經驗來源：使用 gadget、charm、解機關
 
 ### Ranger Keeper
 
-- Core: encounters, tracking, rare Wonderlings
-- Passive: rare encounter rate improves
-- Battle Support: scout weakness and suggested actions
-- Field: follow tracks and cross natural obstacles
-- Progression source: exploration, rare discoveries, region tasks
+- 核心：遭遇、追蹤、稀有 Wonderlings
+- Passive：稀有遭遇率提升
+- Battle Support：Scout Weakness，顯示弱點與建議行動
+- Field：追蹤足跡、穿越自然障礙
+- 經驗來源：探索、發現稀有角色、完成區域任務
 
 ### Performer Keeper
 
-- Core: interaction success, combos, Mood Trial performance
-- Passive: timing and rhythm windows become slightly more forgiving
-- Battle Support: encore part of the last successful skill
-- Field: festival performances and music mechanisms
-- Progression source: high grades on interactions
+- 核心：小互動、combo、Mood Trial 表現
+- Passive：時機與節奏互動的成功區間稍微變大
+- Battle Support：Encore，複製上一次成功技能的部分效果
+- Field：市集表演、音樂機關
+- 經驗來源：高評價互動、combo、表演任務
 
 ### Archivist Keeper
 
-- Core: lore, Wonderdex, weaknesses, hidden quests
-- Passive: Wonderdex entries show richer clues
-- Battle Support: reveal favorite snack or Attune condition
-- Field: read ancient notes and unlock legend quests
-- Progression source: Wonderdex completion and lore quests
+- 核心：Wonderdex、故事、弱點、支線
+- Passive：Wonderdex 顯示更完整線索
+- Battle Support：Recall Lore，提示對方喜歡的 snack 或 Attune 條件
+- Field：解讀古文、開啟傳說任務
+- 經驗來源：圖鑑完成、Bell Pages、故事線索
 
-Each career has 10 levels:
+### 職業等級
 
-- Lv.1 passive
-- Lv.2 first battle support
-- Lv.3 field skill
-- Lv.4 passive upgrade
-- Lv.5 second battle support
-- Lv.6 special craft, encounter, or lore mechanic
-- Lv.7 team bonus
-- Lv.8 advanced field shortcut
-- Lv.9 career quest reward
-- Lv.10 Master Keeper skill
+每個職業 10 級：
 
-## World Structure
+- Lv.1：職業 passive
+- Lv.2：第一個 battle support
+- Lv.3：field skill
+- Lv.4：passive 強化
+- Lv.5：第二個 battle support
+- Lv.6：特殊 craft、encounter 或 lore 能力
+- Lv.7：隊伍加成
+- Lv.8：高階 field shortcut
+- Lv.9：職業支線獎勵
+- Lv.10：Master Keeper 技能
 
-Wonder Academy is the central hub. Each chapter is a region with 6-10 nodes, side paths, encounters, quests, hidden conditions, and a Warden.
+## 世界章節
+
+Wonder Academy 是中心 hub。每個章節是一個區域，包含 6-10 個節點、支線、遭遇、隱藏條件與 Warden。
 
 ### Prologue: First Bell Day
 
-- Region: Wonder Academy
-- Purpose: character setup, starter choice, nickname, first Mood Trial
-- Unlocks: Wonderdex, Keeper Team, Sparkleaf Grove
+- 地點：Wonder Academy
+- 重點：建立角色、選初始夥伴、自訂名字、第一次 Mood Trial
+- 解鎖：Wonderdex、Keeper Team、Sparkleaf Grove
 
 ### Chapter 1: Sparkleaf Grove
 
-- Theme: glowing forest, first Attune, fear of change
-- Warden: Sparkleaf Fawn
-- New systems: Attune, element basics, starter field skill
+- 主題：發光森林、第一次 Attune、害怕改變
+- Warden：Sparkleaf Fawn
+- 新系統：Attune、屬性基礎、初始夥伴 field skill
 
 ### Chapter 2: Tideglass Coast
 
-- Theme: glass coast, tide caves, messages in bottles, wanting to be heard
-- Warden: Pearlwhisker Seal
-- New systems: snack crafting, tide terrain, stronger Healer roles
+- 主題：玻璃海岸、潮汐洞窟、漂流瓶、想被聽見
+- Warden：Pearlwhisker Seal
+- 新系統：snack crafting、潮汐地形、Healer 玩法深化
 
 ### Chapter 3: Clocktower Dorms
 
-- Theme: dorms, clocktower, academy night, fear of mistakes
-- Warden: Clockbell Tanuki
-- New systems: puzzles, team switching, career choice
+- 主題：宿舍、鐘塔、學院夜晚、害怕犯錯
+- Warden：Clockbell Tanuki
+- 新系統：簡單解謎、隊伍切換、職業選擇
 
 ### Chapter 4: Sugarcloud Market
 
-- Theme: cloud market, sharing, competition, cozy festivals
-- Warden: Marshmallow Maestro
-- New systems: recipes, trading, Festival Wonderlings, minigames
+- 主題：雲端市集、分享、競爭、節慶
+- Warden：Marshmallow Maestro
+- 新系統：配方、交易、Festival Wonderlings、迷你遊戲
 
 ### Chapter 5: Snowbell Ridge
 
-- Theme: snow village, loneliness, protection
-- Warden: Aurora Alpaca
-- New systems: Guardian roles, cold conditions, team endurance
+- 主題：雪鈴村、孤單、保護
+- Warden：Aurora Alpaca
+- 新系統：Guardian roles、寒冷狀態、隊伍耐久
 
 ### Chapter 6: Dreamcloud Festival
 
-- Theme: dream festival, wishes, memory, loss
-- Warden: Pillowmoon Ram
-- New systems: Dream element, character wish quests, branching dream routes
+- 主題：夢境祭典、願望、記憶、失落
+- Warden：Pillowmoon Ram
+- 新系統：Dream 屬性、角色心願支線、夢境分支路線
 
 ### Chapter 7: Starrail Observatory
 
-- Theme: star train, observatory, truth, memory
-- Warden: Comet Kitsune
-- New systems: Light / Star expansion, Mythling clues, Crystal Bell truth
+- 主題：星空列車、天文台、真相、記憶
+- Warden：Comet Kitsune
+- 新系統：Light / Star 屬性擴充、Mythling 線索、Crystal Bell 真相
 
 ### Final Chapter: Crystal Bell Tower
 
-- Theme: trust, all elements, Bell Tone restoration
-- Final Warden: The Silent Bellheart
-- New systems: multi-team trials, final Bond Skills, ending choice
+- 主題：信任、所有屬性、Bell Tone 修復
+- Final Warden：The Silent Bellheart
+- 新系統：多隊伍試煉、最終 Bond Skill、結局選擇
 
 ### Postgame: Wonder Keeper Trials
 
-- Theme: mastery and collection
-- Content: Warden rematches, Mythlings, rare variants, challenge tower, rotating festivals
+- 主題：精通與補完收藏
+- 內容：Warden rematch、Mythlings、稀有變體、挑戰塔、節慶輪替
 
-## Hub Areas
+## 學院 Hub
 
 ### Dorm Room
 
-Manage starter nickname, Keeper Team, cosmetics, and save identity.
+管理初始夥伴暱稱、Keeper Team、外觀設定與存檔身份。
 
 ### Wonderdex Hall
 
-Browse seen and Attuned Wonderlings by region, category, rarity, and element.
+依照區域、分類、稀有度、屬性、已遇見 / 已 Attune 狀態查看 Wonderlings。
 
 ### Snack Workshop
 
-Cook snacks that restore Mood, improve Attune chances, or trigger special encounters.
+製作 snacks，用於 Mood 回復、Attune 加成、特殊遭遇與支線任務。
 
 ### Training Garden
 
-Practice Mood Trial interactions without losing progress.
+練習 Mood Trial 小互動，不造成進度懲罰。
 
 ### Charm Workshop
 
-Craft and equip charms that modify exploration or Mood Trial behavior.
+製作與裝備 charms，改變探索或 Mood Trial 行為。
 
 ### Map Atrium
 
-Choose the next region, revisit completed regions, or view chapter progress.
+選擇下一個區域、回訪已完成區域、查看章節進度。
 
-## Wonderlings
+## Wonderlings 圖鑑規模
 
-The full game targets roughly 100-130 Wonderlings.
+完整遊戲目標約 100-130 隻 Wonderlings。
 
-Rarity:
+稀有度：
 
 - Common
 - Uncommon
@@ -348,79 +352,77 @@ Rarity:
 - Warden
 - Mythling
 
-Encounter types:
+遭遇類型：
 
-- Normal node encounter
-- Rare condition encounter
-- Snack-attracted encounter
-- Field-skill encounter
-- Quest encounter
-- Postgame variant
+- 一般節點遭遇
+- 稀有條件遭遇
+- snack 吸引遭遇
+- field skill 遭遇
+- quest 遭遇
+- postgame variant
 
-### Region Distribution
+### Wonder Academy
 
-#### Wonder Academy
+- Starter：Lumi、Momo、Pico、Nibi
+- 常駐：Notebook Chirp、Teacup Foxlet、Backpack Bun、Inkdrop Cat、Nap Pillow Cub
 
-- Starter: Lumi, Momo, Pico, Nibi
-- Common academy Wonderlings: Notebook Chirp, Teacup Foxlet, Backpack Bun, Inkdrop Cat, Nap Pillow Cub
+### Sparkleaf Grove
 
-#### Sparkleaf Grove
+- Common：Mossmew、Berrybun、Acorn Pup、Fern Ferret、Pebble Turtle、Pip Puff
+- Rare：Teacup Foxlet、Lantern Mothlet、Cloudmop Lamb
+- Quest：Bookmark Bird、Firefly Sprite
+- Warden：Sparkleaf Fawn
 
-- Common: Mossmew, Berrybun, Acorn Pup, Fern Ferret, Pebble Turtle, Pip Puff
-- Rare: Teacup Foxlet, Lantern Mothlet, Cloudmop Lamb
-- Quest: Bookmark Bird, Firefly Sprite
-- Warden: Sparkleaf Fawn
+### Tideglass Coast
 
-#### Tideglass Coast
+- Common：Dewdrop Seal、Shellmouse、Bubble Pup、Coral Kit、Drift Duck、Pearl Pika
+- Rare：Jellydream、Moonpool Otter、Glassfin Ray
+- Quest：Bottlepost Crab、Lullaby Conch
+- Warden：Pearlwhisker Seal
 
-- Common: Dewdrop Seal, Shellmouse, Bubble Pup, Coral Kit, Drift Duck, Pearl Pika
-- Rare: Jellydream, Moonpool Otter, Glassfin Ray
-- Quest: Bottlepost Crab, Lullaby Conch
-- Warden: Pearlwhisker Seal
+### Clocktower Dorms
 
-#### Clocktower Dorms
+- Common：Ticktock Tanuki、Blanket Bat、Pencil Hedgehog、Bookmark Bird、Slipper Mouse
+- Rare：Musicbox Rabbit、Keyhole Kitten、Midnight Marmot
+- Quest：Inkdrop Cat、Star Eraser Sprite
+- Warden：Clockbell Tanuki
 
-- Common: Ticktock Tanuki, Blanket Bat, Pencil Hedgehog, Bookmark Bird, Slipper Mouse
-- Rare: Musicbox Rabbit, Keyhole Kitten, Midnight Marmot
-- Quest: Inkdrop Cat, Star Eraser Sprite
-- Warden: Clockbell Tanuki
+### Sugarcloud Market
 
-#### Sugarcloud Market
+- Common：Pudding Penguin、Waffle Bear、Cookie Pup、Strawberry Bun、Milk Tea Otter
+- Rare：Marshmallow Cat、Candyfloss Lamb、Jellyfish Jelly
+- Quest：Ribbon Rabbit、Festival Firebird
+- Warden：Marshmallow Maestro
 
-- Common: Pudding Penguin, Waffle Bear, Cookie Pup, Strawberry Bun, Milk Tea Otter
-- Rare: Marshmallow Cat, Candyfloss Lamb, Jellyfish Jelly
-- Quest: Ribbon Rabbit, Festival Firebird
-- Warden: Marshmallow Maestro
+### Snowbell Ridge
 
-#### Snowbell Ridge
+- Common：Snowflake Fox、Bell Alpaca、Mittens Mole、Frost Puffin、Cocoa Cub
+- Rare：Aurora Deerling、Snowglobe Turtle、Icicle Ferret
+- Quest：Lost Sleigh Pup、Warm Lantern Sprite
+- Warden：Aurora Alpaca
 
-- Common: Snowflake Fox, Bell Alpaca, Mittens Mole, Frost Puffin, Cocoa Cub
-- Rare: Aurora Deerling, Snowglobe Turtle, Icicle Ferret
-- Quest: Lost Sleigh Pup, Warm Lantern Sprite
-- Warden: Aurora Alpaca
+### Dreamcloud Festival
 
-#### Dreamcloud Festival
+- Common：Pillowcloud、Sleepcap Sheep、Dream Bubble Jelly、Nightlight Bat、Planet Hamster
+- Rare：Moonshadow Otter、Wishmoth、Drowsy Dragonette
+- Quest：Memory Lamb、Wish Ticket Sprite
+- Warden：Pillowmoon Ram
 
-- Common: Pillowcloud, Sleepcap Sheep, Dream Bubble Jelly, Nightlight Bat, Planet Hamster
-- Rare: Moonshadow Otter, Wishmoth, Drowsy Dragonette
-- Quest: Memory Lamb, Wish Ticket Sprite
-- Warden: Pillowmoon Ram
+### Starrail Observatory
 
-#### Starrail Observatory
+- Common：Comet Cub、Starglass Finch、Orbit Mouse、Telescope Turtle、Nebula Kit
+- Rare：Comet Kitsune、Meteor Pony、Prism Lynx
+- Quest：Old Map Sprite、Constellation Fawn
+- Warden：Comet Kitsune
 
-- Common: Comet Cub, Starglass Finch, Orbit Mouse, Telescope Turtle, Nebula Kit
-- Rare: Comet Kitsune, Meteor Pony, Prism Lynx
-- Quest: Old Map Sprite, Constellation Fawn
-- Warden: Comet Kitsune
+### Crystal Bell Tower
 
-#### Crystal Bell Tower
+- Common：Crystal Mew、Bell Sprite、Echo Cub、Prism Pup、Silent Finch
+- Rare：First Bell Fawn、Luminara Kit、Hearthscale Dragon
+- Quest：Lost Keeper's Companion、Bellshard Sprite
+- Final Warden：The Silent Bellheart
 
-- Common: Crystal Mew, Bell Sprite, Echo Cub, Prism Pup, Silent Finch
-- Rare: First Bell Fawn, Luminara Kit, Hearthscale Dragon
-- Quest: Lost Keeper's Companion, Bellshard Sprite
-- Final Warden: The Silent Bellheart
-
-#### Postgame Mythlings
+### Postgame Mythlings
 
 - Aurora Whale
 - Dreamrail Dragon
@@ -429,9 +431,9 @@ Encounter types:
 - Crystal Moonhare
 - First Keeper's Companion
 
-## Wonderling Data Model
+## Wonderling 資料模型
 
-Each species should support:
+`WonderlingSpecies` 應支援：
 
 - `speciesId`
 - `speciesName`
@@ -451,7 +453,7 @@ Each species should support:
 - `portraitAsset`
 - `spriteAsset`
 
-Owned Wonderlings should support:
+`OwnedWonderling` 應支援：
 
 - `ownedId`
 - `speciesId`
@@ -465,55 +467,55 @@ Owned Wonderlings should support:
 - `attunedAt`
 - `currentGrowthStage`
 
-## Elements
+## 屬性系統
 
-The full game uses eight elements:
+完整遊戲使用 8 種屬性：
 
-- Spark: speed, chain actions, disruption
-- Tide: recovery, shields, rhythm control
-- Leaf: calming, over-time effects, Attune support
-- Light: support, accuracy, cleanse
-- Dream: sleep, confusion, strange interactions
-- Ember: high output, courage, obstacle breaking
-- Crystal: defense, counter, stability
-- Star: rare element, Bond, Mythlings, late-game power
+- Spark：速度、連擊、干擾
+- Tide：回復、護盾、節奏控制
+- Leaf：安撫、持續效果、Attune 加成
+- Light：支援、命中、解除負面狀態
+- Dream：睡眠、迷惑、特殊互動
+- Ember：高輸出、勇氣、破障礙
+- Crystal：防禦、反擊、穩定
+- Star：稀有屬性，和 Bond、Mythlings、後期技能相關
 
-Basic triangle:
+基礎三角：
 
-- Spark beats Tide
-- Tide beats Leaf
-- Leaf beats Spark
+- Spark 克 Tide
+- Tide 克 Leaf
+- Leaf 克 Spark
 
-Advanced relationships:
+進階關係：
 
-- Light stabilizes Dream
-- Dream disrupts Crystal
-- Crystal resists Ember
-- Ember pressures Leaf
-- Star does not hard-counter everything, but it improves Bond and late-game synergy
+- Light 穩定 Dream
+- Dream 干擾 Crystal
+- Crystal 抵抗 Ember
+- Ember 壓制 Leaf
+- Star 不硬剋所有屬性，但強化 Bond 與後期 synergy
 
-Advantage should be helpful, not punishing:
+相剋要有幫助，但不能懲罰過重：
 
-- Advantage adds +1 or +2 Mood Shift.
-- Disadvantage reduces effect, but skills still do at least 1 useful point.
-- Same-element connection can improve Attune or Bond growth.
+- 有利時 +1 或 +2 Mood Shift。
+- 不利時效果降低，但至少仍有 1 點有效效果。
+- 同屬性互動可提高 Attune 或 Bond 成長。
 
-## Roles
+## 角色定位
 
-- Striker: large Mood Shift and pressure
-- Guardian: shields, protection, counterplay
-- Healer: Team Mood recovery and status cleanse
-- Trickster: status effects, Attune odds, control
-- Scout: rare encounters, first action, hidden clues
-- Performer: interaction windows, combo bonuses, rhythm skills
+- Striker：高 Mood Shift，適合快速推進。
+- Guardian：護盾、保護、反擊。
+- Healer：Team Mood 回復與狀態解除。
+- Trickster：狀態效果、Attune 成功率、節奏控制。
+- Scout：稀有遭遇、先手、隱藏線索。
+- Performer：互動成功區間、combo、節奏技能。
 
 ## Mood Trial
 
-Mood Trial is the core challenge system. It replaces combat language.
+Mood Trial 是核心挑戰系統，取代傳統戰鬥語彙。
 
-### Mood States
+### Mood 狀態
 
-Opponent Wonderlings can move through:
+對方 Wonderling 可能處於：
 
 - Upset
 - Guarded
@@ -521,31 +523,31 @@ Opponent Wonderlings can move through:
 - Calm
 - Open
 
-The player's team has Team Mood. If Team Mood reaches zero, there is no hard game over. The player returns to the previous safe node, keeps story progress, and receives a hint.
+玩家隊伍有 Team Mood。若 Team Mood 歸零，不會 Game Over。玩家會回到上一個安全節點，保留故事進度，並得到提示。
 
-### Turn Flow
+### 回合流程
 
-1. Choose active Wonderling.
-2. Choose action: Comfort, Skill, Snack, Switch, Attune, Leave.
-3. If using a skill, play a short interaction.
-4. Resolve Mood Shift, recovery, status, and Bond effects.
-5. Opponent responds.
-6. If opponent is in Attune range, the player can attempt Attune.
+1. 選擇 active Wonderling。
+2. 選擇行動：Comfort、Skill、Snack、Switch、Attune、Leave。
+3. 若使用 skill，進入短互動。
+4. 結算 Mood Shift、回復、狀態與 Bond 效果。
+5. 對方回應。
+6. 若對方進入 Attune range，玩家可以嘗試 Attune。
 
-### Main Actions
+### 主要行動
 
-- Comfort: safe low-risk calming action.
-- Skill: opens the equipped skills menu.
-- Snack: uses a snack for healing, Attune bonuses, or special conditions.
-- Switch: swaps the active Wonderling; usually consumes the turn.
-- Attune: attempts connection when conditions are met.
-- Leave: exits non-story trials when allowed.
+- Comfort：安全、穩定、低風險的安撫行動。
+- Skill：開啟已裝備技能選單。
+- Snack：使用 snack，回復、提高 Attune 或觸發條件。
+- Switch：切換 active Wonderling，通常消耗一回合。
+- Attune：條件符合時嘗試建立連結。
+- Leave：非主線試煉可離開。
 
-### Skill Loadout
+### 技能配置
 
-Each Wonderling can learn many skills but equips four for Mood Trials.
+每隻 Wonderling 可以學多招，但 Mood Trial 中只裝備 4 招。
 
-Skill classes:
+技能類型：
 
 - Basic Skill
 - Element Skill
@@ -553,79 +555,85 @@ Skill classes:
 - Bond Skill
 - Field Skill
 
-### Interaction Types
+### 小互動類型
 
-- Tap Timing: tap when a light reaches a target.
-- Hold Release: hold and release in a safe zone.
-- Pattern Match: repeat a short 2-4 symbol pattern.
-- Shield Tap: tap shield during response to reduce Mood loss.
-- Card Pick: choose between three hidden cards.
-- Rhythm Tap: tap a short rhythm sequence.
+- Tap Timing：光點到達目標時點擊。
+- Hold Release：按住並在安全區放開。
+- Pattern Match：照順序輸入 2-4 個符號。
+- Shield Tap：對方回應時點盾牌，降低 Mood 損失。
+- Card Pick：三選一卡牌。
+- Rhythm Tap：短節奏連點。
 
-### Positive Status
+### 正面狀態
 
-- Inspired: next skill improves by 1.
-- Shielded: next Mood loss reduced.
-- Focused: interaction success window grows.
-- Bonded: Bond Skill becomes available.
-- Lucky: Attune chance improves.
+- Inspired：下一招效果 +1。
+- Shielded：下一次 Mood 損失降低。
+- Focused：互動成功區間變大。
+- Bonded：Bond Skill 可用。
+- Lucky：Attune 機率提升。
 
-### Negative Status
+### 負面狀態
 
-- Rattled: skill effect reduced.
-- Sleepy: may skip action, but easier to Attune.
-- Soggy: Spark weakens, Tide improves.
-- Tangled: Switch becomes limited.
-- Shy: Attune chance drops, Comfort improves.
+- Rattled：技能效果降低。
+- Sleepy：可能跳過行動，但更容易 Attune。
+- Soggy：Spark 技能變弱，Tide 技能變強。
+- Tangled：Switch 受限。
+- Shy：Attune 機率下降，但 Comfort 效果提升。
 
 ## Attune
 
-Attune replaces capture.
+Attune 取代 capture。
 
-Normal Wonderlings:
+普通 Wonderlings：
 
-- Require opponent Mood to be low enough or in a Calm/Open state.
-- Can be influenced by snacks, roles, career, status, and Wonderdex clues.
-- Should feel exciting but not cruelly random.
+- 需要對方 Mood 進入足夠低、Calm 或 Open 狀態。
+- 成功率受 snack、角色定位、玩家職業、狀態、Wonderdex 線索影響。
+- 必須有緊張感，但不能變成過度挫折的隨機抽獎。
 
-Wardens:
+Wardens：
 
-- Do not use normal random Attune.
-- Join the Wonderdex through story completion.
-- May unlock a Warden Support ability or region blessing.
+- 不使用一般隨機 Attune。
+- 透過故事通關加入 Wonderdex。
+- 可能解鎖 Warden Support 或 region blessing。
 
-Mythlings:
+Mythlings：
 
-- Require postgame quests, rare conditions, or multi-region story chains.
+- 需要 postgame 任務、稀有條件或跨區域故事鏈。
 
-## Team And Growth
+## 隊伍與成長
 
-Keeper Team:
+Keeper Team 最多 6 隻：
 
-- Up to 6 Wonderlings.
-- Mood Trial uses 1 active Wonderling and 2 support slots.
-- Remaining 3 are reserve.
+- 1 隻 active Wonderling
+- 2 隻 support slots
+- 3 隻 reserve
 
-Support slots grant passives:
+Support slots 會提供 passive：
 
-- Guardian support: Team Mood or damage reduction.
-- Healer support: periodic small recovery.
-- Trickster support: Attune chance.
-- Scout support: rare hints or first action.
-- Performer support: interaction bonus.
-- Striker support: extra effect at defensive cost.
+- Guardian support：提高 Team Mood 或減少損失。
+- Healer support：每幾回合小回復。
+- Trickster support：提高 Attune 成功率。
+- Scout support：稀有提示或先手。
+- Performer support：互動加成。
+- Striker support：技能效果提升，但防禦較低。
 
-Growth:
+成長內容：
 
-- Wonderlings have level, XP, Bond, growth stage, skills, mood max, and role scaling.
-- Starters use Bond Forms instead of becoming unrecognizable.
-- Chapter progression should unlock deeper systems gradually.
+- level
+- XP
+- Bond
+- growth stage
+- 技能解鎖
+- mood max
+- role scaling
+
+Starter 使用 Bond Forms，而不是進化成完全陌生的角色。外型應變得更華麗，但保留原本辨識度。
 
 ## Wonderdex
 
-Wonderdex should be a major collection screen.
+Wonderdex 是主要收藏畫面。
 
-States:
+狀態：
 
 - Unknown silhouette
 - Seen
@@ -634,126 +642,126 @@ States:
 - Warden recorded
 - Mythling recorded
 
-Attuned entries show:
+Attuned entries 顯示：
 
-- Portrait
-- Region
-- Rarity
-- Element
-- Roles
-- Favorite snack
-- Personality note
-- Field skill
-- Learnable skills
+- 角色圖
+- 出現區域
+- 稀有度
+- 屬性
+- 定位
+- 喜歡的 snack
+- 個性描述
+- field skill
+- learnable skills
 - Attune condition hint
-- Growth forms
+- growth forms
 
 ## Guest Wonderling Slots
 
-The game can support local custom slots without bundling third-party IP:
+遊戲可以支援本機自訂 slot，但不內建第三方 IP：
 
-- A guest slot has a local image path or imported file.
-- A guest slot has a user-provided name.
-- Guest slots map to existing elements, roles, and stats.
-- Guest assets are not generated, committed, or distributed by the repo.
-- The built-in game remains fully playable with original Wonderlings.
+- Guest slot 可使用本機圖片或匯入檔案。
+- Guest slot 可由使用者自行輸入名稱。
+- Guest slot 映射到現有元素、定位與數值。
+- Guest assets 不由專案生成、提交或散布。
+- 內建遊戲必須只靠原創 Wonderlings 就能完整遊玩。
 
-## Screens
+## 主要畫面
 
 ### Title / Continue
 
-- New game
+- New Game
 - Continue
 - Settings
-- Shows starter, Keeper Level, Wonderdex progress, and story chapter when a save exists
+- 若有存檔，顯示初始夥伴、Keeper Level、Wonderdex 進度與章節
 
 ### Starter Selection
 
-- Shows four starters with art, role, element, playstyle, and personality.
-- Lets the player enter a nickname.
-- Confirms before starting the journey.
+- 顯示四隻初始夥伴的角色圖、屬性、定位、玩法與個性。
+- 玩家可輸入暱稱。
+- 開始前需要確認。
 
 ### Academy Hub
 
-- Room-like navigation, not a marketing page.
-- Access to Wonderdex, Team, Snack Workshop, Training Garden, Charm Workshop, and Map Atrium.
+- 以房間式導航呈現，不做 landing page。
+- 可前往 Wonderdex、Team、Snack Workshop、Training Garden、Charm Workshop、Map Atrium。
 
 ### Region Map
 
-- Chapter map with 6-10 nodes.
-- Shows main route, optional side nodes, locked conditions, Warden node, and revisit progress.
+- 每章 6-10 個節點。
+- 顯示主線、支線、locked condition、Warden node、回訪進度。
 
 ### Mood Trial
 
-- Canvas-first play area.
-- Opponent Wonderling and mood state at top.
-- Active Wonderling and Team Mood at bottom.
-- Action menu: Comfort, Skills, Snack, Switch, Attune, Leave.
-- Skills sub-menu shows four equipped skills.
-- Center area handles short interactions.
+- Canvas-first 遊戲畫面。
+- 上方顯示對方 Wonderling、Mood state、屬性。
+- 下方顯示 active Wonderling 與 Team Mood。
+- 行動選單：Comfort、Skills、Snack、Switch、Attune、Leave。
+- Skills 子選單顯示 4 招已裝備技能。
+- 中央區域播放短互動。
 
 ### Team / Growth
 
-- Keeper Team of 6.
-- Active/support/reserve assignment.
-- Nickname editing.
-- Skill loadout.
-- Bond and growth form progress.
+- Keeper Team 6 隻。
+- active / support / reserve 編成。
+- 暱稱編輯。
+- skill loadout。
+- Bond 與 growth form 進度。
 
 ### Wonderdex
 
-- Filters by region, element, rarity, and state.
-- Silhouettes for unknown entries.
-- Full details for Attuned entries.
+- 依 region、element、rarity、state 篩選。
+- 未知項目顯示 silhouette。
+- Attuned entries 顯示完整資訊。
 
 ### Quest Log
 
-- Main story
-- Region quests
-- Career quests
+- 主線
+- 區域任務
+- 職業任務
 - Warden notes
 - Mythling clues
 
-## Save Data
+## 存檔資料
 
-Use localStorage initially, with a structure that can later migrate to a richer storage layer.
+初期使用 localStorage，但資料結構要能未來遷移。
 
-Save should include:
+存檔應包含：
 
 - schema version
-- player name if added later
-- starter species and nickname
+- 未來若加入玩家名，儲存 player name
+- 初始夥伴物種與暱稱
 - story progress
 - unlocked regions and nodes
 - completed quests
 - owned Wonderlings
-- Wonderdex seen and Attuned states
+- Wonderdex seen / Attuned states
 - Keeper Team setup
 - skill loadouts
 - snacks and charms
 - career levels
 - settings
 
-Storage helpers should parse defensively and tolerate malformed or older saves.
+Storage helpers 必須防禦式解析，能容忍 malformed save 或舊版 schema。
 
-## Route And Current Game Replacement
+## Route 與現有遊戲替換
 
-The current route can be replaced by a new standalone game route:
+新的獨立頁面路由：
 
-- Preferred route: `/games/wonder-academy`
-- The current `/games/monster-academy` route can redirect or be removed during implementation.
-- The game should remain standalone and not inherit the main app layout.
-- The GameHub card should open Wonder Academy in a new tab, matching the current standalone game behavior.
+- 建議路由：`/games/wonder-academy`
+- 目前 academy prototype route 可在遷移時重新導向到 `/games/wonder-academy`
+- Wonder Academy 不繼承主 app layout
+- GameHub 卡片以新分頁開啟，延續目前獨立遊戲頁面的行為
 
 ## Assets
 
-Built-in assets must be original.
+內建資產必須全部原創。
 
-Asset families:
+資產類型：
 
 - Starter portraits and sprites
 - Starter Bond Form portraits and sprites
-- Wonderling portraits, sprites, and silhouettes
+- Wonderling portraits, sprites, silhouettes
 - Warden full art
 - Region backgrounds
 - Academy hub rooms
@@ -762,103 +770,111 @@ Asset families:
 - Snack icons
 - Charm icons
 
-Asset requirements:
+資產要求：
 
-- PNG assets generated with Codex GPT-Image-2.
-- No ImageGen API key workflow.
-- No programmatically generated SVG character art.
-- No recognizable third-party IP as built-in assets.
-- Use consistent art direction: cozy, rounded, painterly-cute, bright but not noisy.
-- Optimize large assets before committing to avoid oversized PWA precache output.
+- PNG 使用 Codex GPT-Image-2 產生。
+- 不使用 ImageGen API key workflow。
+- 不用程式產生 SVG 角色圖。
+- 不內建可識別第三方 IP 名稱或角色。
+- 美術方向：cozy、rounded、painterly-cute、明亮但不要吵雜。
+- 大型圖片需壓縮最佳化，避免 PWA precache 過大。
 
-## Implementation Milestones
+## 實作里程碑
 
-This spec defines the full world. Implementation can be split without shrinking the world design.
+這份規格描述完整世界；實作計畫可以拆階段，但不要縮小世界設定。
 
-1. Foundation
-   - Rename game concept to Wonder Academy.
-   - Add core data model.
-   - Add title/continue and starter selection with nickname.
+### 1. Foundation
 
-2. Academy Hub
-   - Build standalone full-screen hub.
-   - Add Team, Wonderdex, and Map Atrium shells.
+- 將遊戲概念改成 Wonder Academy。
+- 建立核心資料模型。
+- 加入 title / continue。
+- 加入初始夥伴選擇與暱稱。
 
-3. Mood Trial v2
-   - Replace current battle actions with Mood Trial actions.
-   - Add Skills sub-menu, equipped skills, interactions, Mood states, and Attune.
+### 2. Academy Hub
 
-4. Chapter 1: Sparkleaf Grove
-   - Region map nodes.
-   - Encounter tables.
-   - First Wonderlings and Sparkleaf Fawn Warden.
+- 建立獨立全螢幕 hub。
+- 加入 Team、Wonderdex、Map Atrium 外殼。
 
-5. Growth Systems
-   - XP, level, Bond, Bond Form progress, skill unlocks, loadouts.
-   - Basic snacks and charms.
+### 3. Mood Trial v2
 
-6. Polish And Save
-   - Save/load.
-   - Browser smoke tests.
-   - Mobile layout checks.
-   - Route cleanup checks.
+- 用 Mood Trial actions 取代現有 battle actions。
+- 加入 Skills 子選單、equipped skills、interactions、Mood states、Attune。
 
-7. Expansion Chapters
-   - Tideglass Coast onward using the same data model.
+### 4. Chapter 1: Sparkleaf Grove
 
-## Verification Strategy
+- 建立 region map nodes。
+- 建立 encounter tables。
+- 加入第一批 Wonderlings 與 Sparkleaf Fawn Warden。
 
-Unit tests:
+### 5. Growth Systems
 
-- Wonderling species data validation
-- skill effect resolution
-- Mood Trial turn resolution
-- Attune chance calculation
-- save parsing and migration
-- starter nickname display fallback
+- XP、level、Bond、Bond Form progress、skill unlocks、loadouts。
+- 基礎 snacks 與 charms。
 
-Browser smoke tests:
+### 6. Polish And Save
 
-- open GameHub
-- open standalone Wonder Academy route
-- start new game
-- pick starter and nickname
-- enter hub
-- open Wonderdex and Team screens
-- enter a region node
-- complete a Mood Trial
-- attempt Attune
-- leave and re-enter route without duplicated KAPLAY loops
+- save / load。
+- browser smoke tests。
+- mobile layout checks。
+- 路由清理檢查。
 
-Visual QA:
+### 7. Expansion Chapters
 
-- desktop screenshot
-- mobile screenshot
-- canvas nonblank check
-- text fit check
-- no app layout inherited on standalone route
+- 依同一套資料模型擴充 Tideglass Coast 之後的章節。
 
-Build checks:
+## 實作預設
+
+後續規劃若無更好理由，採用以下預設：
+
+- KAPLAY 繼續作為 title、hub、region map、Mood Trial 等 canvas 畫面的遊戲引擎。
+- React 負責獨立頁面外殼、loading/error、離開路由，以及未來可能需要的 accessibility overlays。
+- Wonderdex 與 Team 畫面優先做成覆蓋在獨立遊戲頁面上的 React panels；若實作時 KAPLAY scene 明顯更簡單，再局部調整。
+- 預設路由是 `/games/wonder-academy`。
+- 現有 academy prototype route 遷移時重新導向到 `/games/wonder-academy`。
+- 第一個實作里程碑至少包含：四隻初始夥伴 portrait/sprite、一張 academy background、一張 Sparkleaf Grove map background、一張 Mood Trial background，以及第一個可玩循環所需的最小原創 Wonderling 資產組。
+
+## 驗證策略
+
+單元測試：
+
+- Wonderling 物種資料驗證
+- 技能效果結算
+- Mood Trial 回合結算
+- Attune 成功率計算
+- 存檔解析與遷移
+- 初始夥伴暱稱顯示 fallback
+
+瀏覽器 smoke tests：
+
+- 開啟 GameHub。
+- 開啟獨立 Wonder Academy 路由。
+- New Game。
+- 選初始夥伴並輸入暱稱。
+- 進入 hub。
+- 開啟 Wonderdex 與 Team 畫面。
+- 進入 region node。
+- 完成 Mood Trial。
+- 嘗試 Attune。
+- 離開路由再進入，確認沒有重複 KAPLAY loop。
+
+視覺 QA：
+
+- desktop 截圖
+- mobile 截圖
+- canvas 非空檢查
+- 文字不破版檢查
+- 獨立路由不繼承 main app layout
+
+建置檢查：
 
 - `npm run lint`
 - `npm run build`
-- verify game is lazy loaded and main app first screen does not eagerly load the full RPG
+- 確認遊戲 lazy loaded，主 app 首屏不 eager load 完整 RPG chunk。
 
-## Non-Goals
+## 非目標
 
-- No backend, Firestore schema, or cloud progress storage in the initial implementation.
-- No third-party IP assets or recognizable character names in the repo.
-- No free-roaming 3D world.
-- No multiplayer.
-- No direct rewrite of the other existing Little Games.
-
-## Implementation Defaults
-
-These defaults keep the next planning step concrete:
-
-- KAPLAY remains the rendering/game engine for the title, hub, region map, and Mood Trial canvas surfaces.
-- React owns the standalone page shell, loading/error states, route exit, and any future accessibility overlays.
-- Wonderdex and Team screens can be React panels over the standalone game shell unless a KAPLAY scene is clearly simpler during implementation.
-- The preferred route is `/games/wonder-academy`.
-- The existing academy prototype route should redirect to `/games/wonder-academy` during the migration.
-- The first implementation milestone should include four starter portraits/sprites, one academy background, one Sparkleaf Grove map background, one Mood Trial background, and a minimal first set of original Wonderling assets needed for the starter selection and first playable loop.
+- 初期不新增後端、Firestore schema 或雲端進度儲存。
+- 專案不內建第三方 IP 角色、名稱或可識別資產。
+- 不做 3D 自由大世界。
+- 不做多人連線。
+- 不重寫其他現有 Little Games。
