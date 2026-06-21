@@ -3,6 +3,17 @@ from pathlib import Path
 
 from PyInstaller.utils.hooks import collect_all, collect_submodules
 
+import os
+import tomllib
+
+
+def _bundle_version() -> str:
+    env = os.environ.get("OLLIE_BUNDLE_VERSION")
+    if env:
+        return env
+    with open("pyproject.toml", "rb") as f:
+        return tomllib.load(f)["project"]["version"]
+
 
 datas = []
 binaries = []
@@ -85,4 +96,18 @@ coll = COLLECT(
     a.binaries,
     a.datas,
     name="ollie-reader",
+)
+app = BUNDLE(
+    coll,
+    name="ollie-reader.app",
+    icon="assets/AppIcon.icns",
+    bundle_identifier="com.victorfu.ollie-reader",
+    version=_bundle_version(),
+    info_plist={
+        "CFBundleShortVersionString": _bundle_version(),
+        "CFBundleVersion": _bundle_version(),
+        "LSUIElement": True,
+        "NSHighResolutionCapable": True,
+        "LSMinimumSystemVersion": "12.0",
+    },
 )

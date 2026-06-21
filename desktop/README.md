@@ -24,9 +24,11 @@ uv run pytest -v
 ## 打包（PyInstaller）
 
 ```bash
-uv run pyinstaller ollie-reader-desktop.spec --noconfirm
-# 產物：dist/ollie-reader/ollie-reader
+make desktop-package
+# 產物：dist/ollie-reader.app（macOS .app bundle，托盤 App，不顯示於 Dock）
 ```
+
+要產生「已簽章 + 公證」的 dmg 並發佈到 GitHub，見「發佈 dmg」一節。
 
 Piper 與 Kokoro 的模型檔都放在 `models/`、由 spec 一起收進 bundle，frozen 後從
 `sys._MEIPASS/models/` 載入，**完全離線、不需網路、不需 PyTorch**（Kokoro 走 ONNX Runtime）。
