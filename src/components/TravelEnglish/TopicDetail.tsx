@@ -10,20 +10,37 @@ import {
   Sparkles,
 } from "lucide-react";
 import type { TravelTopic } from "../../types/travelEnglish";
+import type { TravelProgress } from "../../services/travelProgressService";
+import type { TravelMissionStepKind } from "./travelMissionUtils";
 import { WordCard } from "./WordCard";
 import { PhraseCard } from "./PhraseCard";
 import { SpeakerButton } from "./SpeakerButton";
 import { TopicSceneVisual } from "./TopicSceneVisual";
+import { TravelMissionPanel } from "./TravelMissionPanel";
 import { getTopicStats } from "./travelTopicUtils";
 
 interface TopicDetailProps {
   topic: TravelTopic;
   onBack: () => void;
   speak: (text: string) => void;
+  progress: TravelProgress | null;
+  isProgressLoading: boolean;
+  progressError: string | null;
+  onMarkMissionStep: (topicId: string, step: TravelMissionStepKind) => void;
+  onCompleteMission: (topicId: string) => void;
 }
 
 /** 單一情境頁：必學單字 + 實用句子（多分組主題會依分組顯示小標） */
-export function TopicDetail({ topic, onBack, speak }: TopicDetailProps) {
+export function TopicDetail({
+  topic,
+  onBack,
+  speak,
+  progress,
+  isProgressLoading,
+  progressError,
+  onMarkMissionStep,
+  onCompleteMission,
+}: TopicDetailProps) {
   const multiGroup = topic.groups.length > 1;
   const stats = getTopicStats(topic);
 
@@ -102,6 +119,16 @@ export function TopicDetail({ topic, onBack, speak }: TopicDetailProps) {
           ))}
         </div>
       </section>
+
+      <TravelMissionPanel
+        topic={topic}
+        progress={progress}
+        isProgressLoading={isProgressLoading}
+        progressError={progressError}
+        speak={speak}
+        onMarkStep={onMarkMissionStep}
+        onCompleteMission={onCompleteMission}
+      />
 
       {topic.groups.map((group, gi) => (
         <div key={group.sceneId ?? gi} className="space-y-5">

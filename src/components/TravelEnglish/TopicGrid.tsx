@@ -1,11 +1,29 @@
 import { motion } from "framer-motion";
-import { BookOpen, CheckCircle2, MessageCircle, MessagesSquare, Route } from "lucide-react";
+import {
+  BookOpen,
+  CheckCircle2,
+  CircleDot,
+  MessageCircle,
+  MessagesSquare,
+  Route,
+  Sparkles,
+  Stamp,
+} from "lucide-react";
 import { travelTopics } from "../../data/travelTopics";
 import type { TravelTopic } from "../../types/travelEnglish";
+import type { TravelProgress } from "../../services/travelProgressService";
 import { TopicSceneVisual } from "./TopicSceneVisual";
+import {
+  getNextSuggestedTopicId,
+  getTravelMissionStatus,
+  getTravelProgressSummary,
+} from "./travelMissionUtils";
 import { getTopicStats } from "./travelTopicUtils";
 
 interface TopicGridProps {
+  progress: TravelProgress | null;
+  isProgressLoading: boolean;
+  progressError: string | null;
   onSelectTopic: (id: string) => void;
 }
 
@@ -31,13 +49,19 @@ function LearningStat({
 function TopicPathCard({
   topic,
   index,
+  progress,
+  nextTopicId,
   onSelectTopic,
 }: {
   topic: TravelTopic;
   index: number;
+  progress: TravelProgress | null;
+  nextTopicId: string | null;
   onSelectTopic: (id: string) => void;
 }) {
   const stats = getTopicStats(topic);
+  const missionStatus = getTravelMissionStatus(topic.id, progress);
+  const isNextTopic = nextTopicId === topic.id;
 
   return (
     <motion.button
@@ -62,8 +86,14 @@ function TopicPathCard({
             </h2>
             <p className="mt-1 text-sm text-muted-foreground">{topic.title}</p>
           </div>
-          <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-accent-tint text-sm font-semibold text-primary ring-1 ring-border-hairline">
-            {topic.stage}
+          <span
+            className={`flex size-9 shrink-0 items-center justify-center rounded-xl text-sm font-semibold ring-1 ring-border-hairline ${
+              missionStatus === "completed"
+                ? "bg-success text-success-content"
+                : "bg-accent-tint text-primary"
+            }`}
+          >
+            {missionStatus === "completed" ? <Stamp className="size-4" /> : topic.stage}
           </span>
         </div>
 
@@ -83,13 +113,48 @@ function TopicPathCard({
           <LearningStat icon={MessageCircle} label="sentences" value={stats.phrases} />
           <LearningStat icon={MessagesSquare} label="dialogues" value={stats.dialogues} />
         </div>
+
+        <div className="flex flex-wrap gap-2">
+          {missionStatus === "completed" && (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-success/10 px-3 py-1 text-xs font-semibold text-success">
+              <CheckCircle2 className="size-3.5" />
+              已蓋章
+            </span>
+          )}
+          {missionStatus === "in-progress" && (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-warning/15 px-3 py-1 text-xs font-semibold text-warning">
+              <Sparkles className="size-3.5" />
+              任務進行中
+            </span>
+          )}
+          {missionStatus === "not-started" && (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-base-100/70 px-3 py-1 text-xs font-semibold text-muted-foreground ring-1 ring-border-hairline dark:bg-white/5">
+              <CircleDot className="size-3.5" />
+              尚未蓋章
+            </span>
+          )}
+          {isNextTopic && (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
+              <Route className="size-3.5" />
+              建議下一站
+            </span>
+          )}
+        </div>
       </div>
     </motion.button>
   );
 }
 
 /** 首頁：分情境的大卡片，點一下進入該情境的單字與句子 */
-export function TopicGrid({ onSelectTopic }: TopicGridProps) {
+export function TopicGrid({
+  progress,
+  isProgressLoading,
+  progressError,
+  onSelectTopic,
+}: TopicGridProps) {
+  const summary = getTravelProgressSummary(orderedTopics, progress);
+  const nextTopicId = getNextSuggestedTopicId(orderedTopics, progress);
+
   return (
     <div className="space-y-6 pb-8">
       {/* Header */}
@@ -107,6 +172,31 @@ export function TopicGrid({ onSelectTopic }: TopicGridProps) {
             </p>
           </div>
         </div>
+        <div className="mt-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+          <div className="rounded-2xl bg-base-100/65 p-3 ring-1 ring-border-hairline dark:bg-white/5">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-accent-tint px-3 py-1 text-xs font-semibold text-primary">
+                <Stamp className="size-3.5" />
+                已完成 {summary.completed} / {summary.total} 站
+              </span>
+              {isProgressLoading && (
+                <span className="text-xs font-medium text-muted-foreground">
+                  同步中
+                </span>
+              )}
+              {summary.nextTopicId && (
+                <span className="text-xs font-medium text-muted-foreground">
+                  下一站：第{" "}
+                  {orderedTopics.find((topic) => topic.id === summary.nextTopicId)?.stage}
+                  {" "}站
+                </span>
+              )}
+            </div>
+            {progressError && (
+              <p className="mt-2 text-xs text-warning">{progressError}</p>
+            )}
+          </div>
+        </div>
       </div>
 
       <div className="grid gap-4">
@@ -115,6 +205,8 @@ export function TopicGrid({ onSelectTopic }: TopicGridProps) {
             key={topic.id}
             topic={topic}
             index={index}
+            progress={progress}
+            nextTopicId={nextTopicId}
             onSelectTopic={onSelectTopic}
           />
         ))}

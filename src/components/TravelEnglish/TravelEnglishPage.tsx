@@ -2,6 +2,7 @@ import { useMemo, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { useSpeechState } from "../../hooks/useSpeechState";
+import { useTravelProgress } from "../../hooks/useTravelProgress";
 import { travelTopics } from "../../data/travelTopics";
 import { TopicGrid } from "./TopicGrid";
 import { TopicDetail } from "./TopicDetail";
@@ -18,6 +19,13 @@ const transition = { duration: 0.25, ease: "easeOut" } as const;
 export const TravelEnglishPage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const { speak } = useSpeechState();
+  const {
+    progress,
+    isLoading: isProgressLoading,
+    error: progressError,
+    markStep,
+    completeMission,
+  } = useTravelProgress();
 
   const topicId = searchParams.get("topic");
   const selectedTopic = useMemo(
@@ -45,7 +53,12 @@ export const TravelEnglishPage = () => {
             exit="exit"
             transition={transition}
           >
-            <TopicGrid onSelectTopic={(id) => setSearchParams({ topic: id })} />
+            <TopicGrid
+              progress={progress}
+              isProgressLoading={isProgressLoading}
+              progressError={progressError}
+              onSelectTopic={(id) => setSearchParams({ topic: id })}
+            />
           </motion.div>
         ) : (
           <motion.div
@@ -59,6 +72,11 @@ export const TravelEnglishPage = () => {
             <TopicDetail
               topic={selectedTopic}
               speak={speak}
+              progress={progress}
+              isProgressLoading={isProgressLoading}
+              progressError={progressError}
+              onMarkMissionStep={markStep}
+              onCompleteMission={completeMission}
               onBack={() => setSearchParams({})}
             />
           </motion.div>
