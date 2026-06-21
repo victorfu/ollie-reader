@@ -14,7 +14,7 @@ NPM     := npm
 .PHONY: help setup install desktop-setup \
         dev build lint preview \
         desktop-serve desktop-run desktop-test desktop-icon desktop-package desktop-package-clean desktop-clean \
-        desktop-verify desktop-dmg \
+        desktop-verify desktop-dmg desktop-release \
         test clean
 
 help: ## List available targets
@@ -70,6 +70,9 @@ desktop-verify: ## Scan the built .app for secrets/.env (fails if any found)
 
 desktop-dmg: ## Build a signed + notarized dmg (requires .env.package)
 	bash $(DESKTOP)/release/package_macos.sh
+
+desktop-release: desktop-dmg ## Publish the dmg to GitHub Releases as desktop-v<version>
+	bash $(DESKTOP)/release/release_github.sh
 
 # ── Aggregate ─────────────────────────────────────────────────────────────
 test: desktop-test ## Run all test suites
