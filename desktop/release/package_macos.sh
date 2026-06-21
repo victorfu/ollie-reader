@@ -30,6 +30,15 @@ OLLIE_BUNDLE_VERSION="$VERSION" make -C "$REPO_ROOT" desktop-package
 # --- SECURITY GUARD (abort before signing if any secret/.env present) -------
 "${PY[@]}" release/verify_bundle.py "$APP"
 
+# --- prune dangling symlinks ------------------------------------------------
+# The spec deliberately drops unused Qt frameworks (QtQml/QtQuick/QtPdf/
+# QtVirtualKeyboard) to shrink the bundle, but PyInstaller leaves broken
+# framework symlinks behind pointing at the removed targets. Dangling symlinks
+# make `codesign --deep` and notarization fail ("No such file or directory"),
+# so remove them before signing. The app is QtWidgets-only — these are unused.
+PRUNED="$(find "$APP" -type l ! -exec test -e {} \; -print -delete | wc -l | tr -d ' ')"
+echo "pruned $PRUNED dangling symlink(s) before signing"
+
 # --- throwaway keychain + cert import ---------------------------------------
 WORK="$(mktemp -d)"
 KEYCHAIN="$WORK/build.keychain-db"
