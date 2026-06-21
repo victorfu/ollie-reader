@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { apiFetch } from "../utils/apiUtil";
-import { OIKID_BOOKING_RECORDS_API_URL } from "../constants/api";
+import { fetchWithComputeBase } from "../services/localBackend";
+import { OIKID_BOOKING_RECORDS_PATH } from "../constants/api";
 import { isAbortError } from "../utils/errorUtils";
 import type { BookingRecord, BookingRecordsResponse } from "../types/oikid";
 
@@ -72,11 +73,14 @@ export function useBookingRecords(): UseBookingRecordsReturn {
       if (controller.signal.aborted) return;
 
       try {
-        const response = await apiFetch(OIKID_BOOKING_RECORDS_API_URL, {
-          method: "GET",
-          includeAuthToken: true,
-          signal: controller.signal,
-        });
+        // 雲端帶 Firebase token；本機 sidecar 會忽略它。
+        const authedFetcher = (url: string, init?: RequestInit) =>
+          apiFetch(url, { ...init, includeAuthToken: true });
+        const response = await fetchWithComputeBase(
+          OIKID_BOOKING_RECORDS_PATH,
+          { method: "GET", signal: controller.signal },
+          authedFetcher,
+        );
 
         if (!response.ok) {
           throw new Error(`取得預約記錄失敗: ${response.status}`);

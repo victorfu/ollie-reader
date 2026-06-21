@@ -10,7 +10,7 @@ export const TTS_ENGINE_URL: Record<"piper" | "kokoro", string> = {
   kokoro: KTTS_API_URL,
 };
 export const VERSION_API_URL = `${API_BASE_URL}/api/version`;
-export const OIKID_BOOKING_RECORDS_API_URL = `${API_BASE_URL}/api/oikid/booking-records`;
+export const OIKID_BOOKING_RECORDS_PATH = "/api/oikid/booking-records";
 
 // Storage API endpoints (backend proxy to Supabase Storage)
 export const STORAGE_UPLOAD_URL = `${API_BASE_URL}/storage/upload`;
