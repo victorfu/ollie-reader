@@ -1,40 +1,20 @@
-import { apiFetch } from "../utils/apiUtil";
-import {
-  STORAGE_UPLOAD_URL,
-  STORAGE_DELETE_URL,
-  STORAGE_SIGNED_URL,
-} from "../constants/api";
+import { supabase, STORAGE_BUCKET } from "../utils/supabaseClient";
 
 // 10MB max audio file size
 export const MAX_AUDIO_SIZE_BYTES = 10 * 1024 * 1024;
 export const MAX_AUDIO_SIZE_MB = 10;
 
-/**
- * 取得音訊檔案在儲存空間的路徑
- *
- * @param userId - 使用者 ID
- * @param recordId - 練習記錄 ID
- * @returns 儲存路徑
- */
+/** 取得錄音檔在 storage 的路徑。 */
 function getAudioPath(userId: string, recordId: string): string {
   return `speech-practice/${userId}/${recordId}.webm`;
 }
 
-/**
- * 上傳練習錄音檔案到儲存空間
- *
- * @param userId - 使用者 ID
- * @param recordId - 練習記錄 ID
- * @param audioBlob - 音訊 Blob (webm 格式)
- * @returns 儲存檔案路徑
- * @throws Error 如果檔案過大或上傳失敗
- */
+/** 上傳練習錄音（webm）。回傳儲存路徑。 */
 export async function uploadPracticeAudio(
   userId: string,
   recordId: string,
   audioBlob: Blob,
 ): Promise<string> {
-  // Validate file size
   if (audioBlob.size > MAX_AUDIO_SIZE_BYTES) {
     throw new Error(
       `錄音檔案過大，最大允許 ${MAX_AUDIO_SIZE_MB}MB，目前大小 ${(
@@ -47,98 +27,47 @@ export async function uploadPracticeAudio(
 
   const path = getAudioPath(userId, recordId);
 
-  // Create FormData for multipart upload
-  const formData = new FormData();
-  formData.append("file", audioBlob, `${recordId}.webm`);
-  formData.append("path", path);
+  const { error } = await supabase.storage
+    .from(STORAGE_BUCKET)
+    .upload(path, audioBlob, { contentType: "audio/webm", upsert: true });
 
-  const response = await apiFetch(STORAGE_UPLOAD_URL, {
-    method: "POST",
-    includeAuthToken: true,
-    body: formData,
-  });
-
-  if (!response.ok) {
-    const error = await response
-      .json()
-      .catch(() => ({ detail: response.statusText }));
-    throw new Error(error.detail || "上傳錄音失敗");
+  if (error) {
+    throw new Error(error.message || "上傳錄音失敗");
   }
 
-  // Return the file path (stored in Firestore)
   return path;
 }
 
-/**
- * 刪除練習錄音檔案
- *
- * @param userId - 使用者 ID
- * @param recordId - 練習記錄 ID
- */
+/** 刪除練習錄音（找不到不視為錯誤）。 */
 export async function deletePracticeAudio(
   userId: string,
   recordId: string,
 ): Promise<void> {
   const path = getAudioPath(userId, recordId);
 
-  try {
-    const response = await apiFetch(
-      `${STORAGE_DELETE_URL}?path=${encodeURIComponent(path)}`,
-      {
-        method: "DELETE",
-        includeAuthToken: true,
-      },
-    );
+  const { error } = await supabase.storage.from(STORAGE_BUCKET).remove([path]);
 
-    if (!response.ok) {
-      // Check if it's a 404 (file not found) - ignore this error
-      if (response.status === 404) {
-        console.warn(`Audio file not found: ${path}`);
-        return;
-      }
-      const error = await response
-        .json()
-        .catch(() => ({ detail: response.statusText }));
-      throw new Error(error.detail || "刪除錄音失敗");
-    }
-  } catch (error) {
-    // Ignore "not found" errors - file may not exist
-    if (error instanceof Error && error.message.includes("not found")) {
+  if (error) {
+    if (error.message?.includes("not found")) {
       console.warn(`Audio file not found: ${path}`);
       return;
     }
-    throw error;
+    throw new Error(error.message || "刪除錄音失敗");
   }
 }
 
-/**
- * 取得音訊檔案的簽名 URL（用於播放）
- *
- * @param path - 儲存檔案路徑
- * @param expirationMinutes - URL 有效期限（分鐘），預設 60 分鐘
- * @returns 簽名 URL
- */
+/** 取得錄音播放用的短效簽名 URL（expirationMinutes 預設 60）。 */
 export async function getAudioSignedUrl(
   path: string,
   expirationMinutes: number = 60,
 ): Promise<string> {
-  const params = new URLSearchParams({
-    path,
-    expiration_minutes: expirationMinutes.toString(),
-  });
+  const { data, error } = await supabase.storage
+    .from(STORAGE_BUCKET)
+    .createSignedUrl(path, expirationMinutes * 60);
 
-  const response = await apiFetch(`${STORAGE_SIGNED_URL}?${params}`, {
-    method: "GET",
-    includeAuthToken: true,
-  });
-
-  if (!response.ok) {
-    const error = await response
-      .json()
-      .catch(() => ({ detail: response.statusText }));
-    throw new Error(error.detail || "取得音訊 URL 失敗");
+  if (error || !data?.signedUrl) {
+    throw new Error(error?.message || "取得音訊 URL 失敗");
   }
 
-  const data = await response.json();
-  return data.url;
+  return data.signedUrl;
 }
