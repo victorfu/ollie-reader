@@ -1,183 +1,156 @@
+<div align="center">
+
+<img src="public/icon-512x512.png" alt="Ollie Reader" width="120" height="120" />
+
 # Ollie Reader
 
-A modern English learning web application built with Vite, React, TypeScript, and Tailwind CSS.
+**An AI-powered English learning platform — read, listen, speak, and play your way to fluency.**
 
-## Tech Stack
+Read PDFs and show subtitles, build a smart vocabulary book, rehearse travel phrases and speeches, and battle through vocabulary games — all in one fast, installable web app, with an optional fully-offline desktop companion.
 
-- **Vite 7** - Next generation frontend tooling
-- **React 19** - A JavaScript library for building user interfaces
-- **TypeScript** - JavaScript with syntax for types
-- **Tailwind CSS v4 + DaisyUI 5** - Utility-first CSS framework with component library
-- **Firebase 12** - Backend-as-a-Service (Auth, Firestore, Storage)
-- **Gemini AI** - AI-powered content generation
-- **Framer Motion** - Production-ready motion library for React
-- **Web Speech API** - Native browser speech recognition and synthesis
-- **react-pdf** - PDF rendering in the browser
+[![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white&style=flat-square)](https://react.dev)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?logo=typescript&logoColor=white&style=flat-square)](https://www.typescriptlang.org)
+[![Vite](https://img.shields.io/badge/Vite-7-646CFF?logo=vite&logoColor=white&style=flat-square)](https://vite.dev)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind-4-06B6D4?logo=tailwindcss&logoColor=white&style=flat-square)](https://tailwindcss.com)
+[![Firebase](https://img.shields.io/badge/Firebase-12-FFCA28?logo=firebase&logoColor=black&style=flat-square)](https://firebase.google.com)
+[![PWA](https://img.shields.io/badge/PWA-installable-5A0FC8?logo=pwa&logoColor=white&style=flat-square)](https://web.dev/progressive-web-apps/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg?style=flat-square)](LICENSE)
 
-## Features
+</div>
 
-### 📖 PDF Reader (閱讀器)
-- **Document Reading**: Smooth PDF viewing experience with `react-pdf`
-- **Text Selection Toolbar**: Select text to look up words, translate, speak, or add to vocabulary
-- **AI Lookup**: Floating panel for word definitions and sentence translation via Gemini AI
-- **Session Caching**: In-memory PDF session caching for fast page navigation
+---
 
-### 📚 Smart Vocabulary Book (生詞本)
-- **Flashcard Review Mode**: Interactive cards with flip animations for effective memorization
-- **Smart Review**: Prioritizes words you've forgotten or haven't reviewed recently
-- **Tag-based Review**: Practice all words with a specific tag
-- **AI Pronunciation Coach**: Practice speaking with real-time feedback using Web Speech API
-- **Visual Memory**: AI automatically assigns relevant emojis to words for better retention
-- **Tag System**: Organize words with custom tags, quick tag suggestions from existing tags
-- **Infinite Scroll**: Glassmorphism design with smooth infinite scroll
-- **Smart Dictionary**: Auto-generated definitions, examples, phonetics via Gemini AI
-- **Sentence Translations**: Integrated sentence translation book within vocabulary
+## ✨ Overview
 
-### 🌍 Travel English (旅遊英文)
-- **Scene-based Learning**: 13 real-world travel scenes across two groups
-  - **General Singapore** (7 scenes): Airport & Flying, Hotel, Food & Hawker Centre, Getting Around, Attractions & Fun, Shopping, Asking for Help
-  - **Mandai Wildlife Reserve** (6 scenes): Singapore Zoo, Night Safari, River Wonders, Bird Paradise, Rainforest Wild ASIA, and more
-- **Three Learning Modes per Scene**: Phrases, Dialogues, Practice
-- **TTS Playback**: Text-to-speech for all phrases and dialogue lines
-- **Rich Content**: Vocabulary with Chinese translations, phonetics, emoji associations, example sentences, situational phrase tags, and full bilingual dialogues
+Ollie Reader is a responsive web application that turns everyday reading material into an English-learning workspace. Select any word to get an instant AI definition, save it to a spaced-repetition vocabulary book, practice pronunciation with live speech feedback, and reinforce what you learn through games. The interface follows macOS Human Interface Guidelines (translucent "glass" surfaces, hairline borders, fluid motion) and installs as a PWA for offline use.
 
-### 🎤 Speech Practice (演講練習)
-- **Topic Selection**: Choose from various topics to practice speaking
-- **AI Script Generator**: Generate practice scripts based on topics via Gemini AI
-- **Recording & Timer**: Synchronized timer + audio recording with start/pause/resume/stop
-- **Script Reference**: Collapsible script panel during practice
-- **Practice Notes**: Add notes to each practice session
-- **History**: Firebase-persisted practice history with playback
+It is designed for Chinese-speaking learners of English, so AI content (definitions, translations, examples) is bilingual.
 
-### 📝 Sentence Practice (英文演講)
-- **AI Translation**: Sentences parsed and translated by Gemini AI
-- **Drag-to-Reorder**: Framer Motion powered sentence reordering
-- **Clickable Words**: Tap any word for a quick Gemini definition
-- **TTS Playback**: Listen to each sentence spoken aloud
+## 🚀 Features
 
-### 📺 Show Subtitles (影集字幕)
-- **Season & Episode Browser**: Navigate shows by season and episode
-- **Transcript Viewer**: Read along with show transcripts
-- **Text Selection Toolbar**: Same lookup, translate, speak, and vocabulary tools as the PDF reader
+| | Feature | What it does |
+|---|---|---|
+| 📖 | **PDF Reader** (閱讀器) | Smooth `react-pdf` viewing with a text-selection toolbar — look up words, translate sentences, hear them spoken, or add them to your vocabulary. A floating AI panel returns definitions and translations via Gemini. |
+| 📚 | **Smart Vocabulary Book** (生詞本) | Spaced-repetition flashcards with flip animations, auto-generated definitions / examples / phonetics, emoji memory hooks, custom tags, and an AI pronunciation coach powered by the Web Speech API. |
+| 🌍 | **Travel English** (旅遊英文) | Scene-based learning across a Singapore journey (airport → flight → arrival → city & Mandai wildlife) with phrases, full bilingual dialogues, practice modes, TTS playback, and passport-style missions to track progress. |
+| 🎤 | **Speech Practice** (演講練習) | Pick a topic, generate an AI practice script, then record yourself with a synchronized timer (start / pause / resume / stop). History is saved to Firebase with playback. |
+| 📝 | **Sentence Practice** (英文演講) | AI-parsed, translated sentences with drag-to-reorder, tap-any-word definitions, and per-sentence TTS. |
+| 📺 | **Show Subtitles** (影集字幕) | Browse shows by season and episode and read along with transcripts, using the same lookup / translate / speak / save toolbar as the reader. |
+| 🎵 | **Audio Library** (音訊庫) | Upload, organize, and play audio learning materials via Firebase Storage. |
+| 🎮 | **Spirit Adventure** (精靈探險) | An RPG-style quiz battler that drills words from your own vocabulary book — stage map, spirit collection, achievements, and confetti rewards. |
+| 🕹️ | **Little Games** (小遊戲) | A hub of quick arcade games — Bunny Jumper, Meteor Glider, and Mushroom Adventure. |
+| 🖥️ | **Desktop Companion** | An optional native macOS app that runs a local sidecar for **fully-offline** text-to-speech (Piper + Kokoro via ONNX Runtime — no cloud, no API key). See [Desktop App](#-desktop-app-optional). |
 
-### 🎵 Audio Library (音訊庫)
-- **Upload & Manage**: Store and organize audio learning materials via Firebase Storage
-- **Playback Control**: Integrated audio player with progress tracking
-- **Edit & Delete**: Modal-based management with confirmation dialogs
+## 🛠️ Tech Stack
 
-### 🎮 Spirit Adventure (精靈探險)
-- **RPG-style Vocabulary Game**: Quiz battles using words from your vocabulary book
-- **Stage Map**: Progressive stage unlocking system
-- **Companion Guide**: "小星星" companion character
-- **Spirit Collection**: Collect spirits and earn rewards with confetti celebrations
-- **Magic Battle**: Spell-based battle mechanic
-- **Achievements**: Track progress and accomplishments
-- **AI Game Words**: Gemini AI generates grade-appropriate vocabulary challenges
+- **[React 19](https://react.dev)** + **[React Router 7](https://reactrouter.com)** + **[TypeScript](https://www.typescriptlang.org)** (strict)
+- **[Vite 7](https://vite.dev)** build tooling with **[vite-plugin-pwa](https://vite-pwa-org.netlify.app)**
+- **[Tailwind CSS v4](https://tailwindcss.com)** + **[DaisyUI 5](https://daisyui.com)** (macOS-style design system, OKLCH tokens)
+- **[Framer Motion](https://www.framer.com/motion/)** for animation
+- **[Firebase 12](https://firebase.google.com)** — Auth (Google sign-in), Firestore, Storage
+- **[Gemini AI](https://ai.google.dev)** for content generation
+- **[react-pdf](https://github.com/wojtekmaj/react-pdf)** for in-browser PDF rendering
+- **Web Speech API** for recognition & synthesis
+- **Desktop sidecar:** Python • PySide6 • FastAPI • PyInstaller (see [`desktop/`](desktop/))
 
-## Getting Started
+## 🏁 Getting Started
 
 ### Prerequisites
 
-- Node.js (v18 or higher recommended)
-- npm or yarn
+- **Node.js** 18+ and npm
+- A **Firebase** project and a **Gemini API** key (for AI features)
 
-### Installation
-
-```bash
-npm install
-```
-
-### Development
-
-Start the development server:
+### Install & run
 
 ```bash
-npm run dev
+npm install        # install dependencies
+npm run dev        # start the dev server at http://localhost:5173
 ```
 
-The application will be available at `http://localhost:5173/`
-
-### Build
-
-Build the application for production:
+Create a `.env.local` from the example and fill in your keys:
 
 ```bash
-npm run build
+cp .env.example .env.local
 ```
 
-### Preview
-
-Preview the production build locally:
+### Scripts
 
 ```bash
-npm run preview
+npm run dev        # Vite dev server (HMR)
+npm run build      # type-check (tsc -b) + production build
+npm run preview    # preview the production build
+npm run lint       # ESLint
 ```
 
-### Linting
+## 🖥️ Desktop App (optional)
 
-Run ESLint to check for code issues:
+A native macOS companion (in [`desktop/`](desktop/)) runs a local **FastAPI sidecar** so text-to-speech works **completely offline** — Piper and Kokoro voices run on ONNX Runtime with the models bundled in, no network and no PyTorch required. It ships as a PySide6 menu-bar (tray) app.
+
+Managed with [`uv`](https://docs.astral.sh/uv/); a root `Makefile` is the unified task runner:
 
 ```bash
-npm run lint
+make desktop-setup   # create the venv and install deps (uv)
+make desktop-run     # run the PySide6 tray shell (manages the sidecar)
+make desktop-test    # run the desktop test suite
+make desktop-dmg     # build a signed + notarized .dmg (needs Apple credentials)
+make desktop-release # publish the .dmg to GitHub Releases
 ```
 
-## Project Structure
+> The packaged build is **Apple Silicon (arm64)**, code-signed and notarized. See [`desktop/README.md`](desktop/README.md) for details.
+
+## 📁 Project Structure
 
 ```
 ollie-reader/
-├── public/
-│   ├── transcripts/         # Show subtitle transcript files
-│   └── ...                  # PWA icons, manifest
-├── scripts/
-│   └── fetch-transcripts.mjs # Transcript fetching utility
+├── public/                  # PWA icons, manifest, transcripts
+├── scripts/                 # fetch-transcripts utility
 ├── src/
-│   ├── assets/              # Images, fonts, etc.
-│   ├── components/          # React components (by feature)
-│   │   ├── AudioUploads/        # Audio library feature
+│   ├── components/          # React components, by feature
+│   │   ├── AudioUploads/        # Audio library
 │   │   ├── Auth/                # Authentication screens
-│   │   ├── Game/                # Spirit Adventure game
-│   │   ├── PdfReader/           # PDF viewer & lookup panel
-│   │   ├── SentencePractice/    # Sentence practice feature
+│   │   ├── Game/                # Spirit Adventure
+│   │   ├── LittleGames/         # Bunny Jumper, Meteor Glider, Mushroom Adventure
+│   │   ├── PdfReader/           # PDF viewer & AI lookup panel
+│   │   ├── SentencePractice/    # Sentence practice
 │   │   ├── SentenceTranslation/ # Sentence translation book
 │   │   ├── Settings/            # App settings
 │   │   ├── ShowSubtitles/       # Show subtitle viewer
-│   │   ├── SpeechPractice/      # Speech practice feature
-│   │   ├── TravelEnglish/       # Travel English scenes
+│   │   ├── SpeechPractice/      # Speech practice
+│   │   ├── TravelEnglish/       # Travel English scenes & missions
 │   │   ├── Vocabulary/          # Vocabulary book & flashcards
-│   │   ├── common/              # Shared UI components
+│   │   ├── common/              # Shared UI
 │   │   └── icons/               # Icon components
-│   ├── contexts/            # React Context providers
-│   ├── data/                # Static data (travel scenes, etc.)
+│   ├── constants/           # API endpoints & config
+│   ├── contexts/            # React Context providers (Auth, PDF, Speech, Settings)
+│   ├── data/                # Static data (travel scenes, topics)
 │   ├── hooks/               # Custom React hooks
 │   ├── services/            # Firebase & API services
 │   ├── types/               # TypeScript type definitions
-│   ├── utils/               # Utility functions
-│   ├── App.tsx              # Main app with routes
-│   ├── main.tsx             # Application entry point
-│   └── index.css            # Global styles with Tailwind
-├── index.html               # HTML entry point
-├── package.json             # Project dependencies and scripts
-├── tsconfig.json            # TypeScript configuration
-├── vite.config.ts           # Vite configuration
-├── tailwind.config.js       # Tailwind CSS configuration
-├── firebase.json            # Firebase hosting configuration
-├── CLAUDE.md                # Guidelines for AI coding agents
-└── GEMINI.md                # Gemini-specific guidelines
+│   ├── utils/               # Utilities
+│   ├── App.tsx              # Routes
+│   ├── main.tsx             # Entry point
+│   └── index.css            # Tailwind + design tokens & themes
+├── desktop/                 # Optional macOS app: PySide6 tray + FastAPI sidecar
+├── Makefile                 # Unified task runner (web + desktop)
+├── vite.config.ts           # Vite + PWA configuration
+├── firebase.json            # Firebase hosting
+└── AGENTS.md                # Guidelines for AI coding agents (CLAUDE.md → symlink)
 ```
 
-## Key Features
+## 🎨 Highlights
 
-- ⚡️ Lightning-fast HMR with Vite
-- ⚛️ React 19 with TypeScript strict mode
-- 🎨 Tailwind CSS v4 + DaisyUI 5 for modern styling
-- 📦 Component-based architecture with lazy code splitting
-- 🔧 ESLint for code quality
-- 🎯 Type-safe development with TypeScript
-- 🤖 AI-powered learning features (Gemini AI)
-- 📱 Responsive design for all devices
-- 🔄 PWA support for offline usage
-- 🔐 Firebase Authentication (email/password, Google sign-in)
+- ⚡️ Lightning-fast HMR and lazy-loaded, code-split routes
+- 🎨 macOS-style design system (Tailwind v4 + DaisyUI 5, OKLCH tokens, glass surfaces)
+- 🌗 Light & dark themes
+- 📱 Mobile-first responsive layout with PWA install / offline support
+- 🤖 AI-powered learning throughout (Gemini)
+- 🔊 Offline TTS option via the desktop sidecar
+- 🧩 Type-safe, component-based architecture (TypeScript strict)
 
-## License
+## 🤝 Contributing
 
-See [LICENSE](LICENSE) file for details.
+Contributions are welcome! Please use [Conventional Commits](https://www.conventionalcommits.org) (`feat:`, `fix:`, `refactor:`, `chore:`) and keep changes focused. Run `npm run lint` and `npm run build` before opening a pull request. See [AGENTS.md](AGENTS.md) for the design system and code conventions.
+
+## 📄 License
+
+[MIT](LICENSE) © Victor Fu

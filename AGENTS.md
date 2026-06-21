@@ -1,10 +1,12 @@
 # Repository Guidelines for Agents
 
-<last_updated>2026-01-21</last_updated>
+<last_updated>2026-06-21</last_updated>
 
 ## Project Overview
 
 **Ollie Reader** is a React + TypeScript + Vite web application for English learning. It uses Firebase (Auth, Firestore, Storage) and Gemini AI.
+
+An optional native macOS companion lives in `desktop/` (PySide6 tray + local FastAPI sidecar) providing fully-offline TTS. It is a separate Python subproject managed with `uv`; see [Desktop App](#desktop-app-sidecar) and `desktop/README.md`.
 
 ## Tech Stack
 
@@ -44,18 +46,16 @@ This is a standard responsive Web Application running in browser environments (C
 
 #### File Structure
 
-```
-src/styles/
-├── tokens.css      # Raw design tokens (animations, radii, shadows, glass)
-└── base.css        # Theme definitions + Tailwind @theme mapping
-```
-
-Import tokens via:
+Design tokens, DaisyUI theme definitions, and the Tailwind `@theme` mapping all live in a single global stylesheet, **`src/index.css`** (imported once from `src/main.tsx`):
 
 ```css
+/* src/index.css */
 @import "tailwindcss";
-@import "./tokens.css";
+/* DaisyUI themes (light/dark) + raw tokens (OKLCH colors, radii, shadows, glass)
+   + @theme mapping are all defined here. */
 ```
+
+Theming is driven by `data-theme` plus a `.dark` class; there is no `src/styles/` directory.
 
 #### Color Tokens (OKLCH)
 
@@ -305,6 +305,7 @@ src/
 ├── services/     # Firebase & API services
 ├── types/        # TypeScript definitions
 ├── utils/        # Utility functions
+├── data/         # Static data (travel scenes, topics)
 └── constants/    # API endpoints, config
 ```
 
@@ -335,6 +336,27 @@ npm run dev        # Dev server at localhost:5173
 npm run build      # Type-check + production build
 npm run lint       # ESLint check
 ```
+
+---
+
+## Desktop App (sidecar)
+
+The optional macOS companion in `desktop/` is a **separate Python subproject** (PySide6 tray + local FastAPI sidecar for offline Piper/Kokoro TTS), managed with [`uv`](https://docs.astral.sh/uv/) and frozen with PyInstaller. The repo root `Makefile` is the unified runner for both web and desktop:
+
+```bash
+make desktop-setup   # create venv + install deps (uv)
+make desktop-run     # run the PySide6 tray shell (manages the sidecar)
+make desktop-serve   # run the API sidecar only (127.0.0.1:8765)
+make desktop-test    # run the desktop pytest suite
+make desktop-dmg     # build a signed + notarized .dmg (reads .env.package)
+make desktop-release # publish the .dmg to GitHub Releases (desktop-v<version>)
+```
+
+Notes for agents working in `desktop/`:
+- Run Python via `uv run --directory desktop ...`; the web app has no test runner, but `desktop/` uses `pytest`.
+- Packaging/signing helpers live in `desktop/release/`; the build is **arm64-only**, code-signed and notarized.
+- `.env.package` (Apple credentials) and `desktop/models/` are gitignored — never commit them, and never bundle secrets into the `.app` (a security guard enforces this at build time).
+- See `desktop/README.md` for full details.
 
 ---
 
