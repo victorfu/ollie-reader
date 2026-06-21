@@ -11,6 +11,7 @@
     "fetch-transcripts": "node scripts/fetch-transcripts.mjs"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.108.2",
     "@tailwindcss/vite": "^4.1.18",
     "@types/canvas-confetti": "^1.9.0",
     "canvas-confetti": "^1.9.4",
