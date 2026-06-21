@@ -105,14 +105,21 @@ fi
 codesign --force --timestamp --keychain "$KEYCHAIN" --sign "$IDENTITY" "$DMG"
 
 # --- notarize + staple ------------------------------------------------------
-NOTARY_JSON="$(xcrun notarytool submit "$DMG" \
+# Stream notarytool's upload + waiting progress to the terminal (do NOT capture
+# stdout into a variable or force --output-format json — either hides the
+# progress), then parse the final status so a rejection aborts before stapling.
+NOTARY_LOG="$WORK/notary.txt"
+set +e
+xcrun notarytool submit "$DMG" \
   --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_PASSWORD" \
-  --wait --output-format json)"
-NOTARY_STATUS="$(printf '%s' "$NOTARY_JSON" | "${PY[@]}" -c 'import sys,json; print(json.load(sys.stdin).get("status",""))')"
-echo "notarization status: $NOTARY_STATUS"
-if [ "$NOTARY_STATUS" != "Accepted" ]; then
-  echo "ERROR: notarization not Accepted ($NOTARY_STATUS)" >&2
-  SUBMISSION_ID="$(printf '%s' "$NOTARY_JSON" | "${PY[@]}" -c 'import sys,json; print(json.load(sys.stdin).get("id",""))')"
+  --wait 2>&1 | tee "$NOTARY_LOG"
+NOTARY_RC=${PIPESTATUS[0]}
+set -e
+NOTARY_STATUS="$(grep -E '^[[:space:]]*status:' "$NOTARY_LOG" | tail -1 | awk '{print $2}')"
+echo "notarization status: ${NOTARY_STATUS:-unknown}"
+if [ "$NOTARY_RC" -ne 0 ] || [ "$NOTARY_STATUS" != "Accepted" ]; then
+  echo "ERROR: notarization not Accepted (status=${NOTARY_STATUS:-unknown} rc=$NOTARY_RC)" >&2
+  SUBMISSION_ID="$(grep -E '^[[:space:]]*id:' "$NOTARY_LOG" | head -1 | awk '{print $2}')"
   [ -n "$SUBMISSION_ID" ] && xcrun notarytool log "$SUBMISSION_ID" \
     --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_PASSWORD" >&2 || true
   exit 1
