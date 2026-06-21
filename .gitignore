@@ -31,3 +31,6 @@ dist-ssr
 
 .claude
 .codex
+
+# git worktrees
+.worktrees
