@@ -45,10 +45,12 @@ def _login(client: httpx.Client, username: str, password: str) -> dict[str, str]
         logger.error("OIKID 登入未取得 PHPSESSID")
         raise OikidError("OIKID login failed", status_code=502)
 
-    cookie = (
-        f"location=zh-tw; PHPSESSID={phpsessid}; "
-        f"AWSALB={awsalb}; AWSALBCORS={awsalbcors}"
-    )
+    cookie_parts = ["location=zh-tw", f"PHPSESSID={phpsessid}"]
+    if awsalb:
+        cookie_parts.append(f"AWSALB={awsalb}")
+    if awsalbcors:
+        cookie_parts.append(f"AWSALBCORS={awsalbcors}")
+    cookie = "; ".join(cookie_parts)
     return {
         "Accept": "application/json, text/javascript, */*; q=0.01",
         "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",

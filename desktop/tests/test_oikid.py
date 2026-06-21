@@ -87,3 +87,47 @@ def test_search_non_json_raises_502(monkeypatch):
     with pytest.raises(OikidError) as exc:
         search_booking_records(client=_client(handler))
     assert exc.value.status_code == 502
+
+
+def test_cookie_header_omits_absent_aws_cookies(monkeypatch):
+    monkeypatch.setattr(oikid_module, "get_oikid_credentials", lambda: ("u", "p"))
+    captured = {}
+
+    def handler(request):
+        url = str(request.url)
+        if "Student/Login" in url:
+            return httpx.Response(200, headers={"set-cookie": "PHPSESSID=abc; Path=/"})
+        if "BookingRecord" in url:
+            captured["cookie"] = request.headers.get("Cookie", "")
+            return httpx.Response(200, json={"Token": "t", "Data": []})
+        return httpx.Response(200)
+
+    search_booking_records(client=_client(handler))
+    assert "PHPSESSID=abc" in captured["cookie"]
+    assert "None" not in captured["cookie"]
+    assert "AWSALB" not in captured["cookie"]
+
+
+def test_cookie_header_includes_aws_cookies_when_present(monkeypatch):
+    monkeypatch.setattr(oikid_module, "get_oikid_credentials", lambda: ("u", "p"))
+    captured = {}
+
+    def handler(request):
+        url = str(request.url)
+        if "Student/Login" in url:
+            return httpx.Response(
+                200,
+                headers=[
+                    ("set-cookie", "PHPSESSID=abc; Path=/"),
+                    ("set-cookie", "AWSALB=lb1; Path=/"),
+                    ("set-cookie", "AWSALBCORS=lb2; Path=/"),
+                ],
+            )
+        if "BookingRecord" in url:
+            captured["cookie"] = request.headers.get("Cookie", "")
+            return httpx.Response(200, json={"Token": "t", "Data": []})
+        return httpx.Response(200)
+
+    search_booking_records(client=_client(handler))
+    assert "AWSALB=lb1" in captured["cookie"]
+    assert "AWSALBCORS=lb2" in captured["cookie"]
