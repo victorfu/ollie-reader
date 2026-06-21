@@ -1,12 +1,16 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getBestScore } from "./lib/game-utils";
+import {
+  getWordRunnerBestScore,
+  WORD_RUNNER_BEST_SCORE_KEY,
+} from "./kaplay-runner/wordRunnerData";
 
 const METEOR_BEST_KEY = "meteor-glider-best";
 const MUSHROOM_BEST_KEY = "mushroom-adventure-best";
 
 type GameCard = {
-  id: "bunny" | "meteor" | "mushroom";
+  id: "bunny" | "meteor" | "mushroom" | "kaplay-runner";
   to: string;
   title: string;
   blurb: string;
@@ -27,9 +31,21 @@ export default function GameHub() {
   const [bunnyBest] = useState(() => getBestScore());
   const [meteorBest] = useState(() => readBest(METEOR_BEST_KEY));
   const [mushroomBest] = useState(() => readBest(MUSHROOM_BEST_KEY));
+  const [wordRunnerBest] = useState(() =>
+    getWordRunnerBestScore(localStorage),
+  );
 
   const cards: GameCard[] = useMemo(
     () => [
+      {
+        id: "kaplay-runner",
+        to: "/games/kaplay-runner",
+        title: "Ollie Word Runner",
+        blurb: "KAPLAY pilot：在天空圖書館跑酷，收集符合提示的英文單字。",
+        tag: "KAPLAY Pilot",
+        emoji: "🦉",
+        best: wordRunnerBest,
+      },
       {
         id: "bunny",
         to: "/games/bunny",
@@ -58,7 +74,7 @@ export default function GameHub() {
         best: meteorBest,
       },
     ],
-    [bunnyBest, meteorBest, mushroomBest],
+    [bunnyBest, meteorBest, mushroomBest, wordRunnerBest],
   );
 
   return (
@@ -95,7 +111,11 @@ export default function GameHub() {
             </p>
             <div className="mt-4 flex items-center justify-between">
               <span className="text-xs text-muted-foreground">
-                {card.best && card.best > 0 ? `最高分 ${card.best}` : "尚無紀錄"}
+                {card.best && card.best > 0
+                  ? `最高分 ${card.best}`
+                  : card.id === "kaplay-runner"
+                    ? `保存在 ${WORD_RUNNER_BEST_SCORE_KEY}`
+                    : "尚無紀錄"}
               </span>
               <button
                 type="button"

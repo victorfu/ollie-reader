@@ -83,6 +83,9 @@ const MeteorGlider = lazyWithReload(
 const MushroomAdventure = lazyWithReload(
   () => import("./components/LittleGames/MushroomAdventure"),
 );
+const WordRunnerPage = lazyWithReload(
+  () => import("./components/LittleGames/kaplay-runner/WordRunnerPage"),
+);
 
 const SIDEBAR_COLLAPSED_KEY = "ollie-sidebar-collapsed";
 
@@ -623,6 +626,12 @@ function AppContent() {
                         path="/games/mushroom"
                         element={
                           <MushroomAdventure onExit={() => navigate("/games")} />
+                        }
+                      />
+                      <Route
+                        path="/games/kaplay-runner"
+                        element={
+                          <WordRunnerPage onExit={() => navigate("/games")} />
                         }
                       />
                       <Route path="/travel" element={<TravelEnglishPage />} />
