@@ -35,10 +35,16 @@ WORK="$(mktemp -d)"
 KEYCHAIN="$WORK/build.keychain-db"
 KEYCHAIN_PW="$(openssl rand -base64 24)"
 CERT_P12="$WORK/cert.p12"
-ORIG_KEYCHAINS="$(security list-keychains -d user | sed -e 's/^[[:space:]]*//' -e 's/"//g')"
+# Capture the current user keychain search list as an array so it can be
+# restored verbatim on exit (paths may contain spaces).
+ORIG_KEYCHAINS=()
+while IFS= read -r _kc; do ORIG_KEYCHAINS+=("$_kc"); done \
+  < <(security list-keychains -d user | sed -e 's/^[[:space:]]*//' -e 's/"//g')
 
 cleanup() {
-  security list-keychains -d user -s ${ORIG_KEYCHAINS} 2>/dev/null || true
+  if [ "${#ORIG_KEYCHAINS[@]}" -gt 0 ]; then
+    security list-keychains -d user -s "${ORIG_KEYCHAINS[@]}" 2>/dev/null || true
+  fi
   security delete-keychain "$KEYCHAIN" 2>/dev/null || true
   rm -rf "$WORK"
 }
@@ -52,7 +58,7 @@ security import "$CERT_P12" -k "$KEYCHAIN" -P "$APPLE_CERTIFICATE_PASSWORD" \
   -T /usr/bin/codesign
 security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PW" "$KEYCHAIN" >/dev/null
 # prepend our keychain to the search list so codesign can find the identity
-security list-keychains -d user -s "$KEYCHAIN" ${ORIG_KEYCHAINS}
+security list-keychains -d user -s "$KEYCHAIN" "${ORIG_KEYCHAINS[@]}"
 
 IDENTITY="$(security find-identity -v -p codesigning "$KEYCHAIN" \
   | awk '/Developer ID Application/ {print $2; exit}')"
@@ -60,12 +66,13 @@ IDENTITY="$(security find-identity -v -p codesigning "$KEYCHAIN" \
 echo "signing identity: $IDENTITY"
 
 # --- sign inside-out (all Mach-O, then main exe + app with entitlements) ----
-find "$APP/Contents" -type f -print0 | while IFS= read -r -d '' f; do
+while IFS= read -r -d '' f; do
   if file "$f" | grep -q "Mach-O"; then
     codesign --force --timestamp --options runtime \
-      --keychain "$KEYCHAIN" --sign "$IDENTITY" "$f"
+      --keychain "$KEYCHAIN" --sign "$IDENTITY" "$f" \
+      || { echo "codesign failed: $f" >&2; exit 1; }
   fi
-done
+done < <(find "$APP/Contents" -type f -print0)
 codesign --force --timestamp --options runtime --entitlements "$ENT" \
   --keychain "$KEYCHAIN" --sign "$IDENTITY" "$APP/Contents/MacOS/ollie-reader"
 codesign --force --timestamp --options runtime --entitlements "$ENT" \
@@ -89,11 +96,21 @@ fi
 codesign --force --timestamp --keychain "$KEYCHAIN" --sign "$IDENTITY" "$DMG"
 
 # --- notarize + staple ------------------------------------------------------
-xcrun notarytool submit "$DMG" \
+NOTARY_JSON="$(xcrun notarytool submit "$DMG" \
   --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_PASSWORD" \
-  --wait
+  --wait --output-format json)"
+NOTARY_STATUS="$(printf '%s' "$NOTARY_JSON" | "${PY[@]}" -c 'import sys,json; print(json.load(sys.stdin).get("status",""))')"
+echo "notarization status: $NOTARY_STATUS"
+if [ "$NOTARY_STATUS" != "Accepted" ]; then
+  echo "ERROR: notarization not Accepted ($NOTARY_STATUS)" >&2
+  SUBMISSION_ID="$(printf '%s' "$NOTARY_JSON" | "${PY[@]}" -c 'import sys,json; print(json.load(sys.stdin).get("id",""))')"
+  [ -n "$SUBMISSION_ID" ] && xcrun notarytool log "$SUBMISSION_ID" \
+    --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_PASSWORD" >&2 || true
+  exit 1
+fi
 xcrun stapler staple "$DMG"
-spctl -a -t open --context context:primary-signature -v "$DMG" || true
+xcrun stapler validate "$DMG"
+spctl -a -t open --context context:primary-signature -v "$DMG"
 
 # --- checksum ---------------------------------------------------------------
 ( cd "$DESKTOP_DIR/dist" && shasum -a 256 "ollie-reader-$VERSION.dmg" > "ollie-reader-$VERSION.dmg.sha256" )
