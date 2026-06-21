@@ -3,6 +3,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 import server.app as app_module
+from server.fetch_url import FetchError, FetchResult
 from server.pdf_extract import PDFError, PDFExtractResult, PageText
 from server.tts_piper import TTSError, TTSResult
 from server.tts_kokoro import KokoroTTSError, KokoroTTSResult
@@ -193,3 +194,74 @@ def test_cors_rejects_untrusted_origin_pna_preflight(client):
     assert resp.status_code == 400
     assert "origin" in resp.text
     assert resp.headers.get("access-control-allow-origin") is None
+
+
+def test_fetch_url_contract(client, monkeypatch):
+    async def fake_fetch(url, follow_redirects=True, max_redirects=10,
+                         timeout=30, client=None):
+        return FetchResult(
+            content=b"%PDF-bytes",
+            content_type="application/pdf",
+            final_url="https://example.com/a.pdf",
+            redirect_count=0,
+            filename="a.pdf",
+            file_extension=".pdf",
+            content_disposition='inline; filename="a.pdf"',
+        )
+
+    monkeypatch.setattr(app_module, "fetch_url_content_async", fake_fetch)
+    resp = client.get("/api/fetch-url", params={"url": "https://example.com/a.pdf"})
+
+    assert resp.status_code == 200
+    assert resp.content == b"%PDF-bytes"
+    assert resp.headers["content-type"] == "application/pdf"
+    assert resp.headers["x-final-url"] == "https://example.com/a.pdf"
+    assert resp.headers["x-redirect-count"] == "0"
+    assert resp.headers["x-file-extension"] == ".pdf"
+
+
+def test_fetch_url_passes_query_params(client, monkeypatch):
+    captured = {}
+
+    async def fake_fetch(url, follow_redirects=True, max_redirects=10,
+                         timeout=30, client=None):
+        captured["url"] = url
+        captured["follow_redirects"] = follow_redirects
+        return FetchResult(
+            content=b"x",
+            content_type="application/pdf",
+            final_url=url,
+            redirect_count=0,
+            filename="a.pdf",
+            file_extension=".pdf",
+            content_disposition='inline; filename="a.pdf"',
+        )
+
+    monkeypatch.setattr(app_module, "fetch_url_content_async", fake_fetch)
+    resp = client.get(
+        "/api/fetch-url",
+        params={"url": "https://example.com/a.pdf", "follow_redirects": "false"},
+    )
+
+    assert resp.status_code == 200
+    assert captured["url"] == "https://example.com/a.pdf"
+    assert captured["follow_redirects"] is False
+
+
+def test_fetch_url_error_maps_status(client, monkeypatch):
+    async def fake_fetch(url, follow_redirects=True, max_redirects=10,
+                         timeout=30, client=None):
+        raise FetchError("找不到指定的資源", status_code=404)
+
+    monkeypatch.setattr(app_module, "fetch_url_content_async", fake_fetch)
+    resp = client.get(
+        "/api/fetch-url", params={"url": "https://example.com/missing.pdf"}
+    )
+
+    assert resp.status_code == 404
+    assert resp.json()["detail"] == "找不到指定的資源"
+
+
+def test_fetch_url_requires_url_param(client):
+    resp = client.get("/api/fetch-url")
+    assert resp.status_code == 422
