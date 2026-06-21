@@ -15,6 +15,7 @@ dependencies = [
     "kokoro>=0.9.4",
     "torch",
     "PySide6",
+    "httpx",
     # spaCy model used by misaki/kokoro for English G2P; not on PyPI, pinned below.
     "en-core-web-sm",
 ]
@@ -22,7 +23,6 @@ dependencies = [
 [dependency-groups]
 dev = [
     "pytest",
-    "httpx",
     "pyinstaller",
 ]
 
