@@ -14,12 +14,7 @@ import {
   type QueryDocumentSnapshot,
 } from "firebase/firestore";
 import { db } from "../utils/firebaseUtil";
-import { apiFetch } from "../utils/apiUtil";
-import {
-  STORAGE_UPLOAD_URL,
-  STORAGE_DELETE_URL,
-  STORAGE_SIGNED_URL,
-} from "../constants/api";
+import { supabase, STORAGE_BUCKET } from "../utils/supabaseClient";
 import type { AudioUpload, AudioUploadUpdateInput } from "../types/audioUpload";
 import {
   MAX_UPLOAD_SIZE_BYTES,
@@ -105,24 +100,12 @@ export async function uploadAudioFile(
   const extension = getExtensionFromMimeType(mimeType);
   const path = getAudioUploadPath(userId, uploadId, extension);
 
-  // Create FormData for multipart upload
-  const formData = new FormData();
-  const fileName =
-    audioFile instanceof File ? audioFile.name : `${uploadId}.${extension}`;
-  formData.append("file", audioFile, fileName);
-  formData.append("path", path);
+  const { error } = await supabase.storage
+    .from(STORAGE_BUCKET)
+    .upload(path, audioFile, { contentType: mimeType, upsert: true });
 
-  const response = await apiFetch(STORAGE_UPLOAD_URL, {
-    method: "POST",
-    includeAuthToken: true,
-    body: formData,
-  });
-
-  if (!response.ok) {
-    const error = await response
-      .json()
-      .catch(() => ({ detail: response.statusText }));
-    throw new Error(error.detail || "上傳音訊失敗");
+  if (error) {
+    throw new Error(error.message || "上傳音訊失敗");
   }
 
   return path;
@@ -132,31 +115,16 @@ export async function uploadAudioFile(
  * Delete audio file from storage
  */
 export async function deleteAudioFile(audioUrl: string): Promise<void> {
-  try {
-    const response = await apiFetch(
-      `${STORAGE_DELETE_URL}?path=${encodeURIComponent(audioUrl)}`,
-      {
-        method: "DELETE",
-        includeAuthToken: true,
-      },
-    );
+  const { error } = await supabase.storage
+    .from(STORAGE_BUCKET)
+    .remove([audioUrl]);
 
-    if (!response.ok) {
-      if (response.status === 404) {
-        console.warn(`Audio file not found: ${audioUrl}`);
-        return;
-      }
-      const error = await response
-        .json()
-        .catch(() => ({ detail: response.statusText }));
-      throw new Error(error.detail || "刪除音訊失敗");
-    }
-  } catch (error) {
-    if (error instanceof Error && error.message.includes("not found")) {
+  if (error) {
+    if (error.message?.includes("not found")) {
       console.warn(`Audio file not found: ${audioUrl}`);
       return;
     }
-    throw error;
+    throw new Error(error.message || "刪除音訊失敗");
   }
 }
 
@@ -167,25 +135,15 @@ export async function getAudioUploadSignedUrl(
   path: string,
   expirationMinutes: number = 60,
 ): Promise<string> {
-  const params = new URLSearchParams({
-    path,
-    expiration_minutes: expirationMinutes.toString(),
-  });
+  const { data, error } = await supabase.storage
+    .from(STORAGE_BUCKET)
+    .createSignedUrl(path, expirationMinutes * 60);
 
-  const response = await apiFetch(`${STORAGE_SIGNED_URL}?${params}`, {
-    method: "GET",
-    includeAuthToken: true,
-  });
-
-  if (!response.ok) {
-    const error = await response
-      .json()
-      .catch(() => ({ detail: response.statusText }));
-    throw new Error(error.detail || "取得音訊 URL 失敗");
+  if (error || !data?.signedUrl) {
+    throw new Error(error?.message || "取得音訊 URL 失敗");
   }
 
-  const data = await response.json();
-  return data.url;
+  return data.signedUrl;
 }
 
 /**
