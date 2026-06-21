@@ -14,6 +14,7 @@ NPM     := npm
 .PHONY: help setup install desktop-setup \
         dev build lint preview \
         desktop-serve desktop-run desktop-test desktop-icon desktop-package desktop-package-clean desktop-clean \
+        desktop-verify desktop-dmg \
         test clean
 
 help: ## List available targets
@@ -63,6 +64,12 @@ desktop-package-clean: ## Clean build of the frozen binary (drops PyInstaller ca
 
 desktop-clean: ## Remove PyInstaller build/dist artifacts
 	rm -rf $(DESKTOP)/build $(DESKTOP)/dist
+
+desktop-verify: ## Scan the built .app for secrets/.env (fails if any found)
+	$(UV) run --directory $(DESKTOP) python release/verify_bundle.py dist/ollie-reader.app
+
+desktop-dmg: ## Build a signed + notarized dmg (requires .env.package)
+	bash $(DESKTOP)/release/package_macos.sh
 
 # ── Aggregate ─────────────────────────────────────────────────────────────
 test: desktop-test ## Run all test suites
