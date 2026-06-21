@@ -18,6 +18,7 @@ dependencies = [
     "PySide6",
     # outbound HTTP client for /api/fetch-url (URL proxy, e.g. remote PDFs).
     "httpx",
+    "keyring",
 ]
 
 [dependency-groups]
