@@ -67,6 +67,8 @@ class SettingsDialog(QDialog):
     super().__init__()
     self.manager = manager
     self.setWindowTitle("ollie-reader desktop 設定")
+    # 預設視窗寬一點，讓 OIKID 帳號（email）等欄位能完整顯示不被截斷。
+    self.setMinimumWidth(480)
 
     layout = QFormLayout(self)
 
@@ -87,8 +89,10 @@ class SettingsDialog(QDialog):
 
     creds = get_oikid_credentials()
     self.oikid_user_edit = QLineEdit(creds[0] if creds else "")
+    self.oikid_user_edit.setMinimumWidth(280)
     self.oikid_pw_edit = QLineEdit()
     self.oikid_pw_edit.setEchoMode(QLineEdit.EchoMode.Password)
+    self.oikid_pw_edit.setMinimumWidth(280)
     if creds:
       self.oikid_pw_edit.setPlaceholderText("（已設定，留空則不變更）")
     layout.addRow("OIKID 帳號：", self.oikid_user_edit)
