@@ -5,3 +5,5 @@ build/
 dist/
 *.spec.bak
 models/
+assets/AppIcon.icns
+assets/AppIcon.iconset/
