@@ -4,6 +4,7 @@ from fastapi.testclient import TestClient
 
 import server.app as app_module
 from server.fetch_url import FetchError, FetchResult
+from server.oikid import OikidError
 from server.pdf_extract import PDFError, PDFExtractResult, PageText
 from server.tts_piper import TTSError, TTSResult
 from server.tts_kokoro import KokoroTTSError, KokoroTTSResult
@@ -265,3 +266,51 @@ def test_fetch_url_error_maps_status(client, monkeypatch):
 def test_fetch_url_requires_url_param(client):
     resp = client.get("/api/fetch-url")
     assert resp.status_code == 422
+
+
+def test_oikid_booking_records_contract(client, monkeypatch):
+    def fake_search():
+        return {
+            "Token": "tok",
+            "Data": [
+                {
+                    "id": "1",
+                    "Level": "L1",
+                    "ClassVersion": "v",
+                    "CoursesName": "Course",
+                    "ClassTime": "2026-07-01 10:00",
+                    "TeacherName": "Tina",
+                    "OpenName": "Open",
+                }
+            ],
+        }
+
+    monkeypatch.setattr(app_module, "search_booking_records", fake_search)
+    resp = client.get("/api/oikid/booking-records")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["Token"] == "tok"
+    assert body["Data"][0]["CoursesName"] == "Course"
+
+
+def test_oikid_missing_credentials_maps_400(client, monkeypatch):
+    def fake_search():
+        raise OikidError("OIKID 帳密未設定，請到桌面 App 設定", status_code=400)
+
+    monkeypatch.setattr(app_module, "search_booking_records", fake_search)
+    resp = client.get("/api/oikid/booking-records")
+
+    assert resp.status_code == 400
+    assert resp.json()["detail"] == "OIKID 帳密未設定，請到桌面 App 設定"
+
+
+def test_oikid_upstream_error_maps_502(client, monkeypatch):
+    def fake_search():
+        raise OikidError("OIKID fetch error", status_code=502)
+
+    monkeypatch.setattr(app_module, "search_booking_records", fake_search)
+    resp = client.get("/api/oikid/booking-records")
+
+    assert resp.status_code == 502
+    assert resp.json()["detail"] == "OIKID fetch error"

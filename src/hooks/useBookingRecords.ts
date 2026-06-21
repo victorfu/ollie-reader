@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { apiFetch } from "../utils/apiUtil";
-import { OIKID_BOOKING_RECORDS_API_URL } from "../constants/api";
+import { fetchWithComputeBase } from "../services/localBackend";
+import { OIKID_BOOKING_RECORDS_PATH } from "../constants/api";
 import { isAbortError } from "../utils/errorUtils";
 import type { BookingRecord, BookingRecordsResponse } from "../types/oikid";
 
@@ -67,19 +68,36 @@ export function useBookingRecords(): UseBookingRecordsReturn {
     setIsLoading(true);
     setError(null);
 
+    // 雲端帶 Firebase token；本機 sidecar 會忽略它。
+    const authedFetcher = (url: string, init?: RequestInit) =>
+      apiFetch(url, { ...init, includeAuthToken: true });
+
     for (let attempt = 0; attempt <= RETRY_CONFIG.maxRetries; attempt++) {
       // 檢查是否已被取消
       if (controller.signal.aborted) return;
 
       try {
-        const response = await apiFetch(OIKID_BOOKING_RECORDS_API_URL, {
-          method: "GET",
-          includeAuthToken: true,
-          signal: controller.signal,
-        });
+        const response = await fetchWithComputeBase(
+          OIKID_BOOKING_RECORDS_PATH,
+          { method: "GET", signal: controller.signal },
+          authedFetcher,
+        );
 
         if (!response.ok) {
-          throw new Error(`取得預約記錄失敗: ${response.status}`);
+          let detail = `取得預約記錄失敗: ${response.status}`;
+          try {
+            const body = await response.json();
+            if (body?.detail) detail = body.detail as string;
+          } catch {
+            // 無 JSON body，沿用預設訊息
+          }
+          // 4xx 為確定性錯誤（如未設定 OIKID 帳密）→ 不重試，直接顯示可行動訊息
+          if (response.status >= 400 && response.status < 500) {
+            setError(detail);
+            setIsLoading(false);
+            return;
+          }
+          throw new Error(detail);
         }
 
         const data: BookingRecordsResponse = await response.json();

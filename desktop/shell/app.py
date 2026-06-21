@@ -13,12 +13,18 @@ from PySide6.QtWidgets import (
   QDialog,
   QFormLayout,
   QLabel,
+  QLineEdit,
   QMenu,
   QPushButton,
   QSystemTrayIcon,
 )
 
 from server.config import DEFAULT_PORT
+from server.oikid_secrets import (
+  clear_oikid_credentials,
+  get_oikid_credentials,
+  set_oikid_credentials,
+)
 from shell import autostart
 from shell.sidecar import SidecarManager
 
@@ -79,6 +85,24 @@ class SettingsDialog(QDialog):
     self.stop_button.clicked.connect(self._stop_sidecar)
     layout.addRow(self.start_button, self.stop_button)
 
+    creds = get_oikid_credentials()
+    self.oikid_user_edit = QLineEdit(creds[0] if creds else "")
+    self.oikid_pw_edit = QLineEdit()
+    self.oikid_pw_edit.setEchoMode(QLineEdit.EchoMode.Password)
+    if creds:
+      self.oikid_pw_edit.setPlaceholderText("（已設定，留空則不變更）")
+    layout.addRow("OIKID 帳號：", self.oikid_user_edit)
+    layout.addRow("OIKID 密碼：", self.oikid_pw_edit)
+
+    self.oikid_status_label = QLabel("")
+    layout.addRow("", self.oikid_status_label)
+
+    self.oikid_save_button = QPushButton("儲存 OIKID 帳密")
+    self.oikid_save_button.clicked.connect(self._save_oikid_credentials)
+    self.oikid_clear_button = QPushButton("清除 OIKID 帳密")
+    self.oikid_clear_button.clicked.connect(self._clear_oikid_credentials)
+    layout.addRow(self.oikid_save_button, self.oikid_clear_button)
+
     self._timer = QTimer(self)
     self._timer.timeout.connect(self._refresh)
     self._timer.start(2000)
@@ -96,6 +120,24 @@ class SettingsDialog(QDialog):
   def _stop_sidecar(self, _checked: bool = False) -> None:
     self.manager.stop()
     self._refresh()
+
+  def _save_oikid_credentials(self, _checked: bool = False) -> None:
+    username = self.oikid_user_edit.text().strip()
+    password = self.oikid_pw_edit.text()
+    if not username or not password:
+      self.oikid_status_label.setText("請輸入 OIKID 帳號與密碼")
+      return
+    set_oikid_credentials(username, password)
+    self.oikid_pw_edit.clear()
+    self.oikid_pw_edit.setPlaceholderText("（已設定，留空則不變更）")
+    self.oikid_status_label.setText("OIKID 帳密已儲存")
+
+  def _clear_oikid_credentials(self, _checked: bool = False) -> None:
+    clear_oikid_credentials()
+    self.oikid_user_edit.clear()
+    self.oikid_pw_edit.clear()
+    self.oikid_pw_edit.setPlaceholderText("")
+    self.oikid_status_label.setText("OIKID 帳密已清除")
 
   def _toggle_autostart(self, checked: bool) -> None:
     if checked:

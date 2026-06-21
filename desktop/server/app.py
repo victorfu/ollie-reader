@@ -10,6 +10,7 @@ from fastapi.responses import Response, StreamingResponse
 
 from server.config import CORS_ORIGINS, VERSION
 from server.fetch_url import FetchError, fetch_url_content_async
+from server.oikid import OikidError, search_booking_records
 from server.models import SpeechRequest
 from server.pdf_extract import PDFError, extract_text_from_pdf
 from server.tts_kokoro import KokoroTTSError, kokoro_synthesize_speech
@@ -143,6 +144,16 @@ def create_app() -> FastAPI:
             media_type=result.content_type,
             headers={"Content-Disposition": 'attachment; filename="speech.wav"'},
         )
+
+    @app.get("/api/oikid/booking-records", tags=["oikid"])
+    async def oikid_booking_records():
+        try:
+            return await run_in_threadpool(search_booking_records)
+        except OikidError as e:
+            raise HTTPException(status_code=e.status_code, detail=e.message) from e
+        except Exception as e:
+            logger.exception("OIKID 未預期錯誤")
+            raise HTTPException(status_code=500, detail="OIKID 處理失敗") from e
 
     return app
 
