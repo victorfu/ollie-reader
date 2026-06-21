@@ -28,6 +28,7 @@ _DENY_CONTENT = [
     (re.compile(rb"AKIA[0-9A-Z]{16}"), "AWS access key"),
     (re.compile(rb"AIza[0-9A-Za-z_\-]{35}"), "Google API key"),
     (re.compile(rb"xox[baprs]-[0-9A-Za-z-]{10,}"), "Slack token"),
+    (re.compile(rb'"type"\s*:\s*"service_account"'), "GCP/Firebase service account JSON"),
 ]
 _SKIP_CONTENT_SUFFIX = {
     ".onnx", ".bin", ".dylib", ".so", ".zip", ".dat", ".a", ".png",

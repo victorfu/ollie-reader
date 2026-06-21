@@ -45,6 +45,32 @@ def test_google_api_key_content_is_flagged(tmp_path):
     assert scan_bundle(app)
 
 
+def test_renamed_service_account_json_is_flagged_by_content(tmp_path):
+    # A service-account JSON renamed to an innocuous name must still be caught
+    # by content — no private-key PEM present so this proves the new pattern.
+    app = _app(tmp_path)
+    (app / "Contents" / "Resources" / "config.json").write_text(
+        '{"type": "service_account", "project_id": "x",'
+        ' "private_key_id": "abc", "client_email": "a@b.iam.gserviceaccount.com"}'
+    )
+    assert scan_bundle(app)
+
+
+def test_git_directory_is_flagged(tmp_path):
+    app = _app(tmp_path)
+    (app / "Contents" / "Resources" / ".git").mkdir()
+    findings = scan_bundle(app)
+    assert any(".git" in f for f in findings)
+
+
+def test_aws_access_key_content_is_flagged(tmp_path):
+    app = _app(tmp_path)
+    (app / "Contents" / "Resources" / "creds.txt").write_text(
+        "aws_access_key_id = AKIAIOSFODNN7EXAMPLE\n"
+    )
+    assert any("AWS access key" in f for f in scan_bundle(app))
+
+
 def test_certifi_cacert_pem_is_not_flagged(tmp_path):
     # Public CA bundle ships legitimately; must not be a false positive.
     app = _app(tmp_path)
