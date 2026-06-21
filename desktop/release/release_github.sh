@@ -15,6 +15,13 @@ if git -C "$REPO_ROOT" ls-files --error-unmatch .env.package >/dev/null 2>&1; th
   echo "ABORT: .env.package is tracked in git" >&2; exit 1
 fi
 
+# Derive the GitHub repo (owner/name) from the origin remote rather than
+# hardcoding it — keeps forks and renamed remotes working. Handles both
+# git@github.com:owner/name(.git) and https://github.com/owner/name(.git).
+REMOTE_URL="$(git -C "$REPO_ROOT" remote get-url origin 2>/dev/null || true)"
+REPO="$(printf '%s' "$REMOTE_URL" | sed -E 's#^.*github\.com[:/]##; s#\.git$##')"
+[ -n "$REPO" ] || { echo "ABORT: cannot determine GitHub repo from origin remote" >&2; exit 1; }
+
 VERSION="$("${PY[@]}" release/version.py)"
 TAG="desktop-v$VERSION"
 DMG="$DESKTOP_DIR/dist/ollie-reader-$VERSION.dmg"
@@ -23,12 +30,12 @@ SUM="$DMG.sha256"
 [ -f "$DMG" ] || { echo "ABORT: missing $DMG — run 'make desktop-dmg' first" >&2; exit 1; }
 [ -f "$SUM" ] || { echo "ABORT: missing $SUM" >&2; exit 1; }
 
-if gh release view "$TAG" --repo victorfu/ollie-reader >/dev/null 2>&1; then
+if gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1; then
   echo "ABORT: release $TAG already exists" >&2; exit 1
 fi
 
 gh release create "$TAG" "$DMG" "$SUM" \
-  --repo victorfu/ollie-reader \
+  --repo "$REPO" \
   --title "Ollie Reader Desktop $VERSION" \
   --notes "macOS desktop app — Apple Silicon (arm64), signed & notarized.
 
