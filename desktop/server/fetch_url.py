@@ -15,6 +15,24 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
+# 常見 MIME → 副檔名:優先用顯式對映(避免 mimetypes.guess_extension 跨平台
+# 結果不確定),未命中再回退 mimetypes。
+_MIME_EXTENSION_MAP = {
+    "application/pdf": ".pdf",
+    "text/html": ".html",
+    "text/plain": ".txt",
+    "application/json": ".json",
+    "image/jpeg": ".jpg",
+    "image/png": ".png",
+    "image/gif": ".gif",
+    "application/epub+zip": ".epub",
+}
+
+
+def _guess_extension(content_type: str) -> Optional[str]:
+    mime = content_type.split(";")[0].strip().lower()
+    return _MIME_EXTENSION_MAP.get(mime) or mimetypes.guess_extension(mime)
+
 
 @dataclass
 class FetchResult:
@@ -24,7 +42,7 @@ class FetchResult:
     redirect_count: int
     filename: str
     file_extension: str
-    content_disposition: Optional[str] = None
+    content_disposition: str
 
 
 class FetchError(Exception):
@@ -75,10 +93,10 @@ async def fetch_url_content_async(
 
         parsed_url = urlparse(final_url)
         url_path = unquote(parsed_url.path)
-        filename = os.path.basename(url_path) if url_path else "downloaded_file"
+        filename = os.path.basename(url_path) or "downloaded_file"
 
         if "." not in filename or filename.endswith(".php"):
-            extension = mimetypes.guess_extension(content_type.split(";")[0].strip())
+            extension = _guess_extension(content_type)
             if extension:
                 if filename.endswith(".php"):
                     filename = filename.rsplit(".", 1)[0] + extension
