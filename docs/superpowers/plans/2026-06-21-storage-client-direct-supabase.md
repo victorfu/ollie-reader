@@ -40,6 +40,8 @@
 
 ## Task 1: Gating —— 實打驗證 RLS(路 2 可行性)
 
+> **✅ 已通過(2026-06-21)**:對 `audio-uploads/{uid}/__rls_test__.txt` 跑 upload/sign/delete 三者皆 `200`。路 2 成立 → 不需附錄 A。以下保留為可重現紀錄。
+
 **這是人工 gating 步驟,不是 subagent 任務**(需要真實 Firebase token + 專案金鑰,subagent 無法取得)。**必須先通過才往下做**;不通過 → 停,改走「路 1」(附錄 A)。
 
 **Files:** 無(只跑指令)。
@@ -57,22 +59,23 @@ SB_URL="https://<ref>.supabase.co"
 SB_KEY="<publishable-key>"
 FB_TOKEN="<firebase-id-token>"
 
-UID=$(node -e "console.log(JSON.parse(Buffer.from(process.argv[1].split('.')[1],'base64url').toString()).sub)" "$FB_TOKEN")
-echo "uid=$UID"
-P="audio-uploads/$UID/__rls_test__.txt"
+# 注意：UID 是 zsh 唯讀變數，用 SUB；REST 物件路徑須含 bucket 名（ollie-reader）。
+SUB=$(node -e "console.log(JSON.parse(Buffer.from(process.argv[1].split('.')[1],'base64url').toString()).sub)" "$FB_TOKEN")
+echo "uid=$SUB"
+P="audio-uploads/$SUB/__rls_test__.txt"
 
 echo -n "upload: "; curl -s -o /dev/null -w "%{http_code}\n" -X POST \
-  "$SB_URL/storage/v1/object/$P" \
+  "$SB_URL/storage/v1/object/ollie-reader/$P" \
   -H "Authorization: Bearer $FB_TOKEN" -H "apikey: $SB_KEY" \
   -H "Content-Type: text/plain" --data "rls test"
 
 echo -n "sign:   "; curl -s -o /dev/null -w "%{http_code}\n" -X POST \
-  "$SB_URL/storage/v1/object/sign/$P" \
+  "$SB_URL/storage/v1/object/sign/ollie-reader/$P" \
   -H "Authorization: Bearer $FB_TOKEN" -H "apikey: $SB_KEY" \
   -H "Content-Type: application/json" --data '{"expiresIn":60}'
 
 echo -n "delete: "; curl -s -o /dev/null -w "%{http_code}\n" -X DELETE \
-  "$SB_URL/storage/v1/object/$P" \
+  "$SB_URL/storage/v1/object/ollie-reader/$P" \
   -H "Authorization: Bearer $FB_TOKEN" -H "apikey: $SB_KEY"
 ```
 
