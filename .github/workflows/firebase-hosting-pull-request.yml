@@ -28,6 +28,8 @@ jobs:
       VITE_FIREBASE_AI_STORAGE_BUCKET: ${{ vars.VITE_FIREBASE_AI_STORAGE_BUCKET }}
       VITE_FIREBASE_AI_MESSAGING_SENDER_ID: ${{ vars.VITE_FIREBASE_AI_MESSAGING_SENDER_ID }}
       VITE_AI_RECAPTCHA_SITE_KEY: ${{ vars.VITE_AI_RECAPTCHA_SITE_KEY }}
+      VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+      VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
     steps:
       - uses: actions/checkout@v4
       - name: Create .env.local
@@ -48,6 +50,8 @@ jobs:
           echo "VITE_FIREBASE_AI_STORAGE_BUCKET=$VITE_FIREBASE_AI_STORAGE_BUCKET" >> .env.local
           echo "VITE_FIREBASE_AI_MESSAGING_SENDER_ID=$VITE_FIREBASE_AI_MESSAGING_SENDER_ID" >> .env.local
           echo "VITE_AI_RECAPTCHA_SITE_KEY=$VITE_AI_RECAPTCHA_SITE_KEY" >> .env.local
+          echo "VITE_SUPABASE_URL=$VITE_SUPABASE_URL" >> .env.local
+          echo "VITE_SUPABASE_PUBLISHABLE_KEY=$VITE_SUPABASE_PUBLISHABLE_KEY" >> .env.local
       - run: npm ci && npm run build
       - uses: FirebaseExtended/action-hosting-deploy@v0
         with:
