@@ -400,7 +400,13 @@ export function createWonderAcademyProgressService({
         return pending;
       }
 
-      return parsedCloud ?? cache ?? null;
+      if (parsedCloud) {
+        writeStoredProgress(storage, WONDER_ACADEMY_CACHE_KEY, parsedCloud);
+        removeStoredProgress(storage, WONDER_ACADEMY_PENDING_KEY, userId);
+        return parsedCloud;
+      }
+
+      return cache ?? null;
     },
     async save(progress) {
       writeStoredProgress(storage, WONDER_ACADEMY_CACHE_KEY, progress);

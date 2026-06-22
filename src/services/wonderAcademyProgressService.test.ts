@@ -318,19 +318,30 @@ describe("Wonder Academy progress service", () => {
     await expect(service.load("user-1")).resolves.toEqual(cachedProgress);
   });
 
-  it("loads newer cloud progress over older pending progress", async () => {
+  it("reconciles local state when newer cloud progress beats older pending progress", async () => {
     const storage = memoryStorage();
     const pendingProgress = createInitialWonderAcademyProgress({
       userId: "user-1",
       starterSpeciesId: "momo",
       now: "2026-06-22T10:00:00.000Z",
     });
+    const otherPending = createInitialWonderAcademyProgress({
+      userId: "user-2",
+      starterSpeciesId: "nibi",
+      now: "2026-06-22T10:02:00.000Z",
+    });
     const cloudProgress = createInitialWonderAcademyProgress({
       userId: "user-1",
       starterSpeciesId: "pico",
       now: "2026-06-22T10:05:00.000Z",
     });
-    storage.setItem(WONDER_ACADEMY_PENDING_KEY, JSON.stringify(pendingProgress));
+    storage.setItem(
+      WONDER_ACADEMY_PENDING_KEY,
+      JSON.stringify({
+        "user-1": pendingProgress,
+        "user-2": otherPending,
+      }),
+    );
     const service = createWonderAcademyProgressService({
       storage,
       getCloudProgress: vi.fn<() => Promise<typeof cloudProgress>>().mockResolvedValue(cloudProgress),
@@ -338,6 +349,12 @@ describe("Wonder Academy progress service", () => {
     });
 
     await expect(service.load("user-1")).resolves.toEqual(cloudProgress);
+    expect(JSON.parse(storage.getItem(WONDER_ACADEMY_CACHE_KEY) ?? "null")).toEqual({
+      "user-1": cloudProgress,
+    });
+    expect(JSON.parse(storage.getItem(WONDER_ACADEMY_PENDING_KEY) ?? "null")).toEqual({
+      "user-2": otherPending,
+    });
   });
 
   it("ignores malformed local JSON while loading", async () => {
