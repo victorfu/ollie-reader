@@ -35,23 +35,29 @@ describe("Wonder Academy pure game logic", () => {
   });
 
   it("moves to an adjacent unlocked node and stays in map flow", () => {
-    const state = createInitialWonderAcademyState({ progress: createProgress(), mode: "map" });
+    const state = createInitialWonderAcademyState({
+      progress: createProgress(),
+      mode: "regionMap",
+    });
 
     const nextState = applyWonderAcademyAction(state, {
-      type: "move-to-node",
+      type: "moveToNode",
       nodeId: "firefly-clearing",
     });
 
-    expect(nextState.mode).toBe("map");
+    expect(nextState.mode).toBe("regionMap");
     expect(nextState.progress?.storyProgress.currentNodeId).toBe("firefly-clearing");
     expect(nextState.currentObjective.id).toBe("comfort-mossmew");
   });
 
   it("blocks movement to a non-adjacent locked node", () => {
-    const state = createInitialWonderAcademyState({ progress: createProgress(), mode: "map" });
+    const state = createInitialWonderAcademyState({
+      progress: createProgress(),
+      mode: "regionMap",
+    });
 
     const nextState = applyWonderAcademyAction(state, {
-      type: "move-to-node",
+      type: "moveToNode",
       nodeId: "sparkleaf-warden",
     });
 
@@ -60,17 +66,17 @@ describe("Wonder Academy pure game logic", () => {
   });
 
   it("toggles pause without changing the current objective and blocks gameplay while paused", () => {
-    const state = createInitialWonderAcademyState({ progress: createProgress(), mode: "map" });
-    const pausedState = applyWonderAcademyAction(state, { type: "toggle-pause" });
+    const state = createInitialWonderAcademyState({
+      progress: createProgress(),
+      mode: "regionMap",
+    });
+    const pausedState = applyWonderAcademyAction(state, { type: "togglePause" });
     const movedWhilePaused = applyWonderAcademyAction(pausedState, {
-      type: "move-to-node",
+      type: "moveToNode",
       nodeId: "firefly-clearing",
     });
-    const trialWhilePaused = applyWonderAcademyAction(pausedState, {
-      type: "mood-trial",
-      move: "comfort",
-    });
-    const unpausedState = applyWonderAcademyAction(pausedState, { type: "toggle-pause" });
+    const trialWhilePaused = applyWonderAcademyAction(pausedState, { type: "comfort" });
+    const unpausedState = applyWonderAcademyAction(pausedState, { type: "togglePause" });
 
     expect(pausedState.isPaused).toBe(true);
     expect(pausedState.currentObjective).toEqual(state.currentObjective);
@@ -84,58 +90,94 @@ describe("Wonder Academy pure game logic", () => {
 
   it("completes the first Mood Trial after comfort, snack, and a matching skill open Mossmew", () => {
     const atClearing = applyWonderAcademyAction(
-      createInitialWonderAcademyState({ progress: createProgress(), mode: "map" }),
+      createInitialWonderAcademyState({ progress: createProgress(), mode: "regionMap" }),
       {
-        type: "move-to-node",
+        type: "moveToNode",
         nodeId: "firefly-clearing",
       },
     );
-    const started = applyWonderAcademyAction(atClearing, { type: "start-mood-trial" });
-    const comforted = applyWonderAcademyAction(started, {
-      type: "mood-trial",
-      move: "comfort",
-    });
+    const started = applyWonderAcademyAction(atClearing, { type: "startMoodTrial" });
+    const comforted = applyWonderAcademyAction(started, { type: "comfort" });
     const snacked = applyWonderAcademyAction(comforted, {
-      type: "mood-trial",
-      move: "snack",
+      type: "snack",
       snackId: "starberry-cookie",
     });
     const skilled = applyWonderAcademyAction(snacked, {
-      type: "mood-trial",
-      move: "skill",
+      type: "skill",
       skillId: "tiny-flash",
     });
-    const attuned = applyWonderAcademyAction(skilled, {
-      type: "mood-trial",
-      move: "attune",
-    });
+    const attuned = applyWonderAcademyAction(skilled, { type: "attune" });
 
-    expect(started.mode).toBe("trial");
+    expect(started.mode).toBe("moodTrial");
     expect(skilled.trial?.opponentDisposition).toBe("open");
     expect(skilled.trial?.mood).toBe("calm");
-    expect(attuned.mode).toBe("map");
+    expect(attuned.mode).toBe("regionMap");
     expect(attuned.progress?.completedNodeIds).toContain("firefly-clearing");
     expect(attuned.progress?.unlockedNodeIds).toContain("mossy-bridge");
     expect(attuned.progress?.wonderdex.mossmew).toBe("attuned");
     expect(attuned.currentObjective.targetNodeId).toBe("mossy-bridge");
   });
 
-  it("does not allow Attune before Mossmew is ready", () => {
+  it("requires tiny-flash before Attune can complete after comfort and snack", () => {
     const atClearing = applyWonderAcademyAction(
-      createInitialWonderAcademyState({ progress: createProgress(), mode: "map" }),
+      createInitialWonderAcademyState({ progress: createProgress(), mode: "regionMap" }),
       {
-        type: "move-to-node",
+        type: "moveToNode",
         nodeId: "firefly-clearing",
       },
     );
-    const started = applyWonderAcademyAction(atClearing, { type: "start-mood-trial" });
-    const tooSoon = applyWonderAcademyAction(started, {
-      type: "mood-trial",
-      move: "attune",
+    const started = applyWonderAcademyAction(atClearing, { type: "startMoodTrial" });
+    const comforted = applyWonderAcademyAction(started, { type: "comfort" });
+    const snacked = applyWonderAcademyAction(comforted, {
+      type: "snack",
+      snackId: "starberry-cookie",
     });
+    const tooSoon = applyWonderAcademyAction(snacked, { type: "attune" });
+    const skilled = applyWonderAcademyAction(tooSoon, {
+      type: "skill",
+      skillId: "tiny-flash",
+    });
+    const attuned = applyWonderAcademyAction(skilled, { type: "attune" });
+
+    expect(tooSoon.progress?.completedNodeIds).not.toContain("firefly-clearing");
+    expect(tooSoon.progress?.wonderdex.mossmew).not.toBe("attuned");
+    expect(tooSoon.message).toContain("Tiny Flash");
+    expect(attuned.progress?.completedNodeIds).toContain("firefly-clearing");
+    expect(attuned.progress?.wonderdex.mossmew).toBe("attuned");
+  });
+
+  it("does not allow Attune before Mossmew is ready", () => {
+    const atClearing = applyWonderAcademyAction(
+      createInitialWonderAcademyState({ progress: createProgress(), mode: "regionMap" }),
+      {
+        type: "moveToNode",
+        nodeId: "firefly-clearing",
+      },
+    );
+    const started = applyWonderAcademyAction(atClearing, { type: "startMoodTrial" });
+    const tooSoon = applyWonderAcademyAction(started, { type: "attune" });
 
     expect(tooSoon.progress?.completedNodeIds).not.toContain("firefly-clearing");
     expect(tooSoon.progress?.wonderdex.mossmew).not.toBe("attuned");
     expect(tooSoon.message).toContain("先讓 Mossmew 放鬆");
+  });
+
+  it("does not auto-unlock arbitrary current objective targets during normalization", () => {
+    const progress = {
+      ...createProgress(),
+      storyProgress: {
+        currentChapterId: "sparkleaf-grove",
+        currentNodeId: "snack-stump",
+        currentObjectiveId: "prepare-berry-snack",
+      },
+      unlockedNodeIds: ["academy-gate", "firefly-clearing", "mossy-bridge", "snack-stump"],
+      completedNodeIds: ["academy-gate", "firefly-clearing", "mossy-bridge", "snack-stump"],
+    };
+
+    const state = createInitialWonderAcademyState({ progress, mode: "regionMap" });
+
+    expect(state.currentObjective.targetNodeId).toBe("sparkleaf-warden");
+    expect(state.progress?.unlockedNodeIds).not.toContain("sparkleaf-warden");
+    expect(selectAdjacentNodeIds(state)).not.toContain("sparkleaf-warden");
   });
 });

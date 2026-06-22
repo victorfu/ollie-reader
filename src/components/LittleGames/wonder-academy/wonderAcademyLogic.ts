@@ -5,7 +5,8 @@ import type {
   WonderAcademyProgress,
 } from "../../../types/wonderAcademy";
 
-export type WonderAcademyMode = "title" | "hub" | "map" | "trial";
+export type WonderAcademyMode = "title" | "hub" | "regionMap" | "moodTrial";
+export type LegacyWonderAcademyMode = "map" | "trial";
 
 export type WonderAcademyTrialMove = "comfort" | "skill" | "snack" | "attune";
 
@@ -20,7 +21,7 @@ export type WonderAcademyMoodTrialState = {
 
 export type CreateInitialWonderAcademyStateOptions = {
   progress: WonderAcademyProgress | null;
-  mode?: WonderAcademyMode;
+  mode?: WonderAcademyMode | LegacyWonderAcademyMode;
 };
 
 export type WonderAcademyState = {
@@ -33,6 +34,24 @@ export type WonderAcademyState = {
 };
 
 export type WonderAcademyAction =
+  | {
+      type: "newGame";
+      userId: string;
+      starterSpeciesId: string;
+      starterNickname?: string;
+      playerName?: string | null;
+      now: string;
+    }
+  | { type: "continue"; progress: WonderAcademyProgress }
+  | { type: "openRegionMap" }
+  | { type: "returnHub" }
+  | { type: "togglePause" }
+  | { type: "moveToNode"; nodeId: string }
+  | { type: "startMoodTrial" }
+  | { type: "comfort" }
+  | { type: "skill"; skillId: string }
+  | { type: "snack"; snackId?: string }
+  | { type: "attune" }
   | {
       type: "choose-starter";
       userId: string;
@@ -61,6 +80,18 @@ function uniqueValues(values: string[]): string[] {
   return [...new Set(values)];
 }
 
+function normalizeMode(mode: WonderAcademyMode | LegacyWonderAcademyMode): WonderAcademyMode {
+  if (mode === "map") {
+    return "regionMap";
+  }
+
+  if (mode === "trial") {
+    return "moodTrial";
+  }
+
+  return mode;
+}
+
 function getObjectiveForProgress(progress: WonderAcademyProgress | null): WonderAcademyObjective {
   if (!progress) {
     return STARTER_OBJECTIVE;
@@ -75,10 +106,13 @@ function getObjectiveForProgress(progress: WonderAcademyProgress | null): Wonder
 
 function normalizeProgress(progress: WonderAcademyProgress): WonderAcademyProgress {
   const currentObjective = getObjectiveForProgress(progress);
+  const isStarterProgressAtGate =
+    progress.schemaVersion === 1 &&
+    progress.storyProgress.currentChapterId === "sparkleaf-grove" &&
+    progress.storyProgress.currentNodeId === "academy-gate";
   const unlockedNodeIds = uniqueValues([
     ...progress.unlockedNodeIds,
-    progress.storyProgress.currentNodeId,
-    currentObjective.targetNodeId,
+    ...(isStarterProgressAtGate ? ["firefly-clearing"] : []),
   ]);
 
   return {
@@ -136,7 +170,7 @@ export function createInitialWonderAcademyState({
   const normalizedProgress = progress ? normalizeProgress(progress) : null;
 
   return {
-    mode: mode ?? (normalizedProgress ? "hub" : "title"),
+    mode: mode ? normalizeMode(mode) : normalizedProgress ? "hub" : "title",
     progress: normalizedProgress,
     currentObjective: getObjectiveForProgress(normalizedProgress),
     isPaused: false,
@@ -166,7 +200,7 @@ export function applyWonderAcademyAction(
   state: WonderAcademyState,
   action: WonderAcademyAction,
 ): WonderAcademyState {
-  if (action.type === "toggle-pause") {
+  if (action.type === "togglePause" || action.type === "toggle-pause") {
     return { ...state, isPaused: !state.isPaused, message: null };
   }
 
@@ -176,6 +210,7 @@ export function applyWonderAcademyAction(
   }
 
   switch (action.type) {
+    case "newGame":
     case "choose-starter": {
       const progress = createInitialWonderAcademyProgress({
         userId: action.userId,
@@ -192,13 +227,45 @@ export function applyWonderAcademyAction(
       };
     }
 
+    case "continue":
+      return {
+        ...withProgress(state, action.progress),
+        mode: "hub",
+        message: null,
+        trial: null,
+      };
+
+    case "openRegionMap":
+      return {
+        ...state,
+        mode: "regionMap",
+        message: null,
+        trial: null,
+      };
+
+    case "returnHub":
+      return {
+        ...state,
+        mode: "hub",
+        message: null,
+        trial: null,
+      };
+
+    case "moveToNode":
     case "move-to-node":
       return moveToNode(state, action.nodeId);
 
+    case "startMoodTrial":
     case "start-mood-trial":
       return startMoodTrial(state);
 
     case "mood-trial":
+      return applyMoodTrialMove(state, action);
+
+    case "comfort":
+    case "skill":
+    case "snack":
+    case "attune":
       return applyMoodTrialMove(state, action);
   }
 }
@@ -227,7 +294,7 @@ function moveToNode(state: WonderAcademyState, nodeId: string): WonderAcademySta
   return withProgress(
     {
       ...state,
-      mode: state.mode === "hub" ? "map" : state.mode,
+      mode: state.mode === "hub" ? "regionMap" : state.mode,
       message: `${targetNode.label} 已抵達。`,
       trial: null,
     },
@@ -249,7 +316,7 @@ function startMoodTrial(state: WonderAcademyState): WonderAcademyState {
 
   return {
     ...state,
-    mode: "trial",
+    mode: "moodTrial",
     message: "Mossmew 正緊張地看著你。",
     trial: {
       opponentSpeciesId: "mossmew",
@@ -264,13 +331,26 @@ function startMoodTrial(state: WonderAcademyState): WonderAcademyState {
 
 function applyMoodTrialMove(
   state: WonderAcademyState,
-  action: Extract<WonderAcademyAction, { type: "mood-trial" }>,
+  action: Extract<
+    WonderAcademyAction,
+    { type: "mood-trial" } | { type: "comfort" | "skill" | "snack" | "attune" }
+  >,
 ): WonderAcademyState {
   if (!state.trial) {
     return { ...state, message: "請先開始 Mood Trial。" };
   }
 
-  switch (action.move) {
+  const move = action.type === "mood-trial" ? action.move : action.type;
+  const skillId =
+    action.type === "mood-trial"
+      ? action.move === "skill"
+        ? action.skillId
+        : null
+      : action.type === "skill"
+        ? action.skillId
+        : null;
+
+  switch (move) {
     case "comfort":
       return {
         ...state,
@@ -296,7 +376,7 @@ function applyMoodTrialMove(
       };
 
     case "skill":
-      return applyMoodTrialSkill(state, action.skillId);
+      return skillId ? applyMoodTrialSkill(state, skillId) : state;
 
     case "attune":
       return attuneMossmew(state);
@@ -331,11 +411,19 @@ function attuneMossmew(state: WonderAcademyState): WonderAcademyState {
   const progress = state.progress;
   const trial = state.trial;
   const ready = trial?.mood === "calm" && trial.opponentDisposition === "open";
+  const matchingSkillUsed = trial?.usedSkillIds.includes("tiny-flash") ?? false;
 
   if (!progress || !trial || !ready) {
     return {
       ...state,
       message: "先讓 Mossmew 放鬆並願意靠近，再嘗試 Attune。",
+    };
+  }
+
+  if (!matchingSkillUsed) {
+    return {
+      ...state,
+      message: "Mossmew 還需要看到 Tiny Flash，才能安心完成 Attune。",
     };
   }
 
@@ -345,7 +433,7 @@ function attuneMossmew(state: WonderAcademyState): WonderAcademyState {
   return withProgress(
     {
       ...state,
-      mode: "map",
+      mode: "regionMap",
       message: "Attune 成功！Mossmew 已記錄在 Wonderdex。",
       trial: null,
     },
