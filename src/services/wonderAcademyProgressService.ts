@@ -449,6 +449,28 @@ export function createWonderAcademyProgressService({
   getCloudProgress = getFirestoreWonderAcademyProgress,
   setCloudProgress = setFirestoreWonderAcademyProgress,
 }: WonderAcademyProgressServiceOptions = {}): WonderAcademyProgressService {
+  const cloudSaveQueues = new Map<string, Promise<void>>();
+
+  function enqueueCloudSave(
+    userId: string,
+    saveTask: () => Promise<void>,
+  ): Promise<void> {
+    const previousSave = cloudSaveQueues.get(userId) ?? Promise.resolve();
+    const queuedSave = cloudSaveQueues.has(userId)
+      ? previousSave.catch(() => undefined).then(saveTask)
+      : saveTask();
+    const cleanup = () => {
+      if (cloudSaveQueues.get(userId) === queuedSave) {
+        cloudSaveQueues.delete(userId);
+      }
+    };
+
+    cloudSaveQueues.set(userId, queuedSave);
+    void queuedSave.then(cleanup, cleanup);
+
+    return queuedSave;
+  }
+
   return {
     async load(userId) {
       const pending = readStoredProgress(storage, WONDER_ACADEMY_PENDING_KEY, userId);
@@ -477,26 +499,28 @@ export function createWonderAcademyProgressService({
     },
     async save(progress) {
       writeStoredProgress(storage, WONDER_ACADEMY_CACHE_KEY, progress);
+      writeStoredProgressIfNotOlder(
+        storage,
+        WONDER_ACADEMY_PENDING_KEY,
+        progress,
+      );
 
       try {
         const cloudSavedProgress = {
           ...progress,
           lastCloudSavedAt: progress.updatedAt,
         };
-        await setCloudProgress(cloudSavedProgress);
-        writeStoredProgress(storage, WONDER_ACADEMY_CACHE_KEY, cloudSavedProgress);
-        removeStoredProgressIfNotNewer(
-          storage,
-          WONDER_ACADEMY_PENDING_KEY,
-          cloudSavedProgress,
-        );
+        await enqueueCloudSave(progress.userId, async () => {
+          await setCloudProgress(cloudSavedProgress);
+          writeStoredProgress(storage, WONDER_ACADEMY_CACHE_KEY, cloudSavedProgress);
+          removeStoredProgressIfNotNewer(
+            storage,
+            WONDER_ACADEMY_PENDING_KEY,
+            cloudSavedProgress,
+          );
+        });
         return { cloudSaved: true, progress: cloudSavedProgress };
       } catch {
-        writeStoredProgressIfNotOlder(
-          storage,
-          WONDER_ACADEMY_PENDING_KEY,
-          progress,
-        );
         return { cloudSaved: false, progress };
       }
     },

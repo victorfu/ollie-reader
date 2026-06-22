@@ -69,34 +69,58 @@ export default function WonderAcademyPage({ onExit }: WonderAcademyPageProps) {
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("loading");
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loadedUserId, setLoadedUserId] = useState<string | null>(null);
+  const stateRef = useRef(state);
   const saveSequenceRef = useRef(0);
   const activeUserIdRef = useRef<string | null>(null);
+  const lastUserIdRef = useRef<string | null>(null);
+
+  const commitState = useCallback((nextState: WonderAcademyState) => {
+    stateRef.current = nextState;
+    setState(nextState);
+  }, []);
 
   useLayoutEffect(() => {
-    activeUserIdRef.current = user?.uid ?? null;
+    const userId = user?.uid ?? null;
+
+    activeUserIdRef.current = userId;
+    if (lastUserIdRef.current === userId) return;
+
+    lastUserIdRef.current = userId;
     saveSequenceRef.current += 1;
-  }, [user?.uid]);
+    queueMicrotask(() => {
+      if (activeUserIdRef.current !== userId) return;
+
+      setLoadedUserId(null);
+      setLoadError(null);
+      setSaveStatus(userId ? "loading" : "saved");
+
+      if (!userId) {
+        commitState(createInitialWonderAcademyState({ progress: null }));
+      }
+    });
+  }, [commitState, user?.uid]);
 
   useEffect(() => {
     if (authLoading || !user) return;
 
     let active = true;
+    const requestedUserId = user.uid;
 
     wonderAcademyProgressService
-      .load(user.uid)
+      .load(requestedUserId)
       .then((progress) => {
-        if (!active) return;
+        if (!active || activeUserIdRef.current !== requestedUserId) return;
 
-        setState(createInitialWonderAcademyState({ progress }));
-        setLoadedUserId(user.uid);
+        commitState(createInitialWonderAcademyState({ progress }));
+        setLoadedUserId(requestedUserId);
         setLoadError(null);
         setSaveStatus(hasPendingCloudSave(progress) ? "pending" : "saved");
       })
       .catch(() => {
-        if (!active) return;
+        if (!active || activeUserIdRef.current !== requestedUserId) return;
 
-        setState(createInitialWonderAcademyState({ progress: null }));
-        setLoadedUserId(user.uid);
+        commitState(createInitialWonderAcademyState({ progress: null }));
+        setLoadedUserId(requestedUserId);
         setLoadError("Progress could not be loaded. You can try again in a moment.");
         setSaveStatus("failed");
       });
@@ -104,7 +128,7 @@ export default function WonderAcademyPage({ onExit }: WonderAcademyPageProps) {
     return () => {
       active = false;
     };
-  }, [authLoading, user]);
+  }, [authLoading, commitState, user]);
 
   const saveProgress = useCallback(async (progress: WonderAcademyProgress) => {
     if (activeUserIdRef.current !== progress.userId) return;
@@ -123,21 +147,20 @@ export default function WonderAcademyPage({ onExit }: WonderAcademyPageProps) {
         return;
       }
 
-      setState((currentState) =>
-        currentState.progress?.userId === result.progress.userId
-          ? {
-              ...createInitialWonderAcademyState({
-                progress: result.progress,
-                mode: currentState.mode,
-              }),
-              paused: currentState.paused,
-              isPaused: currentState.isPaused,
-              message: currentState.message,
-              moodTrial: currentState.moodTrial,
-              trial: currentState.trial,
-            }
-          : currentState,
-      );
+      const currentState = stateRef.current;
+      if (currentState.progress?.userId === result.progress.userId) {
+        commitState({
+          ...createInitialWonderAcademyState({
+            progress: result.progress,
+            mode: currentState.mode,
+          }),
+          paused: currentState.paused,
+          isPaused: currentState.isPaused,
+          message: currentState.message,
+          moodTrial: currentState.moodTrial,
+          trial: currentState.trial,
+        });
+      }
       setSaveStatus(result.cloudSaved ? "saved" : "pending");
     } catch {
       if (
@@ -147,7 +170,7 @@ export default function WonderAcademyPage({ onExit }: WonderAcademyPageProps) {
         setSaveStatus("failed");
       }
     }
-  }, []);
+  }, [commitState]);
 
   const handleStartNewGame = useCallback(() => {
     if (!user) return;
@@ -159,43 +182,57 @@ export default function WonderAcademyPage({ onExit }: WonderAcademyPageProps) {
       playerName: user.displayName ?? null,
     });
 
-    setState(createInitialWonderAcademyState({ progress }));
+    commitState(createInitialWonderAcademyState({ progress }));
     setLoadedUserId(user.uid);
     void saveProgress(progress);
-  }, [saveProgress, user]);
+  }, [commitState, saveProgress, user]);
 
   const handleAction = useCallback(
     (action: WonderAcademyAction) => {
-      setState((currentState) => {
-        const nextState = applyWonderAcademyAction(currentState, action);
+      const currentState = stateRef.current;
+      const nextState = applyWonderAcademyAction(currentState, action);
+      let progressToSave: WonderAcademyProgress | null = null;
+      let stateToCommit = nextState;
 
-        if (nextState.progress && nextState.progress !== currentState.progress) {
-          const progress = stampProgress(nextState.progress);
-          const stateWithStampedProgress = createInitialWonderAcademyState({
-            progress,
-            mode: nextState.mode,
-          });
+      if (nextState.progress && nextState.progress !== currentState.progress) {
+        const progress = stampProgress(nextState.progress);
+        const stateWithStampedProgress = createInitialWonderAcademyState({
+          progress,
+          mode: nextState.mode,
+        });
 
-          void saveProgress(progress);
-          return {
-            ...stateWithStampedProgress,
-            paused: nextState.paused,
-            isPaused: nextState.isPaused,
-            message: nextState.message,
-            moodTrial: nextState.moodTrial,
-            trial: nextState.trial,
-          };
-        }
+        progressToSave = progress;
+        stateToCommit = {
+          ...stateWithStampedProgress,
+          paused: nextState.paused,
+          isPaused: nextState.isPaused,
+          message: nextState.message,
+          moodTrial: nextState.moodTrial,
+          trial: nextState.trial,
+        };
+      }
 
-        return nextState;
-      });
+      commitState(stateToCommit);
+
+      if (progressToSave) {
+        void saveProgress(progressToSave);
+      }
     },
-    [saveProgress],
+    [commitState, saveProgress],
   );
 
   const effectiveSaveStatus: SaveStatus =
-    authLoading || (user && loadedUserId !== user.uid) ? "loading" : saveStatus;
-  const hasProgress = Boolean(state.progress);
+    authLoading || (user && loadedUserId !== user.uid)
+      ? "loading"
+      : user
+        ? saveStatus
+        : "saved";
+  const activeState =
+    user && loadedUserId === user.uid
+      ? state
+      : createInitialWonderAcademyState({ progress: null });
+  const activeLoadError = user && loadedUserId === user.uid ? loadError : null;
+  const hasProgress = Boolean(activeState.progress);
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -217,7 +254,7 @@ export default function WonderAcademyPage({ onExit }: WonderAcademyPageProps) {
                 Wonder Academy
               </h1>
               <p className="truncate text-xs text-muted-foreground">
-                {hasProgress ? state.currentObjective.label : "Choose Lumi to begin"}
+                {hasProgress ? activeState.currentObjective.label : "Choose Lumi to begin"}
               </p>
             </div>
           </div>
@@ -283,9 +320,9 @@ export default function WonderAcademyPage({ onExit }: WonderAcademyPageProps) {
                 Lumi is ready at the Academy Gate. This starter flow is temporary;
                 expanded Wonderling choice arrives in a later task.
               </p>
-              {loadError && (
+              {activeLoadError && (
                 <p className="mt-3 rounded-[8px] bg-error/10 px-3 py-2 text-sm text-error">
-                  {loadError}
+                  {activeLoadError}
                 </p>
               )}
               <button
@@ -307,13 +344,13 @@ export default function WonderAcademyPage({ onExit }: WonderAcademyPageProps) {
                 Current Objective
               </p>
               <h2 className="mt-1 text-xl font-semibold tracking-tight">
-                {state.currentObjective.label}
+                {activeState.currentObjective.label}
               </h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                {state.currentObjective.description}
+                {activeState.currentObjective.description}
               </p>
             </div>
-            <WonderAcademyHost state={state} onAction={handleAction} />
+            <WonderAcademyHost state={activeState} onAction={handleAction} />
           </div>
         )}
       </main>

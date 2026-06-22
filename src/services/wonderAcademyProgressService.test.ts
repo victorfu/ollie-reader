@@ -45,6 +45,17 @@ function memoryStorage(): Storage {
   };
 }
 
+function deferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((promiseResolve, promiseReject) => {
+    resolve = promiseResolve;
+    reject = promiseReject;
+  });
+
+  return { promise, resolve, reject };
+}
+
 describe("Wonder Academy progress service", () => {
   it("creates a durable initial document with starter and safe defaults", () => {
     const progress = createInitialWonderAcademyProgress({
@@ -249,6 +260,51 @@ describe("Wonder Academy progress service", () => {
     });
   });
 
+  it("writes pending progress before an in-flight cloud save resolves", async () => {
+    const storage = memoryStorage();
+    const cloudWrite = deferred<void>();
+    const progress = createInitialWonderAcademyProgress({
+      userId: "user-1",
+      starterSpeciesId: "momo",
+      now: "2026-06-22T10:05:00.000Z",
+    });
+    const olderCloudProgress = createInitialWonderAcademyProgress({
+      userId: "user-1",
+      starterSpeciesId: "lumi",
+      now: "2026-06-22T10:00:00.000Z",
+    });
+    const service = createWonderAcademyProgressService({
+      storage,
+      getCloudProgress: vi.fn(),
+      setCloudProgress: vi.fn<() => Promise<void>>().mockReturnValue(cloudWrite.promise),
+    });
+
+    const savePromise = service.save(progress);
+
+    expect(JSON.parse(storage.getItem(WONDER_ACADEMY_PENDING_KEY) ?? "null")).toEqual({
+      "user-1": progress,
+    });
+
+    const reloadedService = createWonderAcademyProgressService({
+      storage,
+      getCloudProgress: vi.fn<() => Promise<typeof olderCloudProgress>>().mockResolvedValue(
+        olderCloudProgress,
+      ),
+      setCloudProgress: vi.fn(),
+    });
+
+    await expect(reloadedService.load("user-1")).resolves.toEqual(progress);
+
+    cloudWrite.resolve();
+    await expect(savePromise).resolves.toEqual({
+      cloudSaved: true,
+      progress: {
+        ...progress,
+        lastCloudSavedAt: progress.updatedAt,
+      },
+    });
+  });
+
   it("preserves a newer pending save when an older overlapping cloud save fails", async () => {
     const storage = memoryStorage();
     const olderProgress = createInitialWonderAcademyProgress({
@@ -315,6 +371,109 @@ describe("Wonder Academy progress service", () => {
 
     expect(JSON.parse(storage.getItem(WONDER_ACADEMY_PENDING_KEY) ?? "null")).toEqual({
       "user-1": equalTimestampPending,
+    });
+  });
+
+  it("serializes cloud writes for the same user in save order", async () => {
+    const storage = memoryStorage();
+    const firstCloudWrite = deferred<void>();
+    const secondCloudWrite = deferred<void>();
+    const olderProgress = createInitialWonderAcademyProgress({
+      userId: "user-1",
+      starterSpeciesId: "lumi",
+      now: "2026-06-22T10:00:00.000Z",
+    });
+    const newerProgress = createInitialWonderAcademyProgress({
+      userId: "user-1",
+      starterSpeciesId: "momo",
+      now: "2026-06-22T10:05:00.000Z",
+    });
+    const setCloudProgress = vi
+      .fn<() => Promise<void>>()
+      .mockReturnValueOnce(firstCloudWrite.promise)
+      .mockReturnValueOnce(secondCloudWrite.promise);
+    const service = createWonderAcademyProgressService({
+      storage,
+      getCloudProgress: vi.fn(),
+      setCloudProgress,
+    });
+    const olderCloudSavedProgress = {
+      ...olderProgress,
+      lastCloudSavedAt: olderProgress.updatedAt,
+    };
+    const newerCloudSavedProgress = {
+      ...newerProgress,
+      lastCloudSavedAt: newerProgress.updatedAt,
+    };
+
+    const olderSave = service.save(olderProgress);
+    const newerSave = service.save(newerProgress);
+
+    expect(setCloudProgress).toHaveBeenCalledTimes(1);
+    expect(setCloudProgress).toHaveBeenNthCalledWith(1, olderCloudSavedProgress);
+
+    firstCloudWrite.resolve();
+    await expect(olderSave).resolves.toEqual({
+      cloudSaved: true,
+      progress: olderCloudSavedProgress,
+    });
+
+    expect(setCloudProgress).toHaveBeenCalledTimes(2);
+    expect(setCloudProgress).toHaveBeenNthCalledWith(2, newerCloudSavedProgress);
+
+    secondCloudWrite.resolve();
+    await expect(newerSave).resolves.toEqual({
+      cloudSaved: true,
+      progress: newerCloudSavedProgress,
+    });
+  });
+
+  it("continues queued cloud writes after an earlier save fails", async () => {
+    const storage = memoryStorage();
+    const firstCloudWrite = deferred<void>();
+    const secondCloudWrite = deferred<void>();
+    const olderProgress = createInitialWonderAcademyProgress({
+      userId: "user-1",
+      starterSpeciesId: "lumi",
+      now: "2026-06-22T10:00:00.000Z",
+    });
+    const newerProgress = createInitialWonderAcademyProgress({
+      userId: "user-1",
+      starterSpeciesId: "momo",
+      now: "2026-06-22T10:05:00.000Z",
+    });
+    const setCloudProgress = vi
+      .fn<() => Promise<void>>()
+      .mockReturnValueOnce(firstCloudWrite.promise)
+      .mockReturnValueOnce(secondCloudWrite.promise);
+    const service = createWonderAcademyProgressService({
+      storage,
+      getCloudProgress: vi.fn(),
+      setCloudProgress,
+    });
+    const newerCloudSavedProgress = {
+      ...newerProgress,
+      lastCloudSavedAt: newerProgress.updatedAt,
+    };
+
+    const olderSave = service.save(olderProgress);
+    const newerSave = service.save(newerProgress);
+
+    expect(setCloudProgress).toHaveBeenCalledTimes(1);
+
+    firstCloudWrite.reject(new Error("offline"));
+    await expect(olderSave).resolves.toEqual({
+      cloudSaved: false,
+      progress: olderProgress,
+    });
+
+    expect(setCloudProgress).toHaveBeenCalledTimes(2);
+    expect(setCloudProgress).toHaveBeenNthCalledWith(2, newerCloudSavedProgress);
+
+    secondCloudWrite.resolve();
+    await expect(newerSave).resolves.toEqual({
+      cloudSaved: true,
+      progress: newerCloudSavedProgress,
     });
   });
 
