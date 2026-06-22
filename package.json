@@ -8,6 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "eslint . --ignore-pattern 'desktop/.venv/**' --ignore-pattern 'desktop/dist/**' --ignore-pattern 'desktop/build/**'",
     "preview": "vite preview",
+    "test": "vitest run --passWithNoTests",
     "fetch-transcripts": "node scripts/fetch-transcripts.mjs"
   },
   "dependencies": {
@@ -38,12 +39,14 @@
     "eslint-plugin-react-hooks": "7.0.0",
     "eslint-plugin-react-refresh": "^0.5.0",
     "globals": "^17.3.0",
+    "jsdom": "^29.1.1",
     "node-html-parser": "^7.0.2",
     "postcss": "^8.5.6",
     "tailwindcss": "^4.1.18",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.54.0",
     "vite": "^7.3.1",
-    "vite-plugin-pwa": "^1.2.0"
+    "vite-plugin-pwa": "^1.2.0",
+    "vitest": "^4.1.9"
   }
 }
