@@ -185,6 +185,45 @@ describe("Wonder Academy progress service", () => {
     });
   });
 
+  it("preserves equal-timestamp pending progress with different content when cloud save succeeds", async () => {
+    const storage = memoryStorage();
+    const olderProgress = createInitialWonderAcademyProgress({
+      userId: "user-1",
+      starterSpeciesId: "lumi",
+      now: "2026-06-22T10:00:00.000Z",
+    });
+    const equalTimestampPending = createInitialWonderAcademyProgress({
+      userId: "user-1",
+      starterSpeciesId: "momo",
+      now: olderProgress.updatedAt,
+    });
+    const setCloudProgress = vi.fn<() => Promise<void>>().mockResolvedValue(undefined);
+    const service = createWonderAcademyProgressService({
+      storage,
+      getCloudProgress: vi.fn(),
+      setCloudProgress,
+    });
+    const cloudSavedProgress = {
+      ...olderProgress,
+      lastCloudSavedAt: olderProgress.updatedAt,
+    };
+
+    storage.setItem(
+      WONDER_ACADEMY_PENDING_KEY,
+      JSON.stringify({ "user-1": equalTimestampPending }),
+    );
+
+    await expect(service.save(olderProgress)).resolves.toEqual({
+      cloudSaved: true,
+      progress: cloudSavedProgress,
+    });
+
+    expect(setCloudProgress).toHaveBeenCalledWith(cloudSavedProgress);
+    expect(JSON.parse(storage.getItem(WONDER_ACADEMY_PENDING_KEY) ?? "null")).toEqual({
+      "user-1": equalTimestampPending,
+    });
+  });
+
   it("stores pending progress when cloud save fails", async () => {
     const storage = memoryStorage();
     const progress = createInitialWonderAcademyProgress({
@@ -243,6 +282,39 @@ describe("Wonder Academy progress service", () => {
     });
     expect(JSON.parse(storage.getItem(WONDER_ACADEMY_PENDING_KEY) ?? "null")).toEqual({
       "user-1": newerPending,
+    });
+  });
+
+  it("preserves equal-timestamp pending progress with different content when cloud save fails", async () => {
+    const storage = memoryStorage();
+    const olderProgress = createInitialWonderAcademyProgress({
+      userId: "user-1",
+      starterSpeciesId: "lumi",
+      now: "2026-06-22T10:00:00.000Z",
+    });
+    const equalTimestampPending = createInitialWonderAcademyProgress({
+      userId: "user-1",
+      starterSpeciesId: "momo",
+      now: olderProgress.updatedAt,
+    });
+    const service = createWonderAcademyProgressService({
+      storage,
+      getCloudProgress: vi.fn(),
+      setCloudProgress: vi.fn<() => Promise<void>>().mockRejectedValue(new Error("offline")),
+    });
+
+    storage.setItem(
+      WONDER_ACADEMY_PENDING_KEY,
+      JSON.stringify({ "user-1": equalTimestampPending }),
+    );
+
+    await expect(service.save(olderProgress)).resolves.toEqual({
+      cloudSaved: false,
+      progress: olderProgress,
+    });
+
+    expect(JSON.parse(storage.getItem(WONDER_ACADEMY_PENDING_KEY) ?? "null")).toEqual({
+      "user-1": equalTimestampPending,
     });
   });
 

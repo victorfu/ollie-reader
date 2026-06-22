@@ -239,7 +239,7 @@ function writeStoredProgressIfNotOlder(
 ) {
   const storedProgress = readStoredProgress(storage, key, progress.userId);
 
-  if (storedProgress && compareUpdatedAt(storedProgress, progress) > 0) {
+  if (storedProgress && shouldPreserveStoredProgress(storedProgress, progress)) {
     return;
   }
 
@@ -275,11 +275,43 @@ function removeStoredProgressIfNotNewer(
 ) {
   const storedProgress = readStoredProgress(storage, key, progress.userId);
 
-  if (storedProgress && compareUpdatedAt(storedProgress, progress) > 0) {
+  if (storedProgress && shouldPreserveStoredProgress(storedProgress, progress)) {
     return;
   }
 
   removeStoredProgress(storage, key, progress.userId);
+}
+
+function normalizeProgressForPendingComparison(
+  progress: WonderAcademyProgress,
+): WonderAcademyProgress {
+  return {
+    ...progress,
+    lastCloudSavedAt: null,
+  };
+}
+
+function isSameLogicalProgress(
+  left: WonderAcademyProgress,
+  right: WonderAcademyProgress,
+): boolean {
+  return (
+    JSON.stringify(normalizeProgressForPendingComparison(left)) ===
+    JSON.stringify(normalizeProgressForPendingComparison(right))
+  );
+}
+
+function shouldPreserveStoredProgress(
+  storedProgress: WonderAcademyProgress,
+  candidateProgress: WonderAcademyProgress,
+): boolean {
+  const updatedAtComparison = compareUpdatedAt(storedProgress, candidateProgress);
+
+  return (
+    updatedAtComparison > 0 ||
+    (updatedAtComparison === 0 &&
+      !isSameLogicalProgress(storedProgress, candidateProgress))
+  );
 }
 
 function compareUpdatedAt(

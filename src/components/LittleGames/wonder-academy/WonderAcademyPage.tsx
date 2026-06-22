@@ -70,6 +70,12 @@ export default function WonderAcademyPage({ onExit }: WonderAcademyPageProps) {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loadedUserId, setLoadedUserId] = useState<string | null>(null);
   const saveSequenceRef = useRef(0);
+  const activeUserIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    activeUserIdRef.current = user?.uid ?? null;
+    saveSequenceRef.current += 1;
+  }, [user?.uid]);
 
   useEffect(() => {
     if (authLoading || !user) return;
@@ -101,6 +107,8 @@ export default function WonderAcademyPage({ onExit }: WonderAcademyPageProps) {
   }, [authLoading, user]);
 
   const saveProgress = useCallback(async (progress: WonderAcademyProgress) => {
+    if (activeUserIdRef.current !== progress.userId) return;
+
     const sequence = saveSequenceRef.current + 1;
     saveSequenceRef.current = sequence;
     setSaveStatus("saving");
@@ -108,7 +116,12 @@ export default function WonderAcademyPage({ onExit }: WonderAcademyPageProps) {
     try {
       const result = await wonderAcademyProgressService.save(progress);
 
-      if (saveSequenceRef.current !== sequence) return;
+      if (
+        saveSequenceRef.current !== sequence ||
+        activeUserIdRef.current !== result.progress.userId
+      ) {
+        return;
+      }
 
       setState((currentState) =>
         currentState.progress?.userId === result.progress.userId
@@ -127,7 +140,10 @@ export default function WonderAcademyPage({ onExit }: WonderAcademyPageProps) {
       );
       setSaveStatus(result.cloudSaved ? "saved" : "pending");
     } catch {
-      if (saveSequenceRef.current === sequence) {
+      if (
+        saveSequenceRef.current === sequence &&
+        activeUserIdRef.current === progress.userId
+      ) {
         setSaveStatus("failed");
       }
     }
