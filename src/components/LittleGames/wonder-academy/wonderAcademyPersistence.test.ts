@@ -3,6 +3,7 @@ import { createInitialWonderAcademyProgress } from "../../../services/wonderAcad
 import {
   canFlushPendingAudioProgress,
   createWonderAcademySaveTimestampIssuer,
+  shouldKeepCurrentProgressOverSaveResult,
 } from "./wonderAcademyPersistence";
 
 describe("Wonder Academy persistence helpers", () => {
@@ -108,6 +109,71 @@ describe("Wonder Academy persistence helpers", () => {
         expectedUserId: "keeper-3",
         progress,
       }),
+    ).toBe(false);
+  });
+
+  it("keeps current progress when the same user has newer local progress", () => {
+    const result = createInitialWonderAcademyProgress({
+      userId: "keeper-1",
+      now: "2026-06-22T03:00:00.000Z",
+    });
+    const current = {
+      ...result,
+      updatedAt: "2026-06-22T03:00:00.001Z",
+    };
+
+    expect(shouldKeepCurrentProgressOverSaveResult(current, result)).toBe(true);
+  });
+
+  it("allows save result when it is equal or newer than current progress", () => {
+    const current = createInitialWonderAcademyProgress({
+      userId: "keeper-1",
+      now: "2026-06-22T03:00:00.000Z",
+    });
+    const equalResult = {
+      ...current,
+    };
+    const newerResult = {
+      ...current,
+      updatedAt: "2026-06-22T03:00:00.001Z",
+    };
+
+    expect(shouldKeepCurrentProgressOverSaveResult(current, equalResult)).toBe(false);
+    expect(shouldKeepCurrentProgressOverSaveResult(current, newerResult)).toBe(false);
+  });
+
+  it("does not keep current progress for a different user", () => {
+    const current = createInitialWonderAcademyProgress({
+      userId: "keeper-1",
+      now: "2026-06-22T03:00:00.001Z",
+    });
+    const result = createInitialWonderAcademyProgress({
+      userId: "keeper-2",
+      now: "2026-06-22T03:00:00.000Z",
+    });
+
+    expect(shouldKeepCurrentProgressOverSaveResult(current, result)).toBe(false);
+  });
+
+  it("handles invalid updatedAt values conservatively", () => {
+    const validCurrent = createInitialWonderAcademyProgress({
+      userId: "keeper-1",
+      now: "2026-06-22T03:00:00.001Z",
+    });
+    const invalidCurrent = {
+      ...validCurrent,
+      updatedAt: "invalid-current-date",
+    };
+    const invalidResult = {
+      ...validCurrent,
+      updatedAt: "invalid-result-date",
+    };
+
+    expect(
+      shouldKeepCurrentProgressOverSaveResult(invalidCurrent, validCurrent),
+    ).toBe(false);
+    expect(
+      shouldKeepCurrentProgressOverSaveResult(validCurrent, invalidResult),
     ).toBe(false);
   });
 });

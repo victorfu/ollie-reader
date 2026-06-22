@@ -35,6 +35,7 @@ import {
 import {
   canFlushPendingAudioProgress,
   createWonderAcademySaveTimestampIssuer,
+  shouldKeepCurrentProgressOverSaveResult,
 } from "./wonderAcademyPersistence";
 
 type WonderAcademyPageProps = {
@@ -475,7 +476,12 @@ export default function WonderAcademyPage({ onExit }: WonderAcademyPageProps) {
       }
 
       const currentState = stateRef.current;
-      if (currentState.progress?.userId === result.progress.userId) {
+      const keepCurrentProgress = shouldKeepCurrentProgressOverSaveResult(
+        currentState.progress,
+        result.progress,
+      );
+
+      if (currentState.progress?.userId === result.progress.userId && !keepCurrentProgress) {
         commitState({
           ...createInitialWonderAcademyState({
             progress: result.progress,

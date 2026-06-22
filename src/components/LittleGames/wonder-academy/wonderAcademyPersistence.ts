@@ -44,3 +44,21 @@ export function canFlushPendingAudioProgress({
 
   return Boolean(allowedUserId) && progress.userId === allowedUserId;
 }
+
+export function shouldKeepCurrentProgressOverSaveResult(
+  current: WonderAcademyProgress | null | undefined,
+  result: WonderAcademyProgress,
+): boolean {
+  if (!current || current.userId !== result.userId) {
+    return false;
+  }
+
+  const currentUpdatedAtMs = Date.parse(current.updatedAt);
+  const resultUpdatedAtMs = Date.parse(result.updatedAt);
+
+  if (!Number.isFinite(currentUpdatedAtMs) || !Number.isFinite(resultUpdatedAtMs)) {
+    return false;
+  }
+
+  return currentUpdatedAtMs > resultUpdatedAtMs;
+}
