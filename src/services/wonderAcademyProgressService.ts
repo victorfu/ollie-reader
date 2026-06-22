@@ -458,7 +458,7 @@ export async function setFirestoreWonderAcademyProgress(
 
     if (
       currentProgress?.userId === progress.userId &&
-      compareUpdatedAt(currentProgress, progress) > 0
+      shouldPreserveStoredProgress(currentProgress, progress)
     ) {
       return false;
     }
@@ -495,47 +495,19 @@ export function createWonderAcademyProgressService({
     return queuedSave;
   }
 
-  return {
-    async load(userId) {
-      return (await this.loadWithMetadata(userId)).progress;
-    },
-    async loadWithMetadata(userId) {
-      const pending = readStoredProgress(storage, WONDER_ACADEMY_PENDING_KEY, userId);
-      const cache = readStoredProgress(storage, WONDER_ACADEMY_CACHE_KEY, userId);
-      let cloudAvailable = true;
-      const cloud = await getCloudProgress(userId).catch(() => {
-        cloudAvailable = false;
-        return null;
-      });
-      const parsedCloud = cloud?.userId === userId ? parseWonderAcademyProgress(cloud) : null;
+  async function loadWithMetadata(userId: string): Promise<WonderAcademyLoadResult> {
+    const pending = readStoredProgress(storage, WONDER_ACADEMY_PENDING_KEY, userId);
+    const cache = readStoredProgress(storage, WONDER_ACADEMY_CACHE_KEY, userId);
+    let cloudAvailable = true;
+    const cloud = await getCloudProgress(userId).catch(() => {
+      cloudAvailable = false;
+      return null;
+    });
+    const parsedCloud = cloud?.userId === userId ? parseWonderAcademyProgress(cloud) : null;
 
-      if (!cloudAvailable) {
-        if (pending) {
-          return { progress: pending, source: "pending", cloudAvailable };
-        }
-
-        if (cache) {
-          return { progress: cache, source: "cache", cloudAvailable };
-        }
-
-        return { progress: null, source: "none", cloudAvailable };
-      }
-
-      if (
-        pending &&
-        (!parsedCloud || shouldPreserveStoredProgress(pending, parsedCloud))
-      ) {
+    if (!cloudAvailable) {
+      if (pending) {
         return { progress: pending, source: "pending", cloudAvailable };
-      }
-
-      if (parsedCloud) {
-        writeStoredProgress(storage, WONDER_ACADEMY_CACHE_KEY, parsedCloud);
-        removeStoredProgressIfNotNewer(
-          storage,
-          WONDER_ACADEMY_PENDING_KEY,
-          parsedCloud,
-        );
-        return { progress: parsedCloud, source: "cloud", cloudAvailable };
       }
 
       if (cache) {
@@ -543,7 +515,35 @@ export function createWonderAcademyProgressService({
       }
 
       return { progress: null, source: "none", cloudAvailable };
-    },
+    }
+
+    if (
+      pending &&
+      (!parsedCloud || shouldPreserveStoredProgress(pending, parsedCloud))
+    ) {
+      return { progress: pending, source: "pending", cloudAvailable };
+    }
+
+    if (parsedCloud) {
+      writeStoredProgress(storage, WONDER_ACADEMY_CACHE_KEY, parsedCloud);
+      removeStoredProgressIfNotNewer(
+        storage,
+        WONDER_ACADEMY_PENDING_KEY,
+        parsedCloud,
+      );
+      return { progress: parsedCloud, source: "cloud", cloudAvailable };
+    }
+
+    if (cache) {
+      return { progress: cache, source: "cache", cloudAvailable };
+    }
+
+    return { progress: null, source: "none", cloudAvailable };
+  }
+
+  return {
+    load: async (userId) => (await loadWithMetadata(userId)).progress,
+    loadWithMetadata,
     async save(progress) {
       writeStoredProgress(storage, WONDER_ACADEMY_CACHE_KEY, progress);
       writeStoredProgressIfNotOlder(

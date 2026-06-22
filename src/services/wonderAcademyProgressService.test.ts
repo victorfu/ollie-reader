@@ -797,6 +797,18 @@ describe("Wonder Academy progress service", () => {
     await expect(service.load("user-1")).resolves.toBeNull();
   });
 
+  it("supports destructured load calls", async () => {
+    const storage = memoryStorage();
+    const cloudProgress = createInitialWonderAcademyProgress({ userId: "user-1" });
+    const { load } = createWonderAcademyProgressService({
+      storage,
+      getCloudProgress: vi.fn<() => Promise<typeof cloudProgress>>().mockResolvedValue(cloudProgress),
+      setCloudProgress: vi.fn(),
+    });
+
+    await expect(load("user-1")).resolves.toEqual(cloudProgress);
+  });
+
   it("writes Firestore progress in a transaction when cloud progress is not newer", async () => {
     const progress = createInitialWonderAcademyProgress({ userId: "user-1" });
     firestoreMocks.doc.mockClear();
@@ -853,6 +865,66 @@ describe("Wonder Academy progress service", () => {
     await expect(setFirestoreWonderAcademyProgress(staleProgress)).resolves.toBe(false);
 
     expect(transactionSet).not.toHaveBeenCalled();
+  });
+
+  it("skips Firestore transaction writes when equal-timestamp cloud progress has different content", async () => {
+    const candidateProgress = createInitialWonderAcademyProgress({
+      userId: "user-1",
+      starterSpeciesId: "lumi",
+      now: "2026-06-22T10:00:00.000Z",
+    });
+    const equalTimestampCloudProgress = createInitialWonderAcademyProgress({
+      userId: "user-1",
+      starterSpeciesId: "momo",
+      now: candidateProgress.updatedAt,
+    });
+    const transactionSet = vi.fn();
+    firestoreMocks.runTransaction.mockImplementation(
+      async (_db: unknown, updateFunction: (transaction: unknown) => Promise<boolean>) =>
+        updateFunction({
+          get: vi.fn<() => Promise<{ exists: () => boolean; data: () => typeof equalTimestampCloudProgress }>>()
+            .mockResolvedValue({
+              exists: () => true,
+              data: () => equalTimestampCloudProgress,
+            }),
+          set: transactionSet,
+        }),
+    );
+
+    await expect(setFirestoreWonderAcademyProgress(candidateProgress)).resolves.toBe(false);
+
+    expect(transactionSet).not.toHaveBeenCalled();
+  });
+
+  it("writes Firestore progress when equal-timestamp cloud progress only differs by cloud metadata", async () => {
+    const candidateProgress = createInitialWonderAcademyProgress({
+      userId: "user-1",
+      starterSpeciesId: "lumi",
+      now: "2026-06-22T10:00:00.000Z",
+    });
+    const equalTimestampCloudProgress = {
+      ...candidateProgress,
+      lastCloudSavedAt: candidateProgress.updatedAt,
+    };
+    const transactionSet = vi.fn();
+    firestoreMocks.runTransaction.mockImplementation(
+      async (_db: unknown, updateFunction: (transaction: unknown) => Promise<boolean>) =>
+        updateFunction({
+          get: vi.fn<() => Promise<{ exists: () => boolean; data: () => typeof equalTimestampCloudProgress }>>()
+            .mockResolvedValue({
+              exists: () => true,
+              data: () => equalTimestampCloudProgress,
+            }),
+          set: transactionSet,
+        }),
+    );
+
+    await expect(setFirestoreWonderAcademyProgress(candidateProgress)).resolves.toBe(true);
+
+    expect(transactionSet).toHaveBeenCalledWith(
+      { path: "wonder-academy-doc" },
+      candidateProgress,
+    );
   });
 
   it("does not report stale queued saves as cloud-saved when the cloud setter skips them", async () => {
