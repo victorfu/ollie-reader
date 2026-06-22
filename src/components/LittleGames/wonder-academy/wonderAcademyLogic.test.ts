@@ -24,6 +24,13 @@ describe("Wonder Academy pure game logic", () => {
     const state = createInitialWonderAcademyState({ progress: createProgress() });
 
     expect(state.mode).toBe("hub");
+    expect(state.currentChapterId).toBe("sparkleaf-grove");
+    expect(state.currentNodeId).toBe("academy-gate");
+    expect(state.unlockedNodeIds).toEqual(["academy-gate", "firefly-clearing"]);
+    expect(state.completedNodeIds).toEqual([]);
+    expect(state.wonderdex.lumi).toBe("attuned");
+    expect(state.paused).toBe(false);
+    expect(state.moodTrial).toBeNull();
     expect(state.progress?.storyProgress.currentNodeId).toBe("academy-gate");
     expect(state.currentObjective.targetNodeId).toBe("firefly-clearing");
   });
@@ -46,6 +53,7 @@ describe("Wonder Academy pure game logic", () => {
     });
 
     expect(nextState.mode).toBe("regionMap");
+    expect(nextState.currentNodeId).toBe("firefly-clearing");
     expect(nextState.progress?.storyProgress.currentNodeId).toBe("firefly-clearing");
     expect(nextState.currentObjective.id).toBe("comfort-mossmew");
   });
@@ -79,12 +87,16 @@ describe("Wonder Academy pure game logic", () => {
     const unpausedState = applyWonderAcademyAction(pausedState, { type: "togglePause" });
 
     expect(pausedState.isPaused).toBe(true);
+    expect(pausedState.paused).toBe(true);
     expect(pausedState.currentObjective).toEqual(state.currentObjective);
     expect(movedWhilePaused.progress?.storyProgress.currentNodeId).toBe("academy-gate");
+    expect(movedWhilePaused.currentNodeId).toBe("academy-gate");
     expect(movedWhilePaused.currentObjective).toEqual(state.currentObjective);
     expect(trialWhilePaused.trial).toEqual(pausedState.trial);
+    expect(trialWhilePaused.moodTrial).toEqual(pausedState.moodTrial);
     expect(trialWhilePaused.currentObjective).toEqual(state.currentObjective);
     expect(unpausedState.isPaused).toBe(false);
+    expect(unpausedState.paused).toBe(false);
     expect(unpausedState.currentObjective).toEqual(state.currentObjective);
   });
 
@@ -96,7 +108,10 @@ describe("Wonder Academy pure game logic", () => {
         nodeId: "firefly-clearing",
       },
     );
-    const started = applyWonderAcademyAction(atClearing, { type: "startMoodTrial" });
+    const started = applyWonderAcademyAction(atClearing, {
+      type: "startMoodTrial",
+      nodeId: atClearing.currentNodeId,
+    });
     const comforted = applyWonderAcademyAction(started, { type: "comfort" });
     const snacked = applyWonderAcademyAction(comforted, {
       type: "snack",
@@ -109,13 +124,39 @@ describe("Wonder Academy pure game logic", () => {
     const attuned = applyWonderAcademyAction(skilled, { type: "attune" });
 
     expect(started.mode).toBe("moodTrial");
+    expect(started.moodTrial?.opponentSpeciesId).toBe("mossmew");
     expect(skilled.trial?.opponentDisposition).toBe("open");
+    expect(skilled.moodTrial?.opponentDisposition).toBe("open");
     expect(skilled.trial?.mood).toBe("calm");
     expect(attuned.mode).toBe("regionMap");
+    expect(attuned.currentNodeId).toBe("firefly-clearing");
+    expect(attuned.completedNodeIds).toContain("firefly-clearing");
+    expect(attuned.unlockedNodeIds).toContain("mossy-bridge");
+    expect(attuned.wonderdex.mossmew).toBe("attuned");
+    expect(attuned.moodTrial).toBeNull();
     expect(attuned.progress?.completedNodeIds).toContain("firefly-clearing");
     expect(attuned.progress?.unlockedNodeIds).toContain("mossy-bridge");
     expect(attuned.progress?.wonderdex.mossmew).toBe("attuned");
     expect(attuned.currentObjective.targetNodeId).toBe("mossy-bridge");
+  });
+
+  it("blocks Mood Trial start when the provided nodeId does not match the current node", () => {
+    const atClearing = applyWonderAcademyAction(
+      createInitialWonderAcademyState({ progress: createProgress(), mode: "regionMap" }),
+      {
+        type: "moveToNode",
+        nodeId: "firefly-clearing",
+      },
+    );
+
+    const blocked = applyWonderAcademyAction(atClearing, {
+      type: "startMoodTrial",
+      nodeId: "academy-gate",
+    });
+
+    expect(blocked.mode).toBe("regionMap");
+    expect(blocked.moodTrial).toBeNull();
+    expect(blocked.message).toContain("目前位置");
   });
 
   it("requires tiny-flash before Attune can complete after comfort and snack", () => {
@@ -173,9 +214,13 @@ describe("Wonder Academy pure game logic", () => {
 
     expect(newGame.mode).toBe("hub");
     expect(newGame.isPaused).toBe(false);
+    expect(newGame.paused).toBe(false);
+    expect(newGame.currentNodeId).toBe("academy-gate");
     expect(newGame.progress?.storyProgress.currentNodeId).toBe("academy-gate");
     expect(newGame.trial).toBeNull();
+    expect(newGame.moodTrial).toBeNull();
     expect(attemptedAttune.progress?.completedNodeIds).not.toContain("firefly-clearing");
+    expect(attemptedAttune.completedNodeIds).not.toContain("firefly-clearing");
     expect(attemptedAttune.progress?.unlockedNodeIds).not.toContain("mossy-bridge");
     expect(attemptedAttune.progress?.wonderdex.mossmew).not.toBe("attuned");
   });
