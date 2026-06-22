@@ -343,6 +343,64 @@ describe("Wonder Academy progress service", () => {
     await expect(service.load("user-1")).resolves.toEqual(pendingProgress);
   });
 
+  it("loads equal-timestamp pending progress over cloud progress when content differs", async () => {
+    const storage = memoryStorage();
+    const cloudProgress = createInitialWonderAcademyProgress({
+      userId: "user-1",
+      starterSpeciesId: "lumi",
+      now: "2026-06-22T10:00:00.000Z",
+    });
+    const pendingProgress = createInitialWonderAcademyProgress({
+      userId: "user-1",
+      starterSpeciesId: "momo",
+      now: cloudProgress.updatedAt,
+    });
+    const service = createWonderAcademyProgressService({
+      storage,
+      getCloudProgress: vi.fn<() => Promise<typeof cloudProgress>>().mockResolvedValue(cloudProgress),
+      setCloudProgress: vi.fn(),
+    });
+
+    storage.setItem(
+      WONDER_ACADEMY_PENDING_KEY,
+      JSON.stringify({ "user-1": pendingProgress }),
+    );
+
+    await expect(service.load("user-1")).resolves.toEqual(pendingProgress);
+    expect(JSON.parse(storage.getItem(WONDER_ACADEMY_PENDING_KEY) ?? "null")).toEqual({
+      "user-1": pendingProgress,
+    });
+  });
+
+  it("loads equal-timestamp cloud progress and clears pending when logical content matches", async () => {
+    const storage = memoryStorage();
+    const pendingProgress = createInitialWonderAcademyProgress({
+      userId: "user-1",
+      starterSpeciesId: "lumi",
+      now: "2026-06-22T10:00:00.000Z",
+    });
+    const cloudProgress = {
+      ...pendingProgress,
+      lastCloudSavedAt: pendingProgress.updatedAt,
+    };
+    const service = createWonderAcademyProgressService({
+      storage,
+      getCloudProgress: vi.fn<() => Promise<typeof cloudProgress>>().mockResolvedValue(cloudProgress),
+      setCloudProgress: vi.fn(),
+    });
+
+    storage.setItem(
+      WONDER_ACADEMY_PENDING_KEY,
+      JSON.stringify({ "user-1": pendingProgress }),
+    );
+
+    await expect(service.load("user-1")).resolves.toEqual(cloudProgress);
+    expect(JSON.parse(storage.getItem(WONDER_ACADEMY_PENDING_KEY) ?? "null")).toBeNull();
+    expect(JSON.parse(storage.getItem(WONDER_ACADEMY_CACHE_KEY) ?? "null")).toEqual({
+      "user-1": cloudProgress,
+    });
+  });
+
   it("loads pending progress when cloud loading fails", async () => {
     const storage = memoryStorage();
     const pendingProgress = createInitialWonderAcademyProgress({

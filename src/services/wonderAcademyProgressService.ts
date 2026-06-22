@@ -456,13 +456,20 @@ export function createWonderAcademyProgressService({
       const cloud = await getCloudProgress(userId).catch(() => null);
       const parsedCloud = cloud?.userId === userId ? parseWonderAcademyProgress(cloud) : null;
 
-      if (pending && (!parsedCloud || compareUpdatedAt(pending, parsedCloud) > 0)) {
+      if (
+        pending &&
+        (!parsedCloud || shouldPreserveStoredProgress(pending, parsedCloud))
+      ) {
         return pending;
       }
 
       if (parsedCloud) {
         writeStoredProgress(storage, WONDER_ACADEMY_CACHE_KEY, parsedCloud);
-        removeStoredProgress(storage, WONDER_ACADEMY_PENDING_KEY, userId);
+        removeStoredProgressIfNotNewer(
+          storage,
+          WONDER_ACADEMY_PENDING_KEY,
+          parsedCloud,
+        );
         return parsedCloud;
       }
 

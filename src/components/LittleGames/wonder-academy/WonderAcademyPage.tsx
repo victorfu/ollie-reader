@@ -1,5 +1,5 @@
 import { ArrowLeft, Cloud, CloudOff, LogIn, Play, Save } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useAuth } from "../../../hooks/useAuth";
 import {
   createInitialWonderAcademyProgress,
@@ -72,7 +72,7 @@ export default function WonderAcademyPage({ onExit }: WonderAcademyPageProps) {
   const saveSequenceRef = useRef(0);
   const activeUserIdRef = useRef<string | null>(null);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     activeUserIdRef.current = user?.uid ?? null;
     saveSequenceRef.current += 1;
   }, [user?.uid]);
