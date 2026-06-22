@@ -16,6 +16,10 @@
 - Starter 必須能讓玩家自訂名字。
 - 內建角色與資產全部使用原創設定。
 - 可以支援本機自訂角色槽，但專案不內建、不產生、不提交可識別第三方 IP 角色或名稱。
+- 進度必須安全保存到 Firestore，避免孩子長時間遊玩的成果只留在單一瀏覽器。
+- 遊戲必須支援隨時暫停、頻繁自動存檔，並以 10-20 分鐘一段的短時間遊玩節奏設計。
+- 每個章節與地圖節點都要清楚提示「現在該做什麼」，避免玩家迷路或不知道下一步。
+- 音效與音樂是療癒感的核心工作項目，不能留到最後才補。
 
 ## 核心名詞
 
@@ -26,7 +30,7 @@
 | 可收集角色 | Wonderlings |
 | 圖鑑 | Wonderdex |
 | 建立連結 | Attune |
-| 挑戰 / 戰鬥系統 | Mood Trial |
+| 挑戰系統 | Mood Trial |
 | 玩家隊伍 | Keeper Team |
 | 區域守護者 | Warden |
 | 傳說級角色 | Mythlings |
@@ -200,7 +204,7 @@ Crystal Bell 的心，也是最終 Warden。最終目標不是破壞或擊敗牠
 
 - 核心：snack、回復、Attune
 - Passive：snack 效果提升
-- Battle Support：分享 snack，全隊小回復
+- Trial Support：分享 snack，全隊小回復
 - Field：製作特殊 snack，引出特定 Wonderlings
 - 經驗來源：料理、snack 使用、snack-based Attune
 
@@ -208,7 +212,7 @@ Crystal Bell 的心，也是最終 Warden。最終目標不是破壞或擊敗牠
 
 - 核心：charm、工具、機關
 - Passive：charm 效果提升
-- Battle Support：部署 gadget，提供護盾或干擾
+- Trial Support：部署 gadget，提供護盾或干擾
 - Field：修橋、開裝置、偵測隱藏物
 - 經驗來源：使用 gadget、charm、解機關
 
@@ -216,7 +220,7 @@ Crystal Bell 的心，也是最終 Warden。最終目標不是破壞或擊敗牠
 
 - 核心：遭遇、追蹤、稀有 Wonderlings
 - Passive：稀有遭遇率提升
-- Battle Support：Scout Weakness，顯示弱點與建議行動
+- Trial Support：Scout Weakness，顯示弱點與建議行動
 - Field：追蹤足跡、穿越自然障礙
 - 經驗來源：探索、發現稀有角色、完成區域任務
 
@@ -224,7 +228,7 @@ Crystal Bell 的心，也是最終 Warden。最終目標不是破壞或擊敗牠
 
 - 核心：小互動、combo、Mood Trial 表現
 - Passive：時機與節奏互動的成功區間稍微變大
-- Battle Support：Encore，複製上一次成功技能的部分效果
+- Trial Support：Encore，複製上一次成功技能的部分效果
 - Field：市集表演、音樂機關
 - 經驗來源：高評價互動、combo、表演任務
 
@@ -232,7 +236,7 @@ Crystal Bell 的心，也是最終 Warden。最終目標不是破壞或擊敗牠
 
 - 核心：Wonderdex、故事、弱點、支線
 - Passive：Wonderdex 顯示更完整線索
-- Battle Support：Recall Lore，提示對方喜歡的 snack 或 Attune 條件
+- Trial Support：Recall Lore，提示對方喜歡的 snack 或 Attune 條件
 - Field：解讀古文、開啟傳說任務
 - 經驗來源：圖鑑完成、Bell Pages、故事線索
 
@@ -241,10 +245,10 @@ Crystal Bell 的心，也是最終 Warden。最終目標不是破壞或擊敗牠
 每個職業 10 級：
 
 - Lv.1：職業 passive
-- Lv.2：第一個 battle support
+- Lv.2：第一個 trial support
 - Lv.3：field skill
 - Lv.4：passive 強化
-- Lv.5：第二個 battle support
+- Lv.5：第二個 trial support
 - Lv.6：特殊 craft、encounter 或 lore 能力
 - Lv.7：隊伍加成
 - Lv.8：高階 field shortcut
@@ -629,6 +633,8 @@ Support slots 會提供 passive：
 
 Starter 使用 Bond Forms，而不是進化成完全陌生的角色。外型應變得更華麗，但保留原本辨識度。
 
+章節進度應逐步解鎖更深系統，不要在開局一次丟出所有職業、技能、snack、charm 與圖鑑機制。
+
 ## Wonderdex
 
 Wonderdex 是主要收藏畫面。
@@ -666,6 +672,33 @@ Attuned entries 顯示：
 - Guest assets 不由專案生成、提交或散布。
 - 內建遊戲必須只靠原創 Wonderlings 就能完整遊玩。
 
+## 短時間遊玩與暫停
+
+Wonder Academy 要適合孩子零碎時間遊玩。每次登入或回到遊戲時，都應能在 10-20 分鐘內完成一個有意義的小目標。
+
+- 每個章節拆成 6-10 個節點，每個普通節點目標約 3-8 分鐘完成。
+- 每個章節要有清楚的 current objective，例如「前往 Sparkleaf Grove 的 Firefly Clearing」、「找 Chef Pippa 做 Berry Snack」、「回 Map Atrium 找 Mira 回報」。
+- Hub、Region Map、節點開始前、Mood Trial 結束後，都必須可以安全暫停或離開。
+- Mood Trial 進行中要提供 Pause Menu，可調整音量、查看目標、返回 title，並清楚提示目前試煉進度是否已保存。
+- 遊戲不使用長時間連續任務作為必要進度；Warden Trial 可以較長，但必須拆成可恢復的 phase。
+- 返回遊戲時顯示 Continue panel，包含目前章節、所在節點、下一個目標、上次保存時間與初始夥伴狀態。
+- 任務指引要溫柔、明確，不用懲罰式倒數或高壓提醒。
+
+## Region Map Movement
+
+Region Map 採節點式移動，不是自由 2D 大地圖行走。這讓孩子能快速理解下一步，也讓每段遊玩更容易保存。
+
+- 玩家目前位置顯示為 Keeper marker。
+- 已解鎖且相鄰的節點可以點擊、觸控或用鍵盤選取後移動。
+- 鍵盤支援方向鍵 / WASD 在可達節點間切換，Enter 或 Space 確認。
+- 滑鼠與觸控可直接選擇節點；若節點 locked，顯示解鎖條件與推薦下一步。
+- 移動到節點後開啟節點面板，顯示 Story Event、Encounter、Quest、Rest、Warden 或 Return Hub。
+- 一般節點可重訪；主線節點完成後解鎖下一批相鄰節點。
+- 支線節點可能需要 field skill、snack、quest flag 或 Wonderdex clue 解鎖。
+- 地圖上永遠要有可見的 current objective marker，並提供「帶我去下一步」的輔助選取。
+- 回到 Academy Hub 可透過地圖上的 Hub 按鈕或已解鎖返回節點。
+- 每次節點移動、節點完成、解鎖新路線、返回 Hub 時都觸發存檔。
+
 ## 主要畫面
 
 ### Title / Continue
@@ -689,7 +722,9 @@ Attuned entries 顯示：
 ### Region Map
 
 - 每章 6-10 個節點。
-- 顯示主線、支線、locked condition、Warden node、回訪進度。
+- 顯示主線、支線、locked condition、Warden node、回訪進度與 current objective。
+- 使用節點式移動，支援滑鼠、觸控、方向鍵 / WASD 與 Enter / Space。
+- locked 節點要顯示解鎖條件，不讓玩家只看到不能點的路。
 
 ### Mood Trial
 
@@ -699,6 +734,7 @@ Attuned entries 顯示：
 - 行動選單：Comfort、Skills、Snack、Switch、Attune、Leave。
 - Skills 子選單顯示 4 招已裝備技能。
 - 中央區域播放短互動。
+- 提供 Pause Menu，可查看目前目標、調整音量、確認最近存檔狀態。
 
 ### Team / Growth
 
@@ -724,15 +760,34 @@ Attuned entries 顯示：
 
 ## 存檔資料
 
-初期使用 localStorage，但資料結構要能未來遷移。
+Firestore 是 Wonder Academy 的主要存檔來源，避免孩子辛苦累積的進度因清除瀏覽器資料、換裝置或單一 localStorage 損壞而消失。localStorage 只能作為啟動快取與暫時離線緩衝，不能是唯一正式存檔。
+
+登入與資料位置：
+
+- 使用既有 Firebase Auth 使用者身份保存進度。
+- 建議 Firestore 路徑：`gameProgress/{uid}/littleGames/wonderAcademy`。
+- 若進入遊戲時尚未登入，New Game / Continue 前要引導登入，不能默默建立只存在本機的長期進度。
+- 若短暫離線，允許寫入 local pending save queue；恢復連線後同步到 Firestore，並顯示同步狀態。
+
+存檔時機：
+
+- New Game 建立初始夥伴後立即存檔。
+- 每次進入或完成 region node 後自動存檔。
+- 每次 Attune 成功、獲得 Wonderling、更新 Wonderdex、調整 Team、改暱稱、取得重要道具或完成 quest 後自動存檔。
+- Mood Trial 結束後自動存檔；較長的 Warden Trial 需要 phase checkpoint。
+- Pause Menu、返回 Hub、離開路由、頁面背景化時都嘗試保存目前安全狀態。
+- UI 顯示最近保存時間與雲端同步狀態，例如 Saved、Saving、Offline changes pending、Save failed。
 
 存檔應包含：
 
 - schema version
+- createdAt / updatedAt / lastCloudSavedAt
+- lastSafeResumePoint
 - 未來若加入玩家名，儲存 player name
 - 初始夥伴物種與暱稱
 - story progress
 - unlocked regions and nodes
+- current chapter, current node, current objective
 - completed quests
 - owned Wonderlings
 - Wonderdex seen / Attuned states
@@ -740,16 +795,25 @@ Attuned entries 顯示：
 - skill loadouts
 - snacks and charms
 - career levels
+- audio and accessibility settings
 - settings
 
 Storage helpers 必須防禦式解析，能容忍 malformed save 或舊版 schema。
+
+安全性與復原：
+
+- Firestore schema 要版本化，未來改版時提供 migration。
+- 讀取時若 local cache 比 Firestore 新，需提示「此裝置有尚未同步的進度」，避免直接覆蓋。
+- Reset / New Game overwrite 必須二次確認，並清楚說明會覆蓋哪一份存檔。
+- 保存失敗不能讓玩家誤以為已保存；必須保留 local pending save 並顯示可理解的錯誤。
+- 測試要涵蓋 Firestore save/load、local fallback、schema migration、malformed save、離線後恢復同步與跨裝置讀取。
 
 ## Route 與現有遊戲替換
 
 新的獨立頁面路由：
 
 - 建議路由：`/games/wonder-academy`
-- 目前 academy prototype route 可在遷移時重新導向到 `/games/wonder-academy`
+- 目前 `/games/monster-academy` prototype route 可在遷移時重新導向到 `/games/wonder-academy`
 - Wonder Academy 不繼承主 app layout
 - GameHub 卡片以新分頁開啟，延續目前獨立遊戲頁面的行為
 
@@ -769,6 +833,8 @@ Storage helpers 必須防禦式解析，能容忍 malformed save 或舊版 schem
 - Skill VFX icons
 - Snack icons
 - Charm icons
+- SFX clips
+- Short music loops
 
 資產要求：
 
@@ -778,6 +844,55 @@ Storage helpers 必須防禦式解析，能容忍 malformed save 或舊版 schem
 - 不內建可識別第三方 IP 名稱或角色。
 - 美術方向：cozy、rounded、painterly-cute、明亮但不要吵雜。
 - 大型圖片需壓縮最佳化，避免 PWA precache 過大。
+
+## 音效與音樂
+
+聲音是 Wonder Academy 療癒感的一部分，必須和視覺、互動一起規劃，不是最後才補的 polish。
+
+### 音訊方向
+
+- 背景音樂：輕柔、溫暖、低壓力，適合長時間或親子一起聽。
+- Hub 音樂要像安靜學院與雲端房間；Region Map 音樂要依區域有輕微變化。
+- Mood Trial 音樂要有節奏感，但不能緊張刺耳。
+- Attune 成功要有短小、可愛、有成就感的小旋律。
+- UI 音效要柔和：選取、確認、返回、locked node、解鎖、獲得道具、Wonderdex 更新。
+- Wonderling 互動音效要有角色差異，但避免高頻、突兀或過度重複。
+
+### 必要音訊資產
+
+- `ui_select`
+- `ui_confirm`
+- `ui_back`
+- `ui_locked`
+- `node_unlock`
+- `save_success`
+- `save_pending`
+- `attune_ready`
+- `attune_success`
+- `attune_fail_soft`
+- `wonderdex_update`
+- `snack_use`
+- `bond_skill_ready`
+- `hub_loop`
+- `region_map_loop`
+- `mood_trial_loop`
+- `warden_trial_loop`
+
+### 音訊產生方式
+
+- 音訊資產必須由 Codex 在專案內產生或整理，不要求 OpenAI API key、ImageGen API key 或第三方音訊 API key。
+- 目前 Codex 工作環境沒有可直接呼叫的無 API key AI 音樂 / 音效生成工具；因此初期音訊應使用本機腳本或程式合成 WAV / OGG 作為原創 placeholder。
+- 若未來 Codex 提供原生無 API key 音訊生成能力，可用同一套命名與驗收標準替換成更高品質資產。
+- 音訊生成腳本必須可重跑，保留在 repo 中，並避免提交大型未壓縮中間檔。
+- 所有音訊都必須是原創或專案可散布素材，不使用第三方 IP 或授權不明素材。
+
+### 音訊 UX 與設定
+
+- 預設音量要保守，避免突然大聲。
+- Settings / Pause Menu 提供 Music、SFX、Mute 三種控制。
+- 音訊設定跟隨 Firestore 存檔同步，但也允許本機立即生效。
+- 第一次使用音訊時需符合瀏覽器 autoplay 限制：由玩家互動後啟動 AudioContext。
+- 長 loop 要能平順循環，短 SFX 不可造成明顯延遲。
 
 ## 實作里程碑
 
@@ -789,36 +904,47 @@ Storage helpers 必須防禦式解析，能容忍 malformed save 或舊版 schem
 - 建立核心資料模型。
 - 加入 title / continue。
 - 加入初始夥伴選擇與暱稱。
+- 建立 Firestore save schema、local pending save queue 與 defensive parser。
 
 ### 2. Academy Hub
 
 - 建立獨立全螢幕 hub。
 - 加入 Team、Wonderdex、Map Atrium 外殼。
+- 加入 Continue panel、current objective 與最近保存狀態。
 
-### 3. Mood Trial v2
+### 3. Region Map v1
 
-- 用 Mood Trial actions 取代現有 battle actions。
+- 建立節點式 region map movement。
+- 支援滑鼠、觸控、鍵盤選取與 locked condition 提示。
+- 每個節點提供短時間目標、節點面板與完成後自動保存。
+
+### 4. Mood Trial v2
+
+- 用 Mood Trial actions 取代現有 prototype challenge actions。
 - 加入 Skills 子選單、equipped skills、interactions、Mood states、Attune。
+- 加入 Pause Menu、音量控制與試煉結束存檔。
 
-### 4. Chapter 1: Sparkleaf Grove
+### 5. Chapter 1: Sparkleaf Grove
 
 - 建立 region map nodes。
 - 建立 encounter tables。
 - 加入第一批 Wonderlings 與 Sparkleaf Fawn Warden。
+- 每個節點都要有 current objective 與 10-20 分鐘遊玩節奏。
 
-### 5. Growth Systems
+### 6. Growth Systems
 
 - XP、level、Bond、Bond Form progress、skill unlocks、loadouts。
 - 基礎 snacks 與 charms。
 
-### 6. Polish And Save
+### 7. Save, Audio, And Polish
 
-- save / load。
+- Firestore save / load / sync status / offline pending queue。
+- Codex-generated local audio placeholders：核心 SFX、hub loop、region map loop、Mood Trial loop。
 - browser smoke tests。
 - mobile layout checks。
 - 路由清理檢查。
 
-### 7. Expansion Chapters
+### 8. Expansion Chapters
 
 - 依同一套資料模型擴充 Tideglass Coast 之後的章節。
 
@@ -830,8 +956,10 @@ Storage helpers 必須防禦式解析，能容忍 malformed save 或舊版 schem
 - React 負責獨立頁面外殼、loading/error、離開路由，以及未來可能需要的 accessibility overlays。
 - Wonderdex 與 Team 畫面優先做成覆蓋在獨立遊戲頁面上的 React panels；若實作時 KAPLAY scene 明顯更簡單，再局部調整。
 - 預設路由是 `/games/wonder-academy`。
-- 現有 academy prototype route 遷移時重新導向到 `/games/wonder-academy`。
+- 現有 `/games/monster-academy` route 遷移時重新導向到 `/games/wonder-academy`。
+- Firestore 是正式存檔來源；localStorage 只能作為啟動快取與離線 pending save queue。
 - 第一個實作里程碑至少包含：四隻初始夥伴 portrait/sprite、一張 academy background、一張 Sparkleaf Grove map background、一張 Mood Trial background，以及第一個可玩循環所需的最小原創 Wonderling 資產組。
+- 第一批音訊資產使用 Codex 產生的本機合成 placeholder，不需要 OpenAI API key 或第三方音訊 API key。
 
 ## 驗證策略
 
@@ -841,8 +969,11 @@ Storage helpers 必須防禦式解析，能容忍 malformed save 或舊版 schem
 - 技能效果結算
 - Mood Trial 回合結算
 - Attune 成功率計算
-- 存檔解析與遷移
+- Firestore 存檔解析與遷移
+- local pending save queue 與同步衝突處理
 - 初始夥伴暱稱顯示 fallback
+- current objective 選取與完成狀態
+- 音訊設定保存與 fallback
 
 瀏覽器 smoke tests：
 
@@ -850,12 +981,20 @@ Storage helpers 必須防禦式解析，能容忍 malformed save 或舊版 schem
 - 開啟獨立 Wonder Academy 路由。
 - New Game。
 - 選初始夥伴並輸入暱稱。
+- 確認 Firestore 建立新存檔並顯示保存狀態。
 - 進入 hub。
 - 開啟 Wonderdex 與 Team 畫面。
-- 進入 region node。
+- 進入 Region Map，使用滑鼠 / 觸控與鍵盤選擇相鄰節點。
+- locked node 顯示解鎖條件與推薦下一步。
+- 進入 region node，確認 current objective 清楚顯示。
 - 完成 Mood Trial。
 - 嘗試 Attune。
+- 開啟 Pause Menu，確認可看目標、調整音量、離開並回到 Continue。
+- 模擬保存失敗或離線，確認 local pending save 與錯誤提示存在。
+- 恢復連線後確認 pending save 同步到 Firestore。
 - 離開路由再進入，確認沒有重複 KAPLAY loop。
+- 重新載入或換瀏覽器登入同帳號，確認可讀取 Firestore 進度。
+- 播放至少一個 SFX 與一個 loop，確認使用者互動後 AudioContext 正常啟動。
 
 視覺 QA：
 
@@ -864,17 +1003,20 @@ Storage helpers 必須防禦式解析，能容忍 malformed save 或舊版 schem
 - canvas 非空檢查
 - 文字不破版檢查
 - 獨立路由不繼承 main app layout
+- current objective 與保存狀態在 desktop / mobile 都清楚可見
 
 建置檢查：
 
 - `npm run lint`
 - `npm run build`
 - 確認遊戲 lazy loaded，主 app 首屏不 eager load 完整 RPG chunk。
+- 確認音訊資產壓縮後不讓 PWA precache 過大。
 
 ## 非目標
 
-- 初期不新增後端、Firestore schema 或雲端進度儲存。
+- 初期不新增 Cloud Functions 或自訂後端服務；Wonder Academy 存檔使用既有 Firebase Auth + Firestore。
 - 專案不內建第三方 IP 角色、名稱或可識別資產。
+- 不使用需要 API key 的外部音訊生成 workflow。
 - 不做 3D 自由大世界。
 - 不做多人連線。
 - 不重寫其他現有 Little Games。
