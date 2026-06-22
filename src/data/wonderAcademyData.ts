@@ -6,7 +6,7 @@ import type {
   WonderlingSpecies,
 } from "../types/wonderAcademy";
 
-const starterAsset = (name: string) => `/assets/games/wonder-academy/starters/${name}.png`;
+const starterAsset = (name: string) => `starters/${name}.png`;
 
 export const WONDER_ACADEMY_STARTERS: WonderlingSpecies[] = [
   {
@@ -224,6 +224,14 @@ export const WONDER_ACADEMY_CHAPTERS: WonderAcademyChapter[] = [
   },
 ];
 
+const SPARKLEAF_GROVE_COMPLETE_OBJECTIVE: WonderAcademyObjective = {
+  id: "return-academy-hub",
+  label: "返回 Academy Hub",
+  description: "Sparkleaf Grove 的 Bell Tone 已找回，回到 Wonder Academy 準備下一段旅程。",
+  targetChapterId: "sparkleaf-grove",
+  targetNodeId: "academy-gate",
+};
+
 export function getStarterById(speciesId: string): WonderlingSpecies | null {
   return WONDER_ACADEMY_STARTERS.find((starter) => starter.speciesId === speciesId) ?? null;
 }
@@ -241,14 +249,16 @@ export function getCurrentObjective(pointer: WonderAcademyProgressPointer): Wond
   const node = chapter.nodes.find((item) => item.id === pointer.currentNodeId) ?? chapter.nodes[0];
 
   if (pointer.completedNodeIds.includes(node.id)) {
+    const currentNodeIndex = chapter.nodes.indexOf(node);
     const nextNode = chapter.nodes.find(
-      (candidate) =>
+      (candidate, candidateIndex) =>
+        candidateIndex > currentNodeIndex &&
         node.adjacentNodeIds.includes(candidate.id) &&
         !pointer.completedNodeIds.includes(candidate.id) &&
         !candidate.lockedBy,
     );
 
-    return (nextNode ?? node).objective;
+    return nextNode?.objective ?? SPARKLEAF_GROVE_COMPLETE_OBJECTIVE;
   }
 
   return node.objective;

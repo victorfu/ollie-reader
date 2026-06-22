@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   WONDER_ACADEMY_CHAPTERS,
   WONDER_ACADEMY_STARTERS,
+  getChapterById,
   getCurrentObjective,
   getNodeById,
   getStarterById,
@@ -20,6 +21,9 @@ describe("Wonder Academy data", () => {
       expect(starter.growthStages.length).toBe(4);
       expect(starter.fieldSkillId).toBeTruthy();
       expect(starter.learnableSkillIds.length).toBeGreaterThanOrEqual(5);
+      expect(starter.silhouetteAsset).toMatch(/^starters\/[a-z-]+\.png$/);
+      expect(starter.portraitAsset).toMatch(/^starters\/[a-z-]+\.png$/);
+      expect(starter.spriteAsset).toMatch(/^starters\/[a-z-]+\.png$/);
     }
   });
 
@@ -53,5 +57,28 @@ describe("Wonder Academy data", () => {
   it("looks up starters by id", () => {
     expect(getStarterById("lumi")?.speciesName).toBe("Lumi");
     expect(getStarterById("missing")).toBeNull();
+  });
+
+  it("looks up chapters and nodes by id", () => {
+    expect(getChapterById("sparkleaf-grove")?.title).toBe("Chapter 1: Sparkleaf Grove");
+    expect(getChapterById("missing")).toBeNull();
+    expect(getNodeById("sparkleaf-grove", "missing")).toBeNull();
+    expect(getNodeById("missing", "academy-gate")).toBeNull();
+  });
+
+  it("returns a chapter-complete objective after terminal node completion", () => {
+    expect(
+      getCurrentObjective({
+        currentChapterId: "sparkleaf-grove",
+        currentNodeId: "sparkleaf-warden",
+        completedNodeIds: ["sparkleaf-warden"],
+      }),
+    ).toEqual({
+      id: "return-academy-hub",
+      label: "返回 Academy Hub",
+      description: "Sparkleaf Grove 的 Bell Tone 已找回，回到 Wonder Academy 準備下一段旅程。",
+      targetChapterId: "sparkleaf-grove",
+      targetNodeId: "academy-gate",
+    });
   });
 });
