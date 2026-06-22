@@ -232,6 +232,14 @@ const SPARKLEAF_GROVE_COMPLETE_OBJECTIVE: WonderAcademyObjective = {
   targetNodeId: "academy-gate",
 };
 
+const SPARKLEAF_MAIN_PATH_NODE_IDS = [
+  "academy-gate",
+  "firefly-clearing",
+  "mossy-bridge",
+  "snack-stump",
+  "sparkleaf-warden",
+];
+
 export function getStarterById(speciesId: string): WonderlingSpecies | null {
   return WONDER_ACADEMY_STARTERS.find((starter) => starter.speciesId === speciesId) ?? null;
 }
@@ -253,21 +261,20 @@ export function getCurrentObjective(pointer: WonderAcademyProgressPointer): Wond
       return SPARKLEAF_GROVE_COMPLETE_OBJECTIVE;
     }
 
-    const currentNodeIndex = chapter.nodes.indexOf(node);
-    const nextNode = chapter.nodes.find(
-      (candidate, candidateIndex) =>
-        candidateIndex > currentNodeIndex &&
-        node.adjacentNodeIds.includes(candidate.id) &&
-        !pointer.completedNodeIds.includes(candidate.id) &&
-        !candidate.lockedBy,
-    ) ?? chapter.nodes.find(
-      (candidate) =>
-        node.adjacentNodeIds.includes(candidate.id) &&
-        !pointer.completedNodeIds.includes(candidate.id) &&
-        !candidate.lockedBy,
+    const currentMainPathIndex = SPARKLEAF_MAIN_PATH_NODE_IDS.indexOf(node.id);
+    const resumePathIndex =
+      currentMainPathIndex >= 0
+        ? currentMainPathIndex
+        : SPARKLEAF_MAIN_PATH_NODE_IDS.findIndex((nodeId) =>
+            node.adjacentNodeIds.includes(nodeId),
+          );
+    const searchStartIndex = resumePathIndex >= 0 ? resumePathIndex : 0;
+    const nextMainPathNodeId = SPARKLEAF_MAIN_PATH_NODE_IDS.slice(searchStartIndex).find(
+      (nodeId) => !pointer.completedNodeIds.includes(nodeId),
     );
+    const nextNode = nextMainPathNodeId ? getNodeById(chapter.id, nextMainPathNodeId) : null;
 
-    return nextNode?.objective ?? node.objective;
+    return nextNode?.objective ?? SPARKLEAF_GROVE_COMPLETE_OBJECTIVE;
   }
 
   return node.objective;

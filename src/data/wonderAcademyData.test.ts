@@ -97,4 +97,22 @@ describe("Wonder Academy data", () => {
       targetNodeId: "firefly-clearing",
     });
   });
+
+  it("resumes the main path when an optional side node and its parent are complete", () => {
+    const objective = getCurrentObjective({
+      currentChapterId: "sparkleaf-grove",
+      currentNodeId: "hidden-burrow",
+      completedNodeIds: ["firefly-clearing", "hidden-burrow"],
+    });
+
+    expect(objective).toEqual({
+      id: "repair-mossy-bridge",
+      label: "找出橋上的發光藤蔓",
+      description: "使用 starter field skill，清出通往森林深處的路。",
+      targetChapterId: "sparkleaf-grove",
+      targetNodeId: "mossy-bridge",
+    });
+    expect(objective.targetNodeId).not.toBe("hidden-burrow");
+    expect(objective.id).not.toBe("return-academy-hub");
+  });
 });
