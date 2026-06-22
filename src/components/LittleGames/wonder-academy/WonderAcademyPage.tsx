@@ -1,4 +1,4 @@
-import { ArrowLeft, Cloud, CloudOff, LogIn, Play, Save } from "lucide-react";
+import { ArrowLeft, Cloud, CloudOff, Home, LogIn, Play, Save, Volume2 } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import academyHubUrl from "../../../assets/games/wonder-academy/backgrounds/academy-hub.png";
 import moodTrialUrl from "../../../assets/games/wonder-academy/backgrounds/mood-trial.png";
@@ -14,15 +14,24 @@ import {
   createInitialWonderAcademyProgress,
   wonderAcademyProgressService,
 } from "../../../services/wonderAcademyProgressService";
-import type { WonderAcademyProgress } from "../../../types/wonderAcademy";
+import type {
+  WonderAcademyAudioSettings,
+  WonderAcademyProgress,
+} from "../../../types/wonderAcademy";
 import WonderAcademyHost from "./WonderAcademyHost";
 import {
   applyWonderAcademyAction,
   createInitialWonderAcademyState,
+  projectWonderAcademyProgress,
   type WonderAcademyAction,
   type WonderAcademyState,
 } from "./wonderAcademyLogic";
 import type { WonderAcademyAssets } from "./wonderAcademyGame";
+import {
+  createWonderAcademyAudio,
+  type WonderAcademyAudioManager,
+  type WonderAcademyLoopId,
+} from "./wonderAcademyAudio";
 
 type WonderAcademyPageProps = {
   onExit?: () => void;
@@ -62,13 +71,6 @@ function SaveStatusIcon({ status }: { status: SaveStatus }) {
   return <Cloud className="size-4" strokeWidth={1.75} aria-hidden="true" />;
 }
 
-function stampProgress(progress: WonderAcademyProgress): WonderAcademyProgress {
-  return {
-    ...progress,
-    updatedAt: new Date().toISOString(),
-  };
-}
-
 function hasPendingCloudSave(progress: WonderAcademyProgress | null): boolean {
   if (!progress) return false;
   if (!progress.lastCloudSavedAt) return true;
@@ -103,6 +105,57 @@ function getLoadedSaveStatus({
   return hasPendingCloudSave(progress) ? "pending" : "saved";
 }
 
+function getLoopForMode(mode: WonderAcademyState["mode"]): WonderAcademyLoopId | null {
+  if (mode === "title" || mode === "hub") {
+    return "hub_loop";
+  }
+
+  if (mode === "regionMap") {
+    return "region_map_loop";
+  }
+
+  if (mode === "moodTrial") {
+    return "mood_trial_loop";
+  }
+
+  return null;
+}
+
+function isProjectedSaveAction(action: WonderAcademyAction): boolean {
+  return [
+    "moveToNode",
+    "move-to-node",
+    "attune",
+    "returnHub",
+    "togglePause",
+    "toggle-pause",
+    "openRegionMap",
+    "startMoodTrial",
+    "start-mood-trial",
+  ].includes(action.type);
+}
+
+function withCommittedProgress(
+  nextState: WonderAcademyState,
+  progress: WonderAcademyProgress,
+): WonderAcademyState {
+  return {
+    ...createInitialWonderAcademyState({
+      progress,
+      mode: nextState.mode,
+    }),
+    paused: nextState.paused,
+    isPaused: nextState.isPaused,
+    message: nextState.message,
+    moodTrial: nextState.moodTrial,
+    trial: nextState.trial,
+  };
+}
+
+function formatPercent(value: number): string {
+  return `${Math.round(value * 100)}%`;
+}
+
 export default function WonderAcademyPage({ onExit }: WonderAcademyPageProps) {
   const { user, loading: authLoading, signInWithGoogle } = useAuth();
   const [state, setState] = useState<WonderAcademyState>(() =>
@@ -115,6 +168,18 @@ export default function WonderAcademyPage({ onExit }: WonderAcademyPageProps) {
   const saveSequenceRef = useRef(0);
   const activeUserIdRef = useRef<string | null>(null);
   const lastUserIdRef = useRef<string | null>(null);
+  const audioManagerRef = useRef<WonderAcademyAudioManager | null>(null);
+  const activeLoopRef = useRef<WonderAcademyLoopId | null>(null);
+
+  const getAudioManager = useCallback((
+    initialSettings?: Partial<WonderAcademyAudioSettings> | null,
+  ) => {
+    if (!audioManagerRef.current) {
+      audioManagerRef.current = createWonderAcademyAudio({ initialSettings });
+    }
+
+    return audioManagerRef.current;
+  }, []);
 
   const commitState = useCallback((nextState: WonderAcademyState) => {
     stateRef.current = nextState;
@@ -208,6 +273,9 @@ export default function WonderAcademyPage({ onExit }: WonderAcademyPageProps) {
         });
       }
       setSaveStatus(result.cloudSaved ? "saved" : "pending");
+      getAudioManager(result.progress.audioSettings).playSfx(
+        result.cloudSaved ? "save_success" : "save_pending",
+      );
     } catch {
       if (
         saveSequenceRef.current === sequence &&
@@ -216,7 +284,21 @@ export default function WonderAcademyPage({ onExit }: WonderAcademyPageProps) {
         setSaveStatus("failed");
       }
     }
-  }, [commitState]);
+  }, [commitState, getAudioManager]);
+
+  const projectAndSaveState = useCallback((
+    previousProgress: WonderAcademyProgress,
+    nextState: WonderAcademyState,
+    now = new Date().toISOString(),
+  ) => {
+    const progress = projectWonderAcademyProgress(previousProgress, nextState, now);
+    const stateWithProgress = withCommittedProgress(nextState, progress);
+
+    commitState(stateWithProgress);
+    void saveProgress(progress);
+
+    return progress;
+  }, [commitState, saveProgress]);
 
   const handleStartNewGame = useCallback((confirmOverwrite = false) => {
     if (!user) return;
@@ -247,35 +329,64 @@ export default function WonderAcademyPage({ onExit }: WonderAcademyPageProps) {
     (action: WonderAcademyAction) => {
       const currentState = stateRef.current;
       const nextState = applyWonderAcademyAction(currentState, action);
-      let progressToSave: WonderAcademyProgress | null = null;
-      let stateToCommit = nextState;
+      const shouldSaveProgress =
+        Boolean(currentState.progress && nextState.progress) &&
+        (nextState.progress !== currentState.progress || isProjectedSaveAction(action));
 
-      if (nextState.progress && nextState.progress !== currentState.progress) {
-        const progress = stampProgress(nextState.progress);
-        const stateWithStampedProgress = createInitialWonderAcademyState({
-          progress,
-          mode: nextState.mode,
-        });
+      if (shouldSaveProgress && currentState.progress) {
+        const projected = projectAndSaveState(currentState.progress, nextState);
+        const actionType = action.type;
 
-        progressToSave = progress;
-        stateToCommit = {
-          ...stateWithStampedProgress,
-          paused: nextState.paused,
-          isPaused: nextState.isPaused,
-          message: nextState.message,
-          moodTrial: nextState.moodTrial,
-          trial: nextState.trial,
-        };
+        if (
+          (actionType === "attune" ||
+            (actionType === "mood-trial" && action.move === "attune")) &&
+          projected.wonderdex.mossmew === "attuned" &&
+          currentState.wonderdex.mossmew !== "attuned"
+        ) {
+          getAudioManager(projected.audioSettings).playSfx("attune_success");
+          return;
+        }
+
+        getAudioManager(projected.audioSettings).playSfx("ui_select");
+        return;
       }
 
-      commitState(stateToCommit);
-
-      if (progressToSave) {
-        void saveProgress(progressToSave);
-      }
+      commitState(nextState);
     },
-    [commitState, saveProgress],
+    [commitState, getAudioManager, projectAndSaveState],
   );
+
+  const handleAudioSettingsChange = useCallback((
+    settings: Partial<WonderAcademyAudioSettings>,
+  ) => {
+    const currentState = stateRef.current;
+    const currentProgress = currentState.progress;
+
+    if (!currentProgress) return;
+
+    const nextAudioSettings = getAudioManager(currentProgress.audioSettings).setSettings(settings);
+    const projected = projectWonderAcademyProgress(
+      currentProgress,
+      currentState,
+      new Date().toISOString(),
+    );
+    const progress = {
+      ...projected,
+      audioSettings: nextAudioSettings,
+    };
+
+    commitState(withCommittedProgress(currentState, progress));
+    getAudioManager(nextAudioSettings).playSfx("ui_select");
+    void saveProgress(progress);
+  }, [commitState, getAudioManager, saveProgress]);
+
+  const handleReturnHub = useCallback(() => {
+    if (stateRef.current.paused || stateRef.current.isPaused) {
+      handleAction({ type: "togglePause" });
+    }
+
+    handleAction({ type: "returnHub" });
+  }, [handleAction]);
 
   const effectiveSaveStatus: SaveStatus =
     authLoading || (user && loadedUserId !== user.uid)
@@ -289,6 +400,73 @@ export default function WonderAcademyPage({ onExit }: WonderAcademyPageProps) {
       : createInitialWonderAcademyState({ progress: null });
   const activeLoadError = user && loadedUserId === user.uid ? loadError : null;
   const hasProgress = Boolean(activeState.progress);
+  const audioSettings = activeState.progress?.audioSettings;
+  const isPaused = activeState.paused || activeState.isPaused;
+
+  useEffect(() => {
+    if (!audioSettings) return;
+
+    getAudioManager(audioSettings).setSettings(audioSettings);
+  }, [audioSettings, getAudioManager]);
+
+  useEffect(() => {
+    if (!hasProgress || !audioSettings) {
+      audioManagerRef.current?.stopAll();
+      activeLoopRef.current = null;
+      return;
+    }
+
+    const manager = getAudioManager(audioSettings);
+    const nextLoop = getLoopForMode(activeState.mode);
+
+    if (activeLoopRef.current && activeLoopRef.current !== nextLoop) {
+      manager.stopLoop(activeLoopRef.current);
+    }
+
+    activeLoopRef.current = nextLoop;
+
+    if (nextLoop) {
+      manager.startLoop(nextLoop);
+    }
+  }, [activeState.mode, audioSettings, getAudioManager, hasProgress]);
+
+  useEffect(() => {
+    return () => {
+      audioManagerRef.current?.stopAll();
+    };
+  }, []);
+
+  useEffect(() => {
+    const pauseTrialOnBackground = () => {
+      const currentState = stateRef.current;
+
+      if (
+        !currentState.progress ||
+        currentState.mode !== "moodTrial" ||
+        currentState.paused ||
+        currentState.isPaused
+      ) {
+        return;
+      }
+
+      const pausedState = applyWonderAcademyAction(currentState, { type: "togglePause" });
+      projectAndSaveState(currentState.progress, pausedState);
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        pauseTrialOnBackground();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("pagehide", pauseTrialOnBackground);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("pagehide", pauseTrialOnBackground);
+    };
+  }, [projectAndSaveState]);
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -417,6 +595,106 @@ export default function WonderAcademyPage({ onExit }: WonderAcademyPageProps) {
               onAction={handleAction}
               assets={WONDER_ACADEMY_ASSETS}
             />
+            {audioSettings && (
+              <div
+                className={[
+                  "mt-4 flex flex-col gap-3 rounded-[10px] border border-border-hairline bg-card p-3 shadow-sm",
+                  isPaused ? "ring-1 ring-accent/40" : "",
+                ].join(" ")}
+              >
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold">
+                      {activeState.currentObjective.label}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {isPaused ? "Paused" : "Settings"}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {isPaused && (
+                      <button
+                        type="button"
+                        onClick={() => handleAction({ type: "togglePause" })}
+                        className="btn btn-primary btn-sm min-h-11 rounded-[6px]"
+                      >
+                        <Play className="size-4" strokeWidth={1.75} aria-hidden="true" />
+                        Continue
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={handleReturnHub}
+                      className="btn btn-outline btn-sm min-h-11 rounded-[6px]"
+                    >
+                      <Home className="size-4" strokeWidth={1.75} aria-hidden="true" />
+                      Return to Hub
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] md:items-center">
+                  <label className="flex min-h-11 items-center gap-3 rounded-[6px] bg-background/50 px-3">
+                    <Volume2 className="size-4 shrink-0 text-muted-foreground" strokeWidth={1.75} aria-hidden="true" />
+                    <span className="w-24 text-sm font-medium">Music</span>
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      step="1"
+                      value={Math.round(audioSettings.musicVolume * 100)}
+                      onChange={(event) =>
+                        handleAudioSettingsChange({
+                          musicVolume: Number(event.currentTarget.value) / 100,
+                        })
+                      }
+                      className="range range-primary range-xs"
+                      aria-label="Music volume"
+                    />
+                    <span className="w-10 text-right text-xs text-muted-foreground">
+                      {formatPercent(audioSettings.musicVolume)}
+                    </span>
+                  </label>
+
+                  <label className="flex min-h-11 items-center gap-3 rounded-[6px] bg-background/50 px-3">
+                    <Volume2 className="size-4 shrink-0 text-muted-foreground" strokeWidth={1.75} aria-hidden="true" />
+                    <span className="w-24 text-sm font-medium">SFX</span>
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      step="1"
+                      value={Math.round(audioSettings.sfxVolume * 100)}
+                      onChange={(event) =>
+                        handleAudioSettingsChange({
+                          sfxVolume: Number(event.currentTarget.value) / 100,
+                        })
+                      }
+                      className="range range-primary range-xs"
+                      aria-label="SFX volume"
+                    />
+                    <span className="w-10 text-right text-xs text-muted-foreground">
+                      {formatPercent(audioSettings.sfxVolume)}
+                    </span>
+                  </label>
+
+                  <label className="flex min-h-11 items-center gap-3 rounded-[6px] bg-background/50 px-3">
+                    <input
+                      type="checkbox"
+                      checked={audioSettings.muted}
+                      onChange={(event) =>
+                        handleAudioSettingsChange({
+                          muted: event.currentTarget.checked,
+                        })
+                      }
+                      className="toggle toggle-primary"
+                      aria-label="Mute audio"
+                    />
+                    <span className="text-sm font-medium">Mute</span>
+                  </label>
+                </div>
+              </div>
+            )}
             <div className="mt-4 flex justify-end">
               <button
                 type="button"

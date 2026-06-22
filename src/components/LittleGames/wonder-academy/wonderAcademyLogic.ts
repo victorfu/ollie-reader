@@ -166,6 +166,70 @@ function normalizeProgress(progress: WonderAcademyProgress): WonderAcademyProgre
   };
 }
 
+function getSafeResumePoint(
+  previous: WonderAcademyProgress,
+  state: WonderAcademyState,
+): WonderAcademyProgress["lastSafeResumePoint"] {
+  if (state.mode === "hub" || state.mode === "regionMap") {
+    return state.mode;
+  }
+
+  if (state.mode === "moodTrial" && (state.moodTrial || state.trial)) {
+    return "moodTrial";
+  }
+
+  return previous.lastSafeResumePoint || "hub";
+}
+
+function cloneProgressWithUpdatedObjective(
+  progress: WonderAcademyProgress,
+  now: string,
+): WonderAcademyProgress {
+  const clonedProgress = normalizeProgress(progress);
+  const currentObjective = getObjectiveForProgress(clonedProgress);
+
+  return {
+    ...clonedProgress,
+    updatedAt: now,
+    storyProgress: {
+      ...clonedProgress.storyProgress,
+      currentObjectiveId: currentObjective.id,
+    },
+  };
+}
+
+export function projectWonderAcademyProgress(
+  previous: WonderAcademyProgress,
+  state: WonderAcademyState,
+  now: string,
+): WonderAcademyProgress {
+  if (!state.progress || state.progress.userId !== previous.userId) {
+    return cloneProgressWithUpdatedObjective(previous, now);
+  }
+
+  const previousClone = normalizeProgress(previous);
+  const currentObjective = getCurrentObjective({
+    currentChapterId: state.currentChapterId,
+    currentNodeId: state.currentNodeId,
+    completedNodeIds: state.completedNodeIds,
+  });
+
+  return {
+    ...previousClone,
+    updatedAt: now,
+    lastSafeResumePoint: getSafeResumePoint(previousClone, state),
+    storyProgress: {
+      ...previousClone.storyProgress,
+      currentChapterId: state.currentChapterId,
+      currentNodeId: state.currentNodeId,
+      currentObjectiveId: currentObjective.id,
+    },
+    unlockedNodeIds: uniqueValues(state.unlockedNodeIds),
+    completedNodeIds: uniqueValues(state.completedNodeIds),
+    wonderdex: { ...state.wonderdex },
+  };
+}
+
 function withProgress(state: WonderAcademyState, progress: WonderAcademyProgress): WonderAcademyState {
   const normalizedProgress = normalizeProgress(progress);
 

@@ -3,6 +3,7 @@ import { createInitialWonderAcademyProgress } from "../../../services/wonderAcad
 import {
   applyWonderAcademyAction,
   createInitialWonderAcademyState,
+  projectWonderAcademyProgress,
   selectAdjacentNodeIds,
 } from "./wonderAcademyLogic";
 
@@ -258,5 +259,151 @@ describe("Wonder Academy pure game logic", () => {
     expect(state.currentObjective.targetNodeId).toBe("sparkleaf-warden");
     expect(state.progress?.unlockedNodeIds).not.toContain("sparkleaf-warden");
     expect(selectAdjacentNodeIds(state)).not.toContain("sparkleaf-warden");
+  });
+});
+
+describe("Wonder Academy progress projection", () => {
+  it("projects movement state to progress without mutating previous progress", () => {
+    const previous = createProgress();
+    const previousSnapshot = structuredClone(previous);
+    const moved = applyWonderAcademyAction(
+      createInitialWonderAcademyState({ progress: previous, mode: "regionMap" }),
+      {
+        type: "moveToNode",
+        nodeId: "firefly-clearing",
+      },
+    );
+
+    const projected = projectWonderAcademyProgress(
+      previous,
+      moved,
+      "2026-06-22T02:00:00.000Z",
+    );
+
+    expect(projected).not.toBe(previous);
+    expect(previous).toEqual(previousSnapshot);
+    expect(projected.updatedAt).toBe("2026-06-22T02:00:00.000Z");
+    expect(projected.storyProgress).toEqual({
+      currentChapterId: "sparkleaf-grove",
+      currentNodeId: "firefly-clearing",
+      currentObjectiveId: "comfort-mossmew",
+    });
+    expect(projected.unlockedNodeIds).toEqual(["academy-gate", "firefly-clearing"]);
+    expect(projected.completedNodeIds).toEqual([]);
+    expect(projected.lastSafeResumePoint).toBe("regionMap");
+  });
+
+  it("projects successful Attune progress fields and next objective", () => {
+    const previous = createProgress();
+    const atClearing = applyWonderAcademyAction(
+      createInitialWonderAcademyState({ progress: previous, mode: "regionMap" }),
+      {
+        type: "moveToNode",
+        nodeId: "firefly-clearing",
+      },
+    );
+    const started = applyWonderAcademyAction(atClearing, { type: "startMoodTrial" });
+    const comforted = applyWonderAcademyAction(started, { type: "comfort" });
+    const snacked = applyWonderAcademyAction(comforted, {
+      type: "snack",
+      snackId: "starberry-cookie",
+    });
+    const skilled = applyWonderAcademyAction(snacked, {
+      type: "skill",
+      skillId: "tiny-flash",
+    });
+    const attuned = applyWonderAcademyAction(skilled, { type: "attune" });
+
+    const projected = projectWonderAcademyProgress(
+      previous,
+      attuned,
+      "2026-06-22T02:15:00.000Z",
+    );
+
+    expect(projected.completedNodeIds).toContain("firefly-clearing");
+    expect(projected.unlockedNodeIds).toContain("mossy-bridge");
+    expect(projected.wonderdex.mossmew).toBe("attuned");
+    expect(projected.storyProgress.currentObjectiveId).toBe("repair-mossy-bridge");
+    expect(projected.lastSafeResumePoint).toBe("regionMap");
+  });
+
+  it("preserves audio settings and unrelated inventory fields during projection", () => {
+    const previous = {
+      ...createProgress(),
+      snacks: {
+        "starberry-cookie": 2,
+      },
+      audioSettings: {
+        musicVolume: 0.12,
+        sfxVolume: 0.34,
+        muted: true,
+      },
+    };
+    const moved = applyWonderAcademyAction(
+      createInitialWonderAcademyState({ progress: previous, mode: "regionMap" }),
+      {
+        type: "moveToNode",
+        nodeId: "firefly-clearing",
+      },
+    );
+
+    const projected = projectWonderAcademyProgress(
+      previous,
+      moved,
+      "2026-06-22T02:30:00.000Z",
+    );
+
+    expect(projected.audioSettings).toEqual(previous.audioSettings);
+    expect(projected.audioSettings).not.toBe(previous.audioSettings);
+    expect(projected.snacks).toEqual(previous.snacks);
+    expect(projected.snacks).not.toBe(previous.snacks);
+  });
+
+  it("falls back to a conservative previous progress clone when state progress is missing", () => {
+    const previous = createProgress();
+    const stateWithoutProgress = {
+      ...createInitialWonderAcademyState({ progress: null }),
+      currentChapterId: "sparkleaf-grove",
+      currentNodeId: "firefly-clearing",
+      completedNodeIds: ["firefly-clearing"],
+    };
+
+    const projected = projectWonderAcademyProgress(
+      previous,
+      stateWithoutProgress,
+      "2026-06-22T02:45:00.000Z",
+    );
+
+    expect(projected).not.toBe(previous);
+    expect(projected.updatedAt).toBe("2026-06-22T02:45:00.000Z");
+    expect(projected.storyProgress.currentNodeId).toBe("academy-gate");
+    expect(projected.completedNodeIds).toEqual([]);
+    expect(projected.storyProgress.currentObjectiveId).toBe("go-firefly-clearing");
+  });
+
+  it("falls back to previous progress when reducer state belongs to another user", () => {
+    const previous = createProgress();
+    const otherProgress = createInitialWonderAcademyProgress({
+      userId: "keeper-2",
+      now: "2026-06-22T01:00:00.000Z",
+    });
+    const movedOtherState = applyWonderAcademyAction(
+      createInitialWonderAcademyState({ progress: otherProgress, mode: "regionMap" }),
+      {
+        type: "moveToNode",
+        nodeId: "firefly-clearing",
+      },
+    );
+
+    const projected = projectWonderAcademyProgress(
+      previous,
+      movedOtherState,
+      "2026-06-22T03:00:00.000Z",
+    );
+
+    expect(projected.userId).toBe("keeper-1");
+    expect(projected.storyProgress.currentNodeId).toBe("academy-gate");
+    expect(projected.completedNodeIds).toEqual([]);
+    expect(projected.updatedAt).toBe("2026-06-22T03:00:00.000Z");
   });
 });
