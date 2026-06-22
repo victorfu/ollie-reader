@@ -151,6 +151,67 @@ describe("Wonder Academy progress service", () => {
     await expect(service.load("user-1")).resolves.toEqual(pendingProgress);
   });
 
+  it("loads cloud progress over cached progress", async () => {
+    const storage = memoryStorage();
+    const cachedProgress = createInitialWonderAcademyProgress({
+      userId: "user-1",
+      starterSpeciesId: "lumi",
+      now: "2026-06-22T10:00:00.000Z",
+    });
+    const cloudProgress = createInitialWonderAcademyProgress({
+      userId: "user-1",
+      starterSpeciesId: "pico",
+      now: "2026-06-22T10:05:00.000Z",
+    });
+    storage.setItem(WONDER_ACADEMY_CACHE_KEY, JSON.stringify(cachedProgress));
+    const service = createWonderAcademyProgressService({
+      storage,
+      getCloudProgress: vi.fn<() => Promise<typeof cloudProgress>>().mockResolvedValue(cloudProgress),
+      setCloudProgress: vi.fn(),
+    });
+
+    await expect(service.load("user-1")).resolves.toEqual(cloudProgress);
+  });
+
+  it("loads cached progress when cloud progress is absent", async () => {
+    const storage = memoryStorage();
+    const cachedProgress = createInitialWonderAcademyProgress({
+      userId: "user-1",
+      starterSpeciesId: "nibi",
+      now: "2026-06-22T10:00:00.000Z",
+    });
+    storage.setItem(WONDER_ACADEMY_CACHE_KEY, JSON.stringify(cachedProgress));
+    const service = createWonderAcademyProgressService({
+      storage,
+      getCloudProgress: vi.fn<() => Promise<null>>().mockResolvedValue(null),
+      setCloudProgress: vi.fn(),
+    });
+
+    await expect(service.load("user-1")).resolves.toEqual(cachedProgress);
+  });
+
+  it("loads newer cloud progress over older pending progress", async () => {
+    const storage = memoryStorage();
+    const pendingProgress = createInitialWonderAcademyProgress({
+      userId: "user-1",
+      starterSpeciesId: "momo",
+      now: "2026-06-22T10:00:00.000Z",
+    });
+    const cloudProgress = createInitialWonderAcademyProgress({
+      userId: "user-1",
+      starterSpeciesId: "pico",
+      now: "2026-06-22T10:05:00.000Z",
+    });
+    storage.setItem(WONDER_ACADEMY_PENDING_KEY, JSON.stringify(pendingProgress));
+    const service = createWonderAcademyProgressService({
+      storage,
+      getCloudProgress: vi.fn<() => Promise<typeof cloudProgress>>().mockResolvedValue(cloudProgress),
+      setCloudProgress: vi.fn(),
+    });
+
+    await expect(service.load("user-1")).resolves.toEqual(cloudProgress);
+  });
+
   it("ignores malformed local JSON while loading", async () => {
     const storage = memoryStorage();
     storage.setItem(WONDER_ACADEMY_PENDING_KEY, "{broken");
