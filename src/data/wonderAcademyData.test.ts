@@ -30,8 +30,14 @@ describe("Wonder Academy data", () => {
   it("builds Sparkleaf Grove as adjacent node movement", () => {
     const chapter = WONDER_ACADEMY_CHAPTERS[0];
     expect(chapter.id).toBe("sparkleaf-grove");
-    expect(chapter.nodes.length).toBeGreaterThanOrEqual(6);
-    expect(chapter.nodes.length).toBeLessThanOrEqual(10);
+    expect(chapter.nodes.map((node) => node.id)).toEqual([
+      "academy-gate",
+      "firefly-clearing",
+      "mossy-bridge",
+      "hidden-burrow",
+      "snack-stump",
+      "sparkleaf-warden",
+    ]);
     expect(getNodeById("sparkleaf-grove", "academy-gate")?.adjacentNodeIds).toContain(
       "firefly-clearing",
     );
