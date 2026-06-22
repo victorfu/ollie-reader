@@ -13,7 +13,7 @@ import {
   type MonsterAcademyBattle,
   type MonsterAcademyBattleState,
 } from "./monsterAcademyData";
-import { startKaplaySceneWhenReady } from "./kaplayLifecycle";
+import { startKaplaySceneWhenReady } from "../kaplayLifecycle";
 
 export const MONSTER_ACADEMY_WIDTH = 1280;
 export const MONSTER_ACADEMY_HEIGHT = 800;

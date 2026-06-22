@@ -1,7 +1,7 @@
 import kaplay, { type GameObj, type KAPLAYCtx, type TextComp } from "kaplay";
 import { getChapterById, getNodeById } from "../../../data/wonderAcademyData";
 import type { WonderAcademyMapNode } from "../../../types/wonderAcademy";
-import { startKaplaySceneWhenReady } from "../monster-academy/kaplayLifecycle";
+import { startKaplaySceneWhenReady } from "../kaplayLifecycle";
 import {
   selectAdjacentNodeIds,
   type WonderAcademyAction,

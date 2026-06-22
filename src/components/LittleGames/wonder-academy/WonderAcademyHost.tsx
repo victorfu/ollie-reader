@@ -1,6 +1,6 @@
 import { Map, Pause, Play, Sparkles, Utensils, WandSparkles } from "lucide-react";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
-import { scheduleKaplayInit } from "../monster-academy/kaplayLifecycle";
+import { scheduleKaplayInit } from "../kaplayLifecycle";
 import {
   createWonderAcademyGame,
   WONDER_ACADEMY_HEIGHT,

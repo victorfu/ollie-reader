@@ -6,7 +6,7 @@ import {
   type MonsterAcademyGameController,
   type MonsterAcademySnapshot,
 } from "./monsterAcademyGame";
-import { scheduleKaplayInit } from "./kaplayLifecycle";
+import { scheduleKaplayInit } from "../kaplayLifecycle";
 
 type MonsterAcademyHostProps = {
   assets: MonsterAcademyAssets;
