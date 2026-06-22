@@ -1,16 +1,12 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getBestScore } from "./lib/game-utils";
-import {
-  getMonsterAcademyBest,
-  MONSTER_ACADEMY_BEST_KEY,
-} from "./monster-academy/monsterAcademyData";
 
 const METEOR_BEST_KEY = "meteor-glider-best";
 const MUSHROOM_BEST_KEY = "mushroom-adventure-best";
 
 type GameCard = {
-  id: "bunny" | "meteor" | "mushroom" | "monster-academy";
+  id: "bunny" | "meteor" | "mushroom" | "wonder-academy";
   to: string;
   title: string;
   blurb: string;
@@ -31,20 +27,18 @@ export default function GameHub() {
   const [bunnyBest] = useState(() => getBestScore());
   const [meteorBest] = useState(() => readBest(METEOR_BEST_KEY));
   const [mushroomBest] = useState(() => readBest(MUSHROOM_BEST_KEY));
-  const [monsterAcademyBest] = useState(() =>
-    getMonsterAcademyBest(localStorage),
-  );
 
   const cards: GameCard[] = useMemo(
     () => [
       {
-        id: "monster-academy",
-        to: "/games/monster-academy",
-        title: "Ollie Monster Academy",
-        blurb: "全螢幕 KAPLAY RPG：探索魔法學院、挑戰可愛怪獸、修復水晶鐘。",
+        id: "wonder-academy",
+        to: "/games/wonder-academy",
+        title: "Wonder Academy",
+        blurb:
+          "全螢幕 cozy RPG：選擇 Wonderling 夥伴、探索 Sparkleaf Grove、用 Attune 建立連結。",
         tag: "RPG",
         emoji: "✨",
-        best: monsterAcademyBest,
+        best: null,
       },
       {
         id: "bunny",
@@ -74,11 +68,11 @@ export default function GameHub() {
         best: meteorBest,
       },
     ],
-    [bunnyBest, meteorBest, mushroomBest, monsterAcademyBest],
+    [bunnyBest, meteorBest, mushroomBest],
   );
 
   const openGame = (card: GameCard) => {
-    if (card.id === "monster-academy") {
+    if (card.id === "wonder-academy") {
       window.open(card.to, "_blank", "noopener,noreferrer");
       return;
     }
@@ -122,8 +116,8 @@ export default function GameHub() {
               <span className="text-xs text-muted-foreground">
                 {card.best && card.best > 0
                   ? `最高星星 ${card.best}`
-                  : card.id === "monster-academy"
-                    ? `保存在 ${MONSTER_ACADEMY_BEST_KEY}`
+                  : card.id === "wonder-academy"
+                    ? "Firestore 雲端存檔"
                     : "尚無紀錄"}
               </span>
               <button
@@ -131,7 +125,7 @@ export default function GameHub() {
                 onClick={() => openGame(card)}
                 className="btn btn-primary btn-sm rounded-[6px]"
               >
-                {card.id === "monster-academy" ? "新分頁開啟" : "開始遊戲"}
+                {card.id === "wonder-academy" ? "新分頁開啟" : "開始遊戲"}
               </button>
             </div>
           </article>

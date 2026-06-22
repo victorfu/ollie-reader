@@ -4,6 +4,7 @@ import {
   Routes,
   Route,
   Link,
+  Navigate,
   useLocation,
   useNavigate,
 } from "react-router-dom";
@@ -83,8 +84,8 @@ const MeteorGlider = lazyWithReload(
 const MushroomAdventure = lazyWithReload(
   () => import("./components/LittleGames/MushroomAdventure"),
 );
-const MonsterAcademyPage = lazyWithReload(
-  () => import("./components/LittleGames/monster-academy/MonsterAcademyPage"),
+const WonderAcademyPage = lazyWithReload(
+  () => import("./components/LittleGames/wonder-academy/WonderAcademyPage"),
 );
 
 const SIDEBAR_COLLAPSED_KEY = "ollie-sidebar-collapsed";
@@ -297,27 +298,22 @@ function AppContent() {
   }, [isMobileMenuOpen]);
 
   const normalizedPathname = location.pathname.replace(/\/+$/, "") || "/";
-  const isStandaloneMonsterAcademy =
+  const isStandaloneWonderAcademy =
+    normalizedPathname === "/games/wonder-academy";
+  const isLegacyMonsterAcademy =
     normalizedPathname === "/games/monster-academy";
 
-  if (isStandaloneMonsterAcademy) {
-    if (loading) {
-      return (
-        <div className="flex min-h-screen items-center justify-center bg-[#101426]">
-          <span
-            className="loading loading-spinner loading-lg text-warning"
-            aria-label="載入遊戲"
-          />
-        </div>
-      );
-    }
+  if (isLegacyMonsterAcademy) {
+    return <Navigate to="/games/wonder-academy" replace />;
+  }
 
+  if (isStandaloneWonderAcademy) {
     return (
       <SettingsProvider>
         <SpeechProvider>
           <PdfProvider>
             <Suspense fallback={<RouteLoadingFallback />}>
-              <MonsterAcademyPage onExit={() => navigate("/games")} />
+              <WonderAcademyPage onExit={() => navigate("/games")} />
             </Suspense>
           </PdfProvider>
         </SpeechProvider>
