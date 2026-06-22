@@ -1,157 +1,228 @@
 import { Map, Pause, Play, Sparkles, Utensils, WandSparkles } from "lucide-react";
-import { getNodeById } from "../../../data/wonderAcademyData";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { scheduleKaplayInit } from "../monster-academy/kaplayLifecycle";
+import {
+  createWonderAcademyGame,
+  WONDER_ACADEMY_HEIGHT,
+  WONDER_ACADEMY_WIDTH,
+  type WonderAcademyAssets,
+  type WonderAcademyGameController,
+} from "./wonderAcademyGame";
 import type { WonderAcademyAction, WonderAcademyState } from "./wonderAcademyLogic";
-import { selectAdjacentNodeIds } from "./wonderAcademyLogic";
 
 type WonderAcademyHostProps = {
   state: WonderAcademyState;
   onAction: (action: WonderAcademyAction) => void;
+  assets: WonderAcademyAssets;
 };
+
+let activeWonderAcademyGame: WonderAcademyGameController | null = null;
+
+const MOBILE_TRIAL_COMMANDS = [
+  { action: { type: "comfort" } as const, label: "Comfort", icon: Sparkles },
+  {
+    action: { type: "skill", skillId: "tiny-flash" } as const,
+    label: "Flash",
+    icon: WandSparkles,
+  },
+  {
+    action: { type: "snack", snackId: "starberry-cookie" } as const,
+    label: "Snack",
+    icon: Utensils,
+  },
+  { action: { type: "attune" } as const, label: "Attune", icon: Sparkles },
+];
 
 export default function WonderAcademyHost({
   state,
   onAction,
+  assets,
 }: WonderAcademyHostProps) {
-  const adjacentNodeIds = selectAdjacentNodeIds(state);
-  const currentNode = getNodeById(state.currentChapterId, state.currentNodeId);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const stageRef = useRef<HTMLDivElement>(null);
+  const controllerRef = useRef<WonderAcademyGameController | null>(null);
+  const callbacksRef = useRef({ onAction });
+  const stateRef = useRef(state);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
+
+  useEffect(() => {
+    callbacksRef.current = { onAction };
+  }, [onAction]);
+
+  useEffect(() => {
+    stateRef.current = state;
+    controllerRef.current?.updateState(state);
+  }, [state]);
+
+  useEffect(() => {
+    const stage = stageRef.current;
+    if (!stage) return;
+
+    let frame = 0;
+    const aspectRatio = WONDER_ACADEMY_WIDTH / WONDER_ACADEMY_HEIGHT;
+    const measure = () => {
+      const rect = stage.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) return;
+
+      const width = Math.floor(Math.min(rect.width, rect.height * aspectRatio));
+      const height = Math.floor(width / aspectRatio);
+      setCanvasSize((current) =>
+        current.width === width && current.height === height
+          ? current
+          : { width, height },
+      );
+    };
+    const queueMeasure = () => {
+      window.cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(measure);
+    };
+    const resizeObserver = new ResizeObserver(queueMeasure);
+
+    resizeObserver.observe(stage);
+    queueMeasure();
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      resizeObserver.disconnect();
+    };
+  }, []);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    let disposed = false;
+
+    const cancelScheduledInit = scheduleKaplayInit(() => {
+      if (disposed) return;
+
+      try {
+        activeWonderAcademyGame?.quit();
+        const controller = createWonderAcademyGame({
+          canvas,
+          assets,
+          state: stateRef.current,
+          onAction: (action) => callbacksRef.current.onAction(action),
+          onReady: () => {
+            if (!disposed) setLoading(false);
+          },
+          onError: (nextError) => {
+            if (disposed) return;
+            setError(nextError.message);
+            setLoading(false);
+          },
+        });
+        controllerRef.current = controller;
+        activeWonderAcademyGame = controller;
+      } catch (nextError) {
+        const message =
+          nextError instanceof Error
+            ? nextError.message
+            : "Unable to start Wonder Academy.";
+        setError(message);
+        setLoading(false);
+      }
+    });
+
+    return () => {
+      disposed = true;
+      cancelScheduledInit();
+      const controller = controllerRef.current;
+      controllerRef.current = null;
+      if (controller) {
+        if (activeWonderAcademyGame === controller) {
+          activeWonderAcademyGame = null;
+        }
+        controller.quit();
+      }
+    };
+  }, [assets]);
+
   const hasProgress = Boolean(state.progress);
   const isPaused = state.paused || state.isPaused;
   const isMoodTrial = state.mode === "moodTrial";
+  const canOpenMap = hasProgress && !isPaused;
+  const canUseTrialCommands = isMoodTrial && !isPaused;
+  const gameFrameStyle: CSSProperties =
+    canvasSize.width > 0
+      ? { width: canvasSize.width, height: canvasSize.height }
+      : { aspectRatio: "16 / 10", width: "100%" };
 
   return (
-    <section className="grid min-h-[560px] gap-4 lg:grid-cols-[minmax(0,1fr)_18rem]">
-      <div className="relative overflow-hidden rounded-[10px] border border-border-hairline bg-card shadow-lg">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,oklch(0.6_0.2_250_/_18%),transparent_34%),linear-gradient(135deg,oklch(0.98_0_0),oklch(0.93_0.05_145))] dark:bg-[radial-gradient(circle_at_top_left,oklch(0.65_0.22_250_/_18%),transparent_34%),linear-gradient(135deg,oklch(0.18_0_0),oklch(0.16_0.04_145))]" />
-        <div className="relative flex min-h-[560px] flex-col justify-between p-5 sm:p-6">
-          <div className="max-w-2xl">
-            <div className="inline-flex items-center gap-2 rounded-full border border-border-hairline bg-background/75 px-3 py-1 text-xs font-semibold text-muted-foreground shadow-sm backdrop-blur-md">
-              <Sparkles className="size-3.5" strokeWidth={1.75} aria-hidden="true" />
-              {state.mode === "regionMap"
-                ? "Sparkleaf Grove Map"
-                : isMoodTrial
-                  ? "Mood Trial"
-                  : "Academy Hub"}
-            </div>
-            <h2 className="mt-4 text-2xl font-semibold tracking-tight sm:text-3xl">
-              {currentNode?.label ?? "Wonder Academy"}
-            </h2>
-            <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">
-              {state.currentObjective.description}
-            </p>
-          </div>
+    <div className="flex h-full min-h-[420px] w-full flex-col gap-2 sm:gap-3">
+      <div
+        ref={stageRef}
+        className="flex min-h-0 flex-1 items-start justify-center overflow-hidden pt-1 sm:items-center sm:pt-0"
+      >
+        <div
+          className="relative overflow-hidden rounded-[14px] border border-white/15 bg-[#122022] shadow-2xl"
+          style={gameFrameStyle}
+        >
+          <canvas
+            ref={canvasRef}
+            className="block h-full w-full touch-none bg-[#122022]"
+            aria-label="Wonder Academy game canvas"
+          />
 
-          <div className="rounded-[10px] border border-border-hairline bg-background/75 p-4 shadow-sm backdrop-blur-xl">
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={() => onAction({ type: "openRegionMap" })}
-                disabled={!hasProgress}
-                className="btn btn-outline btn-sm min-h-11 rounded-[6px]"
-              >
-                <Map className="size-4" strokeWidth={1.75} aria-hidden="true" />
-                Map
-              </button>
-              <button
-                type="button"
-                onClick={() => onAction({ type: "startMoodTrial", nodeId: state.currentNodeId })}
-                disabled={!hasProgress || isPaused}
-                className="btn btn-outline btn-sm min-h-11 rounded-[6px]"
-              >
-                Mood Trial
-              </button>
-              <button
-                type="button"
-                onClick={() => onAction({ type: "comfort" })}
-                disabled={!isMoodTrial || isPaused}
-                className="btn btn-outline btn-sm min-h-11 rounded-[6px]"
-              >
-                Comfort
-              </button>
-              <button
-                type="button"
-                onClick={() => onAction({ type: "skill", skillId: "tiny-flash" })}
-                disabled={!isMoodTrial || isPaused}
-                className="btn btn-outline btn-sm min-h-11 rounded-[6px]"
-              >
-                <WandSparkles className="size-4" strokeWidth={1.75} aria-hidden="true" />
-                Tiny Flash
-              </button>
-              <button
-                type="button"
-                onClick={() => onAction({ type: "snack", snackId: "starberry-cookie" })}
-                disabled={!isMoodTrial || isPaused}
-                className="btn btn-outline btn-sm min-h-11 rounded-[6px]"
-              >
-                <Utensils className="size-4" strokeWidth={1.75} aria-hidden="true" />
-                Snack
-              </button>
-              <button
-                type="button"
-                onClick={() => onAction({ type: "attune" })}
-                disabled={!isMoodTrial || isPaused}
-                className="btn btn-primary btn-sm min-h-11 rounded-[6px]"
-              >
-                Attune
-              </button>
-              <button
-                type="button"
-                onClick={() => onAction({ type: "togglePause" })}
-                disabled={!hasProgress}
-                className="btn btn-ghost btn-sm min-h-11 rounded-[6px]"
-              >
-                {isPaused ? (
-                  <Play className="size-4" strokeWidth={1.75} aria-hidden="true" />
-                ) : (
-                  <Pause className="size-4" strokeWidth={1.75} aria-hidden="true" />
-                )}
-                {isPaused ? "Resume" : "Pause"}
-              </button>
+          {loading && (
+            <div className="absolute inset-0 flex items-center justify-center bg-[#122022]">
+              <span
+                className="loading loading-spinner loading-lg text-primary"
+                aria-label="Loading Wonder Academy"
+              />
             </div>
-          </div>
+          )}
+
+          {error && (
+            <div className="absolute inset-0 flex items-center justify-center bg-[#122022]/95 px-6 text-center">
+              <div className="max-w-md rounded-[14px] border border-white/15 bg-white/10 p-5 text-white shadow-xl backdrop-blur-xl">
+                <p className="text-base font-semibold">Game failed to load</p>
+                <p className="mt-2 text-sm text-white/75">{error}</p>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
-      <aside className="rounded-[10px] border border-border-hairline bg-card p-4 shadow-sm">
-        <div>
-          <h3 className="text-sm font-semibold">Current Objective</h3>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {state.currentObjective.label}
-          </p>
-        </div>
-
-        <div className="mt-5">
-          <h3 className="text-sm font-semibold">Adjacent Nodes</h3>
-          <div className="mt-2 space-y-2">
-            {adjacentNodeIds.length > 0 ? (
-              adjacentNodeIds.map((nodeId) => {
-                const node = getNodeById(state.currentChapterId, nodeId);
-
-                return (
-                  <button
-                    key={nodeId}
-                    type="button"
-                    onClick={() => onAction({ type: "moveToNode", nodeId })}
-                    disabled={isPaused}
-                    className="flex min-h-11 w-full items-center justify-between rounded-[6px] border border-border-hairline bg-background/60 px-3 py-2 text-left text-sm transition-colors hover:bg-accent-tint hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:pointer-events-none disabled:opacity-50"
-                  >
-                    <span>{node?.label ?? nodeId}</span>
-                    <span className="text-xs text-muted-foreground">Move</span>
-                  </button>
-                );
-              })
-            ) : (
-              <p className="rounded-[6px] bg-background/60 px-3 py-2 text-sm text-muted-foreground">
-                No unlocked adjacent nodes yet.
-              </p>
-            )}
-          </div>
-        </div>
-
-        <div className="mt-5 rounded-[8px] bg-background/60 p-3 text-sm text-muted-foreground">
-          <p>Status: {isPaused ? "Paused" : "Ready"}</p>
-          {state.message && <p className="mt-2 text-foreground">{state.message}</p>}
-        </div>
-      </aside>
-    </section>
+      <div className="grid grid-cols-6 gap-2 sm:hidden">
+        <button
+          type="button"
+          onClick={() => controllerRef.current?.dispatch({ type: "openRegionMap" })}
+          disabled={!canOpenMap}
+          className="inline-flex min-h-12 flex-col items-center justify-center rounded-[10px] border border-white/15 bg-white/10 px-1 text-[11px] font-semibold text-white shadow-sm backdrop-blur-md transition active:scale-[0.98] disabled:opacity-45"
+        >
+          <Map className="mb-0.5 size-4" strokeWidth={1.8} aria-hidden="true" />
+          Map
+        </button>
+        <button
+          type="button"
+          onClick={() => controllerRef.current?.dispatch({ type: "togglePause" })}
+          disabled={!hasProgress}
+          className="inline-flex min-h-12 flex-col items-center justify-center rounded-[10px] border border-white/15 bg-white/10 px-1 text-[11px] font-semibold text-white shadow-sm backdrop-blur-md transition active:scale-[0.98] disabled:opacity-45"
+        >
+          {isPaused ? (
+            <Play className="mb-0.5 size-4" strokeWidth={1.8} aria-hidden="true" />
+          ) : (
+            <Pause className="mb-0.5 size-4" strokeWidth={1.8} aria-hidden="true" />
+          )}
+          {isPaused ? "Resume" : "Pause"}
+        </button>
+        {MOBILE_TRIAL_COMMANDS.map(({ action, label, icon: Icon }) => (
+          <button
+            key={label}
+            type="button"
+            onClick={() => controllerRef.current?.dispatch(action)}
+            disabled={!canUseTrialCommands}
+            className="inline-flex min-h-12 flex-col items-center justify-center rounded-[10px] border border-white/15 bg-white/10 px-1 text-[11px] font-semibold text-white shadow-sm backdrop-blur-md transition active:scale-[0.98] disabled:opacity-45 data-[primary=true]:border-amber-200/50 data-[primary=true]:bg-amber-300 data-[primary=true]:text-slate-950"
+            data-primary={action.type === "attune"}
+          >
+            <Icon className="mb-0.5 size-4" strokeWidth={1.8} aria-hidden="true" />
+            {label}
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }

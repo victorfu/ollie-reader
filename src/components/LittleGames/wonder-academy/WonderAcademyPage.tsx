@@ -1,5 +1,14 @@
 import { ArrowLeft, Cloud, CloudOff, LogIn, Play, Save } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import academyHubUrl from "../../../assets/games/wonder-academy/backgrounds/academy-hub.png";
+import moodTrialUrl from "../../../assets/games/wonder-academy/backgrounds/mood-trial.png";
+import sparkleafMapUrl from "../../../assets/games/wonder-academy/backgrounds/sparkleaf-map.png";
+import lumiPortraitUrl from "../../../assets/games/wonder-academy/starters/lumi-portrait.png";
+import momoPortraitUrl from "../../../assets/games/wonder-academy/starters/momo-portrait.png";
+import nibiPortraitUrl from "../../../assets/games/wonder-academy/starters/nibi-portrait.png";
+import picoPortraitUrl from "../../../assets/games/wonder-academy/starters/pico-portrait.png";
+import mossmewPortraitUrl from "../../../assets/games/wonder-academy/wonderlings/mossmew-portrait.png";
+import sparkleafFawnPortraitUrl from "../../../assets/games/wonder-academy/wonderlings/sparkleaf-fawn-portrait.png";
 import { useAuth } from "../../../hooks/useAuth";
 import {
   createInitialWonderAcademyProgress,
@@ -13,6 +22,7 @@ import {
   type WonderAcademyAction,
   type WonderAcademyState,
 } from "./wonderAcademyLogic";
+import type { WonderAcademyAssets } from "./wonderAcademyGame";
 
 type WonderAcademyPageProps = {
   onExit?: () => void;
@@ -26,6 +36,18 @@ const SAVE_STATUS_LABELS: Record<SaveStatus, string> = {
   saving: "Saving",
   pending: "Offline changes pending",
   failed: "Save failed",
+};
+
+const WONDER_ACADEMY_ASSETS: WonderAcademyAssets = {
+  academyHub: academyHubUrl,
+  sparkleafMap: sparkleafMapUrl,
+  moodTrial: moodTrialUrl,
+  lumiPortrait: lumiPortraitUrl,
+  momoPortrait: momoPortraitUrl,
+  picoPortrait: picoPortraitUrl,
+  nibiPortrait: nibiPortraitUrl,
+  mossmewPortrait: mossmewPortraitUrl,
+  sparkleafFawnPortrait: sparkleafFawnPortraitUrl,
 };
 
 function SaveStatusIcon({ status }: { status: SaveStatus }) {
@@ -342,8 +364,14 @@ export default function WonderAcademyPage({ onExit }: WonderAcademyPageProps) {
         )}
 
         {!authLoading && user && effectiveSaveStatus !== "loading" && !hasProgress && (
-          <section className="mx-auto flex min-h-[60vh] max-w-2xl items-center">
-            <div className="w-full rounded-[14px] border border-border-hairline bg-card p-6 shadow-lg">
+          <section className="mx-auto grid min-h-[60vh] max-w-7xl gap-4 lg:grid-cols-[minmax(0,1fr)_22rem]">
+            <WonderAcademyHost
+              state={activeState}
+              onAction={handleAction}
+              assets={WONDER_ACADEMY_ASSETS}
+            />
+
+            <div className="self-center rounded-[14px] border border-border-hairline bg-card p-6 shadow-lg">
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
                 New Game
               </p>
@@ -384,7 +412,11 @@ export default function WonderAcademyPage({ onExit }: WonderAcademyPageProps) {
                 {activeState.currentObjective.description}
               </p>
             </div>
-            <WonderAcademyHost state={activeState} onAction={handleAction} />
+            <WonderAcademyHost
+              state={activeState}
+              onAction={handleAction}
+              assets={WONDER_ACADEMY_ASSETS}
+            />
             <div className="mt-4 flex justify-end">
               <button
                 type="button"
