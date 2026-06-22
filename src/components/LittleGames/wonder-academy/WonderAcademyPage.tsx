@@ -481,7 +481,12 @@ export default function WonderAcademyPage({ onExit }: WonderAcademyPageProps) {
         result.progress,
       );
 
-      if (currentState.progress?.userId === result.progress.userId && !keepCurrentProgress) {
+      if (keepCurrentProgress) {
+        setSaveStatus("pending");
+        return;
+      }
+
+      if (currentState.progress?.userId === result.progress.userId) {
         commitState({
           ...createInitialWonderAcademyState({
             progress: result.progress,
