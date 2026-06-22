@@ -232,6 +232,20 @@ function writeStoredProgress(
   }
 }
 
+function writeStoredProgressIfNotOlder(
+  storage: Storage | null,
+  key: string,
+  progress: WonderAcademyProgress,
+) {
+  const storedProgress = readStoredProgress(storage, key, progress.userId);
+
+  if (storedProgress && compareUpdatedAt(storedProgress, progress) > 0) {
+    return;
+  }
+
+  writeStoredProgress(storage, key, progress);
+}
+
 function removeStoredProgress(
   storage: Storage | null,
   key: string,
@@ -439,7 +453,11 @@ export function createWonderAcademyProgressService({
         );
         return { cloudSaved: true, progress: cloudSavedProgress };
       } catch {
-        writeStoredProgress(storage, WONDER_ACADEMY_PENDING_KEY, progress);
+        writeStoredProgressIfNotOlder(
+          storage,
+          WONDER_ACADEMY_PENDING_KEY,
+          progress,
+        );
         return { cloudSaved: false, progress };
       }
     },
