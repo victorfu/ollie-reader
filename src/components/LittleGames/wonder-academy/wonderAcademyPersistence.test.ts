@@ -40,6 +40,47 @@ describe("Wonder Academy persistence helpers", () => {
     expect(second).toBe("2026-06-22T03:00:01.001Z");
   });
 
+  it("issues after a saved progress timestamp that is ahead of the local clock", () => {
+    const issueTimestamp = createWonderAcademySaveTimestampIssuer(
+      () => Date.parse("2026-06-22T03:00:00.000Z"),
+    );
+
+    const issued = issueTimestamp.issueAfter("2026-06-22T03:05:00.000Z");
+
+    expect(issued).toBe("2026-06-22T03:05:00.001Z");
+  });
+
+  it("keeps audio preview and immediate new game timestamps ordered in one millisecond", () => {
+    const issueTimestamp = createWonderAcademySaveTimestampIssuer(
+      () => Date.parse("2026-06-22T03:00:00.000Z"),
+    );
+
+    const audioPreviewTimestamp = issueTimestamp.issueAfter(
+      "2026-06-22T03:00:00.000Z",
+    );
+    const newGameTimestamp = issueTimestamp.issueAfter(
+      "2026-06-22T03:00:00.000Z",
+    );
+
+    expect(Date.parse(newGameTimestamp)).toBeGreaterThan(
+      Date.parse(audioPreviewTimestamp),
+    );
+    expect([audioPreviewTimestamp, newGameTimestamp]).toEqual([
+      "2026-06-22T03:00:00.001Z",
+      "2026-06-22T03:00:00.002Z",
+    ]);
+  });
+
+  it("ignores invalid saved progress timestamp floors", () => {
+    const issueTimestamp = createWonderAcademySaveTimestampIssuer(
+      () => Date.parse("2026-06-22T03:00:00.000Z"),
+    );
+
+    expect(issueTimestamp.issueAfter("not-a-date")).toBe(
+      "2026-06-22T03:00:00.000Z",
+    );
+  });
+
   it("allows pending audio progress to flush for the expected previous user", () => {
     const progress = createInitialWonderAcademyProgress({
       userId: "keeper-1",

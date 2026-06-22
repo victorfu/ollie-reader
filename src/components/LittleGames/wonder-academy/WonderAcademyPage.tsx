@@ -508,7 +508,7 @@ export default function WonderAcademyPage({ onExit }: WonderAcademyPageProps) {
   const projectAndSaveState = useCallback((
     previousProgress: WonderAcademyProgress,
     nextState: WonderAcademyState,
-    now = saveTimestampIssuerRef.current.issue(),
+    now = saveTimestampIssuerRef.current.issueAfter(previousProgress.updatedAt),
   ) => {
     const progress = projectWonderAcademyProgress(previousProgress, nextState, now);
     const stateWithProgress = withCommittedProgress(nextState, progress);
@@ -600,6 +600,9 @@ export default function WonderAcademyPage({ onExit }: WonderAcademyPageProps) {
       starterSpeciesId: "lumi",
       starterNickname: "Lumi",
       playerName: user.displayName ?? null,
+      now: saveTimestampIssuerRef.current.issueAfter(
+        stateRef.current.progress?.updatedAt,
+      ),
     });
 
     commitState(createInitialWonderAcademyState({ progress }));
@@ -659,7 +662,7 @@ export default function WonderAcademyPage({ onExit }: WonderAcademyPageProps) {
     const projected = projectWonderAcademyProgress(
       currentProgress,
       currentState,
-      saveTimestampIssuerRef.current.issue(),
+      saveTimestampIssuerRef.current.issueAfter(currentProgress.updatedAt),
     );
     const progress = {
       ...projected,

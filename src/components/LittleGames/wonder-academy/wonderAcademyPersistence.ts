@@ -2,6 +2,7 @@ import type { WonderAcademyProgress } from "../../../types/wonderAcademy";
 
 export type WonderAcademySaveTimestampIssuer = {
   issue: () => string;
+  issueAfter: (after?: string | null) => string;
 };
 
 export function createWonderAcademySaveTimestampIssuer(
@@ -9,18 +10,24 @@ export function createWonderAcademySaveTimestampIssuer(
 ): WonderAcademySaveTimestampIssuer {
   let lastIssuedMs = 0;
 
+  const issueAfter = (after?: string | null) => {
+    const candidateMs = getNowMs();
+    const afterMs = after ? Date.parse(after) : Number.NaN;
+    const nextMs =
+      Math.max(
+        Number.isFinite(candidateMs) ? candidateMs : 0,
+        Number.isFinite(afterMs) ? afterMs + 1 : 0,
+        lastIssuedMs + 1,
+      );
+
+    lastIssuedMs = nextMs;
+
+    return new Date(nextMs).toISOString();
+  };
+
   return {
-    issue: () => {
-      const candidateMs = getNowMs();
-      const nextMs =
-        Number.isFinite(candidateMs) && candidateMs > lastIssuedMs
-          ? candidateMs
-          : lastIssuedMs + 1;
-
-      lastIssuedMs = nextMs;
-
-      return new Date(nextMs).toISOString();
-    },
+    issue: () => issueAfter(),
+    issueAfter,
   };
 }
 
