@@ -32,6 +32,10 @@ import {
   type WonderAcademyAudioManager,
   type WonderAcademyLoopId,
 } from "./wonderAcademyAudio";
+import {
+  canFlushPendingAudioProgress,
+  createWonderAcademySaveTimestampIssuer,
+} from "./wonderAcademyPersistence";
 
 type WonderAcademyPageProps = {
   onExit?: () => void;
@@ -40,6 +44,7 @@ type WonderAcademyPageProps = {
 type SaveStatus = "loading" | "saved" | "saving" | "pending" | "failed";
 
 type SaveProgressOptions = {
+  expectedUserId?: string | null;
   playCompletionSfx?: boolean;
 };
 
@@ -385,6 +390,7 @@ export default function WonderAcademyPage({ onExit }: WonderAcademyPageProps) {
   const lastUserIdRef = useRef<string | null>(null);
   const pendingAudioProgressRef = useRef<WonderAcademyProgress | null>(null);
   const audioSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const saveTimestampIssuerRef = useRef(createWonderAcademySaveTimestampIssuer());
 
   const commitState = useCallback((nextState: WonderAcademyState) => {
     stateRef.current = nextState;
@@ -410,27 +416,6 @@ export default function WonderAcademyPage({ onExit }: WonderAcademyPageProps) {
     mode: activeState.mode,
     settings: audioSettings,
   });
-
-  useLayoutEffect(() => {
-    const userId = user?.uid ?? null;
-
-    activeUserIdRef.current = userId;
-    if (lastUserIdRef.current === userId) return;
-
-    lastUserIdRef.current = userId;
-    saveSequenceRef.current += 1;
-    queueMicrotask(() => {
-      if (activeUserIdRef.current !== userId) return;
-
-      setLoadedUserId(null);
-      setLoadError(null);
-      setSaveStatus(userId ? "loading" : "saved");
-
-      if (!userId) {
-        commitState(createInitialWonderAcademyState({ progress: null }));
-      }
-    });
-  }, [commitState, user?.uid]);
 
   useEffect(() => {
     if (authLoading || !user) return;
@@ -470,7 +455,9 @@ export default function WonderAcademyPage({ onExit }: WonderAcademyPageProps) {
     progress: WonderAcademyProgress,
     options: SaveProgressOptions = {},
   ) => {
-    if (activeUserIdRef.current !== progress.userId) return;
+    const expectedUserId = options.expectedUserId ?? activeUserIdRef.current;
+
+    if (!expectedUserId || progress.userId !== expectedUserId) return;
 
     const { playCompletionSfx = true } = options;
     const sequence = saveSequenceRef.current + 1;
@@ -521,7 +508,7 @@ export default function WonderAcademyPage({ onExit }: WonderAcademyPageProps) {
   const projectAndSaveState = useCallback((
     previousProgress: WonderAcademyProgress,
     nextState: WonderAcademyState,
-    now = new Date().toISOString(),
+    now = saveTimestampIssuerRef.current.issue(),
   ) => {
     const progress = projectWonderAcademyProgress(previousProgress, nextState, now);
     const stateWithProgress = withCommittedProgress(nextState, progress);
@@ -532,7 +519,7 @@ export default function WonderAcademyPage({ onExit }: WonderAcademyPageProps) {
     return progress;
   }, [commitState, saveProgress]);
 
-  const flushPendingAudioSettings = useCallback(() => {
+  const flushPendingAudioSettings = useCallback((expectedUserId?: string | null) => {
     const progress = pendingAudioProgressRef.current;
 
     if (!progress) return;
@@ -543,7 +530,20 @@ export default function WonderAcademyPage({ onExit }: WonderAcademyPageProps) {
       audioSaveTimerRef.current = null;
     }
 
-    void saveProgress(progress, { playCompletionSfx: false });
+    if (
+      !canFlushPendingAudioProgress({
+        activeUserId: activeUserIdRef.current,
+        expectedUserId,
+        progress,
+      })
+    ) {
+      return;
+    }
+
+    void saveProgress(progress, {
+      expectedUserId: expectedUserId ?? activeUserIdRef.current,
+      playCompletionSfx: false,
+    });
   }, [saveProgress]);
 
   const queueAudioSettingsSave = useCallback((progress: WonderAcademyProgress) => {
@@ -557,6 +557,32 @@ export default function WonderAcademyPage({ onExit }: WonderAcademyPageProps) {
       flushPendingAudioSettings();
     }, 900);
   }, [flushPendingAudioSettings]);
+
+  useLayoutEffect(() => {
+    const userId = user?.uid ?? null;
+    const previousUserId = activeUserIdRef.current;
+
+    if (lastUserIdRef.current === userId) {
+      activeUserIdRef.current = userId;
+      return;
+    }
+
+    flushPendingAudioSettings(previousUserId);
+    activeUserIdRef.current = userId;
+    lastUserIdRef.current = userId;
+    saveSequenceRef.current += 1;
+    queueMicrotask(() => {
+      if (activeUserIdRef.current !== userId) return;
+
+      setLoadedUserId(null);
+      setLoadError(null);
+      setSaveStatus(userId ? "loading" : "saved");
+
+      if (!userId) {
+        commitState(createInitialWonderAcademyState({ progress: null }));
+      }
+    });
+  }, [commitState, flushPendingAudioSettings, user?.uid]);
 
   const handleStartNewGame = useCallback((confirmOverwrite = false) => {
     if (!user) return;
@@ -633,7 +659,7 @@ export default function WonderAcademyPage({ onExit }: WonderAcademyPageProps) {
     const projected = projectWonderAcademyProgress(
       currentProgress,
       currentState,
-      new Date().toISOString(),
+      saveTimestampIssuerRef.current.issue(),
     );
     const progress = {
       ...projected,
