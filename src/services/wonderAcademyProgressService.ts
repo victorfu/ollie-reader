@@ -24,8 +24,13 @@ type WonderAcademyCloudGetter = (
   userId: string,
 ) => Promise<WonderAcademyProgress | null>;
 
+type WonderAcademyCloudSaveOptions = {
+  baseCloudUpdatedAt?: string | null;
+};
+
 type WonderAcademyCloudSetter = (
   progress: WonderAcademyProgress,
+  options: WonderAcademyCloudSaveOptions,
 ) => Promise<boolean | void>;
 
 type WonderAcademyLoadSource = "cloud" | "pending" | "cache" | "none";
@@ -330,6 +335,44 @@ function compareUpdatedAt(
   return Date.parse(left.updatedAt) - Date.parse(right.updatedAt);
 }
 
+function toCloudSavedProgress(
+  progress: WonderAcademyProgress,
+): WonderAcademyProgress {
+  return {
+    ...progress,
+    lastCloudSavedAt: progress.updatedAt,
+  };
+}
+
+function hasCloudAdvancedBeyondBase({
+  currentProgress,
+  candidateProgress,
+  baseCloudUpdatedAt,
+}: {
+  currentProgress: WonderAcademyProgress;
+  candidateProgress: WonderAcademyProgress;
+  baseCloudUpdatedAt?: string | null;
+}): boolean {
+  if (isSameLogicalProgress(currentProgress, candidateProgress)) {
+    return false;
+  }
+
+  const currentUpdatedAtMs = Date.parse(currentProgress.updatedAt);
+  const baseCloudUpdatedAtMs = baseCloudUpdatedAt
+    ? Date.parse(baseCloudUpdatedAt)
+    : Number.NaN;
+
+  if (!Number.isFinite(currentUpdatedAtMs)) {
+    return true;
+  }
+
+  if (!Number.isFinite(baseCloudUpdatedAtMs)) {
+    return true;
+  }
+
+  return currentUpdatedAtMs > baseCloudUpdatedAtMs;
+}
+
 export function createInitialWonderAcademyProgress({
   userId,
   starterSpeciesId = WONDER_ACADEMY_STARTERS[0]?.speciesId ?? "lumi",
@@ -440,8 +483,10 @@ export async function getFirestoreWonderAcademyProgress(
 
 export async function setFirestoreWonderAcademyProgress(
   progress: WonderAcademyProgress,
+  options: WonderAcademyCloudSaveOptions = {},
 ): Promise<boolean> {
   const { doc, runTransaction, db } = await loadFirestore();
+  const baseCloudUpdatedAt = options.baseCloudUpdatedAt ?? progress.lastCloudSavedAt;
   const docRef = doc(
     db,
     "gameProgress",
@@ -455,15 +500,21 @@ export async function setFirestoreWonderAcademyProgress(
     const currentProgress = snapshot.exists()
       ? parseWonderAcademyProgress(snapshot.data())
       : null;
+    const cloudSavedProgress = toCloudSavedProgress(progress);
 
     if (
       currentProgress?.userId === progress.userId &&
-      shouldPreserveStoredProgress(currentProgress, progress)
+      (shouldPreserveStoredProgress(currentProgress, cloudSavedProgress) ||
+        hasCloudAdvancedBeyondBase({
+          currentProgress,
+          candidateProgress: cloudSavedProgress,
+          baseCloudUpdatedAt,
+        }))
     ) {
       return false;
     }
 
-    transaction.set(docRef, progress);
+    transaction.set(docRef, cloudSavedProgress);
     return true;
   });
 }
@@ -495,6 +546,33 @@ export function createWonderAcademyProgressService({
     return queuedSave;
   }
 
+  async function flushProgressToCloud(
+    progress: WonderAcademyProgress,
+  ): Promise<{ cloudSaved: boolean; progress: WonderAcademyProgress }> {
+    const cloudSavedProgress = toCloudSavedProgress(progress);
+    let cloudSaved = false;
+
+    await enqueueCloudSave(progress.userId, async () => {
+      cloudSaved =
+        (await setCloudProgress(progress, {
+          baseCloudUpdatedAt: progress.lastCloudSavedAt,
+        })) !== false;
+
+      if (!cloudSaved) return;
+
+      writeStoredProgress(storage, WONDER_ACADEMY_CACHE_KEY, cloudSavedProgress);
+      removeStoredProgressIfNotNewer(
+        storage,
+        WONDER_ACADEMY_PENDING_KEY,
+        cloudSavedProgress,
+      );
+    });
+
+    return cloudSaved
+      ? { cloudSaved: true, progress: cloudSavedProgress }
+      : { cloudSaved: false, progress };
+  }
+
   async function loadWithMetadata(userId: string): Promise<WonderAcademyLoadResult> {
     const pending = readStoredProgress(storage, WONDER_ACADEMY_PENDING_KEY, userId);
     const cache = readStoredProgress(storage, WONDER_ACADEMY_CACHE_KEY, userId);
@@ -521,6 +599,19 @@ export function createWonderAcademyProgressService({
       pending &&
       (!parsedCloud || shouldPreserveStoredProgress(pending, parsedCloud))
     ) {
+      const flushResult = await flushProgressToCloud(pending).catch(() => ({
+        cloudSaved: false,
+        progress: pending,
+      }));
+
+      if (flushResult.cloudSaved) {
+        return {
+          progress: flushResult.progress,
+          source: "cloud",
+          cloudAvailable,
+        };
+      }
+
       return { progress: pending, source: "pending", cloudAvailable };
     }
 
@@ -553,25 +644,7 @@ export function createWonderAcademyProgressService({
       );
 
       try {
-        const cloudSavedProgress = {
-          ...progress,
-          lastCloudSavedAt: progress.updatedAt,
-        };
-        let cloudSaved = false;
-        await enqueueCloudSave(progress.userId, async () => {
-          cloudSaved = (await setCloudProgress(cloudSavedProgress)) !== false;
-          if (!cloudSaved) return;
-
-          writeStoredProgress(storage, WONDER_ACADEMY_CACHE_KEY, cloudSavedProgress);
-          removeStoredProgressIfNotNewer(
-            storage,
-            WONDER_ACADEMY_PENDING_KEY,
-            cloudSavedProgress,
-          );
-        });
-        return cloudSaved
-          ? { cloudSaved: true, progress: cloudSavedProgress }
-          : { cloudSaved: false, progress };
+        return await flushProgressToCloud(progress);
       } catch {
         return { cloudSaved: false, progress };
       }

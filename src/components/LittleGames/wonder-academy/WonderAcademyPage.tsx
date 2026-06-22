@@ -615,10 +615,14 @@ export default function WonderAcademyPage({ onExit }: WonderAcademyPageProps) {
         stateRef.current.progress?.updatedAt,
       ),
     });
+    const progressWithCloudBase = {
+      ...progress,
+      lastCloudSavedAt: stateRef.current.progress?.lastCloudSavedAt ?? null,
+    };
 
-    commitState(createInitialWonderAcademyState({ progress }));
+    commitState(createInitialWonderAcademyState({ progress: progressWithCloudBase }));
     setLoadedUserId(user.uid);
-    void saveProgress(progress);
+    void saveProgress(progressWithCloudBase);
   }, [commitState, flushPendingAudioSettings, saveProgress, user]);
 
   const handleResetNewGame = useCallback(() => {

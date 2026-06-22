@@ -145,7 +145,9 @@ describe("Wonder Academy progress service", () => {
       progress: cloudSavedProgress,
     });
 
-    expect(setCloudProgress).toHaveBeenCalledWith(cloudSavedProgress);
+    expect(setCloudProgress).toHaveBeenCalledWith(progress, {
+      baseCloudUpdatedAt: progress.lastCloudSavedAt,
+    });
     expect(JSON.parse(storage.getItem(WONDER_ACADEMY_CACHE_KEY) ?? "null")).toEqual({
       "user-1": cloudSavedProgress,
     });
@@ -187,7 +189,9 @@ describe("Wonder Academy progress service", () => {
       progress: cloudSavedProgress,
     });
 
-    expect(setCloudProgress).toHaveBeenCalledWith(cloudSavedProgress);
+    expect(setCloudProgress).toHaveBeenCalledWith(olderProgress, {
+      baseCloudUpdatedAt: olderProgress.lastCloudSavedAt,
+    });
     expect(JSON.parse(storage.getItem(WONDER_ACADEMY_CACHE_KEY) ?? "null")).toEqual({
       "user-1": cloudSavedProgress,
     });
@@ -229,7 +233,9 @@ describe("Wonder Academy progress service", () => {
       progress: cloudSavedProgress,
     });
 
-    expect(setCloudProgress).toHaveBeenCalledWith(cloudSavedProgress);
+    expect(setCloudProgress).toHaveBeenCalledWith(olderProgress, {
+      baseCloudUpdatedAt: olderProgress.lastCloudSavedAt,
+    });
     expect(JSON.parse(storage.getItem(WONDER_ACADEMY_PENDING_KEY) ?? "null")).toEqual({
       "user-1": equalTimestampPending,
     });
@@ -268,6 +274,10 @@ describe("Wonder Academy progress service", () => {
       starterSpeciesId: "momo",
       now: "2026-06-22T10:05:00.000Z",
     });
+    const reloadedCloudSavedProgress = {
+      ...progress,
+      lastCloudSavedAt: progress.updatedAt,
+    };
     const olderCloudProgress = createInitialWonderAcademyProgress({
       userId: "user-1",
       starterSpeciesId: "lumi",
@@ -293,7 +303,9 @@ describe("Wonder Academy progress service", () => {
       setCloudProgress: vi.fn(),
     });
 
-    await expect(reloadedService.load("user-1")).resolves.toEqual(progress);
+    await expect(reloadedService.load("user-1")).resolves.toEqual(
+      reloadedCloudSavedProgress,
+    );
 
     cloudWrite.resolve();
     await expect(savePromise).resolves.toEqual({
@@ -410,7 +422,9 @@ describe("Wonder Academy progress service", () => {
     const newerSave = service.save(newerProgress);
 
     expect(setCloudProgress).toHaveBeenCalledTimes(1);
-    expect(setCloudProgress).toHaveBeenNthCalledWith(1, olderCloudSavedProgress);
+    expect(setCloudProgress).toHaveBeenNthCalledWith(1, olderProgress, {
+      baseCloudUpdatedAt: olderProgress.lastCloudSavedAt,
+    });
 
     firstCloudWrite.resolve();
     await expect(olderSave).resolves.toEqual({
@@ -419,7 +433,9 @@ describe("Wonder Academy progress service", () => {
     });
 
     expect(setCloudProgress).toHaveBeenCalledTimes(2);
-    expect(setCloudProgress).toHaveBeenNthCalledWith(2, newerCloudSavedProgress);
+    expect(setCloudProgress).toHaveBeenNthCalledWith(2, newerProgress, {
+      baseCloudUpdatedAt: newerProgress.lastCloudSavedAt,
+    });
 
     secondCloudWrite.resolve();
     await expect(newerSave).resolves.toEqual({
@@ -468,7 +484,9 @@ describe("Wonder Academy progress service", () => {
     });
 
     expect(setCloudProgress).toHaveBeenCalledTimes(2);
-    expect(setCloudProgress).toHaveBeenNthCalledWith(2, newerCloudSavedProgress);
+    expect(setCloudProgress).toHaveBeenNthCalledWith(2, newerProgress, {
+      baseCloudUpdatedAt: newerProgress.lastCloudSavedAt,
+    });
 
     secondCloudWrite.resolve();
     await expect(newerSave).resolves.toEqual({
@@ -493,13 +511,61 @@ describe("Wonder Academy progress service", () => {
       updatedAt: "2026-06-22T10:05:00.000Z",
     };
     storage.setItem(WONDER_ACADEMY_PENDING_KEY, JSON.stringify(pendingProgress));
+    const setCloudProgress = vi.fn<() => Promise<boolean>>().mockResolvedValue(false);
     const service = createWonderAcademyProgressService({
       storage,
       getCloudProgress: vi.fn<() => Promise<typeof cloudProgress>>().mockResolvedValue(cloudProgress),
-      setCloudProgress: vi.fn(),
+      setCloudProgress,
     });
 
     await expect(service.load("user-1")).resolves.toEqual(pendingProgress);
+  });
+
+  it("flushes pending progress to cloud before returning when cloud is reachable and pending wins", async () => {
+    const storage = memoryStorage();
+    const baseCloudProgress = {
+      ...createInitialWonderAcademyProgress({
+        userId: "user-1",
+        starterSpeciesId: "lumi",
+        now: "2026-06-22T10:00:00.000Z",
+      }),
+      lastCloudSavedAt: "2026-06-22T10:00:00.000Z",
+    };
+    const pendingProgress = {
+      ...createInitialWonderAcademyProgress({
+        userId: "user-1",
+        starterSpeciesId: "momo",
+        now: "2026-06-22T10:05:00.000Z",
+      }),
+      lastCloudSavedAt: baseCloudProgress.updatedAt,
+    };
+    const setCloudProgress = vi.fn<() => Promise<void>>().mockResolvedValue(undefined);
+    const cloudSavedPendingProgress = {
+      ...pendingProgress,
+      lastCloudSavedAt: pendingProgress.updatedAt,
+    };
+    storage.setItem(
+      WONDER_ACADEMY_PENDING_KEY,
+      JSON.stringify({ "user-1": pendingProgress }),
+    );
+    const service = createWonderAcademyProgressService({
+      storage,
+      getCloudProgress: vi.fn<() => Promise<typeof baseCloudProgress>>().mockResolvedValue(
+        baseCloudProgress,
+      ),
+      setCloudProgress,
+    });
+
+    await expect(service.loadWithMetadata("user-1")).resolves.toEqual({
+      progress: cloudSavedPendingProgress,
+      source: "cloud",
+      cloudAvailable: true,
+    });
+
+    expect(setCloudProgress).toHaveBeenCalledWith(pendingProgress, {
+      baseCloudUpdatedAt: baseCloudProgress.updatedAt,
+    });
+    expect(JSON.parse(storage.getItem(WONDER_ACADEMY_PENDING_KEY) ?? "null")).toBeNull();
   });
 
   it("loads equal-timestamp pending progress over cloud progress when content differs", async () => {
@@ -514,10 +580,11 @@ describe("Wonder Academy progress service", () => {
       starterSpeciesId: "momo",
       now: cloudProgress.updatedAt,
     });
+    const setCloudProgress = vi.fn<() => Promise<boolean>>().mockResolvedValue(false);
     const service = createWonderAcademyProgressService({
       storage,
       getCloudProgress: vi.fn<() => Promise<typeof cloudProgress>>().mockResolvedValue(cloudProgress),
-      setCloudProgress: vi.fn(),
+      setCloudProgress,
     });
 
     storage.setItem(
@@ -526,6 +593,9 @@ describe("Wonder Academy progress service", () => {
     );
 
     await expect(service.load("user-1")).resolves.toEqual(pendingProgress);
+    expect(setCloudProgress).toHaveBeenCalledWith(pendingProgress, {
+      baseCloudUpdatedAt: pendingProgress.lastCloudSavedAt,
+    });
     expect(JSON.parse(storage.getItem(WONDER_ACADEMY_PENDING_KEY) ?? "null")).toEqual({
       "user-1": pendingProgress,
     });
@@ -678,6 +748,14 @@ describe("Wonder Academy progress service", () => {
       starterSpeciesId: "pico",
       now: "2026-06-22T10:10:00.000Z",
     });
+    const userOneCloudSavedProgress = {
+      ...userOnePending,
+      lastCloudSavedAt: userOnePending.updatedAt,
+    };
+    const userTwoCloudSavedProgress = {
+      ...userTwoPending,
+      lastCloudSavedAt: userTwoPending.updatedAt,
+    };
     const userOneCache = createInitialWonderAcademyProgress({
       userId: "user-1",
       starterSpeciesId: "lumi",
@@ -708,8 +786,8 @@ describe("Wonder Academy progress service", () => {
       setCloudProgress: vi.fn(),
     });
 
-    await expect(service.load("user-1")).resolves.toEqual(userOnePending);
-    await expect(service.load("user-2")).resolves.toEqual(userTwoPending);
+    await expect(service.load("user-1")).resolves.toEqual(userOneCloudSavedProgress);
+    await expect(service.load("user-2")).resolves.toEqual(userTwoCloudSavedProgress);
   });
 
   it("loads cached progress when cloud progress is absent", async () => {
@@ -811,6 +889,10 @@ describe("Wonder Academy progress service", () => {
 
   it("writes Firestore progress in a transaction when cloud progress is not newer", async () => {
     const progress = createInitialWonderAcademyProgress({ userId: "user-1" });
+    const cloudSavedProgress = {
+      ...progress,
+      lastCloudSavedAt: progress.updatedAt,
+    };
     firestoreMocks.doc.mockClear();
     const transactionSet = vi.fn();
     firestoreMocks.runTransaction.mockImplementation(
@@ -834,7 +916,7 @@ describe("Wonder Academy progress service", () => {
     );
     expect(transactionSet).toHaveBeenCalledWith(
       { path: "wonder-academy-doc" },
-      progress,
+      cloudSavedProgress,
     );
   });
 
@@ -863,6 +945,49 @@ describe("Wonder Academy progress service", () => {
     );
 
     await expect(setFirestoreWonderAcademyProgress(staleProgress)).resolves.toBe(false);
+
+    expect(transactionSet).not.toHaveBeenCalled();
+  });
+
+  it("skips Firestore writes when cloud advanced beyond the candidate base revision", async () => {
+    const baseProgress = {
+      ...createInitialWonderAcademyProgress({
+        userId: "user-1",
+        starterSpeciesId: "lumi",
+        now: "2026-06-22T10:00:00.000Z",
+      }),
+      lastCloudSavedAt: "2026-06-22T10:00:00.000Z",
+    };
+    const advancedCloudProgress = {
+      ...createInitialWonderAcademyProgress({
+        userId: "user-1",
+        starterSpeciesId: "momo",
+        now: "2026-06-22T10:05:00.000Z",
+      }),
+      lastCloudSavedAt: "2026-06-22T10:05:00.000Z",
+    };
+    const staleOfflineCandidate = {
+      ...createInitialWonderAcademyProgress({
+        userId: "user-1",
+        starterSpeciesId: "pico",
+        now: "2026-06-22T10:10:00.000Z",
+      }),
+      lastCloudSavedAt: baseProgress.updatedAt,
+    };
+    const transactionSet = vi.fn();
+    firestoreMocks.runTransaction.mockImplementation(
+      async (_db: unknown, updateFunction: (transaction: unknown) => Promise<boolean>) =>
+        updateFunction({
+          get: vi.fn<() => Promise<{ exists: () => boolean; data: () => typeof advancedCloudProgress }>>()
+            .mockResolvedValue({
+              exists: () => true,
+              data: () => advancedCloudProgress,
+            }),
+          set: transactionSet,
+        }),
+    );
+
+    await expect(setFirestoreWonderAcademyProgress(staleOfflineCandidate)).resolves.toBe(false);
 
     expect(transactionSet).not.toHaveBeenCalled();
   });
@@ -923,7 +1048,7 @@ describe("Wonder Academy progress service", () => {
 
     expect(transactionSet).toHaveBeenCalledWith(
       { path: "wonder-academy-doc" },
-      candidateProgress,
+      equalTimestampCloudProgress,
     );
   });
 
