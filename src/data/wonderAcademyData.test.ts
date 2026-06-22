@@ -81,4 +81,20 @@ describe("Wonder Academy data", () => {
       targetNodeId: "academy-gate",
     });
   });
+
+  it("does not complete the chapter after an optional side node is completed", () => {
+    expect(
+      getCurrentObjective({
+        currentChapterId: "sparkleaf-grove",
+        currentNodeId: "hidden-burrow",
+        completedNodeIds: ["hidden-burrow"],
+      }),
+    ).toEqual({
+      id: "comfort-mossmew",
+      label: "安撫迷路的 Mossmew",
+      description: "完成第一場 Mood Trial，讓 Mossmew 願意靠近。",
+      targetChapterId: "sparkleaf-grove",
+      targetNodeId: "firefly-clearing",
+    });
+  });
 });

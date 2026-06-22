@@ -249,6 +249,10 @@ export function getCurrentObjective(pointer: WonderAcademyProgressPointer): Wond
   const node = chapter.nodes.find((item) => item.id === pointer.currentNodeId) ?? chapter.nodes[0];
 
   if (pointer.completedNodeIds.includes(node.id)) {
+    if (node.kind === "warden") {
+      return SPARKLEAF_GROVE_COMPLETE_OBJECTIVE;
+    }
+
     const currentNodeIndex = chapter.nodes.indexOf(node);
     const nextNode = chapter.nodes.find(
       (candidate, candidateIndex) =>
@@ -256,9 +260,14 @@ export function getCurrentObjective(pointer: WonderAcademyProgressPointer): Wond
         node.adjacentNodeIds.includes(candidate.id) &&
         !pointer.completedNodeIds.includes(candidate.id) &&
         !candidate.lockedBy,
+    ) ?? chapter.nodes.find(
+      (candidate) =>
+        node.adjacentNodeIds.includes(candidate.id) &&
+        !pointer.completedNodeIds.includes(candidate.id) &&
+        !candidate.lockedBy,
     );
 
-    return nextNode?.objective ?? SPARKLEAF_GROVE_COMPLETE_OBJECTIVE;
+    return nextNode?.objective ?? node.objective;
   }
 
   return node.objective;
