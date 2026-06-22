@@ -130,4 +130,70 @@ describe("Wonder Academy audio manager", () => {
 
     expect(playedSources).toEqual([wonderAcademySfxUrls.ui_confirm]);
   });
+
+  it("merges partial setting updates with the current manager settings", () => {
+    const createdAudio: Array<{
+      currentTime: number;
+      loop: boolean;
+      muted: boolean;
+      pause: () => void;
+      play: () => Promise<void>;
+      preload: string;
+      src: string;
+      volume: number;
+    }> = [];
+
+    const audio = createWonderAcademyAudio({
+      initialSettings: {
+        musicVolume: 0.2,
+        sfxVolume: 0.3,
+        muted: false,
+      },
+      audioFactory: (src) => {
+        const element = {
+          currentTime: 0,
+          loop: false,
+          muted: false,
+          pause: () => undefined,
+          play: () => Promise.resolve(),
+          preload: "none" as const,
+          src,
+          volume: 0,
+        };
+
+        createdAudio.push(element);
+
+        return element;
+      },
+    });
+
+    audio.playSfx("ui_select");
+    audio.startLoop("hub_loop");
+
+    expect(audio.setSettings({ muted: true })).toEqual({
+      musicVolume: 0.2,
+      sfxVolume: 0.3,
+      muted: true,
+    });
+    expect(audio.getSettings()).toEqual({
+      musicVolume: 0.2,
+      sfxVolume: 0.3,
+      muted: true,
+    });
+    expect(createdAudio).toHaveLength(2);
+    expect(createdAudio).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          muted: true,
+          src: wonderAcademySfxUrls.ui_select,
+          volume: 0,
+        }),
+        expect.objectContaining({
+          muted: true,
+          src: wonderAcademyLoopUrls.hub_loop,
+          volume: 0,
+        }),
+      ]),
+    );
+  });
 });

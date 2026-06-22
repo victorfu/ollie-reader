@@ -211,7 +211,7 @@ export function createWonderAcademyAudio(
   return {
     getSettings: () => settings,
     setSettings: (nextSettings) => {
-      settings = normalizeAudioSettings(nextSettings);
+      settings = normalizeAudioSettings({ ...settings, ...nextSettings });
 
       for (const audio of sfxElements.values()) {
         applySettingsToAudio(audio, settings.sfxVolume);
