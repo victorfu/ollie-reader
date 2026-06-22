@@ -254,6 +254,20 @@ function removeStoredProgress(
   }
 }
 
+function removeStoredProgressIfNotNewer(
+  storage: Storage | null,
+  key: string,
+  progress: WonderAcademyProgress,
+) {
+  const storedProgress = readStoredProgress(storage, key, progress.userId);
+
+  if (storedProgress && compareUpdatedAt(storedProgress, progress) > 0) {
+    return;
+  }
+
+  removeStoredProgress(storage, key, progress.userId);
+}
+
 function compareUpdatedAt(
   left: WonderAcademyProgress,
   right: WonderAcademyProgress,
@@ -418,10 +432,10 @@ export function createWonderAcademyProgressService({
         };
         await setCloudProgress(cloudSavedProgress);
         writeStoredProgress(storage, WONDER_ACADEMY_CACHE_KEY, cloudSavedProgress);
-        removeStoredProgress(
+        removeStoredProgressIfNotNewer(
           storage,
           WONDER_ACADEMY_PENDING_KEY,
-          progress.userId,
+          cloudSavedProgress,
         );
         return { cloudSaved: true, progress: cloudSavedProgress };
       } catch {

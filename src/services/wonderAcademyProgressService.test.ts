@@ -143,6 +143,48 @@ describe("Wonder Academy progress service", () => {
     });
   });
 
+  it("preserves a newer pending save when an older overlapping cloud save succeeds", async () => {
+    const storage = memoryStorage();
+    const olderProgress = createInitialWonderAcademyProgress({
+      userId: "user-1",
+      starterSpeciesId: "lumi",
+      now: "2026-06-22T10:00:00.000Z",
+    });
+    const newerPending = createInitialWonderAcademyProgress({
+      userId: "user-1",
+      starterSpeciesId: "momo",
+      now: "2026-06-22T10:05:00.000Z",
+    });
+    const setCloudProgress = vi.fn<() => Promise<void>>().mockResolvedValue(undefined);
+    const service = createWonderAcademyProgressService({
+      storage,
+      getCloudProgress: vi.fn(),
+      setCloudProgress,
+    });
+    const cloudSavedProgress = {
+      ...olderProgress,
+      lastCloudSavedAt: olderProgress.updatedAt,
+    };
+
+    storage.setItem(
+      WONDER_ACADEMY_PENDING_KEY,
+      JSON.stringify({ "user-1": newerPending }),
+    );
+
+    await expect(service.save(olderProgress)).resolves.toEqual({
+      cloudSaved: true,
+      progress: cloudSavedProgress,
+    });
+
+    expect(setCloudProgress).toHaveBeenCalledWith(cloudSavedProgress);
+    expect(JSON.parse(storage.getItem(WONDER_ACADEMY_CACHE_KEY) ?? "null")).toEqual({
+      "user-1": cloudSavedProgress,
+    });
+    expect(JSON.parse(storage.getItem(WONDER_ACADEMY_PENDING_KEY) ?? "null")).toEqual({
+      "user-1": newerPending,
+    });
+  });
+
   it("stores pending progress when cloud save fails", async () => {
     const storage = memoryStorage();
     const progress = createInitialWonderAcademyProgress({

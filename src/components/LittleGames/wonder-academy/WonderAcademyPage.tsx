@@ -47,6 +47,20 @@ function stampProgress(progress: WonderAcademyProgress): WonderAcademyProgress {
   };
 }
 
+function hasPendingCloudSave(progress: WonderAcademyProgress | null): boolean {
+  if (!progress) return false;
+  if (!progress.lastCloudSavedAt) return true;
+
+  const updatedAtMs = Date.parse(progress.updatedAt);
+  const cloudSavedAtMs = Date.parse(progress.lastCloudSavedAt);
+
+  return (
+    Number.isNaN(updatedAtMs) ||
+    Number.isNaN(cloudSavedAtMs) ||
+    cloudSavedAtMs < updatedAtMs
+  );
+}
+
 export default function WonderAcademyPage({ onExit }: WonderAcademyPageProps) {
   const { user, loading: authLoading, signInWithGoogle } = useAuth();
   const [state, setState] = useState<WonderAcademyState>(() =>
@@ -70,7 +84,7 @@ export default function WonderAcademyPage({ onExit }: WonderAcademyPageProps) {
         setState(createInitialWonderAcademyState({ progress }));
         setLoadedUserId(user.uid);
         setLoadError(null);
-        setSaveStatus("saved");
+        setSaveStatus(hasPendingCloudSave(progress) ? "pending" : "saved");
       })
       .catch(() => {
         if (!active) return;
