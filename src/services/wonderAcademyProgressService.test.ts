@@ -1,10 +1,29 @@
 import { describe, expect, it, vi } from "vitest";
+
+const firestoreMocks = vi.hoisted(() => ({
+  doc: vi.fn(() => ({ path: "wonder-academy-doc" })),
+  getDoc: vi.fn(),
+  setDoc: vi.fn(),
+  db: { app: "firebase-app" },
+}));
+
+vi.mock("firebase/firestore", () => ({
+  doc: firestoreMocks.doc,
+  getDoc: firestoreMocks.getDoc,
+  setDoc: firestoreMocks.setDoc,
+}));
+
+vi.mock("../utils/firebaseUtil", () => ({
+  db: firestoreMocks.db,
+}));
+
 import {
   WONDER_ACADEMY_CACHE_KEY,
   WONDER_ACADEMY_PENDING_KEY,
   createInitialWonderAcademyProgress,
   createWonderAcademyProgressService,
   parseWonderAcademyProgress,
+  setFirestoreWonderAcademyProgress,
 } from "./wonderAcademyProgressService";
 
 function memoryStorage(): Storage {
@@ -85,28 +104,43 @@ describe("Wonder Academy progress service", () => {
     ).toBeNull();
   });
 
-  it("writes cache, calls cloud setter, and clears pending on successful save", async () => {
+  it("writes cloud-saved progress to cache, calls cloud setter, and clears only user pending on successful save", async () => {
     const storage = memoryStorage();
     const progress = createInitialWonderAcademyProgress({
       userId: "user-1",
       now: "2026-06-22T10:00:00.000Z",
     });
-    storage.setItem(WONDER_ACADEMY_PENDING_KEY, JSON.stringify(progress));
+    const otherPending = createInitialWonderAcademyProgress({ userId: "user-2" });
+    storage.setItem(
+      WONDER_ACADEMY_PENDING_KEY,
+      JSON.stringify({
+        "user-1": progress,
+        "user-2": otherPending,
+      }),
+    );
     const setCloudProgress = vi.fn<() => Promise<void>>().mockResolvedValue(undefined);
     const service = createWonderAcademyProgressService({
       storage,
       getCloudProgress: vi.fn(),
       setCloudProgress,
     });
-
-    await expect(service.save(progress)).resolves.toEqual({ cloudSaved: true });
-
-    expect(setCloudProgress).toHaveBeenCalledWith({
+    const cloudSavedProgress = {
       ...progress,
       lastCloudSavedAt: "2026-06-22T10:00:00.000Z",
+    };
+
+    await expect(service.save(progress)).resolves.toEqual({
+      cloudSaved: true,
+      progress: cloudSavedProgress,
     });
-    expect(JSON.parse(storage.getItem(WONDER_ACADEMY_CACHE_KEY) ?? "null")).toEqual(progress);
-    expect(storage.getItem(WONDER_ACADEMY_PENDING_KEY)).toBeNull();
+
+    expect(setCloudProgress).toHaveBeenCalledWith(cloudSavedProgress);
+    expect(JSON.parse(storage.getItem(WONDER_ACADEMY_CACHE_KEY) ?? "null")).toEqual({
+      "user-1": cloudSavedProgress,
+    });
+    expect(JSON.parse(storage.getItem(WONDER_ACADEMY_PENDING_KEY) ?? "null")).toEqual({
+      "user-2": otherPending,
+    });
   });
 
   it("stores pending progress when cloud save fails", async () => {
@@ -121,9 +155,17 @@ describe("Wonder Academy progress service", () => {
       setCloudProgress: vi.fn<() => Promise<void>>().mockRejectedValue(new Error("offline")),
     });
 
-    await expect(service.save(progress)).resolves.toEqual({ cloudSaved: false });
+    await expect(service.save(progress)).resolves.toEqual({
+      cloudSaved: false,
+      progress,
+    });
 
-    expect(JSON.parse(storage.getItem(WONDER_ACADEMY_PENDING_KEY) ?? "null")).toEqual(progress);
+    expect(JSON.parse(storage.getItem(WONDER_ACADEMY_CACHE_KEY) ?? "null")).toEqual({
+      "user-1": progress,
+    });
+    expect(JSON.parse(storage.getItem(WONDER_ACADEMY_PENDING_KEY) ?? "null")).toEqual({
+      "user-1": progress,
+    });
   });
 
   it("loads newer pending local progress over older cloud progress", async () => {
@@ -151,6 +193,46 @@ describe("Wonder Academy progress service", () => {
     await expect(service.load("user-1")).resolves.toEqual(pendingProgress);
   });
 
+  it("loads pending progress when cloud loading fails", async () => {
+    const storage = memoryStorage();
+    const pendingProgress = createInitialWonderAcademyProgress({
+      userId: "user-1",
+      starterSpeciesId: "momo",
+      now: "2026-06-22T10:05:00.000Z",
+    });
+    storage.setItem(
+      WONDER_ACADEMY_PENDING_KEY,
+      JSON.stringify({ "user-1": pendingProgress }),
+    );
+    const service = createWonderAcademyProgressService({
+      storage,
+      getCloudProgress: vi.fn<() => Promise<never>>().mockRejectedValue(new Error("offline")),
+      setCloudProgress: vi.fn(),
+    });
+
+    await expect(service.load("user-1")).resolves.toEqual(pendingProgress);
+  });
+
+  it("loads cached progress when cloud loading fails and no pending save exists", async () => {
+    const storage = memoryStorage();
+    const cachedProgress = createInitialWonderAcademyProgress({
+      userId: "user-1",
+      starterSpeciesId: "nibi",
+      now: "2026-06-22T10:00:00.000Z",
+    });
+    storage.setItem(
+      WONDER_ACADEMY_CACHE_KEY,
+      JSON.stringify({ "user-1": cachedProgress }),
+    );
+    const service = createWonderAcademyProgressService({
+      storage,
+      getCloudProgress: vi.fn<() => Promise<never>>().mockRejectedValue(new Error("offline")),
+      setCloudProgress: vi.fn(),
+    });
+
+    await expect(service.load("user-1")).resolves.toEqual(cachedProgress);
+  });
+
   it("loads cloud progress over cached progress", async () => {
     const storage = memoryStorage();
     const cachedProgress = createInitialWonderAcademyProgress({
@@ -171,6 +253,52 @@ describe("Wonder Academy progress service", () => {
     });
 
     await expect(service.load("user-1")).resolves.toEqual(cloudProgress);
+  });
+
+  it("loads user-specific progress from pending and cache maps", async () => {
+    const storage = memoryStorage();
+    const userOnePending = createInitialWonderAcademyProgress({
+      userId: "user-1",
+      starterSpeciesId: "momo",
+      now: "2026-06-22T10:05:00.000Z",
+    });
+    const userTwoPending = createInitialWonderAcademyProgress({
+      userId: "user-2",
+      starterSpeciesId: "pico",
+      now: "2026-06-22T10:10:00.000Z",
+    });
+    const userOneCache = createInitialWonderAcademyProgress({
+      userId: "user-1",
+      starterSpeciesId: "lumi",
+      now: "2026-06-22T10:00:00.000Z",
+    });
+    const userTwoCache = createInitialWonderAcademyProgress({
+      userId: "user-2",
+      starterSpeciesId: "nibi",
+      now: "2026-06-22T10:00:00.000Z",
+    });
+    storage.setItem(
+      WONDER_ACADEMY_PENDING_KEY,
+      JSON.stringify({
+        "user-1": userOnePending,
+        "user-2": userTwoPending,
+      }),
+    );
+    storage.setItem(
+      WONDER_ACADEMY_CACHE_KEY,
+      JSON.stringify({
+        "user-1": userOneCache,
+        "user-2": userTwoCache,
+      }),
+    );
+    const service = createWonderAcademyProgressService({
+      storage,
+      getCloudProgress: vi.fn<() => Promise<null>>().mockResolvedValue(null),
+      setCloudProgress: vi.fn(),
+    });
+
+    await expect(service.load("user-1")).resolves.toEqual(userOnePending);
+    await expect(service.load("user-2")).resolves.toEqual(userTwoPending);
   });
 
   it("loads cached progress when cloud progress is absent", async () => {
@@ -239,5 +367,25 @@ describe("Wonder Academy progress service", () => {
     });
 
     await expect(service.load("user-1")).resolves.toBeNull();
+  });
+
+  it("overwrites the Firestore progress document without merge semantics", async () => {
+    const progress = createInitialWonderAcademyProgress({ userId: "user-1" });
+    firestoreMocks.doc.mockClear();
+    firestoreMocks.setDoc.mockResolvedValue(undefined);
+
+    await setFirestoreWonderAcademyProgress(progress);
+
+    expect(firestoreMocks.doc).toHaveBeenCalledWith(
+      firestoreMocks.db,
+      "gameProgress",
+      "user-1",
+      "littleGames",
+      "wonderAcademy",
+    );
+    expect(firestoreMocks.setDoc).toHaveBeenCalledWith(
+      { path: "wonder-academy-doc" },
+      progress,
+    );
   });
 });

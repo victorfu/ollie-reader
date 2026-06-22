@@ -36,7 +36,9 @@ type WonderAcademyProgressServiceOptions = {
 
 type WonderAcademyProgressService = {
   load: (userId: string) => Promise<WonderAcademyProgress | null>;
-  save: (progress: WonderAcademyProgress) => Promise<{ cloudSaved: boolean }>;
+  save: (
+    progress: WonderAcademyProgress,
+  ) => Promise<{ cloudSaved: boolean; progress: WonderAcademyProgress }>;
 };
 
 const DEFAULT_AUDIO_SETTINGS: WonderAcademyAudioSettings = {
@@ -162,10 +164,51 @@ function readStoredProgress(
   try {
     const raw = storage.getItem(key);
     if (!raw) return null;
-    const parsed = parseWonderAcademyProgress(JSON.parse(raw));
-    return parsed?.userId === userId ? parsed : null;
+    const parsed = JSON.parse(raw);
+    const legacyProgress = parseWonderAcademyProgress(parsed);
+
+    if (legacyProgress) {
+      return legacyProgress.userId === userId ? legacyProgress : null;
+    }
+
+    if (!isRecord(parsed)) return null;
+    const userProgress = parseWonderAcademyProgress(parsed[userId]);
+    return userProgress?.userId === userId ? userProgress : null;
   } catch {
     return null;
+  }
+}
+
+function readStoredProgressMap(
+  storage: Storage | null,
+  key: string,
+): Record<string, WonderAcademyProgress> {
+  if (!storage) return {};
+
+  try {
+    const raw = storage.getItem(key);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    const legacyProgress = parseWonderAcademyProgress(parsed);
+
+    if (legacyProgress) {
+      return { [legacyProgress.userId]: legacyProgress };
+    }
+
+    if (!isRecord(parsed)) return {};
+
+    return Object.entries(parsed).reduce<Record<string, WonderAcademyProgress>>(
+      (progressMap, [userId, value]) => {
+        const progress = parseWonderAcademyProgress(value);
+        if (progress?.userId === userId) {
+          progressMap[userId] = progress;
+        }
+        return progressMap;
+      },
+      {},
+    );
+  } catch {
+    return {};
   }
 }
 
@@ -177,17 +220,35 @@ function writeStoredProgress(
   if (!storage) return;
 
   try {
-    storage.setItem(key, JSON.stringify(progress));
+    storage.setItem(
+      key,
+      JSON.stringify({
+        ...readStoredProgressMap(storage, key),
+        [progress.userId]: progress,
+      }),
+    );
   } catch {
     // Storage can be unavailable or full; cloud remains the source of durable save.
   }
 }
 
-function removeStoredProgress(storage: Storage | null, key: string) {
+function removeStoredProgress(
+  storage: Storage | null,
+  key: string,
+  userId: string,
+) {
   if (!storage) return;
 
   try {
-    storage.removeItem(key);
+    const progressMap = readStoredProgressMap(storage, key);
+    delete progressMap[userId];
+
+    if (Object.keys(progressMap).length === 0) {
+      storage.removeItem(key);
+      return;
+    }
+
+    storage.setItem(key, JSON.stringify(progressMap));
   } catch {
     // Ignore local cleanup failures.
   }
@@ -320,7 +381,7 @@ export async function setFirestoreWonderAcademyProgress(
     "wonderAcademy",
   );
 
-  await setDoc(docRef, progress, { merge: true });
+  await setDoc(docRef, progress);
 }
 
 export function createWonderAcademyProgressService({
@@ -332,7 +393,7 @@ export function createWonderAcademyProgressService({
     async load(userId) {
       const pending = readStoredProgress(storage, WONDER_ACADEMY_PENDING_KEY, userId);
       const cache = readStoredProgress(storage, WONDER_ACADEMY_CACHE_KEY, userId);
-      const cloud = await getCloudProgress(userId);
+      const cloud = await getCloudProgress(userId).catch(() => null);
       const parsedCloud = cloud?.userId === userId ? parseWonderAcademyProgress(cloud) : null;
 
       if (pending && (!parsedCloud || compareUpdatedAt(pending, parsedCloud) > 0)) {
@@ -345,15 +406,21 @@ export function createWonderAcademyProgressService({
       writeStoredProgress(storage, WONDER_ACADEMY_CACHE_KEY, progress);
 
       try {
-        await setCloudProgress({
+        const cloudSavedProgress = {
           ...progress,
           lastCloudSavedAt: progress.updatedAt,
-        });
-        removeStoredProgress(storage, WONDER_ACADEMY_PENDING_KEY);
-        return { cloudSaved: true };
+        };
+        await setCloudProgress(cloudSavedProgress);
+        writeStoredProgress(storage, WONDER_ACADEMY_CACHE_KEY, cloudSavedProgress);
+        removeStoredProgress(
+          storage,
+          WONDER_ACADEMY_PENDING_KEY,
+          progress.userId,
+        );
+        return { cloudSaved: true, progress: cloudSavedProgress };
       } catch {
         writeStoredProgress(storage, WONDER_ACADEMY_PENDING_KEY, progress);
-        return { cloudSaved: false };
+        return { cloudSaved: false, progress };
       }
     },
   };
