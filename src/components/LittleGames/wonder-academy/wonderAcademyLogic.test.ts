@@ -146,6 +146,40 @@ describe("Wonder Academy pure game logic", () => {
     expect(attuned.progress?.wonderdex.mossmew).toBe("attuned");
   });
 
+  it("clears ready Mood Trial state when starting a new game", () => {
+    const atClearing = applyWonderAcademyAction(
+      createInitialWonderAcademyState({ progress: createProgress(), mode: "regionMap" }),
+      {
+        type: "moveToNode",
+        nodeId: "firefly-clearing",
+      },
+    );
+    const started = applyWonderAcademyAction(atClearing, { type: "startMoodTrial" });
+    const comforted = applyWonderAcademyAction(started, { type: "comfort" });
+    const ready = applyWonderAcademyAction(comforted, {
+      type: "skill",
+      skillId: "tiny-flash",
+    });
+    const newGame = applyWonderAcademyAction(
+      { ...ready, isPaused: true },
+      {
+        type: "newGame",
+        userId: "keeper-2",
+        starterSpeciesId: "momo",
+        now: "2026-06-22T01:00:00.000Z",
+      },
+    );
+    const attemptedAttune = applyWonderAcademyAction(newGame, { type: "attune" });
+
+    expect(newGame.mode).toBe("hub");
+    expect(newGame.isPaused).toBe(false);
+    expect(newGame.progress?.storyProgress.currentNodeId).toBe("academy-gate");
+    expect(newGame.trial).toBeNull();
+    expect(attemptedAttune.progress?.completedNodeIds).not.toContain("firefly-clearing");
+    expect(attemptedAttune.progress?.unlockedNodeIds).not.toContain("mossy-bridge");
+    expect(attemptedAttune.progress?.wonderdex.mossmew).not.toBe("attuned");
+  });
+
   it("does not allow Attune before Mossmew is ready", () => {
     const atClearing = applyWonderAcademyAction(
       createInitialWonderAcademyState({ progress: createProgress(), mode: "regionMap" }),

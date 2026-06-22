@@ -204,29 +204,16 @@ export function applyWonderAcademyAction(
     return { ...state, isPaused: !state.isPaused, message: null };
   }
 
+  if (action.type === "newGame" || action.type === "choose-starter") {
+    return startNewGame(state, action);
+  }
+
   const pausedState = blockIfPaused(state);
   if (pausedState) {
     return pausedState;
   }
 
   switch (action.type) {
-    case "newGame":
-    case "choose-starter": {
-      const progress = createInitialWonderAcademyProgress({
-        userId: action.userId,
-        starterSpeciesId: action.starterSpeciesId,
-        starterNickname: action.starterNickname,
-        playerName: action.playerName ?? null,
-        now: action.now,
-      });
-
-      return {
-        ...withProgress(state, progress),
-        mode: "hub",
-        message: "Wonder Academy 夥伴已加入隊伍。",
-      };
-    }
-
     case "continue":
       return {
         ...withProgress(state, action.progress),
@@ -268,6 +255,27 @@ export function applyWonderAcademyAction(
     case "attune":
       return applyMoodTrialMove(state, action);
   }
+}
+
+function startNewGame(
+  state: WonderAcademyState,
+  action: Extract<WonderAcademyAction, { type: "newGame" | "choose-starter" }>,
+): WonderAcademyState {
+  const progress = createInitialWonderAcademyProgress({
+    userId: action.userId,
+    starterSpeciesId: action.starterSpeciesId,
+    starterNickname: action.starterNickname,
+    playerName: action.playerName ?? null,
+    now: action.now,
+  });
+
+  return {
+    ...withProgress(state, progress),
+    mode: "hub",
+    isPaused: false,
+    message: "Wonder Academy 夥伴已加入隊伍。",
+    trial: null,
+  };
 }
 
 function moveToNode(state: WonderAcademyState, nodeId: string): WonderAcademyState {
@@ -410,10 +418,12 @@ function applyMoodTrialSkill(state: WonderAcademyState, skillId: string): Wonder
 function attuneMossmew(state: WonderAcademyState): WonderAcademyState {
   const progress = state.progress;
   const trial = state.trial;
+  const isAtMoodTrialNode =
+    state.mode === "moodTrial" && progress?.storyProgress.currentNodeId === "firefly-clearing";
   const ready = trial?.mood === "calm" && trial.opponentDisposition === "open";
   const matchingSkillUsed = trial?.usedSkillIds.includes("tiny-flash") ?? false;
 
-  if (!progress || !trial || !ready) {
+  if (!progress || !trial || !isAtMoodTrialNode || !ready) {
     return {
       ...state,
       message: "先讓 Mossmew 放鬆並願意靠近，再嘗試 Attune。",
