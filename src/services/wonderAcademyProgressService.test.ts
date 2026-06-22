@@ -3,14 +3,14 @@ import { describe, expect, it, vi } from "vitest";
 const firestoreMocks = vi.hoisted(() => ({
   doc: vi.fn(() => ({ path: "wonder-academy-doc" })),
   getDoc: vi.fn(),
-  setDoc: vi.fn(),
+  runTransaction: vi.fn(),
   db: { app: "firebase-app" },
 }));
 
 vi.mock("firebase/firestore", () => ({
   doc: firestoreMocks.doc,
   getDoc: firestoreMocks.getDoc,
-  setDoc: firestoreMocks.setDoc,
+  runTransaction: firestoreMocks.runTransaction,
 }));
 
 vi.mock("../utils/firebaseUtil", () => ({
@@ -578,6 +578,50 @@ describe("Wonder Academy progress service", () => {
     });
 
     await expect(service.load("user-1")).resolves.toEqual(pendingProgress);
+    await expect(service.loadWithMetadata("user-1")).resolves.toEqual({
+      progress: pendingProgress,
+      source: "pending",
+      cloudAvailable: false,
+    });
+  });
+
+  it("reports cache metadata when cloud loading fails and cached progress is used", async () => {
+    const storage = memoryStorage();
+    const cachedProgress = createInitialWonderAcademyProgress({
+      userId: "user-1",
+      starterSpeciesId: "nibi",
+      now: "2026-06-22T10:00:00.000Z",
+    });
+    storage.setItem(
+      WONDER_ACADEMY_CACHE_KEY,
+      JSON.stringify({ "user-1": cachedProgress }),
+    );
+    const service = createWonderAcademyProgressService({
+      storage,
+      getCloudProgress: vi.fn<() => Promise<never>>().mockRejectedValue(new Error("offline")),
+      setCloudProgress: vi.fn(),
+    });
+
+    await expect(service.loadWithMetadata("user-1")).resolves.toEqual({
+      progress: cachedProgress,
+      source: "cache",
+      cloudAvailable: false,
+    });
+  });
+
+  it("reports no progress metadata when cloud loading fails and no local progress exists", async () => {
+    const storage = memoryStorage();
+    const service = createWonderAcademyProgressService({
+      storage,
+      getCloudProgress: vi.fn<() => Promise<never>>().mockRejectedValue(new Error("offline")),
+      setCloudProgress: vi.fn(),
+    });
+
+    await expect(service.loadWithMetadata("user-1")).resolves.toEqual({
+      progress: null,
+      source: "none",
+      cloudAvailable: false,
+    });
   });
 
   it("loads cached progress when cloud loading fails and no pending save exists", async () => {
@@ -753,12 +797,21 @@ describe("Wonder Academy progress service", () => {
     await expect(service.load("user-1")).resolves.toBeNull();
   });
 
-  it("overwrites the Firestore progress document without merge semantics", async () => {
+  it("writes Firestore progress in a transaction when cloud progress is not newer", async () => {
     const progress = createInitialWonderAcademyProgress({ userId: "user-1" });
     firestoreMocks.doc.mockClear();
-    firestoreMocks.setDoc.mockResolvedValue(undefined);
+    const transactionSet = vi.fn();
+    firestoreMocks.runTransaction.mockImplementation(
+      async (_db: unknown, updateFunction: (transaction: unknown) => Promise<boolean>) =>
+        updateFunction({
+          get: vi.fn<() => Promise<{ exists: () => boolean }>>().mockResolvedValue({
+            exists: () => false,
+          }),
+          set: transactionSet,
+        }),
+    );
 
-    await setFirestoreWonderAcademyProgress(progress);
+    await expect(setFirestoreWonderAcademyProgress(progress)).resolves.toBe(true);
 
     expect(firestoreMocks.doc).toHaveBeenCalledWith(
       firestoreMocks.db,
@@ -767,9 +820,60 @@ describe("Wonder Academy progress service", () => {
       "littleGames",
       "wonderAcademy",
     );
-    expect(firestoreMocks.setDoc).toHaveBeenCalledWith(
+    expect(transactionSet).toHaveBeenCalledWith(
       { path: "wonder-academy-doc" },
       progress,
     );
+  });
+
+  it("skips Firestore transaction writes when current cloud progress is newer", async () => {
+    const staleProgress = createInitialWonderAcademyProgress({
+      userId: "user-1",
+      starterSpeciesId: "lumi",
+      now: "2026-06-22T10:00:00.000Z",
+    });
+    const newerCloudProgress = createInitialWonderAcademyProgress({
+      userId: "user-1",
+      starterSpeciesId: "momo",
+      now: "2026-06-22T10:05:00.000Z",
+    });
+    const transactionSet = vi.fn();
+    firestoreMocks.runTransaction.mockImplementation(
+      async (_db: unknown, updateFunction: (transaction: unknown) => Promise<boolean>) =>
+        updateFunction({
+          get: vi.fn<() => Promise<{ exists: () => boolean; data: () => typeof newerCloudProgress }>>()
+            .mockResolvedValue({
+              exists: () => true,
+              data: () => newerCloudProgress,
+            }),
+          set: transactionSet,
+        }),
+    );
+
+    await expect(setFirestoreWonderAcademyProgress(staleProgress)).resolves.toBe(false);
+
+    expect(transactionSet).not.toHaveBeenCalled();
+  });
+
+  it("does not report stale queued saves as cloud-saved when the cloud setter skips them", async () => {
+    const storage = memoryStorage();
+    const staleProgress = createInitialWonderAcademyProgress({
+      userId: "user-1",
+      starterSpeciesId: "lumi",
+      now: "2026-06-22T10:00:00.000Z",
+    });
+    const service = createWonderAcademyProgressService({
+      storage,
+      getCloudProgress: vi.fn(),
+      setCloudProgress: vi.fn<() => Promise<boolean>>().mockResolvedValue(false),
+    });
+
+    await expect(service.save(staleProgress)).resolves.toEqual({
+      cloudSaved: false,
+      progress: staleProgress,
+    });
+    expect(JSON.parse(storage.getItem(WONDER_ACADEMY_PENDING_KEY) ?? "null")).toEqual({
+      "user-1": staleProgress,
+    });
   });
 });

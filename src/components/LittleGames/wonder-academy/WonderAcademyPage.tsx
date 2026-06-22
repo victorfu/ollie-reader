@@ -61,6 +61,26 @@ function hasPendingCloudSave(progress: WonderAcademyProgress | null): boolean {
   );
 }
 
+function getLoadedSaveStatus({
+  progress,
+  source,
+  cloudAvailable,
+}: Awaited<ReturnType<typeof wonderAcademyProgressService.loadWithMetadata>>): SaveStatus {
+  if (!progress) {
+    return cloudAvailable ? "saved" : "failed";
+  }
+
+  if (!cloudAvailable && (source === "pending" || source === "cache")) {
+    return "pending";
+  }
+
+  if (source === "pending" || source === "cache") {
+    return "pending";
+  }
+
+  return hasPendingCloudSave(progress) ? "pending" : "saved";
+}
+
 export default function WonderAcademyPage({ onExit }: WonderAcademyPageProps) {
   const { user, loading: authLoading, signInWithGoogle } = useAuth();
   const [state, setState] = useState<WonderAcademyState>(() =>
@@ -107,14 +127,18 @@ export default function WonderAcademyPage({ onExit }: WonderAcademyPageProps) {
     const requestedUserId = user.uid;
 
     wonderAcademyProgressService
-      .load(requestedUserId)
-      .then((progress) => {
+      .loadWithMetadata(requestedUserId)
+      .then((result) => {
         if (!active || activeUserIdRef.current !== requestedUserId) return;
 
-        commitState(createInitialWonderAcademyState({ progress }));
+        commitState(createInitialWonderAcademyState({ progress: result.progress }));
         setLoadedUserId(requestedUserId);
-        setLoadError(null);
-        setSaveStatus(hasPendingCloudSave(progress) ? "pending" : "saved");
+        setLoadError(
+          !result.cloudAvailable && !result.progress
+            ? "Cloud progress could not be reached. Check your connection and try again."
+            : null,
+        );
+        setSaveStatus(getLoadedSaveStatus(result));
       })
       .catch(() => {
         if (!active || activeUserIdRef.current !== requestedUserId) return;
@@ -172,8 +196,14 @@ export default function WonderAcademyPage({ onExit }: WonderAcademyPageProps) {
     }
   }, [commitState]);
 
-  const handleStartNewGame = useCallback(() => {
+  const handleStartNewGame = useCallback((confirmOverwrite = false) => {
     if (!user) return;
+    if (
+      confirmOverwrite &&
+      !window.confirm("Start a new Wonder Academy game and overwrite this save?")
+    ) {
+      return;
+    }
 
     const progress = createInitialWonderAcademyProgress({
       userId: user.uid,
@@ -186,6 +216,10 @@ export default function WonderAcademyPage({ onExit }: WonderAcademyPageProps) {
     setLoadedUserId(user.uid);
     void saveProgress(progress);
   }, [commitState, saveProgress, user]);
+
+  const handleResetNewGame = useCallback(() => {
+    handleStartNewGame(true);
+  }, [handleStartNewGame]);
 
   const handleAction = useCallback(
     (action: WonderAcademyAction) => {
@@ -327,7 +361,7 @@ export default function WonderAcademyPage({ onExit }: WonderAcademyPageProps) {
               )}
               <button
                 type="button"
-                onClick={handleStartNewGame}
+                onClick={() => handleStartNewGame()}
                 className="btn btn-primary mt-5 min-h-11 rounded-[6px]"
               >
                 <Play className="size-4" strokeWidth={1.75} aria-hidden="true" />
@@ -351,6 +385,15 @@ export default function WonderAcademyPage({ onExit }: WonderAcademyPageProps) {
               </p>
             </div>
             <WonderAcademyHost state={activeState} onAction={handleAction} />
+            <div className="mt-4 flex justify-end">
+              <button
+                type="button"
+                onClick={handleResetNewGame}
+                className="btn btn-outline btn-sm min-h-11 rounded-[6px]"
+              >
+                Start New Game
+              </button>
+            </div>
           </div>
         )}
       </main>
