@@ -373,6 +373,52 @@ function hasCloudAdvancedBeyondBase({
   return currentUpdatedAtMs > baseCloudUpdatedAtMs;
 }
 
+function hasProgressAdvancedBeyondKnownBase({
+  currentProgress,
+  candidateProgress,
+  baseCloudUpdatedAt,
+}: {
+  currentProgress: WonderAcademyProgress;
+  candidateProgress: WonderAcademyProgress;
+  baseCloudUpdatedAt?: string | null;
+}): boolean {
+  if (isSameLogicalProgress(currentProgress, candidateProgress)) {
+    return false;
+  }
+
+  const currentUpdatedAtMs = Date.parse(currentProgress.updatedAt);
+  const baseCloudUpdatedAtMs = baseCloudUpdatedAt
+    ? Date.parse(baseCloudUpdatedAt)
+    : Number.NaN;
+
+  return (
+    Number.isFinite(currentUpdatedAtMs) &&
+    Number.isFinite(baseCloudUpdatedAtMs) &&
+    currentUpdatedAtMs > baseCloudUpdatedAtMs
+  );
+}
+
+function hasValidTimestamp(timestamp?: string | null): boolean {
+  return typeof timestamp === "string" && Number.isFinite(Date.parse(timestamp));
+}
+
+function shouldReturnCloudAfterRejectedPendingFlush(
+  cloudProgress: WonderAcademyProgress,
+  pendingProgress: WonderAcademyProgress,
+): boolean {
+  if (isSameLogicalProgress(cloudProgress, pendingProgress)) {
+    return true;
+  }
+
+  return (
+    hasProgressAdvancedBeyondKnownBase({
+      currentProgress: cloudProgress,
+      candidateProgress: pendingProgress,
+      baseCloudUpdatedAt: pendingProgress.lastCloudSavedAt,
+    }) || !hasValidTimestamp(pendingProgress.lastCloudSavedAt)
+  );
+}
+
 export function createInitialWonderAcademyProgress({
   userId,
   starterSpeciesId = WONDER_ACADEMY_STARTERS[0]?.speciesId ?? "lumi",
@@ -583,6 +629,18 @@ export function createWonderAcademyProgressService({
     });
     const parsedCloud = cloud?.userId === userId ? parseWonderAcademyProgress(cloud) : null;
 
+    const returnCloudProgress = (
+      progress: WonderAcademyProgress,
+    ): WonderAcademyLoadResult => {
+      writeStoredProgress(storage, WONDER_ACADEMY_CACHE_KEY, progress);
+      removeStoredProgressIfNotNewer(
+        storage,
+        WONDER_ACADEMY_PENDING_KEY,
+        progress,
+      );
+      return { progress, source: "cloud", cloudAvailable };
+    };
+
     if (!cloudAvailable) {
       if (pending) {
         return { progress: pending, source: "pending", cloudAvailable };
@@ -593,6 +651,18 @@ export function createWonderAcademyProgressService({
       }
 
       return { progress: null, source: "none", cloudAvailable };
+    }
+
+    if (
+      pending &&
+      parsedCloud &&
+      hasProgressAdvancedBeyondKnownBase({
+        currentProgress: parsedCloud,
+        candidateProgress: pending,
+        baseCloudUpdatedAt: pending.lastCloudSavedAt,
+      })
+    ) {
+      return returnCloudProgress(parsedCloud);
     }
 
     if (
@@ -612,17 +682,25 @@ export function createWonderAcademyProgressService({
         };
       }
 
+      const refreshedCloud = await getCloudProgress(userId).catch(() => null);
+      const parsedRefreshedCloud =
+        refreshedCloud?.userId === userId
+          ? parseWonderAcademyProgress(refreshedCloud)
+          : null;
+      const latestCloud = parsedRefreshedCloud ?? parsedCloud;
+
+      if (
+        latestCloud &&
+        shouldReturnCloudAfterRejectedPendingFlush(latestCloud, pending)
+      ) {
+        return returnCloudProgress(latestCloud);
+      }
+
       return { progress: pending, source: "pending", cloudAvailable };
     }
 
     if (parsedCloud) {
-      writeStoredProgress(storage, WONDER_ACADEMY_CACHE_KEY, parsedCloud);
-      removeStoredProgressIfNotNewer(
-        storage,
-        WONDER_ACADEMY_PENDING_KEY,
-        parsedCloud,
-      );
-      return { progress: parsedCloud, source: "cloud", cloudAvailable };
+      return returnCloudProgress(parsedCloud);
     }
 
     if (cache) {

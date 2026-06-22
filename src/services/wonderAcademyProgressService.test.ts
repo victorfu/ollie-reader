@@ -495,7 +495,7 @@ describe("Wonder Academy progress service", () => {
     });
   });
 
-  it("loads newer pending local progress over older cloud progress", async () => {
+  it("returns cloud progress when newer pending progress has no cloud base and the flush is rejected", async () => {
     const storage = memoryStorage();
     const cloudProgress = createInitialWonderAcademyProgress({
       userId: "user-1",
@@ -512,13 +512,27 @@ describe("Wonder Academy progress service", () => {
     };
     storage.setItem(WONDER_ACADEMY_PENDING_KEY, JSON.stringify(pendingProgress));
     const setCloudProgress = vi.fn<() => Promise<boolean>>().mockResolvedValue(false);
+    const getCloudProgress = vi.fn<() => Promise<typeof cloudProgress>>().mockResolvedValue(
+      cloudProgress,
+    );
     const service = createWonderAcademyProgressService({
       storage,
-      getCloudProgress: vi.fn<() => Promise<typeof cloudProgress>>().mockResolvedValue(cloudProgress),
+      getCloudProgress,
       setCloudProgress,
     });
 
-    await expect(service.load("user-1")).resolves.toEqual(pendingProgress);
+    await expect(service.loadWithMetadata("user-1")).resolves.toEqual({
+      progress: cloudProgress,
+      source: "cloud",
+      cloudAvailable: true,
+    });
+    expect(getCloudProgress).toHaveBeenCalledTimes(2);
+    expect(setCloudProgress).toHaveBeenCalledWith(pendingProgress, {
+      baseCloudUpdatedAt: null,
+    });
+    expect(JSON.parse(storage.getItem(WONDER_ACADEMY_CACHE_KEY) ?? "null")).toEqual({
+      "user-1": cloudProgress,
+    });
   });
 
   it("flushes pending progress to cloud before returning when cloud is reachable and pending wins", async () => {
@@ -568,7 +582,58 @@ describe("Wonder Academy progress service", () => {
     expect(JSON.parse(storage.getItem(WONDER_ACADEMY_PENDING_KEY) ?? "null")).toBeNull();
   });
 
-  it("loads equal-timestamp pending progress over cloud progress when content differs", async () => {
+  it("returns cloud progress when newer pending progress is based on a stale cloud revision", async () => {
+    const storage = memoryStorage();
+    const baseCloudProgress = {
+      ...createInitialWonderAcademyProgress({
+        userId: "user-1",
+        starterSpeciesId: "lumi",
+        now: "2026-06-22T10:00:00.000Z",
+      }),
+      lastCloudSavedAt: "2026-06-22T10:00:00.000Z",
+    };
+    const cloudProgress = {
+      ...createInitialWonderAcademyProgress({
+        userId: "user-1",
+        starterSpeciesId: "momo",
+        now: "2026-06-22T10:05:00.000Z",
+      }),
+      lastCloudSavedAt: "2026-06-22T10:05:00.000Z",
+    };
+    const pendingProgress = {
+      ...createInitialWonderAcademyProgress({
+        userId: "user-1",
+        starterSpeciesId: "pico",
+        now: "2026-06-22T10:10:00.000Z",
+      }),
+      lastCloudSavedAt: baseCloudProgress.updatedAt,
+    };
+    const setCloudProgress = vi.fn<() => Promise<boolean>>().mockResolvedValue(false);
+    storage.setItem(
+      WONDER_ACADEMY_PENDING_KEY,
+      JSON.stringify({ "user-1": pendingProgress }),
+    );
+    const service = createWonderAcademyProgressService({
+      storage,
+      getCloudProgress: vi.fn<() => Promise<typeof cloudProgress>>().mockResolvedValue(
+        cloudProgress,
+      ),
+      setCloudProgress,
+    });
+
+    await expect(service.loadWithMetadata("user-1")).resolves.toEqual({
+      progress: cloudProgress,
+      source: "cloud",
+      cloudAvailable: true,
+    });
+
+    expect(setCloudProgress).not.toHaveBeenCalled();
+    expect(JSON.parse(storage.getItem(WONDER_ACADEMY_CACHE_KEY) ?? "null")).toEqual({
+      "user-1": cloudProgress,
+    });
+  });
+
+  it("returns cloud progress when equal-timestamp pending progress has no base and the flush is rejected", async () => {
     const storage = memoryStorage();
     const cloudProgress = createInitialWonderAcademyProgress({
       userId: "user-1",
@@ -581,9 +646,12 @@ describe("Wonder Academy progress service", () => {
       now: cloudProgress.updatedAt,
     });
     const setCloudProgress = vi.fn<() => Promise<boolean>>().mockResolvedValue(false);
+    const getCloudProgress = vi.fn<() => Promise<typeof cloudProgress>>().mockResolvedValue(
+      cloudProgress,
+    );
     const service = createWonderAcademyProgressService({
       storage,
-      getCloudProgress: vi.fn<() => Promise<typeof cloudProgress>>().mockResolvedValue(cloudProgress),
+      getCloudProgress,
       setCloudProgress,
     });
 
@@ -592,7 +660,8 @@ describe("Wonder Academy progress service", () => {
       JSON.stringify({ "user-1": pendingProgress }),
     );
 
-    await expect(service.load("user-1")).resolves.toEqual(pendingProgress);
+    await expect(service.load("user-1")).resolves.toEqual(cloudProgress);
+    expect(getCloudProgress).toHaveBeenCalledTimes(2);
     expect(setCloudProgress).toHaveBeenCalledWith(pendingProgress, {
       baseCloudUpdatedAt: pendingProgress.lastCloudSavedAt,
     });
