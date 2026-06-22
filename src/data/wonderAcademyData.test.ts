@@ -21,9 +21,16 @@ describe("Wonder Academy data", () => {
       expect(starter.growthStages.length).toBe(4);
       expect(starter.fieldSkillId).toBeTruthy();
       expect(starter.learnableSkillIds.length).toBeGreaterThanOrEqual(5);
-      expect(starter.silhouetteAsset).toMatch(/^starters\/[a-z-]+\.png$/);
-      expect(starter.portraitAsset).toMatch(/^starters\/[a-z-]+\.png$/);
-      expect(starter.spriteAsset).toMatch(/^starters\/[a-z-]+\.png$/);
+      expect(starter.silhouetteAsset).toMatch(
+        /^src\/assets\/games\/wonder-academy\/starters\/[a-z-]+\.png$/,
+      );
+      expect(starter.portraitAsset).toMatch(
+        /^src\/assets\/games\/wonder-academy\/starters\/[a-z-]+\.png$/,
+      );
+      expect(starter.spriteAsset).toMatch(
+        /^src\/assets\/games\/wonder-academy\/starters\/[a-z-]+\.png$/,
+      );
+      expect(starter.portraitAsset).not.toMatch(/^starters\//);
     }
   });
 

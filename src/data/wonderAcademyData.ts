@@ -6,7 +6,8 @@ import type {
   WonderlingSpecies,
 } from "../types/wonderAcademy";
 
-const starterAsset = (name: string) => `starters/${name}.png`;
+const starterAsset = (name: string) =>
+  `src/assets/games/wonder-academy/starters/${name}.png`;
 
 export const WONDER_ACADEMY_STARTERS: WonderlingSpecies[] = [
   {
