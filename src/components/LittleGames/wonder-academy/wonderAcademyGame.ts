@@ -57,6 +57,11 @@ type FloatingObject = {
   amplitude: number;
 };
 
+type ObjectiveHudLayout = {
+  objectiveRect: Rect;
+  messageRect?: Rect;
+};
+
 type MapNodeVisualState =
   | "current"
   | "adjacent"
@@ -72,6 +77,18 @@ const HUB_PAUSE_BUTTON: Rect = { x: 1056, y: 38, width: 164, height: 58 };
 const RETURN_HUB_BUTTON: Rect = { x: 44, y: 40, width: 146, height: 54 };
 const MAP_TRIAL_BUTTON: Rect = { x: 930, y: 660, width: 270, height: 70 };
 const PAUSE_RESUME_BUTTON: Rect = { x: 508, y: 438, width: 264, height: 76 };
+const HUB_OBJECTIVE_LAYOUT: ObjectiveHudLayout = {
+  objectiveRect: { x: 42, y: 28, width: 676, height: 118 },
+  messageRect: { x: 370, y: 674, width: 540, height: 64 },
+};
+const MAP_OBJECTIVE_LAYOUT: ObjectiveHudLayout = {
+  objectiveRect: { x: 216, y: 28, width: 650, height: 118 },
+  messageRect: { x: 78, y: 666, width: 620, height: 64 },
+};
+const TRIAL_OBJECTIVE_LAYOUT: ObjectiveHudLayout = {
+  objectiveRect: { x: 216, y: 28, width: 650, height: 118 },
+  messageRect: { x: 370, y: 560, width: 540, height: 64 },
+};
 const TRIAL_BUTTONS: Record<
   "comfort" | "skill" | "snack" | "attune",
   Rect & { label: string; hint: string }
@@ -387,26 +404,33 @@ function getNodeColors(visualState: MapNodeVisualState): {
   }
 }
 
-function addObjectiveHud(k: KAPLAYCtx, state: WonderAcademyState, feedback: string | null): void {
-  addPanel(k, { x: 42, y: 28, width: 676, height: 118 }, { opacity: 0.88 });
-  addText(k, state.currentObjective.label, 72, 50, {
+function addObjectiveHud(
+  k: KAPLAYCtx,
+  state: WonderAcademyState,
+  feedback: string | null,
+  layout: ObjectiveHudLayout = HUB_OBJECTIVE_LAYOUT,
+): void {
+  const { objectiveRect, messageRect } = layout;
+
+  addPanel(k, objectiveRect, { opacity: 0.88 });
+  addText(k, state.currentObjective.label, objectiveRect.x + 30, objectiveRect.y + 22, {
     size: 26,
-    width: 616,
+    width: objectiveRect.width - 60,
   });
-  addText(k, state.currentObjective.description, 72, 88, {
+  addText(k, state.currentObjective.description, objectiveRect.x + 30, objectiveRect.y + 60, {
     color: "#475467",
     size: 17,
-    width: 606,
+    width: objectiveRect.width - 70,
   });
 
   const message = feedback ?? state.message;
-  if (message) {
-    addPanel(k, { x: 370, y: 674, width: 540, height: 64 }, { opacity: 0.9 });
-    addText(k, message, 392, 692, {
+  if (message && messageRect) {
+    addPanel(k, messageRect, { opacity: 0.9 });
+    addText(k, message, messageRect.x + 22, messageRect.y + 18, {
       align: "center",
       color: "#344054",
       size: 17,
-      width: 496,
+      width: messageRect.width - 44,
     });
   }
 }
@@ -554,7 +578,7 @@ export function createWonderAcademyGame({
     }
 
     addPauseButton(k, renderState);
-    addObjectiveHud(k, renderState, feedbackMessage);
+    addObjectiveHud(k, renderState, feedbackMessage, HUB_OBJECTIVE_LAYOUT);
   };
 
   const renderMapConnections = (nodes: WonderAcademyMapNode[]) => {
@@ -688,7 +712,7 @@ export function createWonderAcademyGame({
       });
     }
 
-    addObjectiveHud(k, renderState, feedbackMessage);
+    addObjectiveHud(k, renderState, feedbackMessage, MAP_OBJECTIVE_LAYOUT);
   };
 
   const renderMoodTrial = () => {
@@ -781,7 +805,7 @@ export function createWonderAcademyGame({
       disabled: !trial,
       primary: true,
     });
-    addObjectiveHud(k, renderState, feedbackMessage);
+    addObjectiveHud(k, renderState, feedbackMessage, TRIAL_OBJECTIVE_LAYOUT);
   };
 
   const renderPauseOverlay = () => {
