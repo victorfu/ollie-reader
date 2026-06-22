@@ -99,6 +99,18 @@ function normalizeMode(mode: WonderAcademyMode | LegacyWonderAcademyMode): Wonde
   return mode;
 }
 
+function normalizeSavedResumeMode(resumePoint: string): WonderAcademyMode {
+  if (resumePoint === "regionMap" || resumePoint === "map") {
+    return "regionMap";
+  }
+
+  if (resumePoint === "moodTrial" || resumePoint === "trial") {
+    return "regionMap";
+  }
+
+  return "hub";
+}
+
 function getObjectiveForProgress(progress: WonderAcademyProgress | null): WonderAcademyObjective {
   if (!progress) {
     return STARTER_OBJECTIVE;
@@ -175,7 +187,7 @@ function getSafeResumePoint(
   }
 
   if (state.mode === "moodTrial" && (state.moodTrial || state.trial)) {
-    return "moodTrial";
+    return "regionMap";
   }
 
   return previous.lastSafeResumePoint || "hub";
@@ -252,9 +264,14 @@ export function createInitialWonderAcademyState({
   mode,
 }: CreateInitialWonderAcademyStateOptions): WonderAcademyState {
   const normalizedProgress = progress ? normalizeProgress(progress) : null;
+  const initialMode = mode
+    ? normalizeMode(mode)
+    : normalizedProgress
+      ? normalizeSavedResumeMode(normalizedProgress.lastSafeResumePoint)
+      : "title";
 
   return {
-    mode: mode ? normalizeMode(mode) : normalizedProgress ? "hub" : "title",
+    mode: initialMode,
     progress: normalizedProgress,
     ...getPublicProgressFields(normalizedProgress),
     currentObjective: getObjectiveForProgress(normalizedProgress),

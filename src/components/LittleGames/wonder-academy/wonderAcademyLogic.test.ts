@@ -36,6 +36,29 @@ describe("Wonder Academy pure game logic", () => {
     expect(state.currentObjective.targetNodeId).toBe("firefly-clearing");
   });
 
+  it("resumes reconstructable saved modes without transient trial state", () => {
+    const regionMapProgress = {
+      ...createProgress(),
+      lastSafeResumePoint: "regionMap",
+    };
+    const legacyTrialProgress = {
+      ...createProgress(),
+      lastSafeResumePoint: "moodTrial",
+    };
+
+    const regionMapState = createInitialWonderAcademyState({ progress: regionMapProgress });
+    const legacyTrialState = createInitialWonderAcademyState({
+      progress: legacyTrialProgress,
+    });
+
+    expect(regionMapState.mode).toBe("regionMap");
+    expect(regionMapState.moodTrial).toBeNull();
+    expect(regionMapState.trial).toBeNull();
+    expect(legacyTrialState.mode).toBe("regionMap");
+    expect(legacyTrialState.moodTrial).toBeNull();
+    expect(legacyTrialState.trial).toBeNull();
+  });
+
   it("selects only adjacent unlocked map nodes from the academy gate", () => {
     const state = createInitialWonderAcademyState({ progress: createProgress() });
 
@@ -325,6 +348,39 @@ describe("Wonder Academy progress projection", () => {
     expect(projected.wonderdex.mossmew).toBe("attuned");
     expect(projected.storyProgress.currentObjectiveId).toBe("repair-mossy-bridge");
     expect(projected.lastSafeResumePoint).toBe("regionMap");
+  });
+
+  it("projects active and paused Mood Trial state to a reconstructable map resume point", () => {
+    const previous = createProgress();
+    const atClearing = applyWonderAcademyAction(
+      createInitialWonderAcademyState({ progress: previous, mode: "regionMap" }),
+      {
+        type: "moveToNode",
+        nodeId: "firefly-clearing",
+      },
+    );
+    const started = applyWonderAcademyAction(atClearing, { type: "startMoodTrial" });
+    const paused = applyWonderAcademyAction(started, { type: "togglePause" });
+
+    const activeProjected = projectWonderAcademyProgress(
+      previous,
+      started,
+      "2026-06-22T02:20:00.000Z",
+    );
+    const pausedProjected = projectWonderAcademyProgress(
+      previous,
+      paused,
+      "2026-06-22T02:21:00.000Z",
+    );
+    const resumed = createInitialWonderAcademyState({ progress: pausedProjected });
+
+    expect(started.mode).toBe("moodTrial");
+    expect(activeProjected.lastSafeResumePoint).toBe("regionMap");
+    expect(pausedProjected.lastSafeResumePoint).toBe("regionMap");
+    expect(resumed.mode).toBe("regionMap");
+    expect(resumed.currentNodeId).toBe("firefly-clearing");
+    expect(resumed.moodTrial).toBeNull();
+    expect(resumed.trial).toBeNull();
   });
 
   it("preserves audio settings and unrelated inventory fields during projection", () => {

@@ -39,6 +39,10 @@ type WonderAcademyPageProps = {
 
 type SaveStatus = "loading" | "saved" | "saving" | "pending" | "failed";
 
+type SaveProgressOptions = {
+  playCompletionSfx?: boolean;
+};
+
 const SAVE_STATUS_LABELS: Record<SaveStatus, string> = {
   loading: "Loading",
   saved: "Saved",
@@ -156,18 +160,17 @@ function formatPercent(value: number): string {
   return `${Math.round(value * 100)}%`;
 }
 
-export default function WonderAcademyPage({ onExit }: WonderAcademyPageProps) {
-  const { user, loading: authLoading, signInWithGoogle } = useAuth();
-  const [state, setState] = useState<WonderAcademyState>(() =>
-    createInitialWonderAcademyState({ progress: null }),
-  );
-  const [saveStatus, setSaveStatus] = useState<SaveStatus>("loading");
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [loadedUserId, setLoadedUserId] = useState<string | null>(null);
-  const stateRef = useRef(state);
-  const saveSequenceRef = useRef(0);
-  const activeUserIdRef = useRef<string | null>(null);
-  const lastUserIdRef = useRef<string | null>(null);
+type UseWonderAcademyAudioOptions = {
+  hasProgress: boolean;
+  mode: WonderAcademyState["mode"];
+  settings?: WonderAcademyAudioSettings;
+};
+
+function useWonderAcademyAudio({
+  hasProgress,
+  mode,
+  settings,
+}: UseWonderAcademyAudioOptions) {
   const audioManagerRef = useRef<WonderAcademyAudioManager | null>(null);
   const activeLoopRef = useRef<WonderAcademyLoopId | null>(null);
 
@@ -181,10 +184,232 @@ export default function WonderAcademyPage({ onExit }: WonderAcademyPageProps) {
     return audioManagerRef.current;
   }, []);
 
+  const applySettings = useCallback((
+    nextSettings: Partial<WonderAcademyAudioSettings> | null,
+  ) => getAudioManager(nextSettings).setSettings(nextSettings), [getAudioManager]);
+
+  const playSfx = useCallback((
+    id: Parameters<WonderAcademyAudioManager["playSfx"]>[0],
+    initialSettings?: Partial<WonderAcademyAudioSettings> | null,
+  ) => {
+    getAudioManager(initialSettings).playSfx(id);
+  }, [getAudioManager]);
+
+  const stopAll = useCallback(() => {
+    audioManagerRef.current?.stopAll();
+    activeLoopRef.current = null;
+  }, []);
+
+  useEffect(() => {
+    if (!settings) return;
+
+    applySettings(settings);
+  }, [applySettings, settings]);
+
+  useEffect(() => {
+    if (!hasProgress || !settings) {
+      stopAll();
+      return;
+    }
+
+    const manager = getAudioManager(settings);
+    const nextLoop = getLoopForMode(mode);
+
+    if (activeLoopRef.current && activeLoopRef.current !== nextLoop) {
+      manager.stopLoop(activeLoopRef.current);
+    }
+
+    activeLoopRef.current = nextLoop;
+
+    if (nextLoop) {
+      manager.startLoop(nextLoop);
+    }
+  }, [getAudioManager, hasProgress, mode, settings, stopAll]);
+
+  useEffect(() => stopAll, [stopAll]);
+
+  return {
+    applySettings,
+    playSfx,
+    stopAll,
+  };
+}
+
+type WonderAcademySettingsPanelProps = {
+  audioSettings: WonderAcademyAudioSettings;
+  currentObjective: WonderAcademyState["currentObjective"];
+  isPaused: boolean;
+  onAudioSettingsCommit: () => void;
+  onAudioSettingsPreview: (settings: Partial<WonderAcademyAudioSettings>) => void;
+  onContinue: () => void;
+  onReturnHub: () => void;
+};
+
+function WonderAcademySettingsPanel({
+  audioSettings,
+  currentObjective,
+  isPaused,
+  onAudioSettingsCommit,
+  onAudioSettingsPreview,
+  onContinue,
+  onReturnHub,
+}: WonderAcademySettingsPanelProps) {
+  return (
+    <div
+      className={[
+        "mt-4 flex flex-col gap-3 rounded-[10px] border border-border-hairline bg-card p-3 shadow-sm",
+        isPaused ? "ring-1 ring-accent/40" : "",
+      ].join(" ")}
+    >
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold">
+            {currentObjective.label}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            {isPaused ? "Paused" : "Settings"}
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {isPaused && (
+            <button
+              type="button"
+              onClick={onContinue}
+              className="btn btn-primary btn-sm min-h-11 rounded-[6px]"
+            >
+              <Play className="size-4" strokeWidth={1.75} aria-hidden="true" />
+              Continue
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={onReturnHub}
+            className="btn btn-outline btn-sm min-h-11 rounded-[6px]"
+          >
+            <Home className="size-4" strokeWidth={1.75} aria-hidden="true" />
+            Return to Hub
+          </button>
+        </div>
+      </div>
+
+      <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] md:items-center">
+        <label className="flex min-h-11 items-center gap-3 rounded-[6px] bg-background/50 px-3">
+          <Volume2
+            className="size-4 shrink-0 text-muted-foreground"
+            strokeWidth={1.75}
+            aria-hidden="true"
+          />
+          <span className="w-24 text-sm font-medium">Music</span>
+          <input
+            type="range"
+            min="0"
+            max="100"
+            step="1"
+            value={Math.round(audioSettings.musicVolume * 100)}
+            onBlur={onAudioSettingsCommit}
+            onChange={(event) =>
+              onAudioSettingsPreview({
+                musicVolume: Number(event.currentTarget.value) / 100,
+              })
+            }
+            onKeyUp={onAudioSettingsCommit}
+            onPointerUp={onAudioSettingsCommit}
+            className="range range-primary range-xs"
+            aria-label="Music volume"
+          />
+          <span className="w-10 text-right text-xs text-muted-foreground">
+            {formatPercent(audioSettings.musicVolume)}
+          </span>
+        </label>
+
+        <label className="flex min-h-11 items-center gap-3 rounded-[6px] bg-background/50 px-3">
+          <Volume2
+            className="size-4 shrink-0 text-muted-foreground"
+            strokeWidth={1.75}
+            aria-hidden="true"
+          />
+          <span className="w-24 text-sm font-medium">SFX</span>
+          <input
+            type="range"
+            min="0"
+            max="100"
+            step="1"
+            value={Math.round(audioSettings.sfxVolume * 100)}
+            onBlur={onAudioSettingsCommit}
+            onChange={(event) =>
+              onAudioSettingsPreview({
+                sfxVolume: Number(event.currentTarget.value) / 100,
+              })
+            }
+            onKeyUp={onAudioSettingsCommit}
+            onPointerUp={onAudioSettingsCommit}
+            className="range range-primary range-xs"
+            aria-label="SFX volume"
+          />
+          <span className="w-10 text-right text-xs text-muted-foreground">
+            {formatPercent(audioSettings.sfxVolume)}
+          </span>
+        </label>
+
+        <label className="flex min-h-11 items-center gap-3 rounded-[6px] bg-background/50 px-3">
+          <input
+            type="checkbox"
+            checked={audioSettings.muted}
+            onChange={(event) => {
+              onAudioSettingsPreview({
+                muted: event.currentTarget.checked,
+              });
+              queueMicrotask(onAudioSettingsCommit);
+            }}
+            className="toggle toggle-primary"
+            aria-label="Mute audio"
+          />
+          <span className="text-sm font-medium">Mute</span>
+        </label>
+      </div>
+    </div>
+  );
+}
+
+export default function WonderAcademyPage({ onExit }: WonderAcademyPageProps) {
+  const { user, loading: authLoading, signInWithGoogle } = useAuth();
+  const [state, setState] = useState<WonderAcademyState>(() =>
+    createInitialWonderAcademyState({ progress: null }),
+  );
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>("loading");
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadedUserId, setLoadedUserId] = useState<string | null>(null);
+  const stateRef = useRef(state);
+  const saveSequenceRef = useRef(0);
+  const activeUserIdRef = useRef<string | null>(null);
+  const lastUserIdRef = useRef<string | null>(null);
+  const pendingAudioProgressRef = useRef<WonderAcademyProgress | null>(null);
+  const audioSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const commitState = useCallback((nextState: WonderAcademyState) => {
     stateRef.current = nextState;
     setState(nextState);
   }, []);
+
+  const effectiveSaveStatus: SaveStatus =
+    authLoading || (user && loadedUserId !== user.uid)
+      ? "loading"
+      : user
+        ? saveStatus
+        : "saved";
+  const activeState =
+    user && loadedUserId === user.uid
+      ? state
+      : createInitialWonderAcademyState({ progress: null });
+  const activeLoadError = user && loadedUserId === user.uid ? loadError : null;
+  const hasProgress = Boolean(activeState.progress);
+  const audioSettings = activeState.progress?.audioSettings;
+  const isPaused = activeState.paused || activeState.isPaused;
+  const { applySettings, playSfx, stopAll } = useWonderAcademyAudio({
+    hasProgress,
+    mode: activeState.mode,
+    settings: audioSettings,
+  });
 
   useLayoutEffect(() => {
     const userId = user?.uid ?? null;
@@ -241,9 +466,13 @@ export default function WonderAcademyPage({ onExit }: WonderAcademyPageProps) {
     };
   }, [authLoading, commitState, user]);
 
-  const saveProgress = useCallback(async (progress: WonderAcademyProgress) => {
+  const saveProgress = useCallback(async (
+    progress: WonderAcademyProgress,
+    options: SaveProgressOptions = {},
+  ) => {
     if (activeUserIdRef.current !== progress.userId) return;
 
+    const { playCompletionSfx = true } = options;
     const sequence = saveSequenceRef.current + 1;
     saveSequenceRef.current = sequence;
     setSaveStatus("saving");
@@ -273,9 +502,12 @@ export default function WonderAcademyPage({ onExit }: WonderAcademyPageProps) {
         });
       }
       setSaveStatus(result.cloudSaved ? "saved" : "pending");
-      getAudioManager(result.progress.audioSettings).playSfx(
-        result.cloudSaved ? "save_success" : "save_pending",
-      );
+      if (playCompletionSfx) {
+        playSfx(
+          result.cloudSaved ? "save_success" : "save_pending",
+          result.progress.audioSettings,
+        );
+      }
     } catch {
       if (
         saveSequenceRef.current === sequence &&
@@ -284,7 +516,7 @@ export default function WonderAcademyPage({ onExit }: WonderAcademyPageProps) {
         setSaveStatus("failed");
       }
     }
-  }, [commitState, getAudioManager]);
+  }, [commitState, playSfx]);
 
   const projectAndSaveState = useCallback((
     previousProgress: WonderAcademyProgress,
@@ -300,8 +532,36 @@ export default function WonderAcademyPage({ onExit }: WonderAcademyPageProps) {
     return progress;
   }, [commitState, saveProgress]);
 
+  const flushPendingAudioSettings = useCallback(() => {
+    const progress = pendingAudioProgressRef.current;
+
+    if (!progress) return;
+
+    pendingAudioProgressRef.current = null;
+    if (audioSaveTimerRef.current) {
+      clearTimeout(audioSaveTimerRef.current);
+      audioSaveTimerRef.current = null;
+    }
+
+    void saveProgress(progress, { playCompletionSfx: false });
+  }, [saveProgress]);
+
+  const queueAudioSettingsSave = useCallback((progress: WonderAcademyProgress) => {
+    pendingAudioProgressRef.current = progress;
+
+    if (audioSaveTimerRef.current) {
+      clearTimeout(audioSaveTimerRef.current);
+    }
+
+    audioSaveTimerRef.current = setTimeout(() => {
+      flushPendingAudioSettings();
+    }, 900);
+  }, [flushPendingAudioSettings]);
+
   const handleStartNewGame = useCallback((confirmOverwrite = false) => {
     if (!user) return;
+    flushPendingAudioSettings();
+
     if (
       confirmOverwrite &&
       !window.confirm("Start a new Wonder Academy game and overwrite this save?")
@@ -319,7 +579,7 @@ export default function WonderAcademyPage({ onExit }: WonderAcademyPageProps) {
     commitState(createInitialWonderAcademyState({ progress }));
     setLoadedUserId(user.uid);
     void saveProgress(progress);
-  }, [commitState, saveProgress, user]);
+  }, [commitState, flushPendingAudioSettings, saveProgress, user]);
 
   const handleResetNewGame = useCallback(() => {
     handleStartNewGame(true);
@@ -327,6 +587,8 @@ export default function WonderAcademyPage({ onExit }: WonderAcademyPageProps) {
 
   const handleAction = useCallback(
     (action: WonderAcademyAction) => {
+      flushPendingAudioSettings();
+
       const currentState = stateRef.current;
       const nextState = applyWonderAcademyAction(currentState, action);
       const shouldSaveProgress =
@@ -343,20 +605,20 @@ export default function WonderAcademyPage({ onExit }: WonderAcademyPageProps) {
           projected.wonderdex.mossmew === "attuned" &&
           currentState.wonderdex.mossmew !== "attuned"
         ) {
-          getAudioManager(projected.audioSettings).playSfx("attune_success");
+          playSfx("attune_success", projected.audioSettings);
           return;
         }
 
-        getAudioManager(projected.audioSettings).playSfx("ui_select");
+        playSfx("ui_select", projected.audioSettings);
         return;
       }
 
       commitState(nextState);
     },
-    [commitState, getAudioManager, projectAndSaveState],
+    [commitState, flushPendingAudioSettings, playSfx, projectAndSaveState],
   );
 
-  const handleAudioSettingsChange = useCallback((
+  const handleAudioSettingsPreview = useCallback((
     settings: Partial<WonderAcademyAudioSettings>,
   ) => {
     const currentState = stateRef.current;
@@ -364,7 +626,10 @@ export default function WonderAcademyPage({ onExit }: WonderAcademyPageProps) {
 
     if (!currentProgress) return;
 
-    const nextAudioSettings = getAudioManager(currentProgress.audioSettings).setSettings(settings);
+    const nextAudioSettings = applySettings({
+      ...currentProgress.audioSettings,
+      ...settings,
+    });
     const projected = projectWonderAcademyProgress(
       currentProgress,
       currentState,
@@ -376,9 +641,9 @@ export default function WonderAcademyPage({ onExit }: WonderAcademyPageProps) {
     };
 
     commitState(withCommittedProgress(currentState, progress));
-    getAudioManager(nextAudioSettings).playSfx("ui_select");
-    void saveProgress(progress);
-  }, [commitState, getAudioManager, saveProgress]);
+    pendingAudioProgressRef.current = progress;
+    queueAudioSettingsSave(progress);
+  }, [applySettings, commitState, queueAudioSettingsSave]);
 
   const handleReturnHub = useCallback(() => {
     if (stateRef.current.paused || stateRef.current.isPaused) {
@@ -388,56 +653,10 @@ export default function WonderAcademyPage({ onExit }: WonderAcademyPageProps) {
     handleAction({ type: "returnHub" });
   }, [handleAction]);
 
-  const effectiveSaveStatus: SaveStatus =
-    authLoading || (user && loadedUserId !== user.uid)
-      ? "loading"
-      : user
-        ? saveStatus
-        : "saved";
-  const activeState =
-    user && loadedUserId === user.uid
-      ? state
-      : createInitialWonderAcademyState({ progress: null });
-  const activeLoadError = user && loadedUserId === user.uid ? loadError : null;
-  const hasProgress = Boolean(activeState.progress);
-  const audioSettings = activeState.progress?.audioSettings;
-  const isPaused = activeState.paused || activeState.isPaused;
-
-  useEffect(() => {
-    if (!audioSettings) return;
-
-    getAudioManager(audioSettings).setSettings(audioSettings);
-  }, [audioSettings, getAudioManager]);
-
-  useEffect(() => {
-    if (!hasProgress || !audioSettings) {
-      audioManagerRef.current?.stopAll();
-      activeLoopRef.current = null;
-      return;
-    }
-
-    const manager = getAudioManager(audioSettings);
-    const nextLoop = getLoopForMode(activeState.mode);
-
-    if (activeLoopRef.current && activeLoopRef.current !== nextLoop) {
-      manager.stopLoop(activeLoopRef.current);
-    }
-
-    activeLoopRef.current = nextLoop;
-
-    if (nextLoop) {
-      manager.startLoop(nextLoop);
-    }
-  }, [activeState.mode, audioSettings, getAudioManager, hasProgress]);
-
-  useEffect(() => {
-    return () => {
-      audioManagerRef.current?.stopAll();
-    };
-  }, []);
-
   useEffect(() => {
     const pauseTrialOnBackground = () => {
+      flushPendingAudioSettings();
+
       const currentState = stateRef.current;
 
       if (
@@ -466,7 +685,14 @@ export default function WonderAcademyPage({ onExit }: WonderAcademyPageProps) {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.removeEventListener("pagehide", pauseTrialOnBackground);
     };
-  }, [projectAndSaveState]);
+  }, [flushPendingAudioSettings, projectAndSaveState]);
+
+  useEffect(() => {
+    return () => {
+      flushPendingAudioSettings();
+      stopAll();
+    };
+  }, [flushPendingAudioSettings, stopAll]);
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -596,104 +822,15 @@ export default function WonderAcademyPage({ onExit }: WonderAcademyPageProps) {
               assets={WONDER_ACADEMY_ASSETS}
             />
             {audioSettings && (
-              <div
-                className={[
-                  "mt-4 flex flex-col gap-3 rounded-[10px] border border-border-hairline bg-card p-3 shadow-sm",
-                  isPaused ? "ring-1 ring-accent/40" : "",
-                ].join(" ")}
-              >
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold">
-                      {activeState.currentObjective.label}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {isPaused ? "Paused" : "Settings"}
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {isPaused && (
-                      <button
-                        type="button"
-                        onClick={() => handleAction({ type: "togglePause" })}
-                        className="btn btn-primary btn-sm min-h-11 rounded-[6px]"
-                      >
-                        <Play className="size-4" strokeWidth={1.75} aria-hidden="true" />
-                        Continue
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      onClick={handleReturnHub}
-                      className="btn btn-outline btn-sm min-h-11 rounded-[6px]"
-                    >
-                      <Home className="size-4" strokeWidth={1.75} aria-hidden="true" />
-                      Return to Hub
-                    </button>
-                  </div>
-                </div>
-
-                <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] md:items-center">
-                  <label className="flex min-h-11 items-center gap-3 rounded-[6px] bg-background/50 px-3">
-                    <Volume2 className="size-4 shrink-0 text-muted-foreground" strokeWidth={1.75} aria-hidden="true" />
-                    <span className="w-24 text-sm font-medium">Music</span>
-                    <input
-                      type="range"
-                      min="0"
-                      max="100"
-                      step="1"
-                      value={Math.round(audioSettings.musicVolume * 100)}
-                      onChange={(event) =>
-                        handleAudioSettingsChange({
-                          musicVolume: Number(event.currentTarget.value) / 100,
-                        })
-                      }
-                      className="range range-primary range-xs"
-                      aria-label="Music volume"
-                    />
-                    <span className="w-10 text-right text-xs text-muted-foreground">
-                      {formatPercent(audioSettings.musicVolume)}
-                    </span>
-                  </label>
-
-                  <label className="flex min-h-11 items-center gap-3 rounded-[6px] bg-background/50 px-3">
-                    <Volume2 className="size-4 shrink-0 text-muted-foreground" strokeWidth={1.75} aria-hidden="true" />
-                    <span className="w-24 text-sm font-medium">SFX</span>
-                    <input
-                      type="range"
-                      min="0"
-                      max="100"
-                      step="1"
-                      value={Math.round(audioSettings.sfxVolume * 100)}
-                      onChange={(event) =>
-                        handleAudioSettingsChange({
-                          sfxVolume: Number(event.currentTarget.value) / 100,
-                        })
-                      }
-                      className="range range-primary range-xs"
-                      aria-label="SFX volume"
-                    />
-                    <span className="w-10 text-right text-xs text-muted-foreground">
-                      {formatPercent(audioSettings.sfxVolume)}
-                    </span>
-                  </label>
-
-                  <label className="flex min-h-11 items-center gap-3 rounded-[6px] bg-background/50 px-3">
-                    <input
-                      type="checkbox"
-                      checked={audioSettings.muted}
-                      onChange={(event) =>
-                        handleAudioSettingsChange({
-                          muted: event.currentTarget.checked,
-                        })
-                      }
-                      className="toggle toggle-primary"
-                      aria-label="Mute audio"
-                    />
-                    <span className="text-sm font-medium">Mute</span>
-                  </label>
-                </div>
-              </div>
+              <WonderAcademySettingsPanel
+                audioSettings={audioSettings}
+                currentObjective={activeState.currentObjective}
+                isPaused={isPaused}
+                onAudioSettingsCommit={flushPendingAudioSettings}
+                onAudioSettingsPreview={handleAudioSettingsPreview}
+                onContinue={() => handleAction({ type: "togglePause" })}
+                onReturnHub={handleReturnHub}
+              />
             )}
             <div className="mt-4 flex justify-end">
               <button
