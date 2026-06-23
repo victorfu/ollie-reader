@@ -34,3 +34,6 @@ dist-ssr
 
 # git worktrees
 .worktrees
+
+# brainstorming visual companion mockups (throwaway design scratch)
+.superpowers/
