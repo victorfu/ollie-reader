@@ -121,7 +121,7 @@ type Action =
   | { type: "setName"; name: string }
   | { type: "arriveNext" }
   | { type: "pickStarter"; speciesId: string }
-  | { type: "confirmStarter" }
+  | { type: "confirmStarter"; nickname: string }
   | { type: "explore" }
   | { type: "sceneMove"; dx: number; dy: number }
   | { type: "sceneCloseMessage" }
@@ -315,7 +315,7 @@ function reducer(state: GameState, action: Action): GameState {
           {
             ownedId: `${species.speciesId}-starter`,
             speciesId: species.speciesId,
-            nickname: "",
+            nickname: action.nickname.trim(),
             level: 5,
             xp: 0,
             bond: 20,
@@ -617,6 +617,38 @@ function battleHeadline(session: BattleSession): string {
 
 const PANEL_BG =
   "radial-gradient(120% 90% at 12% 0%, #fff7ec 0%, rgba(255,247,236,0) 55%), radial-gradient(120% 110% at 100% 0%, #efe7ff 0%, rgba(239,231,255,0) 50%), linear-gradient(180deg, #fbf6ff 0%, #f3eefe 60%, #efeafc 100%)";
+
+function StarterConfirm({
+  species,
+  onBack,
+  onConfirm,
+}: {
+  species: CreatureSpecies;
+  onBack: () => void;
+  onConfirm: (nickname: string) => void;
+}) {
+  const [nickname, setNickname] = useState("");
+  return (
+    <div style={{ textAlign: "center", paddingTop: 18 }}>
+      <div style={{ letterSpacing: ".2em", fontSize: 11, fontWeight: 700, color: "#8a83a3", textTransform: "uppercase", marginBottom: 12 }}>序章 — 命定的夥伴</div>
+      <div style={{ position: "relative", width: 160, margin: "0 auto 8px" }}>
+        <img src={species.portrait} alt={species.name} style={{ width: 160, height: 160, objectFit: "contain", filter: "drop-shadow(0 10px 14px rgba(244,169,58,.3))" }} />
+        <div style={{ position: "absolute", top: 8, right: 4, fontSize: 22 }}>💛</div>
+        <div style={{ position: "absolute", bottom: 16, left: 4, fontSize: 18 }}>✨</div>
+      </div>
+      <h1 style={{ fontSize: 26, fontWeight: 800, margin: "0 0 6px" }}><span style={{ color: "#f0922a" }}>{species.name}</span> 選擇了你!</h1>
+      <p style={{ color: "#8a83a3", fontSize: 14, maxWidth: 360, margin: "0 auto 14px" }}>牠開心地跑向你 —— 從現在起,你們會一起走完整段冒險。</p>
+      <div style={{ display: "flex", gap: 6, justifyContent: "center", marginBottom: 16 }}>
+        {species.elements.map((e) => <TypeBadge key={e} element={e} />)}
+      </div>
+      <input value={nickname} onChange={(e) => setNickname(e.target.value)} placeholder={`幫牠取個暱稱?(預設 ${species.name})`} style={{ ...fieldInput, maxWidth: 300, margin: "0 auto 18px", textAlign: "center" }} />
+      <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
+        <button onClick={onBack} style={btnGhost}>← 再想想</button>
+        <button onClick={() => onConfirm(nickname)} style={ctaBtn}>和 {nickname.trim() || species.name} 一起出發 →</button>
+      </div>
+    </div>
+  );
+}
 
 function ExploreScene({
   scene,
@@ -964,24 +996,16 @@ export default function WonderAcademyGame({ onExit }: Props) {
   // ---------- CONFIRM / BOND ----------
   if (state.screen === "confirm" && state.pendingStarterId) {
     const sp = speciesById(state.pendingStarterId);
+    if (!sp) return frame(<div />);
     return frame(
-      <div style={{ textAlign: "center", paddingTop: 18 }}>
-        <div style={{ letterSpacing: ".2em", fontSize: 11, fontWeight: 700, color: "#8a83a3", textTransform: "uppercase", marginBottom: 12 }}>序章 — 命定的夥伴</div>
-        <div style={{ position: "relative", width: 160, margin: "0 auto 8px" }}>
-          <img src={sp?.portrait} alt={sp?.name} style={{ width: 160, height: 160, objectFit: "contain", filter: "drop-shadow(0 10px 14px rgba(244,169,58,.3))" }} />
-          <div style={{ position: "absolute", top: 8, right: 4, fontSize: 22 }}>💛</div>
-          <div style={{ position: "absolute", bottom: 16, left: 4, fontSize: 18 }}>✨</div>
-        </div>
-        <h1 style={{ fontSize: 26, fontWeight: 800, margin: "0 0 6px" }}><span style={{ color: "#f0922a" }}>{sp?.name}</span> 選擇了你!</h1>
-        <p style={{ color: "#8a83a3", fontSize: 14, maxWidth: 360, margin: "0 auto 16px" }}>牠開心地跑向你 —— 從現在起,你們會一起走完整段冒險。</p>
-        <div style={{ display: "flex", gap: 6, justifyContent: "center", marginBottom: 22 }}>
-          {sp?.elements.map((e) => <TypeBadge key={e} element={e} />)}
-        </div>
-        <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
-          <button onClick={() => dispatch({ type: "arriveNext" })} style={btnGhost}>← 再想想</button>
-          <button onClick={() => dispatch({ type: "confirmStarter" })} style={ctaBtn}>和 {sp?.name} 一起出發 →</button>
-        </div>
-      </div>,
+      <StarterConfirm
+        species={sp}
+        onBack={() => dispatch({ type: "arriveNext" })}
+        onConfirm={(nickname) => {
+          sfx("attune_success");
+          dispatch({ type: "confirmStarter", nickname });
+        }}
+      />,
     );
   }
 
