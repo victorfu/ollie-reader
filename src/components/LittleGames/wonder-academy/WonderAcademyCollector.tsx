@@ -373,6 +373,37 @@ function loadPersisted(uid: string): Persisted | null {
   }
 }
 
+const CLOUD_DOC = "wonderAcademyCollector";
+
+async function loadCloudGame(uid: string): Promise<Persisted | null> {
+  try {
+    const [{ doc, getDoc }, { db }] = await Promise.all([
+      import("firebase/firestore"),
+      import("../../../utils/firebaseUtil"),
+    ]);
+    const ref = doc(db, "gameProgress", uid, "littleGames", CLOUD_DOC);
+    const snap = await getDoc(ref);
+    if (!snap.exists()) return null;
+    const data = snap.data() as Persisted;
+    return Array.isArray(data.team) ? data : null;
+  } catch {
+    return null;
+  }
+}
+
+async function saveCloudGame(uid: string, data: Persisted): Promise<void> {
+  try {
+    const [{ doc, setDoc }, { db }] = await Promise.all([
+      import("firebase/firestore"),
+      import("../../../utils/firebaseUtil"),
+    ]);
+    const ref = doc(db, "gameProgress", uid, "littleGames", CLOUD_DOC);
+    await setDoc(ref, { ...data, updatedAt: Date.now() });
+  } catch {
+    // ignore — localStorage stays the source of truth
+  }
+}
+
 // ---- small presentational pieces ----
 
 function TypeBadge({ element }: { element: keyof typeof ELEMENT_META }) {
@@ -532,7 +563,20 @@ export default function WonderAcademyGame({ onExit }: Props) {
   const [state, dispatch] = useReducer(reducer, INITIAL);
 
   useEffect(() => {
-    dispatch({ type: "load", state: loadPersisted(uid) });
+    const local = loadPersisted(uid);
+    dispatch({ type: "load", state: local });
+    // On a device with no local save yet, pull cloud progress (never clobbers
+    // existing local progress).
+    if (local && local.team.length > 0) return;
+    let cancelled = false;
+    void loadCloudGame(uid).then((cloud) => {
+      if (!cancelled && cloud && cloud.team.length > 0) {
+        dispatch({ type: "load", state: cloud });
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [uid]);
 
   // ---- audio ----
@@ -592,6 +636,9 @@ export default function WonderAcademyGame({ onExit }: Props) {
     } catch {
       // ignore quota / availability errors
     }
+    // Debounced cloud sync (best-effort; localStorage stays primary).
+    const timer = setTimeout(() => void saveCloudGame(uid, data), 900);
+    return () => clearTimeout(timer);
   }, [uid, state.ready, state.playerName, state.team, state.dex, state.stardust, state.snacks, state.customCreatures]);
 
   // Keep the runtime species registry in sync with the player's custom creatures.
