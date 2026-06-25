@@ -26,7 +26,23 @@ import {
   type OwnedCreature,
 } from "./wonderAcademyCreatures";
 
-type Screen = "select" | "hub" | "battle" | "result" | "dex";
+type Screen =
+  | "title"
+  | "arrival"
+  | "select"
+  | "confirm"
+  | "hub"
+  | "battle"
+  | "result"
+  | "dex";
+
+const SNACK_NAMES: Record<string, string> = {
+  "starberry-cookie": "星莓餅乾",
+  "moon-milk-puff": "月乳泡芙",
+  "clover-macaron": "三葉草馬卡龍",
+  "warm-cocoa-gem": "暖可可寶石",
+};
+const SNACK_POOL = Object.keys(SNACK_NAMES);
 
 type ResultInfo = {
   kind: BattleSession["outcome"];
@@ -39,18 +55,24 @@ type Persisted = {
   team: OwnedCreature[];
   dex: Wonderdex;
   stardust: number;
+  snacks: Record<string, number>;
 };
 
 type GameState = Persisted & {
   ready: boolean;
   screen: Screen;
+  pendingStarterId: string | null;
   battle: BattleSession | null;
   result: ResultInfo | null;
 };
 
 type Action =
   | { type: "load"; state: Persisted | null }
-  | { type: "selectStarter"; speciesId: string }
+  | { type: "beginNewGame" }
+  | { type: "setName"; name: string }
+  | { type: "arriveNext" }
+  | { type: "pickStarter"; speciesId: string }
+  | { type: "confirmStarter" }
   | { type: "explore" }
   | { type: "battleMove"; moveId: string }
   | { type: "battleCatch" }
@@ -62,11 +84,13 @@ type Action =
 
 const INITIAL: GameState = {
   ready: false,
-  screen: "select",
+  screen: "title",
+  pendingStarterId: null,
   playerName: "",
   team: [],
   dex: {},
   stardust: 0,
+  snacks: {},
   battle: null,
   result: null,
 };
@@ -84,6 +108,13 @@ function resolveOutcome(state: GameState, session: BattleSession): GameState {
   let team = state.team;
   let dex = state.dex;
   let stardust = state.stardust;
+  let snacks = state.snacks;
+
+  const rewardSnack = () => {
+    const pick = SNACK_POOL[Math.floor(random() * SNACK_POOL.length)];
+    snacks = { ...snacks, [pick]: (snacks[pick] ?? 0) + 1 };
+    lines.push(`撿到一個點心:${SNACK_NAMES[pick]}!🍪`);
+  };
 
   const awardXp = (amount: number) => {
     team = team.map((o) => {
@@ -113,11 +144,13 @@ function resolveOutcome(state: GameState, session: BattleSession): GameState {
     stardust += 15;
     lines.push(`你和 ${wildName} 成為了朋友!🎉`);
     awardXp(session.wild.level * 4);
+    rewardSnack();
   } else if (session.outcome === "won") {
     dex = recordDex(dex, wildSpeciesId, "seen");
     stardust += 5;
     lines.push(`${wildName} 累倒了,溜走了…`);
     awardXp(session.wild.level * 4);
+    rewardSnack();
   } else if (session.outcome === "fled") {
     lines.push("你帶著夥伴安全撤退了。");
   } else {
@@ -129,6 +162,7 @@ function resolveOutcome(state: GameState, session: BattleSession): GameState {
     team,
     dex,
     stardust,
+    snacks,
     battle: null,
     result: { kind: session.outcome, speciesId: wildSpeciesId, lines },
     screen: "result",
@@ -144,16 +178,26 @@ function afterBattle(state: GameState, next: BattleSession): GameState {
 function reducer(state: GameState, action: Action): GameState {
   switch (action.type) {
     case "load": {
-      if (!action.state) return { ...INITIAL, ready: true, screen: "select" };
+      if (!action.state) return { ...INITIAL, ready: true, screen: "title" };
       return {
         ...INITIAL,
         ...action.state,
         ready: true,
-        screen: action.state.team.length > 0 ? "hub" : "select",
+        screen: action.state.team.length > 0 ? "hub" : "title",
       };
     }
-    case "selectStarter": {
-      const species = speciesById(action.speciesId);
+    case "beginNewGame":
+      return { ...state, screen: "arrival" };
+    case "setName":
+      return { ...state, playerName: action.name };
+    case "arriveNext":
+      return { ...state, screen: "select" };
+    case "pickStarter":
+      return { ...state, pendingStarterId: action.speciesId, screen: "confirm" };
+    case "confirmStarter": {
+      const species = state.pendingStarterId
+        ? speciesById(state.pendingStarterId)
+        : undefined;
       if (!species) return state;
       return {
         ...state,
@@ -169,6 +213,8 @@ function reducer(state: GameState, action: Action): GameState {
           },
         ],
         dex: recordDex(state.dex, species.speciesId, "caught"),
+        snacks: { "clover-macaron": 2, "starberry-cookie": 2 },
+        pendingStarterId: null,
         screen: "hub",
       };
     }
@@ -198,8 +244,16 @@ function reducer(state: GameState, action: Action): GameState {
     }
     case "battleMove":
       return state.battle ? afterBattle(state, playerAttack(state.battle, action.moveId)) : state;
-    case "battleCatch":
-      return state.battle ? afterBattle(state, playerCatch(state.battle, 2, false, random)) : state;
+    case "battleCatch": {
+      if (!state.battle) return state;
+      const fav = speciesById(state.battle.wild.speciesId)?.favoriteSnack;
+      const hasFav = !!fav && (state.snacks?.[fav] ?? 0) > 0;
+      const snacks =
+        hasFav && fav
+          ? { ...(state.snacks ?? {}), [fav]: (state.snacks?.[fav] ?? 0) - 1 }
+          : (state.snacks ?? {});
+      return afterBattle({ ...state, snacks }, playerCatch(state.battle, 2, hasFav, random));
+    }
     case "battleSwitch":
       return state.battle ? afterBattle(state, playerSwitch(state.battle, action.ownedId)) : state;
     case "battleFlee":
@@ -228,6 +282,7 @@ function loadPersisted(uid: string): Persisted | null {
       team: parsed.team,
       dex: parsed.dex ?? {},
       stardust: parsed.stardust ?? 0,
+      snacks: parsed.snacks ?? {},
     };
   } catch {
     return null;
@@ -311,13 +366,14 @@ export default function WonderAcademyGame({ onExit }: Props) {
       team: state.team,
       dex: state.dex,
       stardust: state.stardust,
+      snacks: state.snacks,
     };
     try {
       window.localStorage.setItem(storageKey(uid), JSON.stringify(data));
     } catch {
       // ignore quota / availability errors
     }
-  }, [uid, state.ready, state.playerName, state.team, state.dex, state.stardust]);
+  }, [uid, state.ready, state.playerName, state.team, state.dex, state.stardust, state.snacks]);
 
   const completion = useMemo(
     () => dexCompletion(state.dex, WA_CREATURES.map((c) => c.speciesId)),
@@ -337,6 +393,66 @@ export default function WonderAcademyGame({ onExit }: Props) {
 
   if (!state.ready) return frame(<div style={{ textAlign: "center", padding: 60, color: "#8a83a3" }}>載入中…</div>);
 
+  // ---------- TITLE ----------
+  if (state.screen === "title") {
+    return frame(
+      <div style={{ textAlign: "center", paddingTop: 70 }}>
+        <div style={{ fontSize: 56, marginBottom: 4 }}>✦</div>
+        <h1 style={{ fontSize: 34, fontWeight: 800, margin: "0 0 6px" }}>Wonder Academy</h1>
+        <p style={{ color: "#8a83a3", fontSize: 15, margin: "0 0 28px" }}>在發光的森林裡,遇見、收服、養大你的夥伴。</p>
+        <button onClick={() => dispatch({ type: "beginNewGame" })} style={ctaBtn}>開始冒險 →</button>
+      </div>,
+    );
+  }
+
+  // ---------- ARRIVAL (院長 welcome + name) ----------
+  if (state.screen === "arrival") {
+    return frame(
+      <div style={{ borderRadius: 18, overflow: "hidden", boxShadow: "0 10px 30px rgba(80,50,130,.12)" }}>
+        <div style={{ height: 196, position: "relative", background: "radial-gradient(70% 60% at 50% 25%, #fff0cf 0%, rgba(255,240,207,0) 60%), linear-gradient(180deg,#ffd9b8 0%, #f6c6d8 40%, #e9d4f3 75%, #dcd2f2 100%)" }}>
+          <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 66, background: "linear-gradient(180deg,#bfe3a8,#a6d493)", borderRadius: "50% 50% 0 0 / 22px" }} />
+          <div style={{ position: "absolute", bottom: 22, left: "50%", transform: "translateX(-50%)", fontSize: 34 }}>🎒</div>
+          <div style={{ position: "absolute", top: 14, left: 14, fontSize: 10, fontWeight: 800, letterSpacing: ".18em", textTransform: "uppercase", color: "#fff", background: "rgba(124,95,192,.55)", padding: "4px 9px", borderRadius: 999 }}>序章 · 抵達學院</div>
+        </div>
+        <div style={{ background: "rgba(255,255,255,.8)", backdropFilter: "blur(14px)", padding: "16px 18px", display: "flex", gap: 14, alignItems: "flex-start" }}>
+          <div style={{ flex: "0 0 auto", width: 60, height: 60, borderRadius: "50%", background: "radial-gradient(circle at 50% 40%,#e7d6ff,#b79be0)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 34, border: "2px solid #fff", boxShadow: "0 6px 14px rgba(120,90,180,.25)" }}>🦉</div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 13, fontWeight: 800, color: "#7c5fc0", marginBottom: 4 }}>薇拉院長</div>
+            <p style={{ fontSize: 15, lineHeight: 1.6, margin: "0 0 12px" }}>歡迎來到 <b>Sparkleaf 星葉學院</b>!這片發光森林裡,住著好多等著和你做朋友的小傢伙。在我們開始之前——你叫什麼名字?</p>
+            <div style={{ display: "flex", gap: 9, flexWrap: "wrap" }}>
+              <input value={state.playerName} onChange={(e) => dispatch({ type: "setName", name: e.target.value })} placeholder="輸入你的名字" style={{ flex: 1, minWidth: 150, fontSize: 15, padding: "10px 12px", borderRadius: 11, border: "1px solid rgba(60,40,90,.18)", background: "rgba(255,255,255,.85)", fontFamily: "inherit" }} />
+              <button onClick={() => dispatch({ type: "arriveNext" })} style={{ ...ctaBtn, padding: "11px 20px", fontSize: 14 }}>這就是我 →</button>
+            </div>
+          </div>
+        </div>
+      </div>,
+    );
+  }
+
+  // ---------- CONFIRM / BOND ----------
+  if (state.screen === "confirm" && state.pendingStarterId) {
+    const sp = speciesById(state.pendingStarterId);
+    return frame(
+      <div style={{ textAlign: "center", paddingTop: 18 }}>
+        <div style={{ letterSpacing: ".2em", fontSize: 11, fontWeight: 700, color: "#8a83a3", textTransform: "uppercase", marginBottom: 12 }}>序章 — 命定的夥伴</div>
+        <div style={{ position: "relative", width: 160, margin: "0 auto 8px" }}>
+          <img src={sp?.portrait} alt={sp?.name} style={{ width: 160, height: 160, objectFit: "contain", filter: "drop-shadow(0 10px 14px rgba(244,169,58,.3))" }} />
+          <div style={{ position: "absolute", top: 8, right: 4, fontSize: 22 }}>💛</div>
+          <div style={{ position: "absolute", bottom: 16, left: 4, fontSize: 18 }}>✨</div>
+        </div>
+        <h1 style={{ fontSize: 26, fontWeight: 800, margin: "0 0 6px" }}><span style={{ color: "#f0922a" }}>{sp?.name}</span> 選擇了你!</h1>
+        <p style={{ color: "#8a83a3", fontSize: 14, maxWidth: 360, margin: "0 auto 16px" }}>牠開心地跑向你 —— 從現在起,你們會一起走完整段冒險。</p>
+        <div style={{ display: "flex", gap: 6, justifyContent: "center", marginBottom: 22 }}>
+          {sp?.elements.map((e) => <TypeBadge key={e} element={e} />)}
+        </div>
+        <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
+          <button onClick={() => dispatch({ type: "arriveNext" })} style={btnGhost}>← 再想想</button>
+          <button onClick={() => dispatch({ type: "confirmStarter" })} style={ctaBtn}>和 {sp?.name} 一起出發 →</button>
+        </div>
+      </div>,
+    );
+  }
+
   // ---------- STARTER SELECT ----------
   if (state.screen === "select") {
     return frame(
@@ -346,7 +462,7 @@ export default function WonderAcademyGame({ onExit }: Props) {
         <p style={{ textAlign: "center", color: "#8a83a3", fontSize: 14, maxWidth: 460, margin: "0 auto 22px" }}>牠會陪你走完整段冒險。看看牠的個性與屬性,再決定誰一起出發。</p>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 14 }}>
           {STARTER_SPECIES.map((s) => (
-            <button key={s.speciesId} onClick={() => dispatch({ type: "selectStarter", speciesId: s.speciesId })} style={cardBtn}>
+            <button key={s.speciesId} onClick={() => dispatch({ type: "pickStarter", speciesId: s.speciesId })} style={cardBtn}>
               <img src={s.portrait} alt={s.name} style={{ width: 96, height: 96, objectFit: "contain", margin: "0 auto 8px", display: "block", filter: "drop-shadow(0 6px 8px rgba(0,0,0,.12))" }} />
               <div style={{ fontWeight: 800, fontSize: 18 }}>{s.name}</div>
               <div style={{ fontSize: 12, color: "#8a83a3", marginBottom: 8 }}>{s.category}</div>
@@ -448,6 +564,9 @@ export default function WonderAcademyGame({ onExit }: Props) {
     const wildSp = speciesById(s.wild.speciesId);
     const activeSp = speciesById(s.active.speciesId);
     const wildSleepy = isSleepy(s.wild);
+    const favSnack = wildSp?.favoriteSnack;
+    const favCount = favSnack ? (state.snacks?.[favSnack] ?? 0) : 0;
+    const hasFav = favCount > 0;
     return frame(
       <div>
         <div style={{ borderRadius: 18, overflow: "hidden", boxShadow: "0 10px 30px rgba(80,50,130,.12)" }}>
@@ -505,7 +624,14 @@ export default function WonderAcademyGame({ onExit }: Props) {
               })}
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
-              <button onClick={() => dispatch({ type: "battleCatch" })} style={{ ...actBtn, background: "linear-gradient(180deg,#ffd66b,#f7b13a)", color: "#5b3d00", border: "none", boxShadow: "0 6px 16px rgba(247,177,58,.4)" }}>🍪 遞點心收服</button>
+              <button onClick={() => dispatch({ type: "battleCatch" })} style={{ ...actBtn, background: "linear-gradient(180deg,#ffd66b,#f7b13a)", color: "#5b3d00", border: "none", boxShadow: "0 6px 16px rgba(247,177,58,.4)", lineHeight: 1.25 }}>
+                🍪 遞點心收服
+                {favSnack && (
+                  <small style={{ display: "block", fontSize: 9.5, fontWeight: 700, opacity: 0.85, marginTop: 2 }}>
+                    {hasFav ? `最愛 ${SNACK_NAMES[favSnack] ?? favSnack} ×${favCount} · 加成!` : `最愛 ${SNACK_NAMES[favSnack] ?? favSnack}(沒有)`}
+                  </small>
+                )}
+              </button>
               {s.bench.length > 0 && (
                 <button onClick={() => dispatch({ type: "battleSwitch", ownedId: s.bench[0].ownedId })} style={actBtnSub}>🔄 換 {s.bench[0].name}</button>
               )}
