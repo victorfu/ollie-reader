@@ -1,13 +1,19 @@
 import kaplay, { type GameObj, type KAPLAYCtx } from "kaplay";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { scheduleKaplayInit, startKaplaySceneWhenReady } from "../kaplayLifecycle";
-import { SCENE_H, SCENE_MAP, SCENE_W, tileAt, type SceneState } from "./sceneMap";
+import { tileAt, type SceneState } from "./sceneMap";
+import type { RegionTheme } from "./wonderAcademyRegions";
 
 const TILE = 64;
 const PAD = 20;
-const GAME_W = SCENE_W * TILE + PAD * 2;
-const GAME_H = SCENE_H * TILE + PAD * 2;
-const ASPECT = GAME_W / GAME_H;
+
+const dimsOf = (map: string[]) => {
+  const cols = map[0].length;
+  const rows = map.length;
+  const gameW = cols * TILE + PAD * 2;
+  const gameH = rows * TILE + PAD * 2;
+  return { cols, rows, gameW, gameH, aspect: gameW / gameH };
+};
 
 // Only ever one live explore canvas — quit any stale instance (React strict-mode
 // double-invoke / HMR) before creating a new one, mirroring the legacy host.
@@ -15,6 +21,8 @@ let activeExploreGame: KAPLAYCtx | null = null;
 
 type Props = {
   scene: SceneState;
+  map: string[];
+  theme: RegionTheme;
   wardenDone: boolean;
   onMove: (dx: number, dy: number) => void;
   onCloseMessage: () => void;
@@ -32,19 +40,22 @@ type Decor = {
  * Kaplay-rendered forest exploration. The canvas owns smooth, tile-locked
  * character movement and all the animated vector art; the React reducer stays
  * authoritative for tile effects. Every committed step dispatches the same
- * `sceneMove(dx, dy)` action the DOM version used, so encounters / chests /
- * NPCs / the warden / the exit behave identically — they just look alive now.
+ * `sceneMove(dx, dy)` action, so encounters / chests / NPCs / warden / exit
+ * behave identically — they just look alive now.
  *
- * Art is drawn entirely from Kaplay primitives — no sprite assets and no canvas
- * emoji (Kaplay's default font can't render color emoji). Everything is original
- * vector art, and with zero async assets the scene always starts immediately.
+ * The map and palette come from the active region (props), so each region
+ * renders its own layout and colour theme. Art is entirely original Kaplay
+ * primitives — no sprite assets, no canvas emoji — so nothing async blocks the
+ * first frame.
  *
- * Sizing follows the proven host pattern: measure a stage container, give the
- * canvas frame an explicit pixel size, and defer init — Kaplay locks its buffer
- * at init, so it must not start before the element has a real size.
+ * Sizing follows the proven host pattern: measure a stage, give the canvas an
+ * explicit pixel size, and defer init — Kaplay locks its buffer at init, so it
+ * must not start before the element has a real size.
  */
 export default function ExploreSceneKaplay({
   scene,
+  map,
+  theme,
   wardenDone,
   onMove,
   onCloseMessage,
@@ -62,13 +73,17 @@ export default function ExploreSceneKaplay({
     start: { x: scene.x, y: scene.y },
     opened: scene.opened,
     wardenDone,
+    map,
+    theme,
   });
 
+  const { gameW, gameH, aspect } = dimsOf(map);
   const [size, setSize] = useState({ width: 0, height: 0 });
   const hasSize = size.width > 0;
 
   // Measure the stage → explicit pixel canvas size (preserves aspect, caps at
-  // the native game width). ResizeObserver + rAF keeps it stable on resize.
+  // native game width). A macrotask kicks the first measure even when rAF is
+  // paused (headless / idle 0×0 viewport); ResizeObserver handles later resizes.
   useEffect(() => {
     const stage = stageRef.current;
     if (!stage) return;
@@ -76,12 +91,9 @@ export default function ExploreSceneKaplay({
     let timer = 0;
     const measure = () => {
       const rect = stage.getBoundingClientRect();
-      // Fall back to the native game width when the container can't be measured
-      // (e.g. a not-yet-laid-out or headless 0×0 viewport) so the canvas still
-      // gets a real size and Kaplay can start.
-      const avail = rect.width > 0 ? rect.width : GAME_W;
-      const width = Math.floor(Math.min(avail, GAME_W));
-      const height = Math.floor(width / ASPECT);
+      const avail = rect.width > 0 ? rect.width : gameW;
+      const width = Math.floor(Math.min(avail, gameW));
+      const height = Math.floor(width / aspect);
       setSize((cur) =>
         cur.width === width && cur.height === height ? cur : { width, height },
       );
@@ -92,15 +104,13 @@ export default function ExploreSceneKaplay({
     };
     const ro = new ResizeObserver(queue);
     ro.observe(stage);
-    // Initial measure via a macrotask: fires even when rAF is paused (a headless
-    // or idle 0×0 viewport), so the canvas always gets a size and Kaplay starts.
     timer = window.setTimeout(measure, 0);
     return () => {
       window.cancelAnimationFrame(frame);
       window.clearTimeout(timer);
       ro.disconnect();
     };
-  }, []);
+  }, [gameW, aspect]);
 
   // Build the Kaplay world once the canvas has a real pixel size.
   useEffect(() => {
@@ -108,6 +118,9 @@ export default function ExploreSceneKaplay({
     const canvas = canvasRef.current;
     if (!canvas) return;
     const build = buildRef.current;
+    const worldMap = build.map;
+    const theme = build.theme;
+    const dims = dimsOf(worldMap);
 
     let disposed = false;
     let game: KAPLAYCtx | null = null;
@@ -122,15 +135,15 @@ export default function ExploreSceneKaplay({
 
       const k = kaplay({
         canvas,
-        width: GAME_W,
-        height: GAME_H,
+        width: dims.gameW,
+        height: dims.gameH,
         stretch: true,
         letterbox: true,
         global: false,
         debug: false,
         focus: true,
         loadingScreen: false,
-        background: [201, 228, 196],
+        background: theme.bg,
         pixelDensity: Math.min(window.devicePixelRatio || 1, 2),
       });
       game = k;
@@ -152,36 +165,37 @@ export default function ExploreSceneKaplay({
           ]);
 
         const addPath = (px: number, py: number) => {
-          ground(px, py, "#ead9bd");
+          ground(px, py, theme.ground);
           if ((px + py) % 3 === 0) {
             k.add([
               k.circle(3),
               k.pos(px + 20, py + 22),
               k.anchor("center"),
-              k.color("#d9c4a0"),
+              k.color("#000000"),
+              k.opacity(0.06),
               k.z(3),
             ]);
           }
         };
 
         const addTree = (px: number, py: number) => {
-          ground(px, py, "#79a667");
+          ground(px, py, theme.treeBase);
           const cx = px + TILE / 2;
           const cy = py + TILE / 2;
-          k.add([k.rect(11, 17, { radius: 3 }), k.pos(cx, cy + 11), k.anchor("center"), k.color("#8a5a32"), k.z(5)]);
-          k.add([k.circle(15), k.pos(cx - 9, cy - 1), k.anchor("center"), k.color("#56974b"), k.z(6)]);
-          k.add([k.circle(15), k.pos(cx + 9, cy - 1), k.anchor("center"), k.color("#56974b"), k.z(6)]);
-          k.add([k.circle(17), k.pos(cx, cy - 12), k.anchor("center"), k.color("#6cb45e"), k.z(7)]);
+          k.add([k.rect(11, 17, { radius: 3 }), k.pos(cx, cy + 11), k.anchor("center"), k.color(theme.trunk), k.z(5)]);
+          k.add([k.circle(15), k.pos(cx - 9, cy - 1), k.anchor("center"), k.color(theme.canopyA), k.z(6)]);
+          k.add([k.circle(15), k.pos(cx + 9, cy - 1), k.anchor("center"), k.color(theme.canopyA), k.z(6)]);
+          k.add([k.circle(17), k.pos(cx, cy - 12), k.anchor("center"), k.color(theme.canopyB), k.z(7)]);
         };
 
         const addGrass = (px: number, py: number) => {
-          ground(px, py, "#bfe39a");
+          ground(px, py, theme.grass);
           const cx = px + TILE / 2;
           const cy = py + TILE / 2;
           const blades: [number, string][] = [
-            [-11, "#57a64c"],
-            [0, "#65b85a"],
-            [11, "#57a64c"],
+            [-11, theme.treeBase],
+            [0, theme.canopyB],
+            [11, theme.treeBase],
           ];
           blades.forEach(([ox, col], i) => {
             const blade = k.add([
@@ -197,7 +211,7 @@ export default function ExploreSceneKaplay({
         };
 
         const addChest = (px: number, py: number, opened: boolean) => {
-          ground(px, py, "#ead9bd");
+          ground(px, py, theme.ground);
           const grp = k.add([k.pos(px + TILE / 2, py + TILE / 2), k.z(8)]);
           grp.add([k.rect(34, 22, { radius: 5 }), k.pos(0, 5), k.anchor("center"), k.color(opened ? "#9a7d52" : "#a9743e")]);
           grp.add([
@@ -269,9 +283,9 @@ export default function ExploreSceneKaplay({
           decor.push({ obj: grp, kind: "exit", baseY: cy, phase: 0, glow });
         };
 
-        for (let y = 0; y < SCENE_H; y += 1) {
-          for (let x = 0; x < SCENE_W; x += 1) {
-            const t = SCENE_MAP[y][x];
+        for (let y = 0; y < dims.rows; y += 1) {
+          for (let x = 0; x < dims.cols; x += 1) {
+            const t = worldMap[y][x];
             const px = PAD + x * TILE;
             const py = PAD + y * TILE;
             switch (t) {
@@ -334,7 +348,7 @@ export default function ExploreSceneKaplay({
           if (moving) return;
           const nx = gx + dx;
           const ny = gy + dy;
-          const t = tileAt(nx, ny);
+          const t = tileAt(worldMap, nx, ny);
           if (!t || t === "T") return;
           gx = nx;
           gy = ny;
@@ -405,12 +419,12 @@ export default function ExploreSceneKaplay({
 
   const frameStyle: CSSProperties = hasSize
     ? { position: "relative", width: size.width, height: size.height, margin: "0 auto", borderRadius: 18, overflow: "hidden", boxShadow: "0 6px 18px rgba(80,50,130,.14)" }
-    : { position: "relative", width: "100%", aspectRatio: `${GAME_W} / ${GAME_H}`, maxWidth: GAME_W, margin: "0 auto", borderRadius: 18, overflow: "hidden", boxShadow: "0 6px 18px rgba(80,50,130,.14)" };
+    : { position: "relative", width: "100%", aspectRatio: `${gameW} / ${gameH}`, maxWidth: gameW, margin: "0 auto", borderRadius: 18, overflow: "hidden", boxShadow: "0 6px 18px rgba(80,50,130,.14)" };
 
   return (
     <div>
       <div style={headerRow}>
-        <h1 style={{ fontSize: 22, fontWeight: 800, margin: 0 }}>星葉森林</h1>
+        <h1 style={{ fontSize: 22, fontWeight: 800, margin: 0 }}>探索中</h1>
         <span style={{ fontSize: 12, color: "#8a83a3" }}>
           方向鍵 / 點格子移動 · 踩草叢 🌿 會遇到寵物 · 🚪 回學院
         </span>

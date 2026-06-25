@@ -1,5 +1,5 @@
 import academyHubUrl from "../../../assets/games/wonder-academy/backgrounds/academy-hub.png";
-import { ArrowLeft, Compass, Plus, Sparkles, Upload, X } from "lucide-react";
+import { ArrowLeft, Compass, Gift, Lock, MapPin, Plus, Sparkles, Upload, X } from "lucide-react";
 import { useEffect, useMemo, useReducer, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { Volume2, VolumeX } from "lucide-react";
 import { useAuth } from "../../../hooks/useAuth";
@@ -43,7 +43,13 @@ import {
   type OwnedCreature,
 } from "./wonderAcademyCreatures";
 import ExploreSceneKaplay from "./ExploreSceneKaplay";
-import { sceneStart, tileAt, type SceneState } from "./sceneMap";
+import { findStart, tileAt, type SceneState } from "./sceneMap";
+import {
+  FIRST_REGION,
+  isRegionUnlocked,
+  REGIONS,
+  regionById,
+} from "./wonderAcademyRegions";
 
 type Screen =
   | "title"
@@ -51,6 +57,7 @@ type Screen =
   | "select"
   | "confirm"
   | "hub"
+  | "regions"
   | "scene"
   | "battle"
   | "result"
@@ -79,8 +86,14 @@ type Persisted = {
   stardust: number;
   snacks: Record<string, number>;
   customCreatures: CreatureSpecies[];
-  wardenDefeated: boolean;
+  /** Region ids whose warden has been beaten (gates region unlocks). */
+  wardensDefeated: string[];
+  /** YYYY-M-D of the last claimed daily reward, or null. */
+  lastDailyReward: string | null;
 };
+
+/** Shape read back from storage/cloud — any field may be missing. */
+type StoredGame = Partial<Persisted>;
 
 type GameState = Persisted & {
   ready: boolean;
@@ -88,6 +101,7 @@ type GameState = Persisted & {
   pendingStarterId: string | null;
   scene: SceneState | null;
   sceneActive: boolean;
+  activeRegionId: string | null;
   isWarden: boolean;
   skillsOwnedId: string | null;
   battle: BattleSession | null;
@@ -101,7 +115,10 @@ type Action =
   | { type: "arriveNext" }
   | { type: "pickStarter"; speciesId: string }
   | { type: "confirmStarter"; nickname: string }
-  | { type: "explore" }
+  | { type: "openRegions" }
+  | { type: "closeRegions" }
+  | { type: "explore"; regionId: string }
+  | { type: "claimDaily"; today: string }
   | { type: "sceneMove"; dx: number; dy: number }
   | { type: "sceneCloseMessage" }
   | { type: "battleMove"; moveId: string }
@@ -125,6 +142,7 @@ const INITIAL: GameState = {
   pendingStarterId: null,
   scene: null,
   sceneActive: false,
+  activeRegionId: null,
   isWarden: false,
   skillsOwnedId: null,
   playerName: "",
@@ -133,7 +151,8 @@ const INITIAL: GameState = {
   stardust: 0,
   snacks: {},
   customCreatures: [],
-  wardenDefeated: false,
+  wardensDefeated: [],
+  lastDailyReward: null,
   battle: null,
   result: null,
 };
@@ -184,11 +203,22 @@ function resolveOutcome(state: GameState, session: BattleSession): GameState {
 
   if (state.isWarden) {
     if (session.outcome === "won") {
-      stardust += 50;
+      const regionId = state.activeRegionId;
+      const reward = session.wild.level * 5;
+      stardust += reward;
       const pick = SNACK_POOL[Math.floor(random() * SNACK_POOL.length)];
       snacks = { ...snacks, [pick]: (snacks[pick] ?? 0) + 2 };
-      lines.push("🏆 你打敗了守關魔王!森林恢復了平靜!");
-      lines.push(`✨ Stardust ×50 · 🍪 ${SNACK_NAMES[pick]} ×2`);
+      lines.push("🏆 你打敗了守關魔王!這片區域恢復了平靜!");
+      lines.push(`✨ Stardust ×${reward} · 🍪 ${SNACK_NAMES[pick]} ×2`);
+      const firstClear = !!regionId && !state.wardensDefeated.includes(regionId);
+      const wardensDefeated = firstClear
+        ? [...state.wardensDefeated, regionId]
+        : state.wardensDefeated;
+      if (firstClear) {
+        const idx = REGIONS.findIndex((r) => r.id === regionId);
+        const next = REGIONS[idx + 1];
+        if (next) lines.push(`🔓 新區域解鎖:${next.name}!`);
+      }
       awardXp(session.wild.level * 6);
       return {
         ...state,
@@ -196,7 +226,7 @@ function resolveOutcome(state: GameState, session: BattleSession): GameState {
         dex,
         stardust,
         snacks,
-        wardenDefeated: true,
+        wardensDefeated,
         isWarden: false,
         battle: null,
         result: { kind: "won", speciesId: wildSpeciesId, lines },
@@ -312,13 +342,35 @@ function reducer(state: GameState, action: Action): GameState {
         screen: "hub",
       };
     }
+    case "openRegions":
+      return state.team.length === 0 ? state : { ...state, screen: "regions" };
+    case "closeRegions":
+      return { ...state, screen: "hub" };
     case "explore": {
       if (state.team.length === 0) return state;
+      const region = regionById(action.regionId);
+      if (!region) return state;
       return {
         ...state,
-        scene: { ...sceneStart(), opened: [], message: null },
+        activeRegionId: region.id,
+        scene: { ...findStart(region.map), opened: [], message: null },
         sceneActive: true,
         screen: "scene",
+      };
+    }
+    case "claimDaily": {
+      if (state.lastDailyReward === action.today) return state;
+      const pick = SNACK_POOL[Math.floor(random() * SNACK_POOL.length)];
+      return {
+        ...state,
+        stardust: state.stardust + 20,
+        snacks: { ...state.snacks, [pick]: (state.snacks[pick] ?? 0) + 1 },
+        lastDailyReward: action.today,
+        result: {
+          kind: "treasure",
+          lines: ["🎁 每日獎勵!", "✨ Stardust ×20", `🍪 ${SNACK_NAMES[pick]} ×1`, "明天再來還有喔!"],
+        },
+        screen: "result",
       };
     }
     case "sceneCloseMessage":
@@ -327,9 +379,11 @@ function reducer(state: GameState, action: Action): GameState {
         : state;
     case "sceneMove": {
       if (!state.scene || state.team.length === 0) return state;
+      const region = state.activeRegionId ? regionById(state.activeRegionId) : undefined;
+      if (!region) return state;
       const nx = state.scene.x + action.dx;
       const ny = state.scene.y + action.dy;
-      const tile = tileAt(nx, ny);
+      const tile = tileAt(region.map, nx, ny);
       if (tile === null || tile === "T") return state;
       const moved: SceneState = { ...state.scene, x: nx, y: ny, message: null };
       const cellId = `${nx},${ny}`;
@@ -345,8 +399,8 @@ function reducer(state: GameState, action: Action): GameState {
             speciesId: s.speciesId,
             weight: s.rarity === "common" ? 3 : 1,
           })),
-          minLevel: 2,
-          maxLevel: 6,
+          minLevel: region.minLevel,
+          maxLevel: region.maxLevel,
         };
         const enc = rollEncounter(table, random);
         const species = enc ? speciesById(enc.speciesId) : undefined;
@@ -417,19 +471,19 @@ function reducer(state: GameState, action: Action): GameState {
       }
 
       if (tile === "W") {
-        if (state.wardenDefeated) {
+        if (state.wardensDefeated.includes(region.id)) {
           return {
             ...state,
-            scene: { ...moved, message: "守護者:「謝謝你讓森林恢復了平靜。」🌟" },
+            scene: { ...moved, message: "守護者:「謝謝你讓這片區域恢復了平靜。」🌟" },
           };
         }
-        const warden = speciesById("sparkleaf-fawn");
+        const warden = speciesById(region.wardenSpeciesId);
         if (!warden) return { ...state, scene: moved };
         return {
           ...state,
           scene: moved,
           isWarden: true,
-          battle: startBattle(state.team.map(toCombatant), toWarden(warden, 12)),
+          battle: startBattle(state.team.map(toCombatant), toWarden(warden, region.wardenLevel)),
           result: null,
           screen: "battle",
         };
@@ -516,21 +570,27 @@ function reducer(state: GameState, action: Action): GameState {
 
 const storageKey = (uid: string) => `wonder-academy-game-v2-${uid}`;
 
+// Read back a stored payload (local or cloud), filling in any missing fields.
+// No migration: a save from before regions just starts with no warden progress.
+function normalizeStored(parsed: StoredGame | null): Persisted | null {
+  if (!parsed || !Array.isArray(parsed.team)) return null;
+  return {
+    playerName: parsed.playerName ?? "",
+    team: parsed.team,
+    dex: parsed.dex ?? {},
+    stardust: parsed.stardust ?? 0,
+    snacks: parsed.snacks ?? {},
+    customCreatures: parsed.customCreatures ?? [],
+    wardensDefeated: Array.isArray(parsed.wardensDefeated) ? parsed.wardensDefeated : [],
+    lastDailyReward: parsed.lastDailyReward ?? null,
+  };
+}
+
 function loadPersisted(uid: string): Persisted | null {
   try {
     const raw = window.localStorage.getItem(storageKey(uid));
     if (!raw) return null;
-    const parsed = JSON.parse(raw) as Persisted;
-    if (!Array.isArray(parsed.team)) return null;
-    return {
-      playerName: parsed.playerName ?? "",
-      team: parsed.team,
-      dex: parsed.dex ?? {},
-      stardust: parsed.stardust ?? 0,
-      snacks: parsed.snacks ?? {},
-      customCreatures: parsed.customCreatures ?? [],
-      wardenDefeated: parsed.wardenDefeated ?? false,
-    };
+    return normalizeStored(JSON.parse(raw) as StoredGame);
   } catch {
     return null;
   }
@@ -547,8 +607,7 @@ async function loadCloudGame(uid: string): Promise<Persisted | null> {
     const ref = doc(db, "gameProgress", uid, "littleGames", CLOUD_DOC);
     const snap = await getDoc(ref);
     if (!snap.exists()) return null;
-    const data = snap.data() as Persisted;
-    return Array.isArray(data.team) ? data : null;
+    return normalizeStored(snap.data() as StoredGame);
   } catch {
     return null;
   }
@@ -910,7 +969,8 @@ export default function WonderAcademyGame({ onExit }: Props) {
       stardust: state.stardust,
       snacks: state.snacks,
       customCreatures: state.customCreatures,
-      wardenDefeated: state.wardenDefeated,
+      wardensDefeated: state.wardensDefeated,
+      lastDailyReward: state.lastDailyReward,
     };
     try {
       window.localStorage.setItem(storageKey(uid), JSON.stringify(data));
@@ -920,7 +980,7 @@ export default function WonderAcademyGame({ onExit }: Props) {
     // Debounced cloud sync (best-effort; localStorage stays primary).
     const timer = setTimeout(() => void saveCloudGame(uid, data), 900);
     return () => clearTimeout(timer);
-  }, [uid, state.ready, state.playerName, state.team, state.dex, state.stardust, state.snacks, state.customCreatures, state.wardenDefeated]);
+  }, [uid, state.ready, state.playerName, state.team, state.dex, state.stardust, state.snacks, state.customCreatures, state.wardensDefeated, state.lastDailyReward]);
 
   // Keep the runtime species registry in sync with the player's custom creatures.
   registerCustomCreatures(state.customCreatures);
@@ -933,6 +993,11 @@ export default function WonderAcademyGame({ onExit }: Props) {
     () => Object.values(state.snacks).reduce((a, b) => a + b, 0),
     [state.snacks],
   );
+  const today = useMemo(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+  }, []);
+  const dailyClaimable = state.lastDailyReward !== today;
 
   const frame = (children: ReactNode) => (
     <div style={{ minHeight: "100dvh", background: PANEL_BG, fontFamily: '-apple-system, "PingFang TC", "Noto Sans TC", sans-serif', color: "#33304a" }}>
@@ -1030,10 +1095,13 @@ export default function WonderAcademyGame({ onExit }: Props) {
 
   // ---------- EXPLORE SCENE ----------
   if (state.screen === "scene" && state.scene) {
+    const region = (state.activeRegionId ? regionById(state.activeRegionId) : FIRST_REGION) ?? FIRST_REGION;
     return frame(
       <ExploreSceneKaplay
         scene={state.scene}
-        wardenDone={state.wardenDefeated}
+        map={region.map}
+        theme={region.theme}
+        wardenDone={state.wardensDefeated.includes(region.id)}
         onMove={(dx, dy) => dispatch({ type: "sceneMove", dx, dy })}
         onCloseMessage={() => dispatch({ type: "sceneCloseMessage" })}
       />,
@@ -1058,8 +1126,18 @@ export default function WonderAcademyGame({ onExit }: Props) {
           })}
         </div>
 
+        {dailyClaimable ? (
+          <button onClick={() => { sfx("wonderdex_update"); dispatch({ type: "claimDaily", today }); }} style={dailyBtn}>
+            <Gift size={18} /> 領取每日獎勵 <span style={{ fontSize: 12, fontWeight: 700, opacity: 0.85 }}>✨20 · 🍪×1</span>
+          </button>
+        ) : (
+          <div style={{ fontSize: 12.5, color: "#8a83a3", marginBottom: 14, display: "flex", alignItems: "center", gap: 6 }}>
+            <Gift size={14} /> 今日獎勵已領取,明天再來!
+          </div>
+        )}
+
         <div style={{ display: "flex", gap: 12, marginBottom: 22, flexWrap: "wrap" }}>
-          <button onClick={() => dispatch({ type: "explore" })} style={ctaBtn}><Compass size={18} /> 探索森林</button>
+          <button onClick={() => dispatch({ type: "openRegions" })} style={ctaBtn}><Compass size={18} /> 出發探索</button>
           <button onClick={() => dispatch({ type: "openDex" })} style={btnOutline}><Sparkles size={16} /> 圖鑑</button>
           <button onClick={() => dispatch({ type: "openBuilder" })} style={btnOutline}><Plus size={16} /> 建立寵物</button>
         </div>
@@ -1097,6 +1175,44 @@ export default function WonderAcademyGame({ onExit }: Props) {
                   </button>
                 </div>
               </div>
+            );
+          })}
+        </div>
+      </div>,
+    );
+  }
+
+  // ---------- REGION SELECT ----------
+  if (state.screen === "regions") {
+    return frame(
+      <div>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+          <h1 style={{ fontSize: 24, fontWeight: 800, margin: 0 }}>選擇探索地點</h1>
+          <button onClick={() => dispatch({ type: "closeRegions" })} style={btnGhost}><X size={16} /> 返回</button>
+        </div>
+        <p style={{ color: "#8a83a3", fontSize: 14, margin: "0 0 18px" }}>打敗一個區域的守關魔王,就能解鎖下一個更深的地方。</p>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(220px,1fr))", gap: 14 }}>
+          {REGIONS.map((r, i) => {
+            const unlocked = isRegionUnlocked(i, state.wardensDefeated);
+            const cleared = state.wardensDefeated.includes(r.id);
+            return (
+              <button
+                key={r.id}
+                disabled={!unlocked}
+                onClick={() => { if (unlocked) { sfx("ui_confirm"); dispatch({ type: "explore", regionId: r.id }); } }}
+                style={{ ...cardBtn, textAlign: "left", cursor: unlocked ? "pointer" : "default", opacity: unlocked ? 1 : 0.6 }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+                  <div style={{ fontSize: 30 }}>{r.badge}</div>
+                  <div>
+                    <div style={{ fontWeight: 800, fontSize: 17 }}>{r.name}</div>
+                    <div style={{ fontSize: 12, color: "#8a83a3" }}>{r.subtitle}</div>
+                  </div>
+                </div>
+                <div style={{ fontSize: 12.5, fontWeight: 700, display: "flex", alignItems: "center", gap: 5, color: cleared ? "#42b86a" : unlocked ? "#6a52ff" : "#8a83a3" }}>
+                  {!unlocked ? (<><Lock size={14} /> 打敗前一區魔王解鎖</>) : cleared ? (<><MapPin size={14} /> 已平定 · 再次探索 →</>) : (<><Compass size={14} /> 出發探索 →</>)}
+                </div>
+              </button>
             );
           })}
         </div>
@@ -1282,6 +1398,7 @@ export default function WonderAcademyGame({ onExit }: Props) {
 const btnGhost: CSSProperties = { display: "inline-flex", alignItems: "center", gap: 5, fontSize: 13, fontWeight: 600, color: "#6a6585", background: "transparent", border: "none", cursor: "pointer", padding: "6px 8px" };
 const btnOutline: CSSProperties = { display: "inline-flex", alignItems: "center", gap: 6, fontSize: 14, fontWeight: 800, color: "#6a52ff", background: "rgba(255,255,255,.7)", border: "1px solid rgba(106,82,255,.3)", borderRadius: 13, padding: "12px 18px", cursor: "pointer" };
 const ctaBtn: CSSProperties = { display: "inline-flex", alignItems: "center", gap: 8, fontSize: 15, fontWeight: 800, color: "#fff", background: "linear-gradient(180deg,#7c6cff,#6a52ff)", border: "none", padding: "13px 24px", borderRadius: 14, boxShadow: "0 8px 20px rgba(106,82,255,.34)", cursor: "pointer" };
+const dailyBtn: CSSProperties = { display: "inline-flex", alignItems: "center", gap: 8, fontSize: 14, fontWeight: 800, color: "#5b3d00", background: "linear-gradient(180deg,#ffd66b,#f7b13a)", border: "none", padding: "11px 18px", borderRadius: 13, boxShadow: "0 6px 16px rgba(247,177,58,.4)", cursor: "pointer", marginBottom: 14 };
 const cardBtn: CSSProperties = { background: "rgba(255,255,255,.66)", backdropFilter: "blur(14px)", border: "1px solid rgba(60,40,90,.1)", borderRadius: 18, padding: "16px 14px", textAlign: "center", cursor: "pointer", boxShadow: "0 6px 18px rgba(80,50,130,.08)", transition: "transform .18s" };
 const cardStatic: CSSProperties = { background: "rgba(255,255,255,.66)", border: "1px solid rgba(60,40,90,.1)", borderRadius: 16, padding: 12, boxShadow: "0 5px 14px rgba(80,50,130,.07)" };
 const infoCard: CSSProperties = { background: "rgba(255,255,255,.85)", backdropFilter: "blur(6px)", border: "1px solid rgba(60,40,90,.1)", borderRadius: 12, padding: "8px 11px", width: 200, boxShadow: "0 5px 12px rgba(60,40,90,.1)" };
