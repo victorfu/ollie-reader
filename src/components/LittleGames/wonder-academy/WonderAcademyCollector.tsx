@@ -1,4 +1,4 @@
-import { ArrowLeft, Compass, Sparkles, X } from "lucide-react";
+import { ArrowLeft, Compass, Plus, Sparkles, Upload, X } from "lucide-react";
 import { useEffect, useMemo, useReducer, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { Volume2, VolumeX } from "lucide-react";
 import { useAuth } from "../../../hooks/useAuth";
@@ -25,13 +25,16 @@ import { gainXp } from "./logic/progression";
 import { getEffectivenessAgainst } from "./logic/typeChart";
 import { dexCompletion, recordDex, type Wonderdex } from "./logic/wonderdex";
 import {
+  allSpecies,
+  catchableSpecies,
   ELEMENT_META,
+  makeCustomCreature,
+  registerCustomCreatures,
   speciesById,
+  STARTER_SPECIES,
   toCombatant,
   toWild,
-  WA_CREATURES,
-  WILD_SPECIES,
-  STARTER_SPECIES,
+  type CreatureSpecies,
   type OwnedCreature,
 } from "./wonderAcademyCreatures";
 
@@ -43,7 +46,8 @@ type Screen =
   | "hub"
   | "battle"
   | "result"
-  | "dex";
+  | "dex"
+  | "builder";
 
 const SNACK_NAMES: Record<string, string> = {
   "starberry-cookie": "星莓餅乾",
@@ -65,6 +69,7 @@ type Persisted = {
   dex: Wonderdex;
   stardust: number;
   snacks: Record<string, number>;
+  customCreatures: CreatureSpecies[];
 };
 
 type GameState = Persisted & {
@@ -88,6 +93,8 @@ type Action =
   | { type: "battleSwitch"; ownedId: string }
   | { type: "battleFlee" }
   | { type: "feed"; ownedId: string }
+  | { type: "openBuilder" }
+  | { type: "addCustom"; creature: CreatureSpecies }
   | { type: "closeResult" }
   | { type: "openDex" }
   | { type: "closeDex" };
@@ -101,6 +108,7 @@ const INITIAL: GameState = {
   dex: {},
   stardust: 0,
   snacks: {},
+  customCreatures: [],
   battle: null,
   result: null,
 };
@@ -270,7 +278,7 @@ function reducer(state: GameState, action: Action): GameState {
       }
       const table: EncounterTable = {
         encounterChance: 1,
-        entries: WILD_SPECIES.map((s) => ({
+        entries: catchableSpecies().map((s) => ({
           speciesId: s.speciesId,
           weight: s.rarity === "common" ? 3 : 1,
         })),
@@ -323,6 +331,15 @@ function reducer(state: GameState, action: Action): GameState {
       );
       return { ...state, snacks, team };
     }
+    case "openBuilder":
+      return { ...state, screen: "builder" };
+    case "addCustom":
+      return {
+        ...state,
+        customCreatures: [...state.customCreatures, action.creature],
+        dex: recordDex(state.dex, action.creature.speciesId, "seen"),
+        screen: "hub",
+      };
     case "closeResult":
       return { ...state, result: null, screen: "hub" };
     case "openDex":
@@ -348,6 +365,7 @@ function loadPersisted(uid: string): Persisted | null {
       dex: parsed.dex ?? {},
       stardust: parsed.stardust ?? 0,
       snacks: parsed.snacks ?? {},
+      customCreatures: parsed.customCreatures ?? [],
     };
   } catch {
     return null;
@@ -413,6 +431,98 @@ function battleHeadline(session: BattleSession): string {
 const PANEL_BG =
   "radial-gradient(120% 90% at 12% 0%, #fff7ec 0%, rgba(255,247,236,0) 55%), radial-gradient(120% 110% at 100% 0%, #efe7ff 0%, rgba(239,231,255,0) 50%), linear-gradient(180deg, #fbf6ff 0%, #f3eefe 60%, #efeafc 100%)";
 
+function CreatureBuilder({
+  onSave,
+  onCancel,
+}: {
+  onSave: (creature: CreatureSpecies) => void;
+  onCancel: () => void;
+}) {
+  const [name, setName] = useState("");
+  const [portrait, setPortrait] = useState("");
+  const [elements, setElements] = useState<(keyof typeof ELEMENT_META)[]>([]);
+  const [favoriteSnack, setFavoriteSnack] = useState(SNACK_POOL[0]);
+
+  const toggleElement = (e: keyof typeof ELEMENT_META) =>
+    setElements((cur) =>
+      cur.includes(e)
+        ? cur.filter((x) => x !== e)
+        : cur.length < 2
+          ? [...cur, e]
+          : cur,
+    );
+
+  const onFile = (file: File | undefined) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () =>
+      setPortrait(typeof reader.result === "string" ? reader.result : "");
+    reader.readAsDataURL(file);
+  };
+
+  const canSave =
+    name.trim().length > 0 && portrait.length > 0 && elements.length > 0;
+
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+        <h1 style={{ fontSize: 24, fontWeight: 800, margin: 0 }}>建立寵物</h1>
+        <button onClick={onCancel} style={btnGhost}><X size={16} /> 取消</button>
+      </div>
+      <p style={{ color: "#8a83a3", fontSize: 13, margin: "0 0 18px" }}>上傳一張圖、取名、選屬性 —— 就會多一隻能在森林裡遇到、收服的夥伴!</p>
+
+      <div style={{ display: "grid", gridTemplateColumns: "140px 1fr", gap: 18, alignItems: "start" }}>
+        <label style={{ ...cardStatic, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: 140, cursor: "pointer", textAlign: "center", color: "#8a83a3" }}>
+          {portrait ? (
+            <img src={portrait} alt="預覽" style={{ width: 110, height: 110, objectFit: "contain" }} />
+          ) : (
+            <>
+              <Upload size={22} />
+              <span style={{ fontSize: 12, marginTop: 6 }}>上傳圖片</span>
+            </>
+          )}
+          <input type="file" accept="image/*" onChange={(e) => onFile(e.target.files?.[0])} style={{ display: "none" }} />
+        </label>
+
+        <div>
+          <div style={fieldLabel}>名字</div>
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="例如:咪咪" style={fieldInput} />
+
+          <div style={{ ...fieldLabel, marginTop: 14 }}>屬性(選 1–2 個)</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {(Object.keys(ELEMENT_META) as (keyof typeof ELEMENT_META)[]).map((e) => {
+              const m = ELEMENT_META[e];
+              const on = elements.includes(e);
+              return (
+                <button key={e} onClick={() => toggleElement(e)} style={{ fontSize: 12, fontWeight: 700, padding: "5px 10px", borderRadius: 999, cursor: "pointer", border: on ? `2px solid ${m.fg}` : "1px solid rgba(60,40,90,.15)", background: on ? m.bg : "#fff", color: m.fg }}>
+                  {m.emoji} {m.label}
+                </button>
+              );
+            })}
+          </div>
+
+          <div style={{ ...fieldLabel, marginTop: 14 }}>最愛點心</div>
+          <select value={favoriteSnack} onChange={(e) => setFavoriteSnack(e.target.value)} style={fieldInput}>
+            {SNACK_POOL.map((s) => (
+              <option key={s} value={s}>{SNACK_NAMES[s]}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      <div style={{ marginTop: 22, display: "flex", justifyContent: "flex-end" }}>
+        <button
+          disabled={!canSave}
+          onClick={() => onSave(makeCustomCreature({ name, portrait, elements, favoriteSnack, seed: Math.floor(Date.now()) }))}
+          style={{ ...ctaBtn, opacity: canSave ? 1 : 0.4, pointerEvents: canSave ? "auto" : "none" }}
+        >
+          ✨ 加入森林
+        </button>
+      </div>
+    </div>
+  );
+}
+
 type Props = { onExit?: () => void };
 
 export default function WonderAcademyGame({ onExit }: Props) {
@@ -474,16 +584,20 @@ export default function WonderAcademyGame({ onExit }: Props) {
       dex: state.dex,
       stardust: state.stardust,
       snacks: state.snacks,
+      customCreatures: state.customCreatures,
     };
     try {
       window.localStorage.setItem(storageKey(uid), JSON.stringify(data));
     } catch {
       // ignore quota / availability errors
     }
-  }, [uid, state.ready, state.playerName, state.team, state.dex, state.stardust, state.snacks]);
+  }, [uid, state.ready, state.playerName, state.team, state.dex, state.stardust, state.snacks, state.customCreatures]);
+
+  // Keep the runtime species registry in sync with the player's custom creatures.
+  registerCustomCreatures(state.customCreatures);
 
   const completion = useMemo(
-    () => dexCompletion(state.dex, WA_CREATURES.map((c) => c.speciesId)),
+    () => dexCompletion(state.dex, allSpecies().map((c) => c.speciesId)),
     [state.dex],
   );
   const totalSnacks = useMemo(
@@ -603,6 +717,7 @@ export default function WonderAcademyGame({ onExit }: Props) {
         <div style={{ display: "flex", gap: 12, marginBottom: 22 }}>
           <button onClick={() => dispatch({ type: "explore" })} style={ctaBtn}><Compass size={18} /> 探索森林</button>
           <button onClick={() => dispatch({ type: "openDex" })} style={btnOutline}><Sparkles size={16} /> 圖鑑</button>
+          <button onClick={() => dispatch({ type: "openBuilder" })} style={btnOutline}><Plus size={16} /> 建立寵物</button>
         </div>
 
         <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: ".1em", color: "#8a83a3", textTransform: "uppercase", marginBottom: 10 }}>你的隊伍</div>
@@ -647,7 +762,7 @@ export default function WonderAcademyGame({ onExit }: Props) {
         </div>
         <p style={{ color: "#8a83a3", fontSize: 14, margin: "0 0 16px" }}>已收服 {completion.caught} / {completion.total}</p>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(140px,1fr))", gap: 12 }}>
-          {WA_CREATURES.map((s) => {
+          {allSpecies().map((s) => {
             const status = state.dex[s.speciesId] ?? "unseen";
             const seen = status !== "unseen";
             const caught = status === "caught" || status === "evolved";
@@ -663,6 +778,19 @@ export default function WonderAcademyGame({ onExit }: Props) {
           })}
         </div>
       </div>,
+    );
+  }
+
+  // ---------- BUILDER ----------
+  if (state.screen === "builder") {
+    return frame(
+      <CreatureBuilder
+        onCancel={() => dispatch({ type: "closeDex" })}
+        onSave={(creature) => {
+          sfx("ui_confirm");
+          dispatch({ type: "addCustom", creature });
+        }}
+      />,
     );
   }
 
@@ -789,3 +917,5 @@ const effBadge: CSSProperties = { position: "absolute", top: -8, right: -6, font
 const actBtn: CSSProperties = { borderRadius: 12, padding: "10px 8px", fontSize: 12.5, fontWeight: 800, textAlign: "center", cursor: "pointer", border: "1px solid rgba(60,40,90,.12)", background: "#fff" };
 const actBtnSub: CSSProperties = { ...actBtn, color: "#6a6585" };
 const feedBtn: CSSProperties = { width: "100%", borderRadius: 10, padding: "7px 8px", fontSize: 12, fontWeight: 800, color: "#c98a12", background: "#fff7e0", border: "1px solid #f0c869" };
+const fieldLabel: CSSProperties = { fontSize: 12, fontWeight: 800, color: "#33304a", marginBottom: 6 };
+const fieldInput: CSSProperties = { width: "100%", fontSize: 14, padding: "9px 11px", borderRadius: 10, border: "1px solid rgba(60,40,90,.18)", background: "rgba(255,255,255,.85)", fontFamily: "inherit", color: "#33304a" };

@@ -4,6 +4,7 @@ import nibiPortrait from "../../../assets/games/wonder-academy/starters/nibi-por
 import picoPortrait from "../../../assets/games/wonder-academy/starters/pico-portrait.png";
 import mossmewPortrait from "../../../assets/games/wonder-academy/wonderlings/mossmew-portrait.png";
 import sparkleafFawnPortrait from "../../../assets/games/wonder-academy/wonderlings/sparkleaf-fawn-portrait.png";
+import { WONDER_ACADEMY_MOVES } from "../../../data/wonderAcademyMoves";
 import type {
   WonderAcademyElement,
   WonderAcademyRarity,
@@ -110,8 +111,57 @@ export const WA_CREATURES: CreatureSpecies[] = [
 export const STARTER_SPECIES = WA_CREATURES.filter((c) => !c.wild);
 export const WILD_SPECIES = WA_CREATURES.filter((c) => c.wild);
 
+// Player-created creatures (with their own uploaded art), kept in a runtime
+// registry that the game component syncs from the persisted save each render.
+const customRegistry = new Map<string, CreatureSpecies>();
+
+export function registerCustomCreatures(list: CreatureSpecies[]): void {
+  customRegistry.clear();
+  for (const c of list) customRegistry.set(c.speciesId, c);
+}
+
 export function speciesById(id: string): CreatureSpecies | undefined {
-  return WA_CREATURES.find((c) => c.speciesId === id);
+  return WA_CREATURES.find((c) => c.speciesId === id) ?? customRegistry.get(id);
+}
+
+export function allSpecies(): CreatureSpecies[] {
+  return [...WA_CREATURES, ...customRegistry.values()];
+}
+
+export function catchableSpecies(): CreatureSpecies[] {
+  return [...WILD_SPECIES, ...customRegistry.values()];
+}
+
+function movesForElements(elements: WonderAcademyElement[]): string[] {
+  const matched = Object.values(WONDER_ACADEMY_MOVES)
+    .filter((m) => elements.includes(m.element))
+    .map((m) => m.id);
+  return matched.length > 0 ? matched.slice(0, 4) : ["tiny-flash"];
+}
+
+export function makeCustomCreature(input: {
+  name: string;
+  portrait: string;
+  elements: WonderAcademyElement[];
+  favoriteSnack: string;
+  seed: number;
+}): CreatureSpecies {
+  const elements: WonderAcademyElement[] =
+    input.elements.length > 0 ? input.elements : ["light"];
+  const name = input.name.trim() || "新夥伴";
+  return {
+    speciesId: `custom-${input.seed}`,
+    name,
+    category: "自訂夥伴",
+    personality: "你親手加入的特別夥伴。",
+    elements,
+    rarity: "rare",
+    favoriteSnack: input.favoriteSnack,
+    growthStages: [name],
+    moveIds: movesForElements(elements),
+    portrait: input.portrait,
+    wild: true,
+  };
 }
 
 /** Simple, predictable stat curve (kid-friendly). */
