@@ -137,7 +137,11 @@ export function toCombatant(owned: OwnedCreature): BattleCombatant {
   return {
     ownedId: owned.ownedId,
     speciesId: owned.speciesId,
-    name: owned.nickname || species?.name || owned.speciesId,
+    name:
+      owned.nickname ||
+      species?.growthStages[owned.stage] ||
+      species?.name ||
+      owned.speciesId,
     elements,
     level: owned.level,
     maxHp,

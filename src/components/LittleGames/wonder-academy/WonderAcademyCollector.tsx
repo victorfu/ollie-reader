@@ -11,7 +11,9 @@ import {
   startBattle,
   type BattleSession,
 } from "./logic/battleSession";
+import { gainBond } from "./logic/bond";
 import { rollEncounter, type EncounterTable } from "./logic/encounter";
+import { canEvolve, evolve } from "./logic/evolution";
 import { gainXp } from "./logic/progression";
 import { getEffectivenessAgainst } from "./logic/typeChart";
 import { dexCompletion, recordDex, type Wonderdex } from "./logic/wonderdex";
@@ -78,6 +80,7 @@ type Action =
   | { type: "battleCatch" }
   | { type: "battleSwitch"; ownedId: string }
   | { type: "battleFlee" }
+  | { type: "feed"; ownedId: string }
   | { type: "closeResult" }
   | { type: "openDex" }
   | { type: "closeDex" };
@@ -97,8 +100,11 @@ const INITIAL: GameState = {
 
 const random = (): number => Math.random();
 
-const displayName = (owned: OwnedCreature): string =>
-  owned.nickname || speciesById(owned.speciesId)?.name || owned.speciesId;
+const displayName = (owned: OwnedCreature): string => {
+  if (owned.nickname) return owned.nickname;
+  const sp = speciesById(owned.speciesId);
+  return sp?.growthStages[owned.stage] ?? sp?.name ?? owned.speciesId;
+};
 
 function resolveOutcome(state: GameState, session: BattleSession): GameState {
   const activeOwnedId = session.active.ownedId;
@@ -120,10 +126,19 @@ function resolveOutcome(state: GameState, session: BattleSession): GameState {
     team = team.map((o) => {
       if (o.ownedId !== activeOwnedId) return o;
       const res = gainXp(o.level, o.xp, amount);
+      let owned: OwnedCreature = { ...o, level: res.level, xp: res.xp };
       if (res.levelsGained > 0) {
         lines.push(`${displayName(o)} 升到了 Lv.${res.level}!✨`);
       }
-      return { ...o, level: res.level, xp: res.xp };
+      const sp = speciesById(o.speciesId);
+      const stages = sp?.growthStages.length ?? 1;
+      if (sp && canEvolve(owned.stage, owned.level, stages)) {
+        const nextStage = evolve(owned.stage, stages);
+        owned = { ...owned, stage: nextStage };
+        dex = recordDex(dex, o.speciesId, "evolved");
+        lines.push(`🌟 進化!成為 ${sp.growthStages[nextStage]}!`);
+      }
+      return owned;
     });
   };
 
@@ -258,6 +273,23 @@ function reducer(state: GameState, action: Action): GameState {
       return state.battle ? afterBattle(state, playerSwitch(state.battle, action.ownedId)) : state;
     case "battleFlee":
       return state.battle ? resolveOutcome(state, playerFlee(state.battle)) : state;
+    case "feed": {
+      const owned = state.team.find((o) => o.ownedId === action.ownedId);
+      if (!owned) return state;
+      const fav = speciesById(owned.speciesId)?.favoriteSnack;
+      const used =
+        fav && (state.snacks[fav] ?? 0) > 0
+          ? fav
+          : Object.keys(state.snacks).find((k) => (state.snacks[k] ?? 0) > 0);
+      if (!used) return state;
+      const snacks = { ...state.snacks, [used]: (state.snacks[used] ?? 0) - 1 };
+      const team = state.team.map((o) =>
+        o.ownedId === owned.ownedId
+          ? { ...o, bond: gainBond(o.bond, 10, used === fav) }
+          : o,
+      );
+      return { ...state, snacks, team };
+    }
     case "closeResult":
       return { ...state, result: null, screen: "hub" };
     case "openDex":
@@ -379,6 +411,10 @@ export default function WonderAcademyGame({ onExit }: Props) {
     () => dexCompletion(state.dex, WA_CREATURES.map((c) => c.speciesId)),
     [state.dex],
   );
+  const totalSnacks = useMemo(
+    () => Object.values(state.snacks).reduce((a, b) => a + b, 0),
+    [state.snacks],
+  );
 
   const frame = (children: ReactNode) => (
     <div style={{ minHeight: "100dvh", background: PANEL_BG, fontFamily: '-apple-system, "PingFang TC", "Noto Sans TC", sans-serif', color: "#33304a" }}>
@@ -482,7 +518,7 @@ export default function WonderAcademyGame({ onExit }: Props) {
     return frame(
       <div>
         <h1 style={{ fontSize: 24, fontWeight: 800, margin: "8px 0 2px" }}>學院大廳</h1>
-        <p style={{ color: "#8a83a3", fontSize: 14, margin: "0 0 18px" }}>圖鑑進度 {completion.caught}/{completion.total} 已收服 · {completion.seen} 已遇見</p>
+        <p style={{ color: "#8a83a3", fontSize: 14, margin: "0 0 18px" }}>圖鑑進度 {completion.caught}/{completion.total} 已收服 · {completion.seen} 已遇見 · 🍪 點心 ×{totalSnacks}</p>
 
         <div style={{ display: "flex", gap: 12, marginBottom: 22 }}>
           <button onClick={() => dispatch({ type: "explore" })} style={ctaBtn}><Compass size={18} /> 探索森林</button>
@@ -493,14 +529,26 @@ export default function WonderAcademyGame({ onExit }: Props) {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(150px,1fr))", gap: 12 }}>
           {state.team.map((o) => {
             const sp = speciesById(o.speciesId);
+            const hearts = Math.min(5, Math.round(o.bond / 20));
             return (
               <div key={o.ownedId} style={cardStatic}>
                 <img src={sp?.portrait} alt={sp?.name} style={{ width: 64, height: 64, objectFit: "contain", margin: "0 auto 6px", display: "block" }} />
                 <div style={{ fontWeight: 800, textAlign: "center" }}>{displayName(o)}</div>
                 <div style={{ fontSize: 11, color: "#8a83a3", textAlign: "center", marginBottom: 6 }}>Lv.{o.level} · {sp?.category}</div>
-                <div style={{ display: "flex", gap: 4, justifyContent: "center" }}>
+                <div style={{ display: "flex", gap: 4, justifyContent: "center", marginBottom: 6 }}>
                   {sp?.elements.map((e) => <TypeBadge key={e} element={e} />)}
                 </div>
+                <div style={{ textAlign: "center", fontSize: 12, marginBottom: 8 }} title={`羈絆 ${o.bond}/100`}>
+                  {"💛".repeat(hearts)}
+                  <span style={{ opacity: 0.3 }}>{"🤍".repeat(5 - hearts)}</span>
+                </div>
+                <button
+                  onClick={() => dispatch({ type: "feed", ownedId: o.ownedId })}
+                  disabled={totalSnacks === 0}
+                  style={{ ...feedBtn, opacity: totalSnacks === 0 ? 0.4 : 1, cursor: totalSnacks === 0 ? "default" : "pointer" }}
+                >
+                  🍪 餵點心
+                </button>
               </div>
             );
           })}
@@ -632,9 +680,9 @@ export default function WonderAcademyGame({ onExit }: Props) {
                   </small>
                 )}
               </button>
-              {s.bench.length > 0 && (
-                <button onClick={() => dispatch({ type: "battleSwitch", ownedId: s.bench[0].ownedId })} style={actBtnSub}>🔄 換 {s.bench[0].name}</button>
-              )}
+              {s.bench.map((b) => (
+                <button key={b.ownedId} onClick={() => dispatch({ type: "battleSwitch", ownedId: b.ownedId })} style={actBtnSub}>🔄 換 {b.name}</button>
+              ))}
               <button onClick={() => dispatch({ type: "battleFlee" })} style={actBtnSub}>🏃 逃跑</button>
             </div>
           </div>
@@ -657,3 +705,4 @@ const moveBtn: CSSProperties = { position: "relative", background: "#fff", borde
 const effBadge: CSSProperties = { position: "absolute", top: -8, right: -6, fontSize: 10, fontWeight: 800, color: "#fff", background: "#ef5b6e", padding: "2px 7px", borderRadius: 999, boxShadow: "0 3px 7px rgba(239,91,110,.4)" };
 const actBtn: CSSProperties = { borderRadius: 12, padding: "10px 8px", fontSize: 12.5, fontWeight: 800, textAlign: "center", cursor: "pointer", border: "1px solid rgba(60,40,90,.12)", background: "#fff" };
 const actBtnSub: CSSProperties = { ...actBtn, color: "#6a6585" };
+const feedBtn: CSSProperties = { width: "100%", borderRadius: 10, padding: "7px 8px", fontSize: 12, fontWeight: 800, color: "#c98a12", background: "#fff7e0", border: "1px solid #f0c869" };
