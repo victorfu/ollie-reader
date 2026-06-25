@@ -1,0 +1,80 @@
+import type { WonderAcademyRarity } from "../../../../types/wonderAcademy";
+import type { BattleCombatant } from "./battleLogic";
+import { isFainted, performMove } from "./battleLogic";
+
+export type BattleOutcome = "ongoing" | "won" | "caught" | "fled" | "lost";
+
+export type BattleEvent =
+  | { kind: "playerMove"; moveId: string; damage: number; effectiveness: number }
+  | { kind: "wildMove"; moveId: string; damage: number; effectiveness: number }
+  | { kind: "wildSleepy" }
+  | { kind: "playerFainted"; ownedId: string }
+  | { kind: "switch"; toOwnedId: string }
+  | { kind: "catchAttempt"; chance: number; caught: boolean }
+  | { kind: "outcome"; outcome: BattleOutcome };
+
+export type WildInfo = {
+  combatant: BattleCombatant;
+  rarity: WonderAcademyRarity;
+  favoriteSnack: string;
+};
+
+export type BattleSession = {
+  active: BattleCombatant;
+  bench: BattleCombatant[];
+  wild: BattleCombatant;
+  wildRarity: WonderAcademyRarity;
+  wildFavoriteSnack: string;
+  turn: number;
+  outcome: BattleOutcome;
+  log: BattleEvent[];
+};
+
+export function startBattle(
+  team: BattleCombatant[],
+  wild: WildInfo,
+): BattleSession {
+  if (team.length === 0) {
+    throw new Error("startBattle: team must not be empty");
+  }
+  return {
+    active: team[0],
+    bench: team.slice(1),
+    wild: wild.combatant,
+    wildRarity: wild.rarity,
+    wildFavoriteSnack: wild.favoriteSnack,
+    turn: 1,
+    outcome: "ongoing",
+    log: [],
+  };
+}
+
+export function enemyRetaliate(session: BattleSession): BattleSession {
+  if (session.outcome !== "ongoing") return session;
+
+  const moveId = session.wild.moveIds[0];
+  const { defender, damage, effectiveness } = performMove(
+    session.wild,
+    session.active,
+    moveId,
+  );
+  const log: BattleEvent[] = [
+    ...session.log,
+    { kind: "wildMove", moveId, damage, effectiveness },
+  ];
+
+  if (!isFainted(defender)) {
+    return { ...session, active: defender, log };
+  }
+
+  log.push({ kind: "playerFainted", ownedId: defender.ownedId });
+
+  if (session.bench.length > 0) {
+    const [next, ...rest] = session.bench;
+    log.push({ kind: "switch", toOwnedId: next.ownedId });
+    return { ...session, active: next, bench: rest, log };
+  }
+
+  log.push({ kind: "outcome", outcome: "lost" });
+  return { ...session, active: defender, outcome: "lost", log };
+}
