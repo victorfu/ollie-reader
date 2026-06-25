@@ -84,7 +84,7 @@ const MeteorGlider = lazyWithReload(
 const MushroomAdventure = lazyWithReload(
   () => import("./components/LittleGames/MushroomAdventure"),
 );
-const WonderAcademyPage = lazyWithReload(
+const WonderAcademyGame = lazyWithReload(
   () => import("./components/LittleGames/wonder-academy/WonderAcademyCollector"),
 );
 
@@ -313,7 +313,7 @@ function AppContent() {
         <SpeechProvider>
           <PdfProvider>
             <Suspense fallback={<RouteLoadingFallback />}>
-              <WonderAcademyPage onExit={() => navigate("/games")} />
+              <WonderAcademyGame onExit={() => navigate("/games")} />
             </Suspense>
           </PdfProvider>
         </SpeechProvider>
