@@ -1,6 +1,8 @@
 import type { WonderAcademyRarity } from "../../../../types/wonderAcademy";
 import type { BattleCombatant } from "./battleLogic";
 import { isFainted, isSleepy, performMove } from "./battleLogic";
+import type { Rng } from "./rng";
+import { attemptCatch } from "./catchLogic";
 
 export type BattleOutcome = "ongoing" | "won" | "caught" | "fled" | "lost";
 
@@ -107,4 +109,68 @@ export function playerAttack(
   const afterPlayer: BattleSession = { ...session, wild: defender, log };
   const afterEnemy = enemyRetaliate(afterPlayer);
   return { ...afterEnemy, turn: afterEnemy.turn + 1 };
+}
+
+export function playerCatch(
+  session: BattleSession,
+  treatTier: number,
+  isFavorite: boolean,
+  rng: Rng,
+): BattleSession {
+  if (session.outcome !== "ongoing") return session;
+
+  const { caught, chance } = attemptCatch(
+    {
+      hpRatio: session.wild.hp / session.wild.maxHp,
+      rarity: session.wildRarity,
+      treatTier,
+      isFavoriteSnack: isFavorite,
+    },
+    rng,
+  );
+  const log: BattleEvent[] = [
+    ...session.log,
+    { kind: "catchAttempt", chance, caught },
+  ];
+
+  if (caught) {
+    log.push({ kind: "outcome", outcome: "caught" });
+    return { ...session, outcome: "caught", log };
+  }
+
+  const afterEnemy = enemyRetaliate({ ...session, log });
+  return { ...afterEnemy, turn: afterEnemy.turn + 1 };
+}
+
+export function playerSwitch(
+  session: BattleSession,
+  ownedId: string,
+): BattleSession {
+  if (session.outcome !== "ongoing") return session;
+
+  const index = session.bench.findIndex((m) => m.ownedId === ownedId);
+  if (index === -1) return session;
+
+  const next = session.bench[index];
+  const bench = [
+    ...session.bench.slice(0, index),
+    ...session.bench.slice(index + 1),
+    session.active,
+  ];
+  const log: BattleEvent[] = [
+    ...session.log,
+    { kind: "switch", toOwnedId: next.ownedId },
+  ];
+
+  const afterEnemy = enemyRetaliate({ ...session, active: next, bench, log });
+  return { ...afterEnemy, turn: afterEnemy.turn + 1 };
+}
+
+export function playerFlee(session: BattleSession): BattleSession {
+  if (session.outcome !== "ongoing") return session;
+  return {
+    ...session,
+    outcome: "fled",
+    log: [...session.log, { kind: "outcome", outcome: "fled" }],
+  };
 }

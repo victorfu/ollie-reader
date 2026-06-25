@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { BattleCombatant } from "./battleLogic";
+import type { Rng } from "./rng";
 import type { WildInfo } from "./battleSession";
-import { enemyRetaliate, playerAttack, startBattle } from "./battleSession";
+import { enemyRetaliate, playerAttack, playerCatch, playerFlee, playerSwitch, startBattle } from "./battleSession";
 
 const mon = (overrides: Partial<BattleCombatant> = {}): BattleCombatant => ({
   ownedId: "p1",
@@ -96,5 +97,56 @@ describe("playerAttack", () => {
   it("is a no-op once the battle is over", () => {
     const s = { ...startBattle([mon()], wildInfo()), outcome: "caught" as const };
     expect(playerAttack(s, "zip-spark")).toBe(s);
+  });
+});
+
+const seq = (values: number[]): Rng => {
+  let i = 0;
+  return () => values[i++];
+};
+
+describe("playerCatch", () => {
+  it("catches when the roll succeeds", () => {
+    // wild at 10% hp, favorite snack -> high chance; rng 0.01 succeeds
+    const s = startBattle([mon()], wildInfo({ hp: 4, maxHp: 40 }));
+    const next = playerCatch(s, 2, true, seq([0.01]));
+    expect(next.outcome).toBe("caught");
+    expect(next.log.map((e) => e.kind)).toEqual(["catchAttempt", "outcome"]);
+  });
+
+  it("lets the wild retaliate when the catch fails", () => {
+    const s = startBattle([mon()], wildInfo({ hp: 30, maxHp: 40 }));
+    const next = playerCatch(s, 1, false, seq([0.99]));
+    expect(next.outcome).toBe("ongoing");
+    const kinds = next.log.map((e) => e.kind);
+    expect(kinds[0]).toBe("catchAttempt");
+    expect(kinds).toContain("wildMove");
+    expect(next.turn).toBe(2);
+  });
+});
+
+describe("playerSwitch", () => {
+  it("swaps active with a benched creature and lets the wild retaliate", () => {
+    const s = startBattle([mon({ ownedId: "a" }), mon({ ownedId: "b" })], wildInfo());
+    const next = playerSwitch(s, "b");
+    expect(next.active.ownedId).toBe("b");
+    expect(next.bench.map((m) => m.ownedId)).toEqual(["a"]);
+    expect(next.log.some((e) => e.kind === "switch")).toBe(true);
+    expect(next.log.some((e) => e.kind === "wildMove")).toBe(true);
+    expect(next.turn).toBe(2);
+  });
+
+  it("is a no-op when the id is not on the bench", () => {
+    const s = startBattle([mon({ ownedId: "a" })], wildInfo());
+    expect(playerSwitch(s, "nope")).toBe(s);
+  });
+});
+
+describe("playerFlee", () => {
+  it("ends the battle as fled", () => {
+    const s = startBattle([mon()], wildInfo());
+    const next = playerFlee(s);
+    expect(next.outcome).toBe("fled");
+    expect(next.log.at(-1)).toEqual({ kind: "outcome", outcome: "fled" });
   });
 });
