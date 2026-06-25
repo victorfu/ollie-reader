@@ -42,6 +42,8 @@ import {
   type CreatureSpecies,
   type OwnedCreature,
 } from "./wonderAcademyCreatures";
+import ExploreSceneKaplay from "./ExploreSceneKaplay";
+import { sceneStart, tileAt, type SceneState } from "./sceneMap";
 
 type Screen =
   | "title"
@@ -63,34 +65,6 @@ const SNACK_NAMES: Record<string, string> = {
   "warm-cocoa-gem": "暖可可寶石",
 };
 const SNACK_POOL = Object.keys(SNACK_NAMES);
-
-// Walkable scene. T=tree(blocked) P=path G=grass C=chest N=npc X=exit S=start W=warden
-const SCENE_MAP = [
-  "TTTTTTTTT",
-  "TPPPGPCWT",
-  "TPTTPTTPT",
-  "TGPPSPPGT",
-  "TPTTPTTNT",
-  "TPCPGPPPT",
-  "TTTTXTTTT",
-];
-const SCENE_W = SCENE_MAP[0].length;
-const SCENE_H = SCENE_MAP.length;
-
-function tileAt(x: number, y: number): string | null {
-  if (y < 0 || y >= SCENE_H || x < 0 || x >= SCENE_W) return null;
-  return SCENE_MAP[y][x];
-}
-
-function sceneStart(): { x: number; y: number } {
-  for (let y = 0; y < SCENE_H; y += 1) {
-    const x = SCENE_MAP[y].indexOf("S");
-    if (x >= 0) return { x, y };
-  }
-  return { x: 1, y: 1 };
-}
-
-type SceneState = { x: number; y: number; opened: string[]; message: string | null };
 
 type ResultInfo = {
   kind: BattleSession["outcome"] | "treasure";
@@ -763,98 +737,6 @@ function StarterConfirm({
   );
 }
 
-function ExploreScene({
-  scene,
-  avatar,
-  wardenDone,
-  onMove,
-  onCloseMessage,
-}: {
-  scene: SceneState;
-  avatar: string | undefined;
-  wardenDone: boolean;
-  onMove: (dx: number, dy: number) => void;
-  onCloseMessage: () => void;
-}) {
-  useEffect(() => {
-    const moves: Record<string, [number, number]> = {
-      ArrowUp: [0, -1],
-      ArrowDown: [0, 1],
-      ArrowLeft: [-1, 0],
-      ArrowRight: [1, 0],
-      w: [0, -1],
-      s: [0, 1],
-      a: [-1, 0],
-      d: [1, 0],
-    };
-    const handler = (e: KeyboardEvent) => {
-      const m = moves[e.key];
-      if (m) {
-        e.preventDefault();
-        onMove(m[0], m[1]);
-      }
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [onMove]);
-
-  const TILE = 46;
-  const bg = (t: string, opened: boolean) =>
-    t === "T" ? "#7faf6a"
-    : t === "G" ? "#bfe39a"
-    : t === "C" ? (opened ? "#e9dcc2" : "#f6e3a6")
-    : t === "X" ? "#cdb6ef"
-    : t === "N" ? "#e3d3f5"
-    : t === "W" ? "#d9c2f5"
-    : "#e9dcc2";
-  const glyph = (t: string, opened: boolean) =>
-    t === "T" ? "🌲"
-    : t === "G" ? "🌿"
-    : t === "C" ? (opened ? "" : "🎁")
-    : t === "X" ? "🚪"
-    : t === "N" ? "🦉"
-    : t === "W" ? (wardenDone ? "✨" : "👑")
-    : "";
-
-  return (
-    <div>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10, flexWrap: "wrap", gap: 6 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 800, margin: 0 }}>星葉森林</h1>
-        <span style={{ fontSize: 12, color: "#8a83a3" }}>方向鍵 / 點旁邊的格子移動 · 踩草叢 🌿 會遇到寵物 · 🚪 回學院</span>
-      </div>
-      <div style={{ display: "grid", gridTemplateColumns: `repeat(${SCENE_W}, ${TILE}px)`, gap: 2, justifyContent: "center", padding: 12, borderRadius: 16, background: "linear-gradient(180deg,#d7f0d0,#bfe3a3)", boxShadow: "0 6px 18px rgba(80,50,130,.1)" }}>
-        {SCENE_MAP.flatMap((row, y) =>
-          row.split("").map((t, x) => {
-            const opened = scene.opened.includes(`${x},${y}`);
-            const isAvatar = x === scene.x && y === scene.y;
-            const dx = x - scene.x;
-            const dy = y - scene.y;
-            const adjacent = Math.abs(dx) + Math.abs(dy) === 1 && t !== "T";
-            return (
-              <div
-                key={`${x},${y}`}
-                onClick={() => { if (adjacent) onMove(dx, dy); }}
-                style={{ width: TILE, height: TILE, borderRadius: 8, background: bg(t, opened), display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, cursor: adjacent ? "pointer" : "default" }}
-              >
-                {isAvatar ? (
-                  avatar ? <img src={avatar} alt="你" style={{ width: 38, height: 38, objectFit: "contain", filter: "drop-shadow(0 3px 3px rgba(0,0,0,.3))" }} /> : "🧒"
-                ) : (
-                  glyph(t, opened)
-                )}
-              </div>
-            );
-          }),
-        )}
-      </div>
-      {scene.message && (
-        <div onClick={onCloseMessage} style={{ maxWidth: 460, margin: "14px auto 0", background: "rgba(255,255,255,.88)", border: "1px solid rgba(60,40,90,.12)", borderRadius: 12, padding: "12px 16px", cursor: "pointer", fontSize: 14 }}>
-          {scene.message} <span style={{ color: "#8a83a3", fontSize: 12 }}>(點一下關閉)</span>
-        </div>
-      )}
-    </div>
-  );
-}
-
 function CreatureBuilder({
   onSave,
   onCancel,
@@ -1149,9 +1031,8 @@ export default function WonderAcademyGame({ onExit }: Props) {
   // ---------- EXPLORE SCENE ----------
   if (state.screen === "scene" && state.scene) {
     return frame(
-      <ExploreScene
+      <ExploreSceneKaplay
         scene={state.scene}
-        avatar={speciesById(state.team[0]?.speciesId ?? "")?.portrait}
         wardenDone={state.wardenDefeated}
         onMove={(dx, dy) => dispatch({ type: "sceneMove", dx, dy })}
         onCloseMessage={() => dispatch({ type: "sceneCloseMessage" })}
