@@ -85,7 +85,7 @@ const MushroomAdventure = lazyWithReload(
   () => import("./components/LittleGames/MushroomAdventure"),
 );
 const WonderAcademyPage = lazyWithReload(
-  () => import("./components/LittleGames/wonder-academy/WonderAcademyPage"),
+  () => import("./components/LittleGames/wonder-academy/WonderAcademyCollector"),
 );
 
 const SIDEBAR_COLLAPSED_KEY = "ollie-sidebar-collapsed";
