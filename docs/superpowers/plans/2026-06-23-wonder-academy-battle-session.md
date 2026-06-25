@@ -256,8 +256,9 @@ import { playerAttack } from "./battleSession";
 
 describe("playerAttack", () => {
   it("damages the wild, flags sleepy, and lets the wild retaliate", () => {
-    // wild at low-ish hp so the hit leaves it alive but sleepy (<=25% of 40 = 10)
-    const s = startBattle([mon()], wildInfo({ hp: 12, maxHp: 40 }));
+    // zip-spark vs leaf is neutral: damage = round((9 + floor(8/2)) * 1) = 13.
+    // Start at 20 hp so the wild survives at 7 (<=25% of 40 = 10 -> sleepy).
+    const s = startBattle([mon()], wildInfo({ hp: 20, maxHp: 40 }));
     const next = playerAttack(s, "zip-spark");
     expect(next.wild.hp).toBeLessThan(12);
     const kinds = next.log.map((e) => e.kind);
