@@ -1,6 +1,6 @@
 import type { WonderAcademyRarity } from "../../../../types/wonderAcademy";
 import type { BattleCombatant } from "./battleLogic";
-import { isFainted, performMove } from "./battleLogic";
+import { isFainted, isSleepy, performMove } from "./battleLogic";
 
 export type BattleOutcome = "ongoing" | "won" | "caught" | "fled" | "lost";
 
@@ -77,4 +77,34 @@ export function enemyRetaliate(session: BattleSession): BattleSession {
 
   log.push({ kind: "outcome", outcome: "lost" });
   return { ...session, active: defender, outcome: "lost", log };
+}
+
+export function playerAttack(
+  session: BattleSession,
+  moveId: string,
+): BattleSession {
+  if (session.outcome !== "ongoing") return session;
+
+  const { defender, damage, effectiveness } = performMove(
+    session.active,
+    session.wild,
+    moveId,
+  );
+  const log: BattleEvent[] = [
+    ...session.log,
+    { kind: "playerMove", moveId, damage, effectiveness },
+  ];
+
+  if (isFainted(defender)) {
+    log.push({ kind: "outcome", outcome: "won" });
+    return { ...session, wild: defender, outcome: "won", log };
+  }
+
+  if (isSleepy(defender)) {
+    log.push({ kind: "wildSleepy" });
+  }
+
+  const afterPlayer: BattleSession = { ...session, wild: defender, log };
+  const afterEnemy = enemyRetaliate(afterPlayer);
+  return { ...afterEnemy, turn: afterEnemy.turn + 1 };
 }
