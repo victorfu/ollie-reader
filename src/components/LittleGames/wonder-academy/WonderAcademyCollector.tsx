@@ -28,8 +28,11 @@ import { dexCompletion, recordDex, type Wonderdex } from "./logic/wonderdex";
 import {
   allSpecies,
   catchableSpecies,
+  defaultEquipped,
   ELEMENT_META,
+  learnablePool,
   makeCustomCreature,
+  moveUnlockLevel,
   registerCustomCreatures,
   speciesById,
   STARTER_SPECIES,
@@ -50,7 +53,8 @@ type Screen =
   | "battle"
   | "result"
   | "dex"
-  | "builder";
+  | "builder"
+  | "skills";
 
 const SNACK_NAMES: Record<string, string> = {
   "starberry-cookie": "星莓餅乾",
@@ -111,6 +115,7 @@ type GameState = Persisted & {
   scene: SceneState | null;
   sceneActive: boolean;
   isWarden: boolean;
+  skillsOwnedId: string | null;
   battle: BattleSession | null;
   result: ResultInfo | null;
 };
@@ -130,6 +135,10 @@ type Action =
   | { type: "battleSwitch"; ownedId: string }
   | { type: "battleFlee" }
   | { type: "feed"; ownedId: string }
+  | { type: "openSkills"; ownedId: string }
+  | { type: "closeSkills" }
+  | { type: "equipMove"; ownedId: string; moveId: string }
+  | { type: "unequipMove"; ownedId: string; moveId: string }
   | { type: "openBuilder" }
   | { type: "addCustom"; creature: CreatureSpecies }
   | { type: "closeResult" }
@@ -143,6 +152,7 @@ const INITIAL: GameState = {
   scene: null,
   sceneActive: false,
   isWarden: false,
+  skillsOwnedId: null,
   playerName: "",
   team: [],
   dex: {},
@@ -486,6 +496,30 @@ function reducer(state: GameState, action: Action): GameState {
       );
       return { ...state, snacks, team };
     }
+    case "openSkills":
+      return { ...state, skillsOwnedId: action.ownedId, screen: "skills" };
+    case "closeSkills":
+      return { ...state, skillsOwnedId: null, screen: "hub" };
+    case "equipMove": {
+      const team = state.team.map((o) => {
+        if (o.ownedId !== action.ownedId) return o;
+        const sp = speciesById(o.speciesId);
+        const current = o.equippedMoveIds ?? (sp ? defaultEquipped(sp) : []);
+        if (current.includes(action.moveId) || current.length >= 4) return o;
+        return { ...o, equippedMoveIds: [...current, action.moveId] };
+      });
+      return { ...state, team };
+    }
+    case "unequipMove": {
+      const team = state.team.map((o) => {
+        if (o.ownedId !== action.ownedId) return o;
+        const sp = speciesById(o.speciesId);
+        const current = o.equippedMoveIds ?? (sp ? defaultEquipped(sp) : []);
+        if (current.length <= 1) return o;
+        return { ...o, equippedMoveIds: current.filter((m) => m !== action.moveId) };
+      });
+      return { ...state, team };
+    }
     case "openBuilder":
       return { ...state, screen: "builder" };
     case "addCustom":
@@ -617,6 +651,85 @@ function battleHeadline(session: BattleSession): string {
 
 const PANEL_BG =
   "radial-gradient(120% 90% at 12% 0%, #fff7ec 0%, rgba(255,247,236,0) 55%), radial-gradient(120% 110% at 100% 0%, #efe7ff 0%, rgba(239,231,255,0) 50%), linear-gradient(180deg, #fbf6ff 0%, #f3eefe 60%, #efeafc 100%)";
+
+function SkillsScreen({
+  owned,
+  onEquip,
+  onUnequip,
+  onClose,
+}: {
+  owned: OwnedCreature;
+  onEquip: (moveId: string) => void;
+  onUnequip: (moveId: string) => void;
+  onClose: () => void;
+}) {
+  const sp = speciesById(owned.speciesId);
+  if (!sp) return <div />;
+  const equipped =
+    owned.equippedMoveIds && owned.equippedMoveIds.length > 0
+      ? owned.equippedMoveIds
+      : defaultEquipped(sp);
+  const pool = learnablePool(sp);
+
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+        <h1 style={{ fontSize: 22, fontWeight: 800, margin: 0 }}>技能</h1>
+        <button onClick={onClose} style={btnGhost}><X size={16} /> 完成</button>
+      </div>
+
+      <div style={{ display: "flex", gap: 14, alignItems: "center", marginBottom: 18 }}>
+        <img src={sp.portrait} alt={sp.name} style={{ width: 72, height: 72, objectFit: "contain" }} />
+        <div>
+          <div style={{ fontWeight: 800, fontSize: 18 }}>{owned.nickname || sp.growthStages[owned.stage] || sp.name}</div>
+          <div style={{ fontSize: 12, color: "#8a83a3" }}>Lv.{owned.level} · 裝備 {equipped.length}/4</div>
+        </div>
+      </div>
+
+      <div style={fieldLabel}>已裝備(點一下卸下)</div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(150px,1fr))", gap: 8, marginBottom: 18 }}>
+        {equipped.map((id) => {
+          const mv = getMoveById(id);
+          if (!mv) return null;
+          const m = ELEMENT_META[mv.element];
+          return (
+            <button key={id} onClick={() => onUnequip(id)} disabled={equipped.length <= 1} style={{ ...moveBtn, opacity: equipped.length <= 1 ? 0.6 : 1 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <span style={{ width: 10, height: 10, borderRadius: "50%", background: m.fg }} />
+                <span style={{ fontWeight: 800, fontSize: 13 }}>{mv.name}</span>
+              </div>
+              <div style={{ fontSize: 10, color: "#8a83a3", fontWeight: 700 }}>{mv.element} · 威力 {mv.power}</div>
+            </button>
+          );
+        })}
+      </div>
+
+      <div style={fieldLabel}>可學招式</div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(150px,1fr))", gap: 8 }}>
+        {pool.map((id, i) => {
+          const mv = getMoveById(id);
+          if (!mv) return null;
+          const m = ELEMENT_META[mv.element];
+          const isEquipped = equipped.includes(id);
+          const unlockLv = moveUnlockLevel(i);
+          const locked = owned.level < unlockLv;
+          const canEquip = !isEquipped && !locked && equipped.length < 4;
+          return (
+            <button key={id} onClick={() => { if (canEquip) onEquip(id); }} disabled={!canEquip} style={{ ...moveBtn, opacity: locked ? 0.45 : isEquipped ? 0.5 : equipped.length >= 4 ? 0.6 : 1, cursor: canEquip ? "pointer" : "default" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <span style={{ width: 10, height: 10, borderRadius: "50%", background: m.fg }} />
+                <span style={{ fontWeight: 800, fontSize: 13 }}>{mv.name}</span>
+              </div>
+              <div style={{ fontSize: 10, color: "#8a83a3", fontWeight: 700 }}>
+                {locked ? `🔒 Lv.${unlockLv} 解鎖` : isEquipped ? "✓ 已裝備" : `${mv.element} · 威力 ${mv.power}`}
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 function StarterConfirm({
   species,
@@ -1087,13 +1200,21 @@ export default function WonderAcademyGame({ onExit }: Props) {
                   {"💛".repeat(hearts)}
                   <span style={{ opacity: 0.3 }}>{"🤍".repeat(5 - hearts)}</span>
                 </div>
-                <button
-                  onClick={() => { sfx("snack_use"); dispatch({ type: "feed", ownedId: o.ownedId }); }}
-                  disabled={totalSnacks === 0}
-                  style={{ ...feedBtn, opacity: totalSnacks === 0 ? 0.4 : 1, cursor: totalSnacks === 0 ? "default" : "pointer" }}
-                >
-                  🍪 餵點心
-                </button>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <button
+                    onClick={() => { sfx("snack_use"); dispatch({ type: "feed", ownedId: o.ownedId }); }}
+                    disabled={totalSnacks === 0}
+                    style={{ ...feedBtn, flex: 1, opacity: totalSnacks === 0 ? 0.4 : 1, cursor: totalSnacks === 0 ? "default" : "pointer" }}
+                  >
+                    🍪 餵
+                  </button>
+                  <button
+                    onClick={() => dispatch({ type: "openSkills", ownedId: o.ownedId })}
+                    style={{ ...feedBtn, flex: 1, color: "#6a52ff", background: "#efeaff", border: "1px solid #cdb6ef" }}
+                  >
+                    ✨ 技能
+                  </button>
+                </div>
               </div>
             );
           })}
@@ -1128,6 +1249,20 @@ export default function WonderAcademyGame({ onExit }: Props) {
           })}
         </div>
       </div>,
+    );
+  }
+
+  // ---------- SKILLS ----------
+  if (state.screen === "skills" && state.skillsOwnedId) {
+    const owned = state.team.find((o) => o.ownedId === state.skillsOwnedId);
+    if (!owned) return frame(<div />);
+    return frame(
+      <SkillsScreen
+        owned={owned}
+        onEquip={(moveId) => dispatch({ type: "equipMove", ownedId: owned.ownedId, moveId })}
+        onUnequip={(moveId) => dispatch({ type: "unequipMove", ownedId: owned.ownedId, moveId })}
+        onClose={() => dispatch({ type: "closeSkills" })}
+      />,
     );
   }
 

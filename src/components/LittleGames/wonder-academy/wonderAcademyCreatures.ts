@@ -22,6 +22,8 @@ export type CreatureSpecies = {
   favoriteSnack: string;
   growthStages: string[];
   moveIds: string[];
+  /** Full pool of moves this species can learn (defaults to moveIds). */
+  learnableMoveIds?: string[];
   portrait: string;
   /** Appears in the wild and can be befriended on expeditions. */
   wild: boolean;
@@ -38,6 +40,7 @@ export const WA_CREATURES: CreatureSpecies[] = [
     favoriteSnack: "starberry-cookie",
     growthStages: ["Lumi", "Lumi Tailglow", "Lumi Prismtail", "Lumi Aurorafox"],
     moveIds: ["tiny-flash", "zip-spark", "wink-feint", "starstep-dash"],
+    learnableMoveIds: ["tiny-flash", "zip-spark", "wink-feint", "starstep-dash", "aurora-parade"],
     portrait: lumiPortrait,
     wild: false,
   },
@@ -51,6 +54,7 @@ export const WA_CREATURES: CreatureSpecies[] = [
     favoriteSnack: "moon-milk-puff",
     growthStages: ["Momo", "Momo Rainpuff", "Momo Mooncloud", "Momo Dreamnimbus"],
     moveIds: ["bubble-pat", "cozy-shield", "nap-song", "moon-drizzle"],
+    learnableMoveIds: ["bubble-pat", "cozy-shield", "nap-song", "moon-drizzle", "dreamcloud-haven"],
     portrait: momoPortrait,
     wild: false,
   },
@@ -64,6 +68,7 @@ export const WA_CREATURES: CreatureSpecies[] = [
     favoriteSnack: "clover-macaron",
     growthStages: ["Pico", "Pico Budspark", "Pico Wishpetal", "Pico Celestibloom"],
     moveIds: ["leaf-wink", "stardust-peek", "clover-patch", "secret-signal"],
+    learnableMoveIds: ["leaf-wink", "stardust-peek", "clover-patch", "secret-signal", "wishbloom-spiral"],
     portrait: picoPortrait,
     wild: false,
   },
@@ -77,6 +82,7 @@ export const WA_CREATURES: CreatureSpecies[] = [
     favoriteSnack: "warm-cocoa-gem",
     growthStages: ["Nibi", "Nibi Pebblehorn", "Nibi Embercrest", "Nibi Hearthdrake"],
     moveIds: ["warm-puff", "crystal-brace", "brave-bump", "hearth-guard"],
+    learnableMoveIds: ["warm-puff", "crystal-brace", "brave-bump", "hearth-guard", "hearth-crystal-roar"],
     portrait: nibiPortrait,
     wild: false,
   },
@@ -177,12 +183,29 @@ export type OwnedCreature = {
   xp: number;
   bond: number;
   stage: number;
+  equippedMoveIds?: string[];
 };
+
+export function learnablePool(species: CreatureSpecies): string[] {
+  return species.learnableMoveIds ?? species.moveIds;
+}
+
+/** Level at which the move at the given pool index becomes learnable. */
+export function moveUnlockLevel(index: number): number {
+  return 1 + index * 2;
+}
+
+export function defaultEquipped(species: CreatureSpecies): string[] {
+  return learnablePool(species).slice(0, 4);
+}
 
 export function toCombatant(owned: OwnedCreature): BattleCombatant {
   const species = speciesById(owned.speciesId);
   const elements = species?.elements ?? ["light"];
-  const moveIds = species?.moveIds.slice(0, 4) ?? ["tiny-flash"];
+  const moveIds =
+    owned.equippedMoveIds && owned.equippedMoveIds.length > 0
+      ? owned.equippedMoveIds.slice(0, 4)
+      : species?.moveIds.slice(0, 4) ?? ["tiny-flash"];
   const { maxHp, attack } = combatStats(owned.level);
   return {
     ownedId: owned.ownedId,
