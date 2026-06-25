@@ -220,6 +220,27 @@ export function toWild(species: CreatureSpecies, level: number): WildInfo {
   };
 }
 
+/** A boosted boss version of a species — for warden / guardian battles. */
+export function toWarden(species: CreatureSpecies, level: number): WildInfo {
+  const { maxHp, attack } = combatStats(level);
+  const bossHp = Math.round(maxHp * 1.7);
+  return {
+    combatant: {
+      ownedId: `warden-${species.speciesId}`,
+      speciesId: species.speciesId,
+      name: `${species.name}(魔王)`,
+      elements: species.elements,
+      level,
+      maxHp: bossHp,
+      hp: bossHp,
+      attack: attack + 4,
+      moveIds: species.moveIds,
+    },
+    rarity: "warden",
+    favoriteSnack: species.favoriteSnack,
+  };
+}
+
 export const ELEMENT_META: Record<
   WonderAcademyElement,
   { label: string; emoji: string; fg: string; bg: string }

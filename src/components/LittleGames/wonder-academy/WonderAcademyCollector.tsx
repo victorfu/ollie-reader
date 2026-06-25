@@ -34,6 +34,7 @@ import {
   speciesById,
   STARTER_SPECIES,
   toCombatant,
+  toWarden,
   toWild,
   type CreatureSpecies,
   type OwnedCreature,
@@ -59,10 +60,10 @@ const SNACK_NAMES: Record<string, string> = {
 };
 const SNACK_POOL = Object.keys(SNACK_NAMES);
 
-// Walkable exploration scene. T=tree(blocked) P=path G=grass C=chest N=npc X=exit S=start
+// Walkable scene. T=tree(blocked) P=path G=grass C=chest N=npc X=exit S=start W=warden
 const SCENE_MAP = [
   "TTTTTTTTT",
-  "TPPPGPCPT",
+  "TPPPGPCWT",
   "TPTTPTTPT",
   "TGPPSPPGT",
   "TPTTPTTNT",
@@ -100,6 +101,7 @@ type Persisted = {
   stardust: number;
   snacks: Record<string, number>;
   customCreatures: CreatureSpecies[];
+  wardenDefeated: boolean;
 };
 
 type GameState = Persisted & {
@@ -108,6 +110,7 @@ type GameState = Persisted & {
   pendingStarterId: string | null;
   scene: SceneState | null;
   sceneActive: boolean;
+  isWarden: boolean;
   battle: BattleSession | null;
   result: ResultInfo | null;
 };
@@ -139,12 +142,14 @@ const INITIAL: GameState = {
   pendingStarterId: null,
   scene: null,
   sceneActive: false,
+  isWarden: false,
   playerName: "",
   team: [],
   dex: {},
   stardust: 0,
   snacks: {},
   customCreatures: [],
+  wardenDefeated: false,
   battle: null,
   result: null,
 };
@@ -192,6 +197,45 @@ function resolveOutcome(state: GameState, session: BattleSession): GameState {
       return owned;
     });
   };
+
+  if (state.isWarden) {
+    if (session.outcome === "won") {
+      stardust += 50;
+      const pick = SNACK_POOL[Math.floor(random() * SNACK_POOL.length)];
+      snacks = { ...snacks, [pick]: (snacks[pick] ?? 0) + 2 };
+      lines.push("🏆 你打敗了守關魔王!森林恢復了平靜!");
+      lines.push(`✨ Stardust ×50 · 🍪 ${SNACK_NAMES[pick]} ×2`);
+      awardXp(session.wild.level * 6);
+      return {
+        ...state,
+        team,
+        dex,
+        stardust,
+        snacks,
+        wardenDefeated: true,
+        isWarden: false,
+        battle: null,
+        result: { kind: "won", speciesId: wildSpeciesId, lines },
+        screen: "result",
+      };
+    }
+    lines.push(
+      session.outcome === "lost"
+        ? "魔王太強了…回去多練幾級、帶滿點心再來挑戰!"
+        : "你暫時撤退了。",
+    );
+    return {
+      ...state,
+      team,
+      dex,
+      stardust,
+      snacks,
+      isWarden: false,
+      battle: null,
+      result: { kind: session.outcome, speciesId: wildSpeciesId, lines },
+      screen: "result",
+    };
+  }
 
   if (session.outcome === "caught") {
     team = [
@@ -388,6 +432,25 @@ function reducer(state: GameState, action: Action): GameState {
         };
       }
 
+      if (tile === "W") {
+        if (state.wardenDefeated) {
+          return {
+            ...state,
+            scene: { ...moved, message: "守護者:「謝謝你讓森林恢復了平靜。」🌟" },
+          };
+        }
+        const warden = speciesById("sparkleaf-fawn");
+        if (!warden) return { ...state, scene: moved };
+        return {
+          ...state,
+          scene: moved,
+          isWarden: true,
+          battle: startBattle(state.team.map(toCombatant), toWarden(warden, 12)),
+          result: null,
+          screen: "battle",
+        };
+      }
+
       return { ...state, scene: moved };
     }
     case "battleMove":
@@ -458,6 +521,7 @@ function loadPersisted(uid: string): Persisted | null {
       stardust: parsed.stardust ?? 0,
       snacks: parsed.snacks ?? {},
       customCreatures: parsed.customCreatures ?? [],
+      wardenDefeated: parsed.wardenDefeated ?? false,
     };
   } catch {
     return null;
@@ -557,11 +621,13 @@ const PANEL_BG =
 function ExploreScene({
   scene,
   avatar,
+  wardenDone,
   onMove,
   onCloseMessage,
 }: {
   scene: SceneState;
   avatar: string | undefined;
+  wardenDone: boolean;
   onMove: (dx: number, dy: number) => void;
   onCloseMessage: () => void;
 }) {
@@ -594,6 +660,7 @@ function ExploreScene({
     : t === "C" ? (opened ? "#e9dcc2" : "#f6e3a6")
     : t === "X" ? "#cdb6ef"
     : t === "N" ? "#e3d3f5"
+    : t === "W" ? "#d9c2f5"
     : "#e9dcc2";
   const glyph = (t: string, opened: boolean) =>
     t === "T" ? "🌲"
@@ -601,6 +668,7 @@ function ExploreScene({
     : t === "C" ? (opened ? "" : "🎁")
     : t === "X" ? "🚪"
     : t === "N" ? "🦉"
+    : t === "W" ? (wardenDone ? "✨" : "👑")
     : "";
 
   return (
@@ -780,11 +848,17 @@ export default function WonderAcademyGame({ onExit }: Props) {
       audio.stopAll();
       return;
     }
-    const loop = state.screen === "battle" ? "mood_trial_loop" : "hub_loop";
-    const other = loop === "hub_loop" ? "mood_trial_loop" : "hub_loop";
-    audio.stopLoop(other);
+    const loop =
+      state.screen === "battle"
+        ? state.isWarden
+          ? "warden_trial_loop"
+          : "mood_trial_loop"
+        : "hub_loop";
+    for (const id of ["hub_loop", "mood_trial_loop", "warden_trial_loop"] as const) {
+      if (id !== loop) audio.stopLoop(id);
+    }
     audio.startLoop(loop);
-  }, [state.screen, muted]);
+  }, [state.screen, state.isWarden, muted]);
 
   useEffect(() => {
     if (!state.result) return;
@@ -809,6 +883,7 @@ export default function WonderAcademyGame({ onExit }: Props) {
       stardust: state.stardust,
       snacks: state.snacks,
       customCreatures: state.customCreatures,
+      wardenDefeated: state.wardenDefeated,
     };
     try {
       window.localStorage.setItem(storageKey(uid), JSON.stringify(data));
@@ -818,7 +893,7 @@ export default function WonderAcademyGame({ onExit }: Props) {
     // Debounced cloud sync (best-effort; localStorage stays primary).
     const timer = setTimeout(() => void saveCloudGame(uid, data), 900);
     return () => clearTimeout(timer);
-  }, [uid, state.ready, state.playerName, state.team, state.dex, state.stardust, state.snacks, state.customCreatures]);
+  }, [uid, state.ready, state.playerName, state.team, state.dex, state.stardust, state.snacks, state.customCreatures, state.wardenDefeated]);
 
   // Keep the runtime species registry in sync with the player's custom creatures.
   registerCustomCreatures(state.customCreatures);
@@ -940,6 +1015,7 @@ export default function WonderAcademyGame({ onExit }: Props) {
       <ExploreScene
         scene={state.scene}
         avatar={speciesById(state.team[0]?.speciesId ?? "")?.portrait}
+        wardenDone={state.wardenDefeated}
         onMove={(dx, dy) => dispatch({ type: "sceneMove", dx, dy })}
         onCloseMessage={() => dispatch({ type: "sceneCloseMessage" })}
       />,
@@ -1133,14 +1209,21 @@ export default function WonderAcademyGame({ onExit }: Props) {
               })}
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
-              <button onClick={() => dispatch({ type: "battleCatch" })} style={{ ...actBtn, background: "linear-gradient(180deg,#ffd66b,#f7b13a)", color: "#5b3d00", border: "none", boxShadow: "0 6px 16px rgba(247,177,58,.4)", lineHeight: 1.25 }}>
-                🍪 遞點心收服
-                {favSnack && (
-                  <small style={{ display: "block", fontSize: 9.5, fontWeight: 700, opacity: 0.85, marginTop: 2 }}>
-                    {hasFav ? `最愛 ${SNACK_NAMES[favSnack] ?? favSnack} ×${favCount} · 加成!` : `最愛 ${SNACK_NAMES[favSnack] ?? favSnack}(沒有)`}
-                  </small>
-                )}
-              </button>
+              {state.isWarden ? (
+                <div style={{ ...actBtn, background: "#efe7ff", color: "#7c5fc0", border: "1px solid #cdb6ef", lineHeight: 1.25, cursor: "default" }}>
+                  👑 守關魔王
+                  <small style={{ display: "block", fontSize: 9.5, fontWeight: 700, opacity: 0.85, marginTop: 2 }}>打敗牠就好,無法收服</small>
+                </div>
+              ) : (
+                <button onClick={() => dispatch({ type: "battleCatch" })} style={{ ...actBtn, background: "linear-gradient(180deg,#ffd66b,#f7b13a)", color: "#5b3d00", border: "none", boxShadow: "0 6px 16px rgba(247,177,58,.4)", lineHeight: 1.25 }}>
+                  🍪 遞點心收服
+                  {favSnack && (
+                    <small style={{ display: "block", fontSize: 9.5, fontWeight: 700, opacity: 0.85, marginTop: 2 }}>
+                      {hasFav ? `最愛 ${SNACK_NAMES[favSnack] ?? favSnack} ×${favCount} · 加成!` : `最愛 ${SNACK_NAMES[favSnack] ?? favSnack}(沒有)`}
+                    </small>
+                  )}
+                </button>
+              )}
               {s.bench.map((b) => (
                 <button key={b.ownedId} onClick={() => dispatch({ type: "battleSwitch", ownedId: b.ownedId })} style={actBtnSub}>🔄 換 {b.name}</button>
               ))}
