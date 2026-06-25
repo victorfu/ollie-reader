@@ -45,6 +45,7 @@ type Screen =
   | "select"
   | "confirm"
   | "hub"
+  | "scene"
   | "battle"
   | "result"
   | "dex"
@@ -57,6 +58,34 @@ const SNACK_NAMES: Record<string, string> = {
   "warm-cocoa-gem": "暖可可寶石",
 };
 const SNACK_POOL = Object.keys(SNACK_NAMES);
+
+// Walkable exploration scene. T=tree(blocked) P=path G=grass C=chest N=npc X=exit S=start
+const SCENE_MAP = [
+  "TTTTTTTTT",
+  "TPPPGPCPT",
+  "TPTTPTTPT",
+  "TGPPSPPGT",
+  "TPTTPTTNT",
+  "TPCPGPPPT",
+  "TTTTXTTTT",
+];
+const SCENE_W = SCENE_MAP[0].length;
+const SCENE_H = SCENE_MAP.length;
+
+function tileAt(x: number, y: number): string | null {
+  if (y < 0 || y >= SCENE_H || x < 0 || x >= SCENE_W) return null;
+  return SCENE_MAP[y][x];
+}
+
+function sceneStart(): { x: number; y: number } {
+  for (let y = 0; y < SCENE_H; y += 1) {
+    const x = SCENE_MAP[y].indexOf("S");
+    if (x >= 0) return { x, y };
+  }
+  return { x: 1, y: 1 };
+}
+
+type SceneState = { x: number; y: number; opened: string[]; message: string | null };
 
 type ResultInfo = {
   kind: BattleSession["outcome"] | "treasure";
@@ -77,6 +106,8 @@ type GameState = Persisted & {
   ready: boolean;
   screen: Screen;
   pendingStarterId: string | null;
+  scene: SceneState | null;
+  sceneActive: boolean;
   battle: BattleSession | null;
   result: ResultInfo | null;
 };
@@ -89,6 +120,8 @@ type Action =
   | { type: "pickStarter"; speciesId: string }
   | { type: "confirmStarter" }
   | { type: "explore" }
+  | { type: "sceneMove"; dx: number; dy: number }
+  | { type: "sceneCloseMessage" }
   | { type: "battleMove"; moveId: string }
   | { type: "battleCatch" }
   | { type: "battleSwitch"; ownedId: string }
@@ -104,6 +137,8 @@ const INITIAL: GameState = {
   ready: false,
   screen: "title",
   pendingStarterId: null,
+  scene: null,
+  sceneActive: false,
   playerName: "",
   team: [],
   dex: {},
@@ -251,8 +286,57 @@ function reducer(state: GameState, action: Action): GameState {
     }
     case "explore": {
       if (state.team.length === 0) return state;
-      if (random() < 0.25) {
-        const lootTable: LootTable = {
+      return {
+        ...state,
+        scene: { ...sceneStart(), opened: [], message: null },
+        sceneActive: true,
+        screen: "scene",
+      };
+    }
+    case "sceneCloseMessage":
+      return state.scene
+        ? { ...state, scene: { ...state.scene, message: null } }
+        : state;
+    case "sceneMove": {
+      if (!state.scene || state.team.length === 0) return state;
+      const nx = state.scene.x + action.dx;
+      const ny = state.scene.y + action.dy;
+      const tile = tileAt(nx, ny);
+      if (tile === null || tile === "T") return state;
+      const moved: SceneState = { ...state.scene, x: nx, y: ny, message: null };
+      const cellId = `${nx},${ny}`;
+
+      if (tile === "X") {
+        return { ...state, scene: null, sceneActive: false, screen: "hub" };
+      }
+
+      if (tile === "G" && random() < 0.4) {
+        const table: EncounterTable = {
+          encounterChance: 1,
+          entries: catchableSpecies().map((s) => ({
+            speciesId: s.speciesId,
+            weight: s.rarity === "common" ? 3 : 1,
+          })),
+          minLevel: 2,
+          maxLevel: 6,
+        };
+        const enc = rollEncounter(table, random);
+        const species = enc ? speciesById(enc.speciesId) : undefined;
+        if (enc && species) {
+          return {
+            ...state,
+            scene: moved,
+            dex: recordDex(state.dex, enc.speciesId, "seen"),
+            battle: startBattle(state.team.map(toCombatant), toWild(species, enc.level)),
+            result: null,
+            screen: "battle",
+          };
+        }
+        return { ...state, scene: moved };
+      }
+
+      if (tile === "C" && !state.scene.opened.includes(cellId)) {
+        const chestTable: LootTable = {
           rolls: 2,
           entries: [
             { itemId: "starberry-cookie", quantity: 1, weight: 2 },
@@ -262,10 +346,10 @@ function reducer(state: GameState, action: Action): GameState {
             { itemId: "stardust", quantity: 12, weight: 1 },
           ],
         };
-        const loot = rollLoot(lootTable, random);
+        const loot = rollLoot(chestTable, random);
         let snacks = state.snacks;
         let stardust = state.stardust;
-        const lines = ["你發現了一個閃亮的寶箱!✨"];
+        const lines = ["你打開了寶箱!✨"];
         for (const [item, qty] of Object.entries(loot)) {
           if (item === "stardust") {
             stardust += qty;
@@ -275,29 +359,36 @@ function reducer(state: GameState, action: Action): GameState {
             lines.push(`🍪 ${SNACK_NAMES[item] ?? item} ×${qty}`);
           }
         }
-        return { ...state, snacks, stardust, result: { kind: "treasure", lines }, screen: "result" };
+        return {
+          ...state,
+          snacks,
+          stardust,
+          scene: { ...moved, opened: [...state.scene.opened, cellId] },
+          result: { kind: "treasure", lines },
+          screen: "result",
+        };
       }
-      const table: EncounterTable = {
-        encounterChance: 1,
-        entries: catchableSpecies().map((s) => ({
-          speciesId: s.speciesId,
-          weight: s.rarity === "common" ? 3 : 1,
-        })),
-        minLevel: 2,
-        maxLevel: 6,
-      };
-      const enc = rollEncounter(table, random);
-      if (!enc) return state;
-      const species = speciesById(enc.speciesId);
-      if (!species) return state;
-      const session = startBattle(state.team.map(toCombatant), toWild(species, enc.level));
-      return {
-        ...state,
-        dex: recordDex(state.dex, enc.speciesId, "seen"),
-        battle: session,
-        result: null,
-        screen: "battle",
-      };
+
+      if (tile === "N") {
+        if (!state.scene.opened.includes(cellId)) {
+          const pick = SNACK_POOL[Math.floor(random() * SNACK_POOL.length)];
+          return {
+            ...state,
+            snacks: { ...state.snacks, [pick]: (state.snacks[pick] ?? 0) + 1 },
+            scene: {
+              ...moved,
+              opened: [...state.scene.opened, cellId],
+              message: `學長姐:「這個給你,路上會用到!」(獲得 ${SNACK_NAMES[pick]} 🍪)`,
+            },
+          };
+        }
+        return {
+          ...state,
+          scene: { ...moved, message: "學長姐:「森林深處住著更稀有的夥伴喔!」" },
+        };
+      }
+
+      return { ...state, scene: moved };
     }
     case "battleMove":
       return state.battle ? afterBattle(state, playerAttack(state.battle, action.moveId)) : state;
@@ -342,7 +433,7 @@ function reducer(state: GameState, action: Action): GameState {
         screen: "hub",
       };
     case "closeResult":
-      return { ...state, result: null, screen: "hub" };
+      return { ...state, result: null, screen: state.sceneActive ? "scene" : "hub" };
     case "openDex":
       return { ...state, screen: "dex" };
     case "closeDex":
@@ -462,6 +553,94 @@ function battleHeadline(session: BattleSession): string {
 
 const PANEL_BG =
   "radial-gradient(120% 90% at 12% 0%, #fff7ec 0%, rgba(255,247,236,0) 55%), radial-gradient(120% 110% at 100% 0%, #efe7ff 0%, rgba(239,231,255,0) 50%), linear-gradient(180deg, #fbf6ff 0%, #f3eefe 60%, #efeafc 100%)";
+
+function ExploreScene({
+  scene,
+  avatar,
+  onMove,
+  onCloseMessage,
+}: {
+  scene: SceneState;
+  avatar: string | undefined;
+  onMove: (dx: number, dy: number) => void;
+  onCloseMessage: () => void;
+}) {
+  useEffect(() => {
+    const moves: Record<string, [number, number]> = {
+      ArrowUp: [0, -1],
+      ArrowDown: [0, 1],
+      ArrowLeft: [-1, 0],
+      ArrowRight: [1, 0],
+      w: [0, -1],
+      s: [0, 1],
+      a: [-1, 0],
+      d: [1, 0],
+    };
+    const handler = (e: KeyboardEvent) => {
+      const m = moves[e.key];
+      if (m) {
+        e.preventDefault();
+        onMove(m[0], m[1]);
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [onMove]);
+
+  const TILE = 46;
+  const bg = (t: string, opened: boolean) =>
+    t === "T" ? "#7faf6a"
+    : t === "G" ? "#bfe39a"
+    : t === "C" ? (opened ? "#e9dcc2" : "#f6e3a6")
+    : t === "X" ? "#cdb6ef"
+    : t === "N" ? "#e3d3f5"
+    : "#e9dcc2";
+  const glyph = (t: string, opened: boolean) =>
+    t === "T" ? "🌲"
+    : t === "G" ? "🌿"
+    : t === "C" ? (opened ? "" : "🎁")
+    : t === "X" ? "🚪"
+    : t === "N" ? "🦉"
+    : "";
+
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10, flexWrap: "wrap", gap: 6 }}>
+        <h1 style={{ fontSize: 22, fontWeight: 800, margin: 0 }}>星葉森林</h1>
+        <span style={{ fontSize: 12, color: "#8a83a3" }}>方向鍵 / 點旁邊的格子移動 · 踩草叢 🌿 會遇到寵物 · 🚪 回學院</span>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: `repeat(${SCENE_W}, ${TILE}px)`, gap: 2, justifyContent: "center", padding: 12, borderRadius: 16, background: "linear-gradient(180deg,#d7f0d0,#bfe3a3)", boxShadow: "0 6px 18px rgba(80,50,130,.1)" }}>
+        {SCENE_MAP.flatMap((row, y) =>
+          row.split("").map((t, x) => {
+            const opened = scene.opened.includes(`${x},${y}`);
+            const isAvatar = x === scene.x && y === scene.y;
+            const dx = x - scene.x;
+            const dy = y - scene.y;
+            const adjacent = Math.abs(dx) + Math.abs(dy) === 1 && t !== "T";
+            return (
+              <div
+                key={`${x},${y}`}
+                onClick={() => { if (adjacent) onMove(dx, dy); }}
+                style={{ width: TILE, height: TILE, borderRadius: 8, background: bg(t, opened), display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, cursor: adjacent ? "pointer" : "default" }}
+              >
+                {isAvatar ? (
+                  avatar ? <img src={avatar} alt="你" style={{ width: 38, height: 38, objectFit: "contain", filter: "drop-shadow(0 3px 3px rgba(0,0,0,.3))" }} /> : "🧒"
+                ) : (
+                  glyph(t, opened)
+                )}
+              </div>
+            );
+          }),
+        )}
+      </div>
+      {scene.message && (
+        <div onClick={onCloseMessage} style={{ maxWidth: 460, margin: "14px auto 0", background: "rgba(255,255,255,.88)", border: "1px solid rgba(60,40,90,.12)", borderRadius: 12, padding: "12px 16px", cursor: "pointer", fontSize: 14 }}>
+          {scene.message} <span style={{ color: "#8a83a3", fontSize: 12 }}>(點一下關閉)</span>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function CreatureBuilder({
   onSave,
@@ -755,6 +934,18 @@ export default function WonderAcademyGame({ onExit }: Props) {
     );
   }
 
+  // ---------- EXPLORE SCENE ----------
+  if (state.screen === "scene" && state.scene) {
+    return frame(
+      <ExploreScene
+        scene={state.scene}
+        avatar={speciesById(state.team[0]?.speciesId ?? "")?.portrait}
+        onMove={(dx, dy) => dispatch({ type: "sceneMove", dx, dy })}
+        onCloseMessage={() => dispatch({ type: "sceneCloseMessage" })}
+      />,
+    );
+  }
+
   // ---------- HUB ----------
   if (state.screen === "hub") {
     return frame(
@@ -871,7 +1062,7 @@ export default function WonderAcademyGame({ onExit }: Props) {
             <p key={i} style={{ fontSize: 15, margin: "6px 0", color: "#33304a" }}>{l}</p>
           ))}
         </div>
-        <button onClick={() => dispatch({ type: "closeResult" })} style={ctaBtn}>回到學院 →</button>
+        <button onClick={() => dispatch({ type: "closeResult" })} style={ctaBtn}>{state.sceneActive ? "回到森林 →" : "回到學院 →"}</button>
       </div>,
     );
   }
