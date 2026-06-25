@@ -1,6 +1,12 @@
 import { ArrowLeft, Compass, Sparkles, X } from "lucide-react";
-import { useEffect, useMemo, useReducer, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useMemo, useReducer, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { Volume2, VolumeX } from "lucide-react";
 import { useAuth } from "../../../hooks/useAuth";
+import {
+  createWonderAcademyAudio,
+  defaultWonderAcademyAudioSettings,
+  type WonderAcademyAudioManager,
+} from "./wonderAcademyAudio";
 import { getMoveById } from "../../../data/wonderAcademyMoves";
 import { isSleepy } from "./logic/battleLogic";
 import {
@@ -418,6 +424,48 @@ export default function WonderAcademyGame({ onExit }: Props) {
     dispatch({ type: "load", state: loadPersisted(uid) });
   }, [uid]);
 
+  // ---- audio ----
+  const audioRef = useRef<WonderAcademyAudioManager | null>(null);
+  const [muted, setMuted] = useState(false);
+  const sfx = (id: Parameters<WonderAcademyAudioManager["playSfx"]>[0]) =>
+    audioRef.current?.playSfx(id);
+
+  useEffect(() => {
+    audioRef.current = createWonderAcademyAudio({
+      initialSettings: defaultWonderAcademyAudioSettings,
+    });
+    const audio = audioRef.current;
+    return () => audio?.stopAll();
+  }, []);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    audio.setSettings({ muted });
+    if (muted) {
+      audio.stopAll();
+      return;
+    }
+    const loop = state.screen === "battle" ? "mood_trial_loop" : "hub_loop";
+    const other = loop === "hub_loop" ? "mood_trial_loop" : "hub_loop";
+    audio.stopLoop(other);
+    audio.startLoop(loop);
+  }, [state.screen, muted]);
+
+  useEffect(() => {
+    if (!state.result) return;
+    const k = state.result.kind;
+    sfx(
+      k === "caught"
+        ? "attune_success"
+        : k === "treasure"
+          ? "wonderdex_update"
+          : k === "won"
+            ? "ui_confirm"
+            : "ui_back",
+    );
+  }, [state.result]);
+
   useEffect(() => {
     if (!state.ready) return;
     const data: Persisted = {
@@ -448,7 +496,12 @@ export default function WonderAcademyGame({ onExit }: Props) {
       <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px" }}>
         <button onClick={onExit} style={btnGhost}><ArrowLeft size={16} /> 離開</button>
         <div style={{ fontSize: 13, fontWeight: 800, letterSpacing: ".04em" }}>✦ Sparkleaf 星葉學院</div>
-        <div style={{ fontSize: 12, fontWeight: 700, color: "#8a83a3" }}>✨ {state.stardust}</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <button onClick={() => setMuted((m) => !m)} style={{ ...btnGhost, padding: 4 }} title={muted ? "開啟音效" : "靜音"}>
+            {muted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+          </button>
+          <span style={{ fontSize: 12, fontWeight: 700, color: "#8a83a3" }}>✨ {state.stardust}</span>
+        </div>
       </header>
       <div style={{ maxWidth: 880, margin: "0 auto", padding: "4px 16px 40px" }}>{children}</div>
     </div>
@@ -570,7 +623,7 @@ export default function WonderAcademyGame({ onExit }: Props) {
                   <span style={{ opacity: 0.3 }}>{"🤍".repeat(5 - hearts)}</span>
                 </div>
                 <button
-                  onClick={() => dispatch({ type: "feed", ownedId: o.ownedId })}
+                  onClick={() => { sfx("snack_use"); dispatch({ type: "feed", ownedId: o.ownedId }); }}
                   disabled={totalSnacks === 0}
                   style={{ ...feedBtn, opacity: totalSnacks === 0 ? 0.4 : 1, cursor: totalSnacks === 0 ? "default" : "pointer" }}
                 >
