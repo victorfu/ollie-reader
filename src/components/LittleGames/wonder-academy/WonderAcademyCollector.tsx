@@ -1,3 +1,4 @@
+import academyHubUrl from "../../../assets/games/wonder-academy/backgrounds/academy-hub.png";
 import { ArrowLeft, Compass, Plus, Sparkles, Upload, X } from "lucide-react";
 import { useEffect, useMemo, useReducer, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { Volume2, VolumeX } from "lucide-react";
@@ -714,7 +715,18 @@ export default function WonderAcademyGame({ onExit }: Props) {
         <h1 style={{ fontSize: 24, fontWeight: 800, margin: "8px 0 2px" }}>學院大廳</h1>
         <p style={{ color: "#8a83a3", fontSize: 14, margin: "0 0 18px" }}>圖鑑進度 {completion.caught}/{completion.total} 已收服 · {completion.seen} 已遇見 · 🍪 點心 ×{totalSnacks}</p>
 
-        <div style={{ display: "flex", gap: 12, marginBottom: 22 }}>
+        <style>{`@keyframes waBob{0%,100%{transform:translateY(0)}50%{transform:translateY(-9px)}}@media (prefers-reduced-motion: reduce){.wa-bob{animation:none!important}}`}</style>
+        <div style={{ position: "relative", height: 152, borderRadius: 16, overflow: "hidden", marginBottom: 20, backgroundImage: `url(${academyHubUrl})`, backgroundSize: "cover", backgroundPosition: "center", boxShadow: "inset 0 -34px 44px rgba(0,0,0,.14), 0 6px 18px rgba(80,50,130,.1)" }}>
+          {state.team.map((o, i) => {
+            const sp = speciesById(o.speciesId);
+            return (
+              <img key={o.ownedId} className="wa-bob" src={sp?.portrait} alt={sp?.name} title={displayName(o)}
+                style={{ position: "absolute", bottom: 8, left: `${8 + (i % 5) * 18}%`, width: 78, height: 78, objectFit: "contain", filter: "drop-shadow(0 6px 6px rgba(0,0,0,.28))", animation: "waBob 2.8s ease-in-out infinite", animationDelay: `${(i % 5) * 0.4}s` }} />
+            );
+          })}
+        </div>
+
+        <div style={{ display: "flex", gap: 12, marginBottom: 22, flexWrap: "wrap" }}>
           <button onClick={() => dispatch({ type: "explore" })} style={ctaBtn}><Compass size={18} /> 探索森林</button>
           <button onClick={() => dispatch({ type: "openDex" })} style={btnOutline}><Sparkles size={16} /> 圖鑑</button>
           <button onClick={() => dispatch({ type: "openBuilder" })} style={btnOutline}><Plus size={16} /> 建立寵物</button>
