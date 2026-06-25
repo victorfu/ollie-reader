@@ -14,6 +14,7 @@ import {
 import { gainBond } from "./logic/bond";
 import { rollEncounter, type EncounterTable } from "./logic/encounter";
 import { canEvolve, evolve } from "./logic/evolution";
+import { rollLoot, type LootTable } from "./logic/loot";
 import { gainXp } from "./logic/progression";
 import { getEffectivenessAgainst } from "./logic/typeChart";
 import { dexCompletion, recordDex, type Wonderdex } from "./logic/wonderdex";
@@ -47,7 +48,7 @@ const SNACK_NAMES: Record<string, string> = {
 const SNACK_POOL = Object.keys(SNACK_NAMES);
 
 type ResultInfo = {
-  kind: BattleSession["outcome"];
+  kind: BattleSession["outcome"] | "treasure";
   speciesId?: string;
   lines: string[];
 };
@@ -235,6 +236,32 @@ function reducer(state: GameState, action: Action): GameState {
     }
     case "explore": {
       if (state.team.length === 0) return state;
+      if (random() < 0.25) {
+        const lootTable: LootTable = {
+          rolls: 2,
+          entries: [
+            { itemId: "starberry-cookie", quantity: 1, weight: 2 },
+            { itemId: "clover-macaron", quantity: 1, weight: 2 },
+            { itemId: "moon-milk-puff", quantity: 1, weight: 2 },
+            { itemId: "warm-cocoa-gem", quantity: 1, weight: 2 },
+            { itemId: "stardust", quantity: 12, weight: 1 },
+          ],
+        };
+        const loot = rollLoot(lootTable, random);
+        let snacks = state.snacks;
+        let stardust = state.stardust;
+        const lines = ["你發現了一個閃亮的寶箱!✨"];
+        for (const [item, qty] of Object.entries(loot)) {
+          if (item === "stardust") {
+            stardust += qty;
+            lines.push(`✨ Stardust ×${qty}`);
+          } else {
+            snacks = { ...snacks, [item]: (snacks[item] ?? 0) + qty };
+            lines.push(`🍪 ${SNACK_NAMES[item] ?? item} ×${qty}`);
+          }
+        }
+        return { ...state, snacks, stardust, result: { kind: "treasure", lines }, screen: "result" };
+      }
       const table: EncounterTable = {
         encounterChance: 1,
         entries: WILD_SPECIES.map((s) => ({
@@ -590,12 +617,15 @@ export default function WonderAcademyGame({ onExit }: Props) {
   if (state.screen === "result" && state.result) {
     const sp = state.result.speciesId ? speciesById(state.result.speciesId) : undefined;
     const caught = state.result.kind === "caught";
+    const treasure = state.result.kind === "treasure";
     return frame(
       <div style={{ textAlign: "center", paddingTop: 24 }}>
-        {sp && (
+        {treasure ? (
+          <div style={{ fontSize: 96, margin: "0 0 8px", filter: "drop-shadow(0 8px 12px rgba(244,169,58,.35))" }}>🎁</div>
+        ) : sp ? (
           <img src={sp.portrait} alt={sp.name} style={{ width: 140, height: 140, objectFit: "contain", margin: "0 auto 10px", display: "block", filter: caught ? "drop-shadow(0 8px 12px rgba(244,169,58,.35))" : "grayscale(.4)" }} />
-        )}
-        <h1 style={{ fontSize: 24, fontWeight: 800, margin: "0 0 14px" }}>{caught ? "🎉 新夥伴!" : state.result.kind === "won" ? "戰鬥結束" : state.result.kind === "fled" ? "撤退" : "回去休息"}</h1>
+        ) : null}
+        <h1 style={{ fontSize: 24, fontWeight: 800, margin: "0 0 14px" }}>{treasure ? "🎁 尋寶!" : caught ? "🎉 新夥伴!" : state.result.kind === "won" ? "戰鬥結束" : state.result.kind === "fled" ? "撤退" : "回去休息"}</h1>
         <div style={{ maxWidth: 380, margin: "0 auto 22px" }}>
           {state.result.lines.map((l, i) => (
             <p key={i} style={{ fontSize: 15, margin: "6px 0", color: "#33304a" }}>{l}</p>
