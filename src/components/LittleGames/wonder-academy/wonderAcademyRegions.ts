@@ -16,6 +16,17 @@ export type RegionTheme = {
   trunk: string;
 };
 
+export type RegionNode = {
+  id: string;
+  label: string;
+  kind: "explore" | "warden";
+  /** Normalized position on the node map (0..1). */
+  x: number;
+  y: number;
+  /** Node ids that must be cleared before this one unlocks. */
+  requires: string[];
+};
+
 export type Region = {
   id: string;
   name: string;
@@ -27,6 +38,7 @@ export type Region = {
   maxLevel: number;
   wardenSpeciesId: string;
   wardenLevel: number;
+  nodes: RegionNode[];
 };
 
 const FOREST_THEME: RegionTheme = {
@@ -49,9 +61,11 @@ const GLIMMER_THEME: RegionTheme = {
   trunk: "#6b5a7a",
 };
 
+// Walkable scenes hold only explore content (grass/chest/npc/exit); the warden
+// is its own node on the node map, not a tile.
 const SPARKLEAF_MAP = [
   "TTTTTTTTT",
-  "TPPPGPCWT",
+  "TPPPGPCPT",
   "TPTTPTTPT",
   "TGPPSPPGT",
   "TPTTPTTNT",
@@ -65,8 +79,22 @@ const GLIMMER_MAP = [
   "TPTPTTTPT",
   "TPPSPPGPT",
   "TPTTTPTPT",
-  "TCPGPPPWT",
+  "TCPGPPPPT",
   "TTTTXTTTT",
+];
+
+const SPARKLEAF_NODES: RegionNode[] = [
+  { id: "entry", label: "林間入口", kind: "explore", x: 0.18, y: 0.72, requires: [] },
+  { id: "meadow", label: "螢火草原", kind: "explore", x: 0.42, y: 0.4, requires: ["entry"] },
+  { id: "grove", label: "古樹空地", kind: "explore", x: 0.66, y: 0.66, requires: ["meadow"] },
+  { id: "warden", label: "守關之地", kind: "warden", x: 0.86, y: 0.32, requires: ["grove"] },
+];
+
+const GLIMMER_NODES: RegionNode[] = [
+  { id: "entry", label: "微光入口", kind: "explore", x: 0.16, y: 0.5, requires: [] },
+  { id: "mist", label: "霧林小徑", kind: "explore", x: 0.4, y: 0.74, requires: ["entry"] },
+  { id: "hollow", label: "晶石凹地", kind: "explore", x: 0.64, y: 0.4, requires: ["mist"] },
+  { id: "warden", label: "守關之地", kind: "warden", x: 0.86, y: 0.66, requires: ["hollow"] },
 ];
 
 export const REGIONS: Region[] = [
@@ -81,6 +109,7 @@ export const REGIONS: Region[] = [
     maxLevel: 6,
     wardenSpeciesId: "sparkleaf-fawn",
     wardenLevel: 12,
+    nodes: SPARKLEAF_NODES,
   },
   {
     id: "glimmer",
@@ -93,6 +122,7 @@ export const REGIONS: Region[] = [
     maxLevel: 14,
     wardenSpeciesId: "sparkleaf-fawn",
     wardenLevel: 20,
+    nodes: GLIMMER_NODES,
   },
 ];
 
@@ -106,4 +136,18 @@ export function regionById(id: string): Region | undefined {
 export function isRegionUnlocked(index: number, wardensDefeated: string[]): boolean {
   if (index <= 0) return true;
   return wardensDefeated.includes(REGIONS[index - 1].id);
+}
+
+/** Globally-unique key for a node's cleared state. */
+export function nodeKey(regionId: string, nodeId: string): string {
+  return `${regionId}:${nodeId}`;
+}
+
+/** A node is unlocked once all the nodes it requires have been cleared. */
+export function isNodeUnlocked(
+  node: RegionNode,
+  regionId: string,
+  clearedNodes: string[],
+): boolean {
+  return node.requires.every((rid) => clearedNodes.includes(nodeKey(regionId, rid)));
 }

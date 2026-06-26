@@ -48,7 +48,9 @@ import ExploreSceneKaplay from "./ExploreSceneKaplay";
 import { findStart, tileAt, type SceneState } from "./sceneMap";
 import {
   FIRST_REGION,
+  isNodeUnlocked,
   isRegionUnlocked,
+  nodeKey,
   REGIONS,
   regionById,
 } from "./wonderAcademyRegions";
@@ -60,6 +62,7 @@ type Screen =
   | "confirm"
   | "hub"
   | "regions"
+  | "nodeMap"
   | "scene"
   | "battle"
   | "result"
@@ -90,6 +93,8 @@ type Persisted = {
   customCreatures: CreatureSpecies[];
   /** Region ids whose warden has been beaten (gates region unlocks). */
   wardensDefeated: string[];
+  /** "regionId:nodeId" keys for explore nodes that have been entered. */
+  clearedNodes: string[];
   /** YYYY-M-D of the last claimed daily reward, or null. */
   lastDailyReward: string | null;
 };
@@ -119,7 +124,9 @@ type Action =
   | { type: "confirmStarter"; nickname: string }
   | { type: "openRegions" }
   | { type: "closeRegions" }
-  | { type: "explore"; regionId: string }
+  | { type: "openNodeMap"; regionId: string }
+  | { type: "closeNodeMap" }
+  | { type: "enterNode"; nodeId: string }
   | { type: "claimDaily"; today: string; snackId: string }
   | { type: "sceneMove"; dx: number; dy: number }
   | { type: "sceneCloseMessage" }
@@ -154,6 +161,7 @@ const INITIAL: GameState = {
   snacks: {},
   customCreatures: [],
   wardensDefeated: [],
+  clearedNodes: [],
   lastDailyReward: null,
   battle: null,
   result: null,
@@ -348,13 +356,36 @@ function reducer(state: GameState, action: Action): GameState {
       return state.team.length === 0 ? state : { ...state, screen: "regions" };
     case "closeRegions":
       return { ...state, screen: "hub" };
-    case "explore": {
+    case "openNodeMap": {
       if (state.team.length === 0) return state;
       const region = regionById(action.regionId);
       if (!region) return state;
+      return { ...state, activeRegionId: region.id, screen: "nodeMap" };
+    }
+    case "closeNodeMap":
+      return { ...state, screen: "regions" };
+    case "enterNode": {
+      if (state.team.length === 0) return state;
+      const region = state.activeRegionId ? regionById(state.activeRegionId) : undefined;
+      const node = region?.nodes.find((n) => n.id === action.nodeId);
+      if (!region || !node) return state;
+      if (!isNodeUnlocked(node, region.id, state.clearedNodes)) return state;
+      if (node.kind === "warden") {
+        if (state.wardensDefeated.includes(region.id)) return state;
+        const warden = speciesById(region.wardenSpeciesId);
+        if (!warden) return state;
+        return {
+          ...state,
+          isWarden: true,
+          battle: startBattle(state.team.map(toCombatant), toWarden(warden, region.wardenLevel)),
+          result: null,
+          screen: "battle",
+        };
+      }
+      const key = nodeKey(region.id, node.id);
       return {
         ...state,
-        activeRegionId: region.id,
+        clearedNodes: state.clearedNodes.includes(key) ? state.clearedNodes : [...state.clearedNodes, key],
         scene: { ...findStart(region.map), opened: [], message: null },
         sceneActive: true,
         screen: "scene",
@@ -390,7 +421,7 @@ function reducer(state: GameState, action: Action): GameState {
       const cellId = `${nx},${ny}`;
 
       if (tile === "X") {
-        return { ...state, scene: null, sceneActive: false, screen: "hub" };
+        return { ...state, scene: null, sceneActive: false, screen: "nodeMap" };
       }
 
       if (tile === "G" && random() < Math.min(0.85, 0.4 * perks.encounterMultiplier)) {
@@ -566,7 +597,11 @@ function reducer(state: GameState, action: Action): GameState {
         screen: "hub",
       };
     case "closeResult":
-      return { ...state, result: null, screen: state.sceneActive ? "scene" : "hub" };
+      return {
+        ...state,
+        result: null,
+        screen: state.sceneActive ? "scene" : state.activeRegionId ? "nodeMap" : "hub",
+      };
     case "openDex":
       return { ...state, screen: "dex" };
     case "closeDex":
@@ -590,6 +625,7 @@ function normalizeStored(parsed: StoredGame | null): Persisted | null {
     snacks: parsed.snacks ?? {},
     customCreatures: parsed.customCreatures ?? [],
     wardensDefeated: Array.isArray(parsed.wardensDefeated) ? parsed.wardensDefeated : [],
+    clearedNodes: Array.isArray(parsed.clearedNodes) ? parsed.clearedNodes : [],
     lastDailyReward: parsed.lastDailyReward ?? null,
   };
 }
@@ -981,6 +1017,7 @@ export default function WonderAcademyGame({ onExit }: Props) {
       snacks: state.snacks,
       customCreatures: state.customCreatures,
       wardensDefeated: state.wardensDefeated,
+      clearedNodes: state.clearedNodes,
       lastDailyReward: state.lastDailyReward,
     };
     try {
@@ -991,7 +1028,7 @@ export default function WonderAcademyGame({ onExit }: Props) {
     // Debounced cloud sync (best-effort; localStorage stays primary).
     const timer = setTimeout(() => void saveCloudGame(uid, data), 900);
     return () => clearTimeout(timer);
-  }, [uid, state.ready, state.playerName, state.team, state.dex, state.stardust, state.snacks, state.customCreatures, state.wardensDefeated, state.lastDailyReward]);
+  }, [uid, state.ready, state.playerName, state.team, state.dex, state.stardust, state.snacks, state.customCreatures, state.wardensDefeated, state.clearedNodes, state.lastDailyReward]);
 
   // Keep the runtime species registry in sync with the player's custom creatures.
   registerCustomCreatures(state.customCreatures);
@@ -1117,6 +1154,55 @@ export default function WonderAcademyGame({ onExit }: Props) {
                   </div>
                 )}
                 <div style={{ fontSize: 11, color: "#8a83a3", marginTop: 6 }}>🌟 最終進化 <b style={{ color: "#6a52ff" }}>{finalForm}</b></div>
+              </button>
+            );
+          })}
+        </div>
+      </div>,
+    );
+  }
+
+  // ---------- NODE MAP ----------
+  if (state.screen === "nodeMap") {
+    const region = (state.activeRegionId ? regionById(state.activeRegionId) : FIRST_REGION) ?? FIRST_REGION;
+    const wardenDone = state.wardensDefeated.includes(region.id);
+    const [br, bg, bb] = region.theme.bg;
+    return frame(
+      <div>
+        <style>{`@keyframes waNodePulse{0%,100%{box-shadow:0 0 0 0 rgba(106,82,255,.5)}50%{box-shadow:0 0 0 7px rgba(106,82,255,0)}}@media (prefers-reduced-motion: reduce){.wa-node-live{animation:none!important}}`}</style>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+          <h1 style={{ fontSize: 22, fontWeight: 800, margin: 0 }}>{region.badge} {region.name}</h1>
+          <button onClick={() => dispatch({ type: "closeNodeMap" })} style={btnGhost}><X size={16} /> 返回</button>
+        </div>
+        <p style={{ color: "#8a83a3", fontSize: 13, margin: "0 0 14px" }}>點亮著的地點出發探索;打敗 👑 守關魔王就能前往下一區。</p>
+        <div style={{ position: "relative", width: "100%", height: 320, borderRadius: 18, overflow: "hidden", background: `radial-gradient(120% 90% at 30% 20%, rgba(255,255,255,.5), rgba(255,255,255,0) 55%), rgb(${br},${bg},${bb})`, border: "1px solid rgba(60,40,90,.1)", boxShadow: "0 6px 18px rgba(80,50,130,.12)" }}>
+          <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}>
+            {region.nodes.flatMap((n) =>
+              n.requires.map((rid) => {
+                const rn = region.nodes.find((m) => m.id === rid);
+                if (!rn) return null;
+                const active = state.clearedNodes.includes(nodeKey(region.id, rid));
+                return <line key={`${rid}-${n.id}`} x1={rn.x * 100} y1={rn.y * 100} x2={n.x * 100} y2={n.y * 100} stroke={active ? "rgba(106,82,255,.55)" : "rgba(60,40,90,.22)"} strokeWidth={1.1} strokeDasharray={active ? undefined : "3 2"} />;
+              }),
+            )}
+          </svg>
+          {region.nodes.map((n) => {
+            const unlocked = isNodeUnlocked(n, region.id, state.clearedNodes);
+            const cleared = n.kind === "warden" ? wardenDone : state.clearedNodes.includes(nodeKey(region.id, n.id));
+            const isWardenNode = n.kind === "warden";
+            const live = unlocked && !cleared;
+            const dotBg = !unlocked ? "#cdc6dd" : isWardenNode ? (cleared ? "#9ac0e0" : "#ef5b6e") : cleared ? "#5fbf7a" : "#7c6cff";
+            const glyph = !unlocked ? "🔒" : isWardenNode ? (cleared ? "✨" : "👑") : cleared ? "✓" : "🐾";
+            return (
+              <button
+                key={n.id}
+                disabled={!unlocked || (isWardenNode && cleared)}
+                className={live ? "wa-node-live" : undefined}
+                onClick={() => { if (unlocked && !(isWardenNode && cleared)) { sfx("ui_confirm"); dispatch({ type: "enterNode", nodeId: n.id }); } }}
+                style={{ position: "absolute", left: `${n.x * 100}%`, top: `${n.y * 100}%`, transform: "translate(-50%,-50%)", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, background: "transparent", border: "none", cursor: unlocked && !(isWardenNode && cleared) ? "pointer" : "default", padding: 0 }}
+              >
+                <span className={live ? "wa-node-live" : undefined} style={{ width: 38, height: 38, borderRadius: "50%", background: dotBg, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, border: "2px solid #fff", boxShadow: "0 4px 10px rgba(60,40,90,.25)", animation: live ? "waNodePulse 1.8s ease-in-out infinite" : undefined }}>{glyph}</span>
+                <span style={{ fontSize: 11, fontWeight: 800, color: unlocked ? "#33304a" : "#8a83a3", background: "rgba(255,255,255,.82)", borderRadius: 8, padding: "2px 7px", whiteSpace: "nowrap" }}>{n.label}</span>
               </button>
             );
           })}
@@ -1255,7 +1341,7 @@ export default function WonderAcademyGame({ onExit }: Props) {
               <button
                 key={r.id}
                 disabled={!unlocked}
-                onClick={() => { if (unlocked) { sfx("ui_confirm"); dispatch({ type: "explore", regionId: r.id }); } }}
+                onClick={() => { if (unlocked) { sfx("ui_confirm"); dispatch({ type: "openNodeMap", regionId: r.id }); } }}
                 style={{ ...cardBtn, textAlign: "left", cursor: unlocked ? "pointer" : "default", opacity: unlocked ? 1 : 0.6 }}
               >
                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
@@ -1350,7 +1436,7 @@ export default function WonderAcademyGame({ onExit }: Props) {
             <p key={i} style={{ fontSize: 15, margin: "6px 0", color: "#33304a" }}>{l}</p>
           ))}
         </div>
-        <button onClick={() => dispatch({ type: "closeResult" })} style={ctaBtn}>{state.sceneActive ? "回到森林 →" : "回到學院 →"}</button>
+        <button onClick={() => dispatch({ type: "closeResult" })} style={ctaBtn}>{state.sceneActive ? "回到森林 →" : state.activeRegionId ? "回到地圖 →" : "回到學院 →"}</button>
       </div>,
     );
   }
