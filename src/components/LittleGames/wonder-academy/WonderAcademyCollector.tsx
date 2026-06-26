@@ -740,6 +740,10 @@ function battleHeadline(session: BattleSession): string {
       return `${wildName} 反擊了!`;
     case "wildSleepy":
       return `${wildName} 想睡了 😴 — 趁現在遞點心!`;
+    case "wildSlept":
+      return `${wildName} 被搖籃曲哄睡了 💤 — 趁機收服!`;
+    case "wildAsleep":
+      return `${wildName} 呼呼…睡得正甜 💤`;
     case "switch":
       return `換 ${session.active.name} 上場!`;
     case "playerFainted":
@@ -1505,6 +1509,7 @@ export default function WonderAcademyGame({ onExit }: Props) {
     const wildSp = speciesById(s.wild.speciesId);
     const activeSp = speciesById(s.active.speciesId);
     const wildSleepy = isSleepy(s.wild);
+    const wildAsleep = (s.wild.asleep ?? 0) > 0;
     const favSnack = wildSp?.favoriteSnack;
     const favCount = favSnack ? (state.snacks?.[favSnack] ?? 0) : 0;
     const hasFav = favCount > 0;
@@ -1520,14 +1525,17 @@ export default function WonderAcademyGame({ onExit }: Props) {
               </div>
               <div style={{ display: "flex", gap: 4, margin: "3px 0 5px" }}>{s.wild.elements.map((e) => <TypeBadge key={e} element={e} />)}</div>
               <HpBar hp={s.wild.hp} maxHp={s.wild.maxHp} />
-              {wildSleepy && <div style={{ marginTop: 5, fontSize: 11, fontWeight: 800, color: "#c98a12", background: "#fff4d6", display: "inline-block", padding: "2px 8px", borderRadius: 999 }}>😴 想睡了 — 好收服!</div>}
+              <div style={{ display: "flex", gap: 5, marginTop: 5 }}>
+                {wildAsleep && <span style={{ fontSize: 11, fontWeight: 800, color: "#6a52ff", background: "#efeaff", padding: "2px 8px", borderRadius: 999 }}>💤 睡著了</span>}
+                {wildSleepy && <span style={{ fontSize: 11, fontWeight: 800, color: "#c98a12", background: "#fff4d6", padding: "2px 8px", borderRadius: 999 }}>😴 想睡了 — 好收服!</span>}
+              </div>
             </div>
             {/* animated stage (Kaplay) */}
             <BattleStageKaplay
               key={s.active.ownedId}
               wildPortrait={wildSp?.portrait ?? ""}
               playerPortrait={activeSp?.portrait ?? ""}
-              wildSleepy={wildSleepy}
+              wildSleepy={wildSleepy || wildAsleep}
               event={{ kind: s.log[s.log.length - 1]?.kind ?? "start", seq: s.log.length }}
             />
             {/* player info */}

@@ -1,6 +1,7 @@
 import type { WonderAcademyRarity } from "../../../../types/wonderAcademy";
 import type { BattleCombatant } from "./battleLogic";
-import { isFainted, isSleepy, performMove } from "./battleLogic";
+import { isAsleep, isFainted, isSleepy, performMove } from "./battleLogic";
+import { getMoveById } from "../../../../data/wonderAcademyMoves";
 import type { Rng } from "./rng";
 import { attemptCatch } from "./catchLogic";
 
@@ -10,6 +11,8 @@ export type BattleEvent =
   | { kind: "playerMove"; moveId: string; damage: number; effectiveness: number }
   | { kind: "wildMove"; moveId: string; damage: number; effectiveness: number }
   | { kind: "wildSleepy" }
+  | { kind: "wildSlept" }
+  | { kind: "wildAsleep" }
   | { kind: "playerFainted"; ownedId: string }
   | { kind: "switch"; toOwnedId: string }
   | { kind: "catchAttempt"; chance: number; caught: boolean }
@@ -53,6 +56,12 @@ export function startBattle(
 
 export function enemyRetaliate(session: BattleSession): BattleSession {
   if (session.outcome !== "ongoing") return session;
+
+  // A sleeping wild snoozes through its turn (and stirs one turn closer to waking).
+  if (isAsleep(session.wild)) {
+    const wild = { ...session.wild, asleep: (session.wild.asleep ?? 0) - 1 };
+    return { ...session, wild, log: [...session.log, { kind: "wildAsleep" }] };
+  }
 
   const moveId = session.wild.moveIds[0];
   const { defender, damage, effectiveness } = performMove(
@@ -102,11 +111,18 @@ export function playerAttack(
     return { ...session, wild: defender, outcome: "won", log };
   }
 
-  if (isSleepy(defender)) {
+  // A lullaby move can lull the wild to sleep (no stacking).
+  let wildAfter = defender;
+  if (getMoveById(moveId)?.sleep && !isAsleep(wildAfter)) {
+    wildAfter = { ...wildAfter, asleep: 2 };
+    log.push({ kind: "wildSlept" });
+  }
+
+  if (isSleepy(wildAfter)) {
     log.push({ kind: "wildSleepy" });
   }
 
-  const afterPlayer: BattleSession = { ...session, wild: defender, log };
+  const afterPlayer: BattleSession = { ...session, wild: wildAfter, log };
   const afterEnemy = enemyRetaliate(afterPlayer);
   return { ...afterEnemy, turn: afterEnemy.turn + 1 };
 }

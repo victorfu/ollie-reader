@@ -5,6 +5,8 @@ export type MoveDef = {
   name: string;
   element: WonderAcademyElement;
   power: number;
+  /** A lullaby move: can lull the target to sleep (skips its turns). */
+  sleep?: boolean;
 };
 
 const move = (
@@ -12,7 +14,8 @@ const move = (
   name: string,
   element: WonderAcademyElement,
   power: number,
-): MoveDef => ({ id, name, element, power });
+  sleep = false,
+): MoveDef => (sleep ? { id, name, element, power, sleep } : { id, name, element, power });
 
 export const WONDER_ACADEMY_MOVES: Record<string, MoveDef> = {
   // Lumi — light / spark
@@ -25,9 +28,9 @@ export const WONDER_ACADEMY_MOVES: Record<string, MoveDef> = {
   // Momo — dream / tide
   "bubble-pat": move("bubble-pat", "泡泡輕拍", "tide", 6),
   "cozy-shield": move("cozy-shield", "暖暖護盾", "tide", 4),
-  "nap-song": move("nap-song", "搖籃小曲", "dream", 5),
+  "nap-song": move("nap-song", "搖籃小曲", "dream", 5, true),
   "moon-drizzle": move("moon-drizzle", "月光細雨", "tide", 9),
-  "dreamcloud-haven": move("dreamcloud-haven", "夢雲庇護", "dream", 14),
+  "dreamcloud-haven": move("dreamcloud-haven", "夢雲庇護", "dream", 14, true),
 
   // Pico — star / leaf
   "leaf-wink": move("leaf-wink", "葉影眨眼", "leaf", 6),

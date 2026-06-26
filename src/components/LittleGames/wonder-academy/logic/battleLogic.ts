@@ -15,6 +15,8 @@ export type BattleCombatant = {
   hp: number;
   attack: number;
   moveIds: string[];
+  /** Turns left asleep (skips its turn while > 0). */
+  asleep?: number;
 };
 
 export const SLEEPY_HP_RATIO = 0.25;
@@ -54,4 +56,8 @@ export function isFainted(combatant: BattleCombatant): boolean {
 
 export function isSleepy(combatant: BattleCombatant): boolean {
   return combatant.hp > 0 && combatant.hp <= combatant.maxHp * SLEEPY_HP_RATIO;
+}
+
+export function isAsleep(combatant: BattleCombatant): boolean {
+  return (combatant.asleep ?? 0) > 0;
 }
