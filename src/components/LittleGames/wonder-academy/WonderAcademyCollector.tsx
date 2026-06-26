@@ -45,6 +45,7 @@ import {
   type OwnedCreature,
 } from "./wonderAcademyCreatures";
 import ExploreSceneKaplay from "./ExploreSceneKaplay";
+import BattleStageKaplay from "./BattleStageKaplay";
 import { findStart, tileAt, type SceneState } from "./sceneMap";
 import {
   FIRST_REGION,
@@ -1453,34 +1454,32 @@ export default function WonderAcademyGame({ onExit }: Props) {
     return frame(
       <div>
         <div style={{ borderRadius: 18, overflow: "hidden", boxShadow: "0 10px 30px rgba(80,50,130,.12)" }}>
-          <div style={{ position: "relative", padding: 16, background: "radial-gradient(60% 50% at 78% 18%, #fff6d8 0%, rgba(255,246,216,0) 60%), linear-gradient(180deg,#cdeffb 0%, #d7f0d0 52%, #bfe3a3 100%)" }}>
-            {/* enemy */}
-            <div style={{ display: "flex", justifyContent: "flex-start", marginBottom: 8 }}>
-              <div style={infoCard}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span style={{ fontWeight: 800 }}>{wildSp?.name}</span>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: "#8a83a3" }}>Lv.{s.wild.level}</span>
-                </div>
-                <div style={{ display: "flex", gap: 4, margin: "3px 0 5px" }}>{s.wild.elements.map((e) => <TypeBadge key={e} element={e} />)}</div>
-                <HpBar hp={s.wild.hp} maxHp={s.wild.maxHp} />
-                {wildSleepy && <div style={{ marginTop: 5, fontSize: 11, fontWeight: 800, color: "#c98a12", background: "#fff4d6", display: "inline-block", padding: "2px 8px", borderRadius: 999 }}>😴 想睡了 — 好收服!</div>}
+          <div style={{ background: "radial-gradient(60% 50% at 78% 18%, #fff6d8 0%, rgba(255,246,216,0) 60%), linear-gradient(180deg,#cdeffb 0%, #d7f0d0 52%, #bfe3a3 100%)", padding: 12 }}>
+            {/* enemy info */}
+            <div style={{ ...infoCard, width: "min(230px, 100%)", marginBottom: 6 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontWeight: 800 }}>{wildSp?.name}</span>
+                <span style={{ fontSize: 11, fontWeight: 700, color: "#8a83a3" }}>Lv.{s.wild.level}</span>
               </div>
+              <div style={{ display: "flex", gap: 4, margin: "3px 0 5px" }}>{s.wild.elements.map((e) => <TypeBadge key={e} element={e} />)}</div>
+              <HpBar hp={s.wild.hp} maxHp={s.wild.maxHp} />
+              {wildSleepy && <div style={{ marginTop: 5, fontSize: 11, fontWeight: 800, color: "#c98a12", background: "#fff4d6", display: "inline-block", padding: "2px 8px", borderRadius: 999 }}>😴 想睡了 — 好收服!</div>}
             </div>
-            <div style={{ textAlign: "right", marginBottom: 4 }}>
-              <img src={wildSp?.portrait} alt={wildSp?.name} style={{ width: 92, height: 92, objectFit: "contain", filter: "drop-shadow(0 6px 6px rgba(0,0,0,.16))" }} />
-            </div>
-            {/* player */}
-            <div style={{ display: "flex", justifyContent: "flex-start" }}>
-              <img src={activeSp?.portrait} alt={activeSp?.name} style={{ width: 104, height: 104, objectFit: "contain", transform: "scaleX(-1)", filter: "drop-shadow(0 6px 6px rgba(0,0,0,.18))" }} />
-            </div>
-            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: -28 }}>
-              <div style={infoCard}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span style={{ fontWeight: 800 }}>{s.active.name}</span>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: "#8a83a3" }}>Lv.{s.active.level}</span>
-                </div>
-                <HpBar hp={s.active.hp} maxHp={s.active.maxHp} />
+            {/* animated stage (Kaplay) */}
+            <BattleStageKaplay
+              key={s.active.ownedId}
+              wildPortrait={wildSp?.portrait ?? ""}
+              playerPortrait={activeSp?.portrait ?? ""}
+              wildSleepy={wildSleepy}
+              event={{ kind: s.log[s.log.length - 1]?.kind ?? "start", seq: s.log.length }}
+            />
+            {/* player info */}
+            <div style={{ ...infoCard, width: "min(230px, 100%)", marginLeft: "auto", marginTop: 6 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontWeight: 800 }}>{s.active.name}</span>
+                <span style={{ fontSize: 11, fontWeight: 700, color: "#8a83a3" }}>Lv.{s.active.level}</span>
               </div>
+              <HpBar hp={s.active.hp} maxHp={s.active.maxHp} />
             </div>
           </div>
 
