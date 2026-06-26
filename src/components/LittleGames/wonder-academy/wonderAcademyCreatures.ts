@@ -24,9 +24,24 @@ export type CreatureSpecies = {
   moveIds: string[];
   /** Full pool of moves this species can learn (defaults to moveIds). */
   learnableMoveIds?: string[];
+  /** Battle role tag shown in the starter picker (速攻 / 守護 / 巧術 / 坦克). */
+  role?: string;
+  /** Exploration field skill granted while this creature is on the team. */
+  fieldSkillId?: string;
   portrait: string;
   /** Appears in the wild and can be befriended on expeditions. */
   wild: boolean;
+};
+
+/** Exploration perks a creature's field skill grants while it's on the team. */
+export const FIELD_SKILLS: Record<
+  string,
+  { name: string; emoji: string; desc: string }
+> = {
+  "light-trail": { name: "光痕", emoji: "✨", desc: "草叢更容易遇到寵物" },
+  "soft-float": { name: "柔浮", emoji: "☁️", desc: "從學長姐拿到的點心 +1" },
+  "secret-sense": { name: "尋祕", emoji: "🔍", desc: "寶箱多開一樣 · 稀有寵物更常出現" },
+  "crystal-push": { name: "晶推", emoji: "💎", desc: "寶箱額外給星塵" },
 };
 
 export const WA_CREATURES: CreatureSpecies[] = [
@@ -41,6 +56,8 @@ export const WA_CREATURES: CreatureSpecies[] = [
     growthStages: ["Lumi", "Lumi Tailglow", "Lumi Prismtail", "Lumi Aurorafox"],
     moveIds: ["tiny-flash", "zip-spark", "wink-feint", "starstep-dash"],
     learnableMoveIds: ["tiny-flash", "zip-spark", "wink-feint", "starstep-dash", "aurora-parade"],
+    role: "速攻",
+    fieldSkillId: "light-trail",
     portrait: lumiPortrait,
     wild: false,
   },
@@ -55,6 +72,8 @@ export const WA_CREATURES: CreatureSpecies[] = [
     growthStages: ["Momo", "Momo Rainpuff", "Momo Mooncloud", "Momo Dreamnimbus"],
     moveIds: ["bubble-pat", "cozy-shield", "nap-song", "moon-drizzle"],
     learnableMoveIds: ["bubble-pat", "cozy-shield", "nap-song", "moon-drizzle", "dreamcloud-haven"],
+    role: "守護",
+    fieldSkillId: "soft-float",
     portrait: momoPortrait,
     wild: false,
   },
@@ -69,6 +88,8 @@ export const WA_CREATURES: CreatureSpecies[] = [
     growthStages: ["Pico", "Pico Budspark", "Pico Wishpetal", "Pico Celestibloom"],
     moveIds: ["leaf-wink", "stardust-peek", "clover-patch", "secret-signal"],
     learnableMoveIds: ["leaf-wink", "stardust-peek", "clover-patch", "secret-signal", "wishbloom-spiral"],
+    role: "巧術",
+    fieldSkillId: "secret-sense",
     portrait: picoPortrait,
     wild: false,
   },
@@ -83,6 +104,8 @@ export const WA_CREATURES: CreatureSpecies[] = [
     growthStages: ["Nibi", "Nibi Pebblehorn", "Nibi Embercrest", "Nibi Hearthdrake"],
     moveIds: ["warm-puff", "crystal-brace", "brave-bump", "hearth-guard"],
     learnableMoveIds: ["warm-puff", "crystal-brace", "brave-bump", "hearth-guard", "hearth-crystal-roar"],
+    role: "坦克",
+    fieldSkillId: "crystal-push",
     portrait: nibiPortrait,
     wild: false,
   },

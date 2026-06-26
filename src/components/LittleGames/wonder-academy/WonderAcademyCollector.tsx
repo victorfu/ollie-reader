@@ -19,6 +19,7 @@ import {
   type BattleSession,
 } from "./logic/battleSession";
 import { gainBond } from "./logic/bond";
+import { teamFieldPerks } from "./logic/fieldSkills";
 import { rollEncounter, type EncounterTable } from "./logic/encounter";
 import { canEvolve, evolve } from "./logic/evolution";
 import { rollLoot, type LootTable } from "./logic/loot";
@@ -30,6 +31,7 @@ import {
   catchableSpecies,
   defaultEquipped,
   ELEMENT_META,
+  FIELD_SKILLS,
   learnablePool,
   makeCustomCreature,
   moveUnlockLevel,
@@ -375,6 +377,11 @@ function reducer(state: GameState, action: Action): GameState {
       if (!state.scene || state.team.length === 0) return state;
       const region = state.activeRegionId ? regionById(state.activeRegionId) : undefined;
       if (!region) return state;
+      const perks = teamFieldPerks(
+        state.team
+          .map((o) => speciesById(o.speciesId)?.fieldSkillId)
+          .filter((id): id is string => !!id),
+      );
       const nx = state.scene.x + action.dx;
       const ny = state.scene.y + action.dy;
       const tile = tileAt(region.map, nx, ny);
@@ -386,12 +393,12 @@ function reducer(state: GameState, action: Action): GameState {
         return { ...state, scene: null, sceneActive: false, screen: "hub" };
       }
 
-      if (tile === "G" && random() < 0.4) {
+      if (tile === "G" && random() < Math.min(0.85, 0.4 * perks.encounterMultiplier)) {
         const table: EncounterTable = {
           encounterChance: 1,
           entries: catchableSpecies().map((s) => ({
             speciesId: s.speciesId,
-            weight: s.rarity === "common" ? 3 : 1,
+            weight: s.rarity === "common" ? 3 : 1 * perks.rareWeightBonus,
           })),
           minLevel: region.minLevel,
           maxLevel: region.maxLevel,
@@ -413,7 +420,7 @@ function reducer(state: GameState, action: Action): GameState {
 
       if (tile === "C" && !state.scene.opened.includes(cellId)) {
         const chestTable: LootTable = {
-          rolls: 2,
+          rolls: 2 + perks.lootRollBonus,
           entries: [
             { itemId: "starberry-cookie", quantity: 1, weight: 2 },
             { itemId: "clover-macaron", quantity: 1, weight: 2 },
@@ -435,6 +442,10 @@ function reducer(state: GameState, action: Action): GameState {
             parts.push(`🍪 ${SNACK_NAMES[item] ?? item} ×${qty}`);
           }
         }
+        if (perks.chestStardustBonus > 0) {
+          stardust += perks.chestStardustBonus;
+          parts.push(`💎 Stardust ×${perks.chestStardustBonus}`);
+        }
         return {
           ...state,
           snacks,
@@ -450,13 +461,14 @@ function reducer(state: GameState, action: Action): GameState {
       if (tile === "N") {
         if (!state.scene.opened.includes(cellId)) {
           const pick = SNACK_POOL[Math.floor(random() * SNACK_POOL.length)];
+          const qty = 1 + perks.npcSnackBonus;
           return {
             ...state,
-            snacks: { ...state.snacks, [pick]: (state.snacks[pick] ?? 0) + 1 },
+            snacks: { ...state.snacks, [pick]: (state.snacks[pick] ?? 0) + qty },
             scene: {
               ...moved,
               opened: [...state.scene.opened, cellId],
-              message: `學長姐:「這個給你,路上會用到!」(獲得 ${SNACK_NAMES[pick]} 🍪)`,
+              message: `學長姐:「這個給你,路上會用到!」(獲得 ${SNACK_NAMES[pick]} 🍪 ×${qty})`,
             },
           };
         }
@@ -1198,7 +1210,27 @@ export default function WonderAcademyGame({ onExit }: Props) {
           <h1 style={{ fontSize: 24, fontWeight: 800, margin: 0 }}>選擇探索地點</h1>
           <button onClick={() => dispatch({ type: "closeRegions" })} style={btnGhost}><X size={16} /> 返回</button>
         </div>
-        <p style={{ color: "#8a83a3", fontSize: 14, margin: "0 0 18px" }}>打敗一個區域的守關魔王,就能解鎖下一個更深的地方。</p>
+        <p style={{ color: "#8a83a3", fontSize: 14, margin: "0 0 14px" }}>打敗一個區域的守關魔王,就能解鎖下一個更深的地方。</p>
+        {(() => {
+          const skillIds = [...new Set(state.team.map((o) => speciesById(o.speciesId)?.fieldSkillId).filter((id): id is string => !!id))];
+          if (skillIds.length === 0) return null;
+          return (
+            <div style={{ ...cardStatic, marginBottom: 16, padding: "10px 14px" }}>
+              <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: ".08em", color: "#8a83a3", textTransform: "uppercase", marginBottom: 8 }}>隊伍探索能力</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                {skillIds.map((id) => {
+                  const f = FIELD_SKILLS[id];
+                  if (!f) return null;
+                  return (
+                    <span key={id} style={{ fontSize: 12, display: "inline-flex", alignItems: "center", gap: 5, background: "#fff", border: "1px solid rgba(60,40,90,.12)", borderRadius: 999, padding: "4px 10px" }}>
+                      <b>{f.emoji} {f.name}</b> <span style={{ color: "#8a83a3" }}>{f.desc}</span>
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })()}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(220px,1fr))", gap: 14 }}>
           {REGIONS.map((r, i) => {
             const unlocked = isRegionUnlocked(i, state.wardensDefeated);
