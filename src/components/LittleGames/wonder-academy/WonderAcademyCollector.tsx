@@ -129,6 +129,22 @@ const DEX_REWARDS = [
   { caught: 12, stardust: 120, snack: "clover-macaron", qty: 4 },
 ];
 
+/** Catch-celebration confetti — a deterministic burst (no per-render randomness). */
+const CATCH_CONFETTI = Array.from({ length: 16 }, (_, i) => {
+  const ang = (i / 16) * Math.PI * 2 + (i % 3) * 0.35;
+  const dist = 72 + (i % 4) * 18;
+  const colors = ["#ffd66b", "#ff9ec4", "#9be7ff", "#b6f0a8", "#c9b1f0", "#fff3b0"];
+  return {
+    tx: Math.round(Math.cos(ang) * dist),
+    ty: Math.round(Math.sin(ang) * dist),
+    rot: (i % 2 ? 1 : -1) * (160 + (i % 5) * 55),
+    color: colors[i % colors.length],
+    size: 7 + (i % 3) * 3,
+    delay: (i % 6) * 0.035,
+    round: i % 2 === 0,
+  };
+});
+
 /** Shape read back from storage/cloud — any field may be missing. */
 type StoredGame = Partial<Persisted>;
 
@@ -1634,10 +1650,24 @@ export default function WonderAcademyGame({ onExit }: Props) {
     const justCaughtShiny = caught && !!state.team[state.team.length - 1]?.shiny;
     return frame(
       <div style={{ textAlign: "center", paddingTop: 24 }}>
+        {caught && (
+          <style>{`
+            @keyframes waCatchPop{0%{transform:scale(.6)}55%{transform:scale(1.12)}100%{transform:scale(1)}}
+            @keyframes waConfetti{0%{opacity:0;transform:translate(-50%,-50%) rotate(0) scale(.3)}12%{opacity:1}100%{opacity:0;transform:translate(calc(-50% + var(--tx)),calc(-50% + var(--ty))) rotate(var(--rot)) scale(1)}}
+            .wa-catch-pop{animation:waCatchPop .6s cubic-bezier(.2,.8,.2,1) both}
+            .wa-confetti{position:absolute;top:50%;left:50%;animation:waConfetti 1.15s ease-out forwards}
+            @media (prefers-reduced-motion: reduce){.wa-catch-pop{animation:none}.wa-confetti{display:none}}
+          `}</style>
+        )}
         {treasure ? (
           <div style={{ fontSize: 96, margin: "0 0 8px", filter: "drop-shadow(0 8px 12px rgba(244,169,58,.35))" }}>🎁</div>
         ) : sp ? (
-          <img src={sp.portrait} alt={sp.name} style={{ width: 140, height: 140, objectFit: "contain", margin: "0 auto 10px", display: "block", filter: justCaughtShiny ? SHINY_FILTER : caught ? "drop-shadow(0 8px 12px rgba(244,169,58,.35))" : "grayscale(.4)" }} />
+          <div style={{ position: "relative", width: 160, margin: "0 auto 10px" }}>
+            {caught && CATCH_CONFETTI.map((p, i) => (
+              <span key={i} className="wa-confetti" style={{ width: p.size, height: p.size, background: p.color, borderRadius: p.round ? "50%" : 2, animationDelay: `${p.delay}s`, "--tx": `${p.tx}px`, "--ty": `${p.ty}px`, "--rot": `${p.rot}deg` } as CSSProperties} />
+            ))}
+            <img className={caught ? "wa-catch-pop" : undefined} src={sp.portrait} alt={sp.name} style={{ position: "relative", zIndex: 1, width: 140, height: 140, objectFit: "contain", margin: "0 auto", display: "block", filter: justCaughtShiny ? SHINY_FILTER : caught ? "drop-shadow(0 8px 12px rgba(244,169,58,.35))" : "grayscale(.4)" }} />
+          </div>
         ) : null}
         <h1 style={{ fontSize: 24, fontWeight: 800, margin: "0 0 14px" }}>{treasure ? "🎁 尋寶!" : caught ? "🎉 新夥伴!" : state.result.kind === "won" ? "戰鬥結束" : state.result.kind === "fled" ? "撤退" : "回去休息"}</h1>
         <div style={{ maxWidth: 380, margin: "0 auto 22px" }}>
