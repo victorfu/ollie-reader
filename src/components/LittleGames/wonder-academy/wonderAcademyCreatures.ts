@@ -207,7 +207,18 @@ export type OwnedCreature = {
   bond: number;
   stage: number;
   equippedMoveIds?: string[];
+  /** Rare colour variant. */
+  shiny?: boolean;
 };
+
+/** CSS filter that gives a portrait the rare "shiny" sheen. */
+export const SHINY_FILTER =
+  "hue-rotate(38deg) saturate(1.5) brightness(1.06) drop-shadow(0 0 7px rgba(255,216,110,.95))";
+
+/** ~1 in 16 wild creatures sparkles. */
+export function rollShiny(rng: () => number): boolean {
+  return rng() < 1 / 16;
+}
 
 export function learnablePool(species: CreatureSpecies): string[] {
   return species.learnableMoveIds ?? species.moveIds;
@@ -244,10 +255,11 @@ export function toCombatant(owned: OwnedCreature): BattleCombatant {
     hp: maxHp,
     attack,
     moveIds,
+    shiny: owned.shiny,
   };
 }
 
-export function toWild(species: CreatureSpecies, level: number): WildInfo {
+export function toWild(species: CreatureSpecies, level: number, shiny = false): WildInfo {
   const { maxHp, attack } = combatStats(level);
   return {
     combatant: {
@@ -260,6 +272,7 @@ export function toWild(species: CreatureSpecies, level: number): WildInfo {
       hp: maxHp,
       attack,
       moveIds: species.moveIds,
+      shiny,
     },
     rarity: species.rarity,
     favoriteSnack: species.favoriteSnack,

@@ -17,6 +17,8 @@ type Props = {
   wildPortrait: string;
   playerPortrait: string;
   wildSleepy: boolean;
+  wildShiny?: boolean;
+  heroShiny?: boolean;
   /** Latest battle-log event; `seq` increments each action to retrigger. */
   event: BattleEvent;
 };
@@ -31,7 +33,7 @@ type Props = {
  * Sleepy/faint use transforms + drawn particles only (no canvas text — Kaplay's
  * default font can't render CJK or emoji).
  */
-export default function BattleStageKaplay({ wildPortrait, playerPortrait, wildSleepy, event }: Props) {
+export default function BattleStageKaplay({ wildPortrait, playerPortrait, wildSleepy, wildShiny, heroShiny, event }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const stageRef = useRef<HTMLDivElement | null>(null);
   const playEventRef = useRef<((kind: string) => void) | null>(null);
@@ -40,7 +42,7 @@ export default function BattleStageKaplay({ wildPortrait, playerPortrait, wildSl
     sleepyRef.current = wildSleepy;
   }, [wildSleepy]);
 
-  const buildRef = useRef({ wildPortrait, playerPortrait });
+  const buildRef = useRef({ wildPortrait, playerPortrait, wildShiny: !!wildShiny, heroShiny: !!heroShiny });
   const [size, setSize] = useState({ width: 0, height: 0 });
   const hasSize = size.width > 0;
 
@@ -127,16 +129,18 @@ export default function BattleStageKaplay({ wildPortrait, playerPortrait, wildSl
         shadow(WILD.x, WILD.y, 72);
         shadow(HERO.x, HERO.y, 86);
 
-        const makeCreature = (sprite: string, base: { x: number; y: number }, w: number, flip: boolean, fallback: string) => {
+        const makeCreature = (sprite: string, base: { x: number; y: number }, w: number, flip: boolean, fallback: string, shiny: boolean) => {
           const obj = failed.has(sprite)
-            ? k.add([k.circle(w / 2.4), k.pos(base.x, base.y), k.anchor("center"), k.color(fallback), k.z(10)])
-            : k.add([k.sprite(sprite, { width: w, height: w }), k.pos(base.x, base.y), k.anchor("center"), k.z(10)]);
+            ? k.add([k.circle(w / 2.4), k.pos(base.x, base.y), k.anchor("center"), k.color(shiny ? "#ffe18c" : fallback), k.z(10)])
+            : shiny
+              ? k.add([k.sprite(sprite, { width: w, height: w }), k.pos(base.x, base.y), k.anchor("center"), k.color("#ffe6a8"), k.z(10)])
+              : k.add([k.sprite(sprite, { width: w, height: w }), k.pos(base.x, base.y), k.anchor("center"), k.z(10)]);
           if (flip && !failed.has(sprite)) (obj as GameObj).flipX = true;
           return obj;
         };
 
-        const wild = makeCreature("wa-wild", WILD, 88, false, "#b79be0");
-        const hero = makeCreature("wa-hero", HERO, 100, true, "#ffd66b");
+        const wild = makeCreature("wa-wild", WILD, 88, false, "#b79be0", build.wildShiny);
+        const hero = makeCreature("wa-hero", HERO, 100, true, "#ffd66b", build.heroShiny);
         let heroFading = false;
 
         const flashAt = (x: number, y: number) => {
@@ -160,6 +164,14 @@ export default function BattleStageKaplay({ wildPortrait, playerPortrait, wildSl
             ]);
           }
         };
+
+        // shiny creatures twinkle continuously
+        if (build.wildShiny || build.heroShiny) {
+          k.loop(0.5, () => {
+            if (build.wildShiny) sparkleAt(WILD.x, WILD.y - 6);
+            if (build.heroShiny) sparkleAt(HERO.x, HERO.y - 6);
+          });
+        }
 
         // anim: { actor, t, dur } — a lunge toward the opponent and back.
         let anim: { actor: GameObj; from: { x: number; y: number }; to: { x: number; y: number }; t: number } | null = null;

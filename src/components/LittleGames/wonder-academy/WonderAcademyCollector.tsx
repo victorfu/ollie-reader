@@ -36,6 +36,8 @@ import {
   makeCustomCreature,
   moveUnlockLevel,
   registerCustomCreatures,
+  rollShiny,
+  SHINY_FILTER,
   speciesById,
   STARTER_SPECIES,
   toCombatant,
@@ -99,6 +101,8 @@ type Persisted = {
   wardensDefeated: string[];
   /** "regionId:nodeId" keys for explore nodes that have been entered. */
   clearedNodes: string[];
+  /** Species ids the player has caught a shiny of. */
+  shinyDex: string[];
   /** YYYY-M-D of the last claimed daily reward, or null. */
   lastDailyReward: string | null;
 };
@@ -168,6 +172,7 @@ const INITIAL: GameState = {
   customCreatures: [],
   wardensDefeated: [],
   clearedNodes: [],
+  shinyDex: [],
   lastDailyReward: null,
   battle: null,
   result: null,
@@ -191,6 +196,7 @@ function resolveOutcome(state: GameState, session: BattleSession): GameState {
   let dex = state.dex;
   let stardust = state.stardust;
   let snacks = state.snacks;
+  let shinyDex = state.shinyDex;
   let pendingEvolution: EvolutionInfo | null = null;
 
   const rewardSnack = () => {
@@ -276,6 +282,7 @@ function resolveOutcome(state: GameState, session: BattleSession): GameState {
   }
 
   if (session.outcome === "caught") {
+    const shiny = !!session.wild.shiny;
     team = [
       ...team,
       {
@@ -286,11 +293,16 @@ function resolveOutcome(state: GameState, session: BattleSession): GameState {
         xp: 0,
         bond: 10,
         stage: 0,
+        shiny,
       },
     ];
     dex = recordDex(dex, wildSpeciesId, "caught");
     stardust += 15;
     lines.push(`你和 ${wildName} 成為了朋友!🎉`);
+    if (shiny) {
+      lines.push("✨ 而且是閃閃發亮的稀有變體!");
+      if (!shinyDex.includes(wildSpeciesId)) shinyDex = [...shinyDex, wildSpeciesId];
+    }
     awardXp(session.wild.level * 4);
     rewardSnack();
   } else if (session.outcome === "won") {
@@ -311,6 +323,7 @@ function resolveOutcome(state: GameState, session: BattleSession): GameState {
     dex,
     stardust,
     snacks,
+    shinyDex,
     battle: null,
     pendingEvolution,
     result: { kind: session.outcome, speciesId: wildSpeciesId, lines },
@@ -456,7 +469,7 @@ function reducer(state: GameState, action: Action): GameState {
             ...state,
             scene: moved,
             dex: recordDex(state.dex, enc.speciesId, "seen"),
-            battle: startBattle(state.team.map(toCombatant), toWild(species, enc.level)),
+            battle: startBattle(state.team.map(toCombatant), toWild(species, enc.level, rollShiny(random))),
             result: null,
             screen: "battle",
           };
@@ -651,6 +664,7 @@ function normalizeStored(parsed: StoredGame | null): Persisted | null {
     customCreatures: parsed.customCreatures ?? [],
     wardensDefeated: Array.isArray(parsed.wardensDefeated) ? parsed.wardensDefeated : [],
     clearedNodes: Array.isArray(parsed.clearedNodes) ? parsed.clearedNodes : [],
+    shinyDex: Array.isArray(parsed.shinyDex) ? parsed.shinyDex : [],
     lastDailyReward: parsed.lastDailyReward ?? null,
   };
 }
@@ -1051,6 +1065,7 @@ export default function WonderAcademyGame({ onExit }: Props) {
       customCreatures: state.customCreatures,
       wardensDefeated: state.wardensDefeated,
       clearedNodes: state.clearedNodes,
+      shinyDex: state.shinyDex,
       lastDailyReward: state.lastDailyReward,
     };
     try {
@@ -1061,7 +1076,7 @@ export default function WonderAcademyGame({ onExit }: Props) {
     // Debounced cloud sync (best-effort; localStorage stays primary).
     const timer = setTimeout(() => void saveCloudGame(uid, data), 900);
     return () => clearTimeout(timer);
-  }, [uid, state.ready, state.playerName, state.team, state.dex, state.stardust, state.snacks, state.customCreatures, state.wardensDefeated, state.clearedNodes, state.lastDailyReward]);
+  }, [uid, state.ready, state.playerName, state.team, state.dex, state.stardust, state.snacks, state.customCreatures, state.wardensDefeated, state.clearedNodes, state.shinyDex, state.lastDailyReward]);
 
   // Keep the runtime species registry in sync with the player's custom creatures.
   registerCustomCreatures(state.customCreatures);
@@ -1304,8 +1319,8 @@ export default function WonderAcademyGame({ onExit }: Props) {
             const hearts = Math.min(5, Math.round(o.bond / 20));
             return (
               <div key={o.ownedId} style={cardStatic}>
-                <img src={sp?.portrait} alt={sp?.name} style={{ width: 64, height: 64, objectFit: "contain", margin: "0 auto 6px", display: "block" }} />
-                <div style={{ fontWeight: 800, textAlign: "center" }}>{displayName(o)}</div>
+                <img src={sp?.portrait} alt={sp?.name} style={{ width: 64, height: 64, objectFit: "contain", margin: "0 auto 6px", display: "block", filter: o.shiny ? SHINY_FILTER : undefined }} />
+                <div style={{ fontWeight: 800, textAlign: "center" }}>{o.shiny && "✨ "}{displayName(o)}</div>
                 <div style={{ fontSize: 11, color: "#8a83a3", textAlign: "center", marginBottom: 6 }}>Lv.{o.level} · {sp?.category}</div>
                 <div style={{ display: "flex", gap: 4, justifyContent: "center", marginBottom: 6 }}>
                   {sp?.elements.map((e) => <TypeBadge key={e} element={e} />)}
@@ -1409,12 +1424,13 @@ export default function WonderAcademyGame({ onExit }: Props) {
             const status = state.dex[s.speciesId] ?? "unseen";
             const seen = status !== "unseen";
             const caught = status === "caught" || status === "evolved";
+            const shinyCaught = state.shinyDex.includes(s.speciesId);
             return (
               <div key={s.speciesId} style={{ ...cardStatic, opacity: seen ? 1 : 0.55, textAlign: "center" }}>
-                <img src={s.portrait} alt={seen ? s.name : "???"} style={{ width: 64, height: 64, objectFit: "contain", margin: "0 auto 6px", display: "block", filter: caught ? "none" : "grayscale(1) brightness(.7)" }} />
-                <div style={{ fontWeight: 800 }}>{seen ? s.name : "？？？"}</div>
+                <img src={s.portrait} alt={seen ? s.name : "???"} style={{ width: 64, height: 64, objectFit: "contain", margin: "0 auto 6px", display: "block", filter: !caught ? "grayscale(1) brightness(.7)" : shinyCaught ? SHINY_FILTER : "none" }} />
+                <div style={{ fontWeight: 800 }}>{shinyCaught && "✨ "}{seen ? s.name : "？？？"}</div>
                 <div style={{ fontSize: 11, color: caught ? "#42b86a" : "#8a83a3", fontWeight: 700 }}>
-                  {caught ? "已收服" : seen ? "已遇見" : "未發現"}
+                  {caught ? (shinyCaught ? "已收服 ✨閃光" : "已收服") : seen ? "已遇見" : "未發現"}
                 </div>
               </div>
             );
@@ -1456,12 +1472,13 @@ export default function WonderAcademyGame({ onExit }: Props) {
     const sp = state.result.speciesId ? speciesById(state.result.speciesId) : undefined;
     const caught = state.result.kind === "caught";
     const treasure = state.result.kind === "treasure";
+    const justCaughtShiny = caught && !!state.team[state.team.length - 1]?.shiny;
     return frame(
       <div style={{ textAlign: "center", paddingTop: 24 }}>
         {treasure ? (
           <div style={{ fontSize: 96, margin: "0 0 8px", filter: "drop-shadow(0 8px 12px rgba(244,169,58,.35))" }}>🎁</div>
         ) : sp ? (
-          <img src={sp.portrait} alt={sp.name} style={{ width: 140, height: 140, objectFit: "contain", margin: "0 auto 10px", display: "block", filter: caught ? "drop-shadow(0 8px 12px rgba(244,169,58,.35))" : "grayscale(.4)" }} />
+          <img src={sp.portrait} alt={sp.name} style={{ width: 140, height: 140, objectFit: "contain", margin: "0 auto 10px", display: "block", filter: justCaughtShiny ? SHINY_FILTER : caught ? "drop-shadow(0 8px 12px rgba(244,169,58,.35))" : "grayscale(.4)" }} />
         ) : null}
         <h1 style={{ fontSize: 24, fontWeight: 800, margin: "0 0 14px" }}>{treasure ? "🎁 尋寶!" : caught ? "🎉 新夥伴!" : state.result.kind === "won" ? "戰鬥結束" : state.result.kind === "fled" ? "撤退" : "回去休息"}</h1>
         <div style={{ maxWidth: 380, margin: "0 auto 22px" }}>
@@ -1520,10 +1537,10 @@ export default function WonderAcademyGame({ onExit }: Props) {
             {/* enemy info */}
             <div style={{ ...infoCard, width: "min(230px, 100%)", marginBottom: 6 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span style={{ fontWeight: 800 }}>{wildSp?.name}</span>
+                <span style={{ fontWeight: 800 }}>{s.wild.shiny && "✨ "}{wildSp?.name}</span>
                 <span style={{ fontSize: 11, fontWeight: 700, color: "#8a83a3" }}>Lv.{s.wild.level}</span>
               </div>
-              <div style={{ display: "flex", gap: 4, margin: "3px 0 5px" }}>{s.wild.elements.map((e) => <TypeBadge key={e} element={e} />)}</div>
+              <div style={{ display: "flex", gap: 4, margin: "3px 0 5px" }}>{s.wild.elements.map((e) => <TypeBadge key={e} element={e} />)}{s.wild.shiny && <span style={{ fontSize: 10, fontWeight: 800, color: "#c98a12", background: "#fff4d6", padding: "1px 7px", borderRadius: 999 }}>✨ 閃光</span>}</div>
               <HpBar hp={s.wild.hp} maxHp={s.wild.maxHp} />
               <div style={{ display: "flex", gap: 5, marginTop: 5 }}>
                 {wildAsleep && <span style={{ fontSize: 11, fontWeight: 800, color: "#6a52ff", background: "#efeaff", padding: "2px 8px", borderRadius: 999 }}>💤 睡著了</span>}
@@ -1536,6 +1553,8 @@ export default function WonderAcademyGame({ onExit }: Props) {
               wildPortrait={wildSp?.portrait ?? ""}
               playerPortrait={activeSp?.portrait ?? ""}
               wildSleepy={wildSleepy || wildAsleep}
+              wildShiny={!!s.wild.shiny}
+              heroShiny={!!s.active.shiny}
               event={{ kind: s.log[s.log.length - 1]?.kind ?? "start", seq: s.log.length }}
             />
             {/* player info */}

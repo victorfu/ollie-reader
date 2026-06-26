@@ -17,6 +17,8 @@ export type BattleCombatant = {
   moveIds: string[];
   /** Turns left asleep (skips its turn while > 0). */
   asleep?: number;
+  /** Rare colour variant. */
+  shiny?: boolean;
 };
 
 export const SLEEPY_HP_RATIO = 0.25;
