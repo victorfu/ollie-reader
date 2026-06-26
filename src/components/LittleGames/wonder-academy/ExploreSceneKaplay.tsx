@@ -235,8 +235,8 @@ export default function ExploreSceneKaplay({
           grp.add([k.polygon([k.vec2(12, -10), k.vec2(7, -19), k.vec2(3, -9)]), k.color("#9b7fd6")]);
           grp.add([k.circle(16), k.pos(0, 2), k.anchor("center"), k.color("#9b7fd6")]);
           grp.add([k.circle(10), k.pos(0, 6), k.anchor("center"), k.color("#d6c4f2")]);
-          grp.add([k.circle(6), k.pos(-6, -3), k.anchor("center"), k.color("#fff")]);
-          grp.add([k.circle(6), k.pos(6, -3), k.anchor("center"), k.color("#fff")]);
+          grp.add([k.circle(6), k.pos(-6, -3), k.anchor("center"), k.color("#ffffff")]);
+          grp.add([k.circle(6), k.pos(6, -3), k.anchor("center"), k.color("#ffffff")]);
           grp.add([k.circle(2.5), k.pos(-6, -3), k.anchor("center"), k.color("#3a2e57")]);
           grp.add([k.circle(2.5), k.pos(6, -3), k.anchor("center"), k.color("#3a2e57")]);
           grp.add([k.polygon([k.vec2(0, -1), k.vec2(-3, 3), k.vec2(3, 3)]), k.color("#f4a93a")]);
@@ -254,8 +254,8 @@ export default function ExploreSceneKaplay({
           const grp = k.add([k.pos(cx, cy), k.scale(1), k.z(10)]);
           grp.add([k.circle(20), k.pos(0, 3), k.anchor("center"), k.color(done ? "#9ac0e0" : "#7a5fd0")]);
           grp.add([k.circle(13), k.pos(0, 7), k.anchor("center"), k.color(done ? "#c4ddef" : "#9b82e0")]);
-          grp.add([k.circle(5), k.pos(-7, -1), k.anchor("center"), k.color("#fff")]);
-          grp.add([k.circle(5), k.pos(7, -1), k.anchor("center"), k.color("#fff")]);
+          grp.add([k.circle(5), k.pos(-7, -1), k.anchor("center"), k.color("#ffffff")]);
+          grp.add([k.circle(5), k.pos(7, -1), k.anchor("center"), k.color("#ffffff")]);
           grp.add([k.circle(2.6), k.pos(-7, -1), k.anchor("center"), k.color("#2a2150")]);
           grp.add([k.circle(2.6), k.pos(7, -1), k.anchor("center"), k.color("#2a2150")]);
           grp.add([
