@@ -297,6 +297,31 @@ export default function ExploreSceneKaplay({
           decor.push({ obj: grp, kind: "exit", baseY: cy, phase: 0, glow });
         };
 
+        const addFlower = (px: number, py: number) => {
+          ground(px, py, theme.grass);
+          const cx = px + TILE / 2;
+          const cy = py + TILE / 2;
+          const petals = ["#ff9ec4", "#ffd66b", "#fff3b0"];
+          [[-10, 6], [12, -4], [2, 14]].forEach(([ox, oy], i) => {
+            const col = petals[i % petals.length];
+            for (let p = 0; p < 5; p += 1) {
+              const a = (p / 5) * Math.PI * 2;
+              k.add([k.circle(3.2), k.pos(cx + ox + Math.cos(a) * 4, cy + oy + Math.sin(a) * 4), k.anchor("center"), k.color(col), k.z(6)]);
+            }
+            k.add([k.circle(2.4), k.pos(cx + ox, cy + oy), k.anchor("center"), k.color("#ffd66b"), k.z(7)]);
+          });
+        };
+
+        const addPond = (px: number, py: number) => {
+          ground(px, py, theme.ground);
+          const cx = px + TILE / 2;
+          const cy = py + TILE / 2;
+          const grp = k.add([k.pos(cx, cy), k.z(5)]);
+          grp.add([k.rect(TILE - 12, TILE - 16, { radius: 16 }), k.pos(0, 2), k.anchor("center"), k.color("#5aa6d8")]);
+          grp.add([k.rect(TILE - 20, TILE - 26, { radius: 12 }), k.pos(0, 0), k.anchor("center"), k.color("#8fd0ef")]);
+          grp.add([k.rect(14, 6, { radius: 3 }), k.pos(-7, -7), k.anchor("center"), k.color("#cdeefb"), k.opacity(0.85)]);
+        };
+
         for (let y = 0; y < dims.rows; y += 1) {
           for (let x = 0; x < dims.cols; x += 1) {
             const t = worldMap[y][x];
@@ -320,6 +345,12 @@ export default function ExploreSceneKaplay({
                 break;
               case "X":
                 addExit(px, py);
+                break;
+              case "F":
+                addFlower(px, py);
+                break;
+              case "O":
+                addPond(px, py);
                 break;
               default:
                 addPath(px, py);

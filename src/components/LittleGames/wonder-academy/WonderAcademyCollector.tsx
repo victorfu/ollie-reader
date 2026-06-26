@@ -456,7 +456,7 @@ function reducer(state: GameState, action: Action): GameState {
       const nx = state.scene.x + action.dx;
       const ny = state.scene.y + action.dy;
       const tile = tileAt(region.map, nx, ny);
-      if (tile === null || tile === "T") return state;
+      if (tile === null || tile === "T" || tile === "O") return state;
       const moved: SceneState = { ...state.scene, x: nx, y: ny, message: null };
       const cellId = `${nx},${ny}`;
 
@@ -516,6 +516,11 @@ function reducer(state: GameState, action: Action): GameState {
         if (perks.chestStardustBonus > 0) {
           stardust += perks.chestStardustBonus;
           parts.push(`💎 Stardust ×${perks.chestStardustBonus}`);
+        }
+        const tierBonus = (region.lootTier - 1) * 8;
+        if (tierBonus > 0) {
+          stardust += tierBonus;
+          parts.push(`✨ Stardust ×${tierBonus}`);
         }
         return {
           ...state,

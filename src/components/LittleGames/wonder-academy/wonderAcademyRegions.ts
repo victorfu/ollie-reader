@@ -38,6 +38,8 @@ export type Region = {
   maxLevel: number;
   wardenSpeciesId: string;
   wardenLevel: number;
+  /** Deeper regions drop more — bonus stardust per chest. */
+  lootTier: number;
   nodes: RegionNode[];
 };
 
@@ -61,25 +63,26 @@ const GLIMMER_THEME: RegionTheme = {
   trunk: "#6b5a7a",
 };
 
-// Walkable scenes hold only explore content (grass/chest/npc/exit); the warden
-// is its own node on the node map, not a tile.
+// Walkable scenes hold explore content (grass/chest/npc/exit) plus decorative
+// tiles (F=flowers, walkable · O=pond, blocked). The warden is its own node on
+// the node map, not a tile.
 const SPARKLEAF_MAP = [
   "TTTTTTTTT",
   "TPPPGPCPT",
-  "TPTTPTTPT",
-  "TGPPSPPGT",
+  "TPOTPTTPT",
+  "TGPFSPPGT",
   "TPTTPTTNT",
-  "TPCPGPPPT",
+  "TFCPGPPPT",
   "TTTTXTTTT",
 ];
 
 const GLIMMER_MAP = [
   "TTTTTTTTT",
   "TGPCPGPNT",
-  "TPTPTTTPT",
-  "TPPSPPGPT",
+  "TPOPTTTPT",
+  "TPPSFPGPT",
   "TPTTTPTPT",
-  "TCPGPPPPT",
+  "TCPGPFPPT",
   "TTTTXTTTT",
 ];
 
@@ -109,6 +112,7 @@ export const REGIONS: Region[] = [
     maxLevel: 6,
     wardenSpeciesId: "sparkleaf-fawn",
     wardenLevel: 12,
+    lootTier: 1,
     nodes: SPARKLEAF_NODES,
   },
   {
@@ -120,8 +124,9 @@ export const REGIONS: Region[] = [
     theme: GLIMMER_THEME,
     minLevel: 8,
     maxLevel: 14,
-    wardenSpeciesId: "sparkleaf-fawn",
+    wardenSpeciesId: "mossmew",
     wardenLevel: 20,
+    lootTier: 2,
     nodes: GLIMMER_NODES,
   },
 ];
