@@ -115,44 +115,54 @@ const sfxSpecs = {
   },
 };
 
+// Loops are written as gentle, looping tunes: a soft pad chord, a warm bass
+// note per bar, and a music-box arpeggio melody. Pitches are MIDI note numbers
+// (C4 = 60). Each bar is one chord; `melody` lists chord-tone indices played as
+// eighth notes (index into the bar's pad chord, extended one octave up).
 const loopSpecs = {
+  // Calm, cheerful overworld theme — C major: C – G – Am – F.
   hub_loop: {
-    duration: 8,
-    layers: [
-      { frequency: 196, gain: 0.1, wave: "sine" },
-      { frequency: 293.66, gain: 0.08, wave: "sine" },
-      { frequency: 392, gain: 0.06, wave: "triangle" },
+    bpm: 100,
+    beatsPerBar: 4,
+    bars: [
+      { bass: 48, pad: [60, 64, 67], melody: [0, 2, 1, 4, 3, 2, 1, 2] },
+      { bass: 43, pad: [59, 62, 67], melody: [1, 2, 4, 3, 2, 1, 2, 0] },
+      { bass: 45, pad: [60, 64, 69], melody: [0, 1, 2, 4, 3, 1, 2, 1] },
+      { bass: 41, pad: [57, 60, 65], melody: [2, 1, 0, 1, 2, 3, 4, 2] },
     ],
-    pulse: 0.14,
   },
+  // Brighter, wandering travel theme — G major: G – D – Em – C.
   region_map_loop: {
-    duration: 8,
-    layers: [
-      { frequency: 174.61, gain: 0.08, wave: "triangle" },
-      { frequency: 261.63, gain: 0.08, wave: "sine" },
-      { frequency: 349.23, gain: 0.07, wave: "sine" },
-      { frequency: 523.25, gain: 0.04, wave: "triangle" },
+    bpm: 112,
+    beatsPerBar: 4,
+    bars: [
+      { bass: 43, pad: [62, 66, 67], melody: [0, 2, 4, 2, 1, 3, 2, 4] },
+      { bass: 50, pad: [62, 66, 69], melody: [2, 4, 3, 2, 4, 2, 1, 2] },
+      { bass: 40, pad: [59, 64, 67], melody: [0, 2, 1, 4, 2, 3, 2, 0] },
+      { bass: 48, pad: [60, 64, 67], melody: [4, 2, 3, 2, 1, 2, 4, 2] },
     ],
-    pulse: 0.18,
   },
+  // Playful, light puzzle/mood theme — F major: F – Dm – B♭ – C.
   mood_trial_loop: {
-    duration: 6,
-    layers: [
-      { frequency: 220, gain: 0.09, wave: "sine" },
-      { frequency: 329.63, gain: 0.08, wave: "triangle" },
-      { frequency: 440, gain: 0.05, wave: "sine" },
+    bpm: 124,
+    beatsPerBar: 4,
+    bars: [
+      { bass: 41, pad: [60, 65, 69], melody: [0, 2, 4, 2, 1, 2, 4, 2] },
+      { bass: 38, pad: [62, 65, 69], melody: [2, 4, 2, 1, 4, 2, 3, 2] },
+      { bass: 46, pad: [58, 62, 65], melody: [0, 1, 2, 4, 2, 3, 2, 4] },
+      { bass: 48, pad: [60, 64, 67], melody: [4, 2, 1, 2, 0, 2, 4, 2] },
     ],
-    pulse: 0.22,
   },
+  // Tense but melodic boss-trial theme — A minor: Am – F – C – E.
   warden_trial_loop: {
-    duration: 6,
-    layers: [
-      { frequency: 146.83, gain: 0.11, wave: "triangle" },
-      { frequency: 220, gain: 0.08, wave: "sine" },
-      { frequency: 277.18, gain: 0.06, wave: "triangle" },
-      { frequency: 440, gain: 0.04, wave: "sine" },
+    bpm: 132,
+    beatsPerBar: 4,
+    bars: [
+      { bass: 45, pad: [57, 60, 64], melody: [0, 2, 4, 2, 1, 2, 4, 3] },
+      { bass: 41, pad: [57, 60, 65], melody: [2, 4, 2, 1, 4, 2, 3, 2] },
+      { bass: 48, pad: [60, 64, 67], melody: [0, 2, 1, 4, 2, 3, 2, 4] },
+      { bass: 40, pad: [56, 59, 64], melody: [4, 3, 2, 4, 2, 1, 2, 4] },
     ],
-    pulse: 0.24,
   },
 };
 
@@ -198,27 +208,80 @@ function renderSfx(spec) {
   return samples;
 }
 
-function renderLoop(spec) {
-  const samples = new Float32Array(Math.ceil(spec.duration * sampleRate));
+const midiToFreq = (midi) => 440 * 2 ** ((midi - 69) / 12);
 
-  for (let i = 0; i < samples.length; i += 1) {
-    const time = i / sampleRate;
-    const loopPosition = time / spec.duration;
-    const loopFade = Math.sin(Math.PI * loopPosition);
-    const pulse = 1 + Math.sin(twoPi * spec.pulse * time) * 0.18;
-    let value = 0;
+// Add a voice to the buffer, wrapping past the loop point so trailing decays
+// fold back onto the start — this keeps every loop perfectly seamless.
+function addVoice(samples, startSample, durationSamples, frequency, wave, gain, shape) {
+  for (let i = 0; i < durationSamples; i += 1) {
+    const t = i / sampleRate;
+    const dur = durationSamples / sampleRate;
+    let env;
 
-    for (const layer of spec.layers) {
-      const drift = 1 + Math.sin(twoPi * 0.07 * time + layer.frequency * 0.01) * 0.002;
-      value +=
-        waveSample(layer.wave, twoPi * layer.frequency * drift * time) *
-        layer.gain *
-        pulse *
-        (0.72 + loopFade * 0.28);
+    if (shape === "pad") {
+      env = Math.sin(Math.PI * (t / dur)); // smooth swell in and out
+    } else if (shape === "bass") {
+      env = Math.min(1, t / 0.012) * Math.exp(-t * 2.4); // soft, rounded pluck
+    } else {
+      env = Math.min(1, t / 0.006) * Math.exp(-t * 7); // bright music-box pluck
     }
 
-    samples[i] = value;
+    const vibrato = 1 + Math.sin(twoPi * 5.5 * t) * 0.0025;
+    const phase = twoPi * frequency * vibrato * t;
+    const idx = (startSample + i) % samples.length;
+    samples[idx] += waveSample(wave, phase) * gain * env;
   }
+}
+
+function renderLoop(spec) {
+  const beatDuration = 60 / spec.bpm;
+  const barDuration = beatDuration * spec.beatsPerBar;
+  const totalDuration = barDuration * spec.bars.length;
+  const samples = new Float32Array(Math.ceil(totalDuration * sampleRate));
+  const eighth = beatDuration / 2;
+
+  spec.bars.forEach((bar, barIndex) => {
+    const barStart = Math.floor(barIndex * barDuration * sampleRate);
+    const extendedChord = [...bar.pad, ...bar.pad.map((note) => note + 12)];
+
+    // Sustained pad chord under the whole bar.
+    for (const note of bar.pad) {
+      addVoice(
+        samples,
+        barStart,
+        Math.floor(barDuration * sampleRate),
+        midiToFreq(note),
+        "triangle",
+        0.05,
+        "pad",
+      );
+    }
+
+    // Warm bass note on the downbeat, ringing into the next bar.
+    addVoice(
+      samples,
+      barStart,
+      Math.floor(barDuration * 1.1 * sampleRate),
+      midiToFreq(bar.bass),
+      "sine",
+      0.13,
+      "bass",
+    );
+
+    // Music-box arpeggio melody, one note per eighth.
+    bar.melody.forEach((step, eighthIndex) => {
+      const note = extendedChord[step % extendedChord.length];
+      addVoice(
+        samples,
+        barStart + Math.floor(eighthIndex * eighth * sampleRate),
+        Math.floor(eighth * 1.6 * sampleRate),
+        midiToFreq(note),
+        "triangle",
+        0.085,
+        "pluck",
+      );
+    });
+  });
 
   return samples;
 }
