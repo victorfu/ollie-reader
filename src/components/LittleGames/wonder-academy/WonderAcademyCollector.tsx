@@ -19,6 +19,14 @@ import {
   type BattleSession,
 } from "./logic/battleSession";
 import { gainBond } from "./logic/bond";
+import {
+  bumpDaily,
+  claimTask,
+  DAILY_TASKS,
+  rolloverDaily,
+  type DailyProgress,
+  type DailyTaskId,
+} from "./logic/dailyTasks";
 import { teamFieldPerks } from "./logic/fieldSkills";
 import { rollEncounter, type EncounterTable } from "./logic/encounter";
 import { canEvolve, evolve } from "./logic/evolution";
@@ -109,6 +117,8 @@ type Persisted = {
   dexRewardsClaimed: number[];
   /** YYYY-M-D of the last claimed daily reward, or null. */
   lastDailyReward: string | null;
+  /** Today's daily-quest progress (null until the first event/claim). */
+  daily: DailyProgress | null;
 };
 
 /** Wonderdex collection milestones (by number of species caught). */
@@ -149,11 +159,12 @@ type Action =
   | { type: "closeNodeMap" }
   | { type: "enterNode"; nodeId: string }
   | { type: "claimDaily"; today: string; snackId: string }
-  | { type: "sceneMove"; dx: number; dy: number }
+  | { type: "claimDailyTask"; id: DailyTaskId; today: string }
+  | { type: "sceneMove"; dx: number; dy: number; today: string }
   | { type: "sceneCloseMessage" }
-  | { type: "battleMove"; moveId: string }
-  | { type: "battleCatch" }
-  | { type: "battleSwitch"; ownedId: string }
+  | { type: "battleMove"; moveId: string; today: string }
+  | { type: "battleCatch"; today: string }
+  | { type: "battleSwitch"; ownedId: string; today: string }
   | { type: "battleFlee" }
   | { type: "feed"; ownedId: string }
   | { type: "openSkills"; ownedId: string }
@@ -191,6 +202,7 @@ const INITIAL: GameState = {
   shinyDex: [],
   dexRewardsClaimed: [],
   lastDailyReward: null,
+  daily: null,
   battle: null,
   result: null,
   pendingEvolution: null,
@@ -348,10 +360,13 @@ function resolveOutcome(state: GameState, session: BattleSession): GameState {
   };
 }
 
-function afterBattle(state: GameState, next: BattleSession): GameState {
-  return next.outcome === "ongoing"
-    ? { ...state, battle: next }
-    : resolveOutcome(state, next);
+function afterBattle(state: GameState, next: BattleSession, today: string): GameState {
+  if (next.outcome === "ongoing") return { ...state, battle: next };
+  const resolved = resolveOutcome(state, next);
+  // Daily quests: a catch or a win (incl. wardens) ticks its goal forward.
+  if (next.outcome === "caught") return { ...resolved, daily: bumpDaily(resolved.daily, "catch", today) };
+  if (next.outcome === "won") return { ...resolved, daily: bumpDaily(resolved.daily, "win", today) };
+  return resolved;
 }
 
 function reducer(state: GameState, action: Action): GameState {
@@ -445,6 +460,11 @@ function reducer(state: GameState, action: Action): GameState {
         lastDailyReward: action.today,
       };
     }
+    case "claimDailyTask": {
+      const res = claimTask(state.daily, action.id, action.today);
+      if (!res) return state;
+      return { ...state, daily: res.progress, stardust: state.stardust + res.stardust };
+    }
     case "sceneCloseMessage":
       return state.scene
         ? { ...state, scene: { ...state.scene, message: null } }
@@ -531,6 +551,7 @@ function reducer(state: GameState, action: Action): GameState {
           ...state,
           snacks,
           stardust,
+          daily: bumpDaily(state.daily, "chest", action.today),
           scene: {
             ...moved,
             opened: [...state.scene.opened, cellId],
@@ -581,7 +602,7 @@ function reducer(state: GameState, action: Action): GameState {
       return { ...state, scene: moved };
     }
     case "battleMove":
-      return state.battle ? afterBattle(state, playerAttack(state.battle, action.moveId)) : state;
+      return state.battle ? afterBattle(state, playerAttack(state.battle, action.moveId), action.today) : state;
     case "battleCatch": {
       if (!state.battle) return state;
       const fav = speciesById(state.battle.wild.speciesId)?.favoriteSnack;
@@ -590,10 +611,10 @@ function reducer(state: GameState, action: Action): GameState {
         hasFav && fav
           ? { ...(state.snacks ?? {}), [fav]: (state.snacks?.[fav] ?? 0) - 1 }
           : (state.snacks ?? {});
-      return afterBattle({ ...state, snacks }, playerCatch(state.battle, 2, hasFav, random));
+      return afterBattle({ ...state, snacks }, playerCatch(state.battle, 2, hasFav, random), action.today);
     }
     case "battleSwitch":
-      return state.battle ? afterBattle(state, playerSwitch(state.battle, action.ownedId)) : state;
+      return state.battle ? afterBattle(state, playerSwitch(state.battle, action.ownedId), action.today) : state;
     case "battleFlee":
       return state.battle ? resolveOutcome(state, playerFlee(state.battle)) : state;
     case "feed": {
@@ -713,6 +734,7 @@ function normalizeStored(parsed: StoredGame | null): Persisted | null {
     shinyDex: Array.isArray(parsed.shinyDex) ? parsed.shinyDex : [],
     dexRewardsClaimed: Array.isArray(parsed.dexRewardsClaimed) ? parsed.dexRewardsClaimed : [],
     lastDailyReward: parsed.lastDailyReward ?? null,
+    daily: parsed.daily ?? null,
   };
 }
 
@@ -1115,6 +1137,7 @@ export default function WonderAcademyGame({ onExit }: Props) {
       shinyDex: state.shinyDex,
       dexRewardsClaimed: state.dexRewardsClaimed,
       lastDailyReward: state.lastDailyReward,
+      daily: state.daily,
     };
     try {
       window.localStorage.setItem(storageKey(uid), JSON.stringify(data));
@@ -1124,7 +1147,7 @@ export default function WonderAcademyGame({ onExit }: Props) {
     // Debounced cloud sync (best-effort; localStorage stays primary).
     const timer = setTimeout(() => void saveCloudGame(uid, data), 900);
     return () => clearTimeout(timer);
-  }, [uid, state.ready, state.playerName, state.team, state.dex, state.stardust, state.snacks, state.customCreatures, state.wardensDefeated, state.clearedNodes, state.shinyDex, state.dexRewardsClaimed, state.lastDailyReward]);
+  }, [uid, state.ready, state.playerName, state.team, state.dex, state.stardust, state.snacks, state.customCreatures, state.wardensDefeated, state.clearedNodes, state.shinyDex, state.dexRewardsClaimed, state.lastDailyReward, state.daily]);
 
   // Keep the runtime species registry in sync with the player's custom creatures.
   registerCustomCreatures(state.customCreatures);
@@ -1316,7 +1339,7 @@ export default function WonderAcademyGame({ onExit }: Props) {
         map={region.map}
         theme={region.theme}
         wardenDone={state.wardensDefeated.includes(region.id)}
-        onMove={(dx, dy) => dispatch({ type: "sceneMove", dx, dy })}
+        onMove={(dx, dy) => dispatch({ type: "sceneMove", dx, dy, today })}
         onCloseMessage={() => dispatch({ type: "sceneCloseMessage" })}
       />,
     );
@@ -1324,6 +1347,7 @@ export default function WonderAcademyGame({ onExit }: Props) {
 
   // ---------- HUB ----------
   if (state.screen === "hub") {
+    const daily = rolloverDaily(state.daily, today);
     return frame(
       <div>
         <h1 style={{ fontSize: 24, fontWeight: 800, margin: "8px 0 2px" }}>學院大廳</h1>
@@ -1353,6 +1377,38 @@ export default function WonderAcademyGame({ onExit }: Props) {
             <Gift size={14} /> 今日獎勵已領取,明天再來!
           </div>
         )}
+
+        <div style={{ ...cardStatic, marginBottom: 20, padding: "12px 14px" }}>
+          <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: ".08em", color: "#8a83a3", textTransform: "uppercase", marginBottom: 10 }}>📋 今日任務</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 11 }}>
+            {DAILY_TASKS.map((t) => {
+              const count = Math.min(daily.counts[t.id], t.goal);
+              const done = count >= t.goal;
+              const claimed = daily.claimed.includes(t.id);
+              const pct = Math.round((count / t.goal) * 100);
+              return (
+                <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, fontWeight: 700, marginBottom: 4 }}>
+                      <span style={{ color: claimed ? "#8a83a3" : "#33304a" }}>{claimed ? "✓ " : ""}{t.label}</span>
+                      <span style={{ color: "#8a83a3", fontSize: 11, fontWeight: 700 }}>{count}/{t.goal}</span>
+                    </div>
+                    <div style={{ height: 7, borderRadius: 999, background: "#ece8f4", overflow: "hidden" }}>
+                      <div style={{ width: `${pct}%`, height: "100%", borderRadius: 999, background: done ? "linear-gradient(90deg,#6fd07f,#42b86a)" : "linear-gradient(90deg,#7c6cff,#6a52ff)", transition: "width .35s" }} />
+                    </div>
+                  </div>
+                  <button
+                    disabled={!done || claimed}
+                    onClick={() => { if (done && !claimed) { sfx("wonderdex_update"); dispatch({ type: "claimDailyTask", id: t.id, today }); } }}
+                    style={{ fontSize: 12, fontWeight: 800, padding: "7px 12px", borderRadius: 11, border: "1px solid", whiteSpace: "nowrap", cursor: done && !claimed ? "pointer" : "default", borderColor: claimed ? "#bfe3a3" : done ? "#f0c869" : "rgba(60,40,90,.15)", background: claimed ? "#eefbe9" : done ? "linear-gradient(180deg,#ffd66b,#f7b13a)" : "#fff", color: claimed ? "#42b86a" : done ? "#5b3d00" : "#8a83a3" }}
+                  >
+                    {claimed ? "✓ 已領" : done ? `🎁 ✨${t.stardust}` : `✨${t.stardust}`}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
 
         <div style={{ display: "flex", gap: 12, marginBottom: 22, flexWrap: "wrap" }}>
           <button onClick={() => dispatch({ type: "openRegions" })} style={ctaBtn}><Compass size={18} /> 出發探索</button>
@@ -1680,7 +1736,7 @@ export default function WonderAcademyGame({ onExit }: Props) {
                 const eff = getEffectivenessAgainst(mv.element, s.wild.elements);
                 const m = ELEMENT_META[mv.element];
                 return (
-                  <button key={id} onClick={() => dispatch({ type: "battleMove", moveId: id })} style={moveBtn}>
+                  <button key={id} onClick={() => dispatch({ type: "battleMove", moveId: id, today })} style={moveBtn}>
                     {eff >= 2 && <span style={effBadge}>剋制 2×</span>}
                     {eff <= 0.5 && <span style={{ ...effBadge, background: "#9aa0b5" }}>沒效 ½</span>}
                     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -1699,7 +1755,7 @@ export default function WonderAcademyGame({ onExit }: Props) {
                   <small style={{ display: "block", fontSize: 9.5, fontWeight: 700, opacity: 0.85, marginTop: 2 }}>打敗牠就好,無法收服</small>
                 </div>
               ) : (
-                <button onClick={() => dispatch({ type: "battleCatch" })} style={{ ...actBtn, background: "linear-gradient(180deg,#ffd66b,#f7b13a)", color: "#5b3d00", border: "none", boxShadow: "0 6px 16px rgba(247,177,58,.4)", lineHeight: 1.25 }}>
+                <button onClick={() => dispatch({ type: "battleCatch", today })} style={{ ...actBtn, background: "linear-gradient(180deg,#ffd66b,#f7b13a)", color: "#5b3d00", border: "none", boxShadow: "0 6px 16px rgba(247,177,58,.4)", lineHeight: 1.25 }}>
                   🍪 遞點心收服
                   {favSnack && (
                     <small style={{ display: "block", fontSize: 9.5, fontWeight: 700, opacity: 0.85, marginTop: 2 }}>
@@ -1709,7 +1765,7 @@ export default function WonderAcademyGame({ onExit }: Props) {
                 </button>
               )}
               {s.bench.map((b) => (
-                <button key={b.ownedId} onClick={() => dispatch({ type: "battleSwitch", ownedId: b.ownedId })} style={actBtnSub}>🔄 換 {b.name}</button>
+                <button key={b.ownedId} onClick={() => dispatch({ type: "battleSwitch", ownedId: b.ownedId, today })} style={actBtnSub}>🔄 換 {b.name}</button>
               ))}
               <button onClick={() => dispatch({ type: "battleFlee" })} style={actBtnSub}>🏃 逃跑</button>
             </div>
