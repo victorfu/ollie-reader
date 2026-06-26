@@ -145,6 +145,9 @@ export default function BattleStageKaplay({ wildPortrait, playerPortrait, wildSl
         const wild = makeCreature("wa-wild", WILD, 88, false, "#b79be0", build.wildShiny);
         const hero = makeCreature("wa-hero", HERO, 100, true, "#ffd66b", build.heroShiny);
         let heroFading = false;
+        // Hit recoil: a short, decaying horizontal jolt on whoever was just struck.
+        let wildShake = 0;
+        let heroShake = 0;
 
         const flashAt = (x: number, y: number) => {
           const f = k.add([k.circle(46), k.pos(x, y), k.anchor("center"), k.color("#ffffff"), k.opacity(0.7), k.z(20)]);
@@ -184,11 +187,17 @@ export default function BattleStageKaplay({ wildPortrait, playerPortrait, wildSl
         let anim: { actor: GameObj; from: { x: number; y: number }; to: { x: number; y: number }; t: number } | null = null;
 
         const heroHit = () => {
-          if (!reduced) anim = { actor: hero, from: HERO, to: WILD, t: 0 };
+          if (!reduced) {
+            anim = { actor: hero, from: HERO, to: WILD, t: 0 };
+            wildShake = 0.34; // the wild takes the hit
+          }
           flashAt(WILD.x, WILD.y);
         };
         const wildHit = () => {
-          if (!reduced) anim = { actor: wild, from: WILD, to: HERO, t: 0 };
+          if (!reduced) {
+            anim = { actor: wild, from: WILD, to: HERO, t: 0 };
+            heroShake = 0.34; // the hero takes the hit
+          }
           flashAt(HERO.x, HERO.y);
         };
         // A wild response implies the player just acted, so play the player's hit
@@ -222,6 +231,13 @@ export default function BattleStageKaplay({ wildPortrait, playerPortrait, wildSl
               : WILD.y + (sleepyRef.current ? 6 + Math.sin(tm * 1.4) * 1.5 : Math.sin(tm * 3.3) * 2.5);
           }
           (wild as GameObj).angle = sleepyRef.current ? 8 : 0;
+
+          // hit recoil — jolt the struck creature on its idle axis (skipped while
+          // it is the one lunging, and entirely under reduced motion).
+          wildShake = Math.max(0, wildShake - k.dt());
+          heroShake = Math.max(0, heroShake - k.dt());
+          if (!anim || anim.actor !== wild) wild.pos.x = WILD.x + (wildShake > 0 ? Math.sin(wildShake * 80) * 5 : 0);
+          if (!anim || anim.actor !== hero) hero.pos.x = HERO.x + (heroShake > 0 ? Math.sin(heroShake * 80) * 5 : 0);
 
           if (anim) {
             anim.t += k.dt();
