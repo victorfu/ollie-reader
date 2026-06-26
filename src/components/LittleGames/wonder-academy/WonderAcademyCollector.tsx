@@ -103,9 +103,19 @@ type Persisted = {
   clearedNodes: string[];
   /** Species ids the player has caught a shiny of. */
   shinyDex: string[];
+  /** Dex milestone thresholds whose reward has been claimed. */
+  dexRewardsClaimed: number[];
   /** YYYY-M-D of the last claimed daily reward, or null. */
   lastDailyReward: string | null;
 };
+
+/** Wonderdex collection milestones (by number of species caught). */
+const DEX_REWARDS = [
+  { caught: 3, stardust: 25, snack: "starberry-cookie", qty: 2 },
+  { caught: 5, stardust: 45, snack: "moon-milk-puff", qty: 2 },
+  { caught: 8, stardust: 75, snack: "warm-cocoa-gem", qty: 3 },
+  { caught: 12, stardust: 120, snack: "clover-macaron", qty: 4 },
+];
 
 /** Shape read back from storage/cloud — any field may be missing. */
 type StoredGame = Partial<Persisted>;
@@ -153,7 +163,8 @@ type Action =
   | { type: "closeResult" }
   | { type: "finishEvolution" }
   | { type: "openDex" }
-  | { type: "closeDex" };
+  | { type: "closeDex" }
+  | { type: "claimDexReward"; caught: number };
 
 const INITIAL: GameState = {
   ready: false,
@@ -173,6 +184,7 @@ const INITIAL: GameState = {
   wardensDefeated: [],
   clearedNodes: [],
   shinyDex: [],
+  dexRewardsClaimed: [],
   lastDailyReward: null,
   battle: null,
   result: null,
@@ -644,6 +656,18 @@ function reducer(state: GameState, action: Action): GameState {
       return { ...state, screen: "dex" };
     case "closeDex":
       return { ...state, screen: "hub" };
+    case "claimDexReward": {
+      const reward = DEX_REWARDS.find((r) => r.caught === action.caught);
+      if (!reward || state.dexRewardsClaimed.includes(reward.caught)) return state;
+      const caughtCount = dexCompletion(state.dex, allSpecies().map((c) => c.speciesId)).caught;
+      if (caughtCount < reward.caught) return state;
+      return {
+        ...state,
+        stardust: state.stardust + reward.stardust,
+        snacks: { ...state.snacks, [reward.snack]: (state.snacks[reward.snack] ?? 0) + reward.qty },
+        dexRewardsClaimed: [...state.dexRewardsClaimed, reward.caught],
+      };
+    }
     default:
       return state;
   }
@@ -665,6 +689,7 @@ function normalizeStored(parsed: StoredGame | null): Persisted | null {
     wardensDefeated: Array.isArray(parsed.wardensDefeated) ? parsed.wardensDefeated : [],
     clearedNodes: Array.isArray(parsed.clearedNodes) ? parsed.clearedNodes : [],
     shinyDex: Array.isArray(parsed.shinyDex) ? parsed.shinyDex : [],
+    dexRewardsClaimed: Array.isArray(parsed.dexRewardsClaimed) ? parsed.dexRewardsClaimed : [],
     lastDailyReward: parsed.lastDailyReward ?? null,
   };
 }
@@ -1066,6 +1091,7 @@ export default function WonderAcademyGame({ onExit }: Props) {
       wardensDefeated: state.wardensDefeated,
       clearedNodes: state.clearedNodes,
       shinyDex: state.shinyDex,
+      dexRewardsClaimed: state.dexRewardsClaimed,
       lastDailyReward: state.lastDailyReward,
     };
     try {
@@ -1076,7 +1102,7 @@ export default function WonderAcademyGame({ onExit }: Props) {
     // Debounced cloud sync (best-effort; localStorage stays primary).
     const timer = setTimeout(() => void saveCloudGame(uid, data), 900);
     return () => clearTimeout(timer);
-  }, [uid, state.ready, state.playerName, state.team, state.dex, state.stardust, state.snacks, state.customCreatures, state.wardensDefeated, state.clearedNodes, state.shinyDex, state.lastDailyReward]);
+  }, [uid, state.ready, state.playerName, state.team, state.dex, state.stardust, state.snacks, state.customCreatures, state.wardensDefeated, state.clearedNodes, state.shinyDex, state.dexRewardsClaimed, state.lastDailyReward]);
 
   // Keep the runtime species registry in sync with the player's custom creatures.
   registerCustomCreatures(state.customCreatures);
@@ -1418,7 +1444,28 @@ export default function WonderAcademyGame({ onExit }: Props) {
           <h1 style={{ fontSize: 24, fontWeight: 800, margin: 0 }}>Wonderdex</h1>
           <button onClick={() => dispatch({ type: "closeDex" })} style={btnGhost}><X size={16} /> 關閉</button>
         </div>
-        <p style={{ color: "#8a83a3", fontSize: 14, margin: "0 0 16px" }}>已收服 {completion.caught} / {completion.total}</p>
+        <p style={{ color: "#8a83a3", fontSize: 14, margin: "0 0 14px" }}>已收服 {completion.caught} / {completion.total}{state.shinyDex.length > 0 && ` · ✨ ${state.shinyDex.length} 隻閃光`}</p>
+
+        <div style={{ ...cardStatic, padding: "10px 14px", marginBottom: 18 }}>
+          <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: ".08em", color: "#8a83a3", textTransform: "uppercase", marginBottom: 8 }}>收集獎勵</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            {DEX_REWARDS.map((r) => {
+              const claimed = state.dexRewardsClaimed.includes(r.caught);
+              const ready = completion.caught >= r.caught;
+              return (
+                <button
+                  key={r.caught}
+                  disabled={!ready || claimed}
+                  onClick={() => { if (ready && !claimed) { sfx("wonderdex_update"); dispatch({ type: "claimDexReward", caught: r.caught }); } }}
+                  style={{ fontSize: 12, fontWeight: 800, padding: "7px 11px", borderRadius: 11, border: "1px solid", cursor: ready && !claimed ? "pointer" : "default", borderColor: claimed ? "#bfe3a3" : ready ? "#f0c869" : "rgba(60,40,90,.15)", background: claimed ? "#eefbe9" : ready ? "#fff4d6" : "#fff", color: claimed ? "#42b86a" : ready ? "#8a6a12" : "#8a83a3" }}
+                >
+                  {claimed ? "✓ " : ready ? "🎁 " : "🔒 "}收集 {r.caught} 隻
+                  <span style={{ fontWeight: 700, opacity: 0.85 }}> · ✨{r.stardust}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(140px,1fr))", gap: 12 }}>
           {allSpecies().map((s) => {
             const status = state.dex[s.speciesId] ?? "unseen";
