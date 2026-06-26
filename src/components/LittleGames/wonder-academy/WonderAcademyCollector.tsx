@@ -67,6 +67,7 @@ type Screen =
   | "scene"
   | "battle"
   | "result"
+  | "evolve"
   | "dex"
   | "builder"
   | "skills";
@@ -84,6 +85,8 @@ type ResultInfo = {
   speciesId?: string;
   lines: string[];
 };
+
+type EvolutionInfo = { display: string; after: string; portrait: string };
 
 type Persisted = {
   playerName: string;
@@ -114,6 +117,7 @@ type GameState = Persisted & {
   skillsOwnedId: string | null;
   battle: BattleSession | null;
   result: ResultInfo | null;
+  pendingEvolution: EvolutionInfo | null;
 };
 
 type Action =
@@ -143,6 +147,7 @@ type Action =
   | { type: "openBuilder" }
   | { type: "addCustom"; creature: CreatureSpecies }
   | { type: "closeResult" }
+  | { type: "finishEvolution" }
   | { type: "openDex" }
   | { type: "closeDex" };
 
@@ -166,6 +171,7 @@ const INITIAL: GameState = {
   lastDailyReward: null,
   battle: null,
   result: null,
+  pendingEvolution: null,
 };
 
 const random = (): number => Math.random();
@@ -185,6 +191,7 @@ function resolveOutcome(state: GameState, session: BattleSession): GameState {
   let dex = state.dex;
   let stardust = state.stardust;
   let snacks = state.snacks;
+  let pendingEvolution: EvolutionInfo | null = null;
 
   const rewardSnack = () => {
     const pick = SNACK_POOL[Math.floor(random() * SNACK_POOL.length)];
@@ -204,9 +211,13 @@ function resolveOutcome(state: GameState, session: BattleSession): GameState {
       const stages = sp?.growthStages.length ?? 1;
       if (sp && canEvolve(owned.stage, owned.level, stages)) {
         const nextStage = evolve(owned.stage, stages);
-        owned = { ...owned, stage: nextStage };
         dex = recordDex(dex, o.speciesId, "evolved");
-        lines.push(`🌟 進化!成為 ${sp.growthStages[nextStage]}!`);
+        pendingEvolution = {
+          display: displayName(o),
+          after: sp.growthStages[nextStage],
+          portrait: sp.portrait,
+        };
+        owned = { ...owned, stage: nextStage };
       }
       return owned;
     });
@@ -240,6 +251,7 @@ function resolveOutcome(state: GameState, session: BattleSession): GameState {
         wardensDefeated,
         isWarden: false,
         battle: null,
+        pendingEvolution,
         result: { kind: "won", speciesId: wildSpeciesId, lines },
         screen: "result",
       };
@@ -257,6 +269,7 @@ function resolveOutcome(state: GameState, session: BattleSession): GameState {
       snacks,
       isWarden: false,
       battle: null,
+      pendingEvolution,
       result: { kind: session.outcome, speciesId: wildSpeciesId, lines },
       screen: "result",
     };
@@ -299,6 +312,7 @@ function resolveOutcome(state: GameState, session: BattleSession): GameState {
     stardust,
     snacks,
     battle: null,
+    pendingEvolution,
     result: { kind: session.outcome, speciesId: wildSpeciesId, lines },
     screen: "result",
   };
@@ -597,10 +611,20 @@ function reducer(state: GameState, action: Action): GameState {
         dex: recordDex(state.dex, action.creature.speciesId, "seen"),
         screen: "hub",
       };
-    case "closeResult":
+    case "closeResult": {
+      if (state.pendingEvolution) {
+        return { ...state, result: null, screen: "evolve" };
+      }
       return {
         ...state,
         result: null,
+        screen: state.sceneActive ? "scene" : state.activeRegionId ? "nodeMap" : "hub",
+      };
+    }
+    case "finishEvolution":
+      return {
+        ...state,
+        pendingEvolution: null,
         screen: state.sceneActive ? "scene" : state.activeRegionId ? "nodeMap" : "hub",
       };
     case "openDex":
@@ -1007,6 +1031,10 @@ export default function WonderAcademyGame({ onExit }: Props) {
             : "ui_back",
     );
   }, [state.result]);
+
+  useEffect(() => {
+    if (state.screen === "evolve") sfx("attune_success");
+  }, [state.screen]);
 
   useEffect(() => {
     if (!state.ready) return;
@@ -1438,6 +1466,35 @@ export default function WonderAcademyGame({ onExit }: Props) {
           ))}
         </div>
         <button onClick={() => dispatch({ type: "closeResult" })} style={ctaBtn}>{state.sceneActive ? "回到森林 →" : state.activeRegionId ? "回到地圖 →" : "回到學院 →"}</button>
+      </div>,
+    );
+  }
+
+  // ---------- EVOLVE ----------
+  if (state.screen === "evolve" && state.pendingEvolution) {
+    const ev = state.pendingEvolution;
+    return frame(
+      <div style={{ textAlign: "center", paddingTop: 28 }}>
+        <style>{`
+          @keyframes waEvoGlow{0%,100%{opacity:.3;transform:scale(.9)}50%{opacity:.85;transform:scale(1.25)}}
+          @keyframes waEvoPop{0%,100%{transform:scale(1)}55%{transform:scale(1.1)}}
+          @keyframes waEvoSpark{0%{opacity:0;transform:translateY(6px) scale(.5)}30%{opacity:1}100%{opacity:0;transform:translateY(-34px) scale(1.1)}}
+          .wa-evo-img{animation:waEvoPop 1.6s ease-in-out infinite}
+          .wa-evo-glow{animation:waEvoGlow 1.6s ease-in-out infinite}
+          .wa-evo-spark{animation:waEvoSpark 1.9s ease-in-out infinite}
+          @media (prefers-reduced-motion: reduce){.wa-evo-img,.wa-evo-glow,.wa-evo-spark{animation:none}.wa-evo-spark{display:none}}
+        `}</style>
+        <div style={{ letterSpacing: ".25em", fontSize: 11, fontWeight: 800, color: "#8a83a3", textTransform: "uppercase", marginBottom: 14 }}>✨ 進化 ✨</div>
+        <div style={{ position: "relative", width: 200, margin: "0 auto 12px" }}>
+          <div className="wa-evo-glow" style={{ position: "absolute", inset: "8%", borderRadius: "50%", background: "radial-gradient(circle, rgba(255,236,160,.95), rgba(124,108,255,.4) 58%, rgba(124,108,255,0) 74%)", zIndex: 0 }} />
+          <img className="wa-evo-img" src={ev.portrait} alt={ev.after} style={{ position: "relative", zIndex: 1, width: 200, height: 200, objectFit: "contain", filter: "drop-shadow(0 8px 16px rgba(124,108,255,.4))" }} />
+          <div className="wa-evo-spark" style={{ position: "absolute", top: 8, left: 18, fontSize: 22, zIndex: 2 }}>✨</div>
+          <div className="wa-evo-spark" style={{ position: "absolute", top: 28, right: 14, fontSize: 18, zIndex: 2, animationDelay: ".6s" }}>⭐</div>
+          <div className="wa-evo-spark" style={{ position: "absolute", bottom: 22, left: 30, fontSize: 16, zIndex: 2, animationDelay: "1.1s" }}>✨</div>
+        </div>
+        <h1 style={{ fontSize: 26, fontWeight: 800, margin: "0 0 6px" }}>🌟 {ev.display} 進化了!</h1>
+        <p style={{ color: "#8a83a3", fontSize: 15, margin: "0 0 22px" }}>成為 <b style={{ color: "#6a52ff" }}>{ev.after}</b>!</p>
+        <button onClick={() => dispatch({ type: "finishEvolution" })} style={ctaBtn}>太棒了 →</button>
       </div>,
     );
   }
