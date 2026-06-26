@@ -118,7 +118,7 @@ type Action =
   | { type: "openRegions" }
   | { type: "closeRegions" }
   | { type: "explore"; regionId: string }
-  | { type: "claimDaily"; today: string }
+  | { type: "claimDaily"; today: string; snackId: string }
   | { type: "sceneMove"; dx: number; dy: number }
   | { type: "sceneCloseMessage" }
   | { type: "battleMove"; moveId: string }
@@ -360,17 +360,11 @@ function reducer(state: GameState, action: Action): GameState {
     }
     case "claimDaily": {
       if (state.lastDailyReward === action.today) return state;
-      const pick = SNACK_POOL[Math.floor(random() * SNACK_POOL.length)];
       return {
         ...state,
         stardust: state.stardust + 20,
-        snacks: { ...state.snacks, [pick]: (state.snacks[pick] ?? 0) + 1 },
+        snacks: { ...state.snacks, [action.snackId]: (state.snacks[action.snackId] ?? 0) + 1 },
         lastDailyReward: action.today,
-        result: {
-          kind: "treasure",
-          lines: ["🎁 每日獎勵!", "✨ Stardust ×20", `🍪 ${SNACK_NAMES[pick]} ×1`, "明天再來還有喔!"],
-        },
-        screen: "result",
       };
     }
     case "sceneCloseMessage":
@@ -917,6 +911,7 @@ export default function WonderAcademyGame({ onExit }: Props) {
   // ---- audio ----
   const audioRef = useRef<WonderAcademyAudioManager | null>(null);
   const [muted, setMuted] = useState(false);
+  const [dailyFlash, setDailyFlash] = useState<string | null>(null);
   const sfx = (id: Parameters<WonderAcademyAudioManager["playSfx"]>[0]) =>
     audioRef.current?.playSfx(id);
 
@@ -1000,6 +995,13 @@ export default function WonderAcademyGame({ onExit }: Props) {
     return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
   }, []);
   const dailyClaimable = state.lastDailyReward !== today;
+  const onClaimDaily = () => {
+    const pick = SNACK_POOL[Math.floor(Math.random() * SNACK_POOL.length)];
+    sfx("wonderdex_update");
+    dispatch({ type: "claimDaily", today, snackId: pick });
+    setDailyFlash(`✨ Stardust ×20 · 🍪 ${SNACK_NAMES[pick]} ×1`);
+    window.setTimeout(() => setDailyFlash(null), 5000);
+  };
 
   const frame = (children: ReactNode) => (
     <div style={{ minHeight: "100dvh", background: PANEL_BG, fontFamily: '-apple-system, "PingFang TC", "Noto Sans TC", sans-serif', color: "#33304a" }}>
@@ -1129,9 +1131,13 @@ export default function WonderAcademyGame({ onExit }: Props) {
         </div>
 
         {dailyClaimable ? (
-          <button onClick={() => { sfx("wonderdex_update"); dispatch({ type: "claimDaily", today }); }} style={dailyBtn}>
+          <button onClick={onClaimDaily} style={dailyBtn}>
             <Gift size={18} /> 領取每日獎勵 <span style={{ fontSize: 12, fontWeight: 700, opacity: 0.85 }}>✨20 · 🍪×1</span>
           </button>
+        ) : dailyFlash ? (
+          <div style={dailyFlashBox}>
+            <Gift size={16} /> 領到了!{dailyFlash}
+          </div>
         ) : (
           <div style={{ fontSize: 12.5, color: "#8a83a3", marginBottom: 14, display: "flex", alignItems: "center", gap: 6 }}>
             <Gift size={14} /> 今日獎勵已領取,明天再來!
@@ -1401,6 +1407,7 @@ const btnGhost: CSSProperties = { display: "inline-flex", alignItems: "center", 
 const btnOutline: CSSProperties = { display: "inline-flex", alignItems: "center", gap: 6, fontSize: 14, fontWeight: 800, color: "#6a52ff", background: "rgba(255,255,255,.7)", border: "1px solid rgba(106,82,255,.3)", borderRadius: 13, padding: "12px 18px", cursor: "pointer" };
 const ctaBtn: CSSProperties = { display: "inline-flex", alignItems: "center", gap: 8, fontSize: 15, fontWeight: 800, color: "#fff", background: "linear-gradient(180deg,#7c6cff,#6a52ff)", border: "none", padding: "13px 24px", borderRadius: 14, boxShadow: "0 8px 20px rgba(106,82,255,.34)", cursor: "pointer" };
 const dailyBtn: CSSProperties = { display: "inline-flex", alignItems: "center", gap: 8, fontSize: 14, fontWeight: 800, color: "#5b3d00", background: "linear-gradient(180deg,#ffd66b,#f7b13a)", border: "none", padding: "11px 18px", borderRadius: 13, boxShadow: "0 6px 16px rgba(247,177,58,.4)", cursor: "pointer", marginBottom: 14 };
+const dailyFlashBox: CSSProperties = { display: "inline-flex", alignItems: "center", gap: 8, fontSize: 13.5, fontWeight: 800, color: "#5b3d00", background: "#fff4d6", border: "1px solid #f0c869", padding: "10px 16px", borderRadius: 13, marginBottom: 14 };
 const cardBtn: CSSProperties = { background: "rgba(255,255,255,.66)", backdropFilter: "blur(14px)", border: "1px solid rgba(60,40,90,.1)", borderRadius: 18, padding: "16px 14px", textAlign: "center", cursor: "pointer", boxShadow: "0 6px 18px rgba(80,50,130,.08)", transition: "transform .18s" };
 const cardStatic: CSSProperties = { background: "rgba(255,255,255,.66)", border: "1px solid rgba(60,40,90,.1)", borderRadius: 16, padding: 12, boxShadow: "0 5px 14px rgba(80,50,130,.07)" };
 const infoCard: CSSProperties = { background: "rgba(255,255,255,.85)", backdropFilter: "blur(6px)", border: "1px solid rgba(60,40,90,.1)", borderRadius: 12, padding: "8px 11px", width: 200, boxShadow: "0 5px 12px rgba(60,40,90,.1)" };
