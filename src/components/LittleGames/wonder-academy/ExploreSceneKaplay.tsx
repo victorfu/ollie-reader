@@ -133,6 +133,9 @@ export default function ExploreSceneKaplay({
     const worldMap = build.map;
     const theme = build.theme;
     const dims = dimsOf(worldMap);
+    // Respect the OS "reduce motion" setting: keep tile-locked walking, but drop
+    // the decorative idle bob, grass sway, glows and particle bursts.
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
     let disposed = false;
     let game: KAPLAYCtx | null = null;
@@ -366,6 +369,7 @@ export default function ExploreSceneKaplay({
           const lid = k.add([k.pos(c.px + TILE / 2, c.py + TILE / 2), k.z(8)]);
           lid.add([k.rect(34, 22, { radius: 5 }), k.pos(0, 5), k.anchor("center"), k.color("#9a7d52")]);
           lid.add([k.rect(36, 13, { radius: 5 }), k.pos(-2, -10), k.anchor("center"), k.rotate(-34), k.color("#b3935f")]);
+          if (reduced) return;
           for (let i = 0; i < 8; i += 1) {
             k.add([
               k.circle(k.rand(2, 4)),
@@ -422,7 +426,7 @@ export default function ExploreSceneKaplay({
           gy = ny;
           target = center(gx, gy);
           moving = true;
-          spawnDust(hero.pos.x, hero.pos.y);
+          if (!reduced) spawnDust(hero.pos.x, hero.pos.y);
           onMoveRef.current(dx, dy);
         };
 
@@ -449,7 +453,8 @@ export default function ExploreSceneKaplay({
               moving = false;
             }
           }
-          body.pos.y = moving ? -Math.abs(Math.sin(tm * 12)) * 4 : Math.sin(tm * 4) * 2.5;
+          body.pos.y = reduced ? 0 : moving ? -Math.abs(Math.sin(tm * 12)) * 4 : Math.sin(tm * 4) * 2.5;
+          if (reduced) return;
           for (const d of decor) {
             if (!d.obj.exists()) continue;
             if (d.kind === "grass") {

@@ -86,6 +86,9 @@ export default function BattleStageKaplay({ wildPortrait, playerPortrait, wildSl
     const canvas = canvasRef.current;
     if (!canvas) return;
     const build = buildRef.current;
+    // Respect the OS "reduce motion" setting: keep the informative flashes and
+    // sleepy pose, but drop the decorative idle bob, lunges and twinkle.
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
     let disposed = false;
     let game: KAPLAYCtx | null = null;
@@ -151,6 +154,10 @@ export default function BattleStageKaplay({ wildPortrait, playerPortrait, wildSl
           });
         };
         const sparkleAt = (x: number, y: number) => {
+          if (reduced) {
+            flashAt(x, y);
+            return;
+          }
           for (let i = 0; i < 8; i += 1) {
             k.add([
               k.circle(k.rand(2, 4)),
@@ -165,8 +172,8 @@ export default function BattleStageKaplay({ wildPortrait, playerPortrait, wildSl
           }
         };
 
-        // shiny creatures twinkle continuously
-        if (build.wildShiny || build.heroShiny) {
+        // shiny creatures twinkle continuously (skipped under reduced motion)
+        if (!reduced && (build.wildShiny || build.heroShiny)) {
           k.loop(0.5, () => {
             if (build.wildShiny) sparkleAt(WILD.x, WILD.y - 6);
             if (build.heroShiny) sparkleAt(HERO.x, HERO.y - 6);
@@ -177,11 +184,11 @@ export default function BattleStageKaplay({ wildPortrait, playerPortrait, wildSl
         let anim: { actor: GameObj; from: { x: number; y: number }; to: { x: number; y: number }; t: number } | null = null;
 
         const heroHit = () => {
-          anim = { actor: hero, from: HERO, to: WILD, t: 0 };
+          if (!reduced) anim = { actor: hero, from: HERO, to: WILD, t: 0 };
           flashAt(WILD.x, WILD.y);
         };
         const wildHit = () => {
-          anim = { actor: wild, from: WILD, to: HERO, t: 0 };
+          if (!reduced) anim = { actor: wild, from: WILD, to: HERO, t: 0 };
           flashAt(HERO.x, HERO.y);
         };
         // A wild response implies the player just acted, so play the player's hit
@@ -206,10 +213,13 @@ export default function BattleStageKaplay({ wildPortrait, playerPortrait, wildSl
 
         k.onUpdate(() => {
           const tm = k.time();
-          // idle bob
-          if (!anim || anim.actor !== hero) hero.pos.y = HERO.y + Math.sin(tm * 3) * 2.5;
+          // idle bob — decorative, so flatten it under reduced motion (the
+          // sleepy creature keeps its lowered/tilted resting pose).
+          if (!anim || anim.actor !== hero) hero.pos.y = reduced ? HERO.y : HERO.y + Math.sin(tm * 3) * 2.5;
           if (!anim || anim.actor !== wild) {
-            wild.pos.y = WILD.y + (sleepyRef.current ? 6 + Math.sin(tm * 1.4) * 1.5 : Math.sin(tm * 3.3) * 2.5);
+            wild.pos.y = reduced
+              ? WILD.y + (sleepyRef.current ? 6 : 0)
+              : WILD.y + (sleepyRef.current ? 6 + Math.sin(tm * 1.4) * 1.5 : Math.sin(tm * 3.3) * 2.5);
           }
           (wild as GameObj).angle = sleepyRef.current ? 8 : 0;
 
