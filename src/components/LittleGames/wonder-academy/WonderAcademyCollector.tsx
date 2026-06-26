@@ -784,11 +784,13 @@ function StarterConfirm({
   const [nickname, setNickname] = useState("");
   return (
     <div style={{ textAlign: "center", paddingTop: 18 }}>
+      <style>{`@keyframes waRunIn{0%{opacity:0;transform:translateX(-110px) scale(.78)}62%{transform:translateX(9px) scale(1.06)}100%{opacity:1;transform:none}}@keyframes waHeartFloat{0%{opacity:0;transform:translateY(2px) scale(.6)}25%{opacity:1}100%{opacity:0;transform:translateY(-44px) scale(1.1)}}.wa-runin{animation:waRunIn .7s cubic-bezier(.2,.8,.2,1) both}.wa-heart{animation:waHeartFloat 2.2s ease-in-out infinite}@media (prefers-reduced-motion: reduce){.wa-runin{animation:none}.wa-heart{display:none}}`}</style>
       <div style={{ letterSpacing: ".2em", fontSize: 11, fontWeight: 700, color: "#8a83a3", textTransform: "uppercase", marginBottom: 12 }}>序章 — 命定的夥伴</div>
       <div style={{ position: "relative", width: 160, margin: "0 auto 8px" }}>
-        <img src={species.portrait} alt={species.name} style={{ width: 160, height: 160, objectFit: "contain", filter: "drop-shadow(0 10px 14px rgba(244,169,58,.3))" }} />
-        <div style={{ position: "absolute", top: 8, right: 4, fontSize: 22 }}>💛</div>
-        <div style={{ position: "absolute", bottom: 16, left: 4, fontSize: 18 }}>✨</div>
+        <img className="wa-runin" src={species.portrait} alt={species.name} style={{ width: 160, height: 160, objectFit: "contain", filter: "drop-shadow(0 10px 14px rgba(244,169,58,.3))" }} />
+        <div className="wa-heart" style={{ position: "absolute", top: 6, right: 2, fontSize: 22 }}>💛</div>
+        <div className="wa-heart" style={{ position: "absolute", top: 20, left: 2, fontSize: 16, animationDelay: ".7s" }}>💛</div>
+        <div className="wa-heart" style={{ position: "absolute", bottom: 16, left: 10, fontSize: 18, animationDelay: "1.3s" }}>✨</div>
       </div>
       <h1 style={{ fontSize: 26, fontWeight: 800, margin: "0 0 6px" }}><span style={{ color: "#f0922a" }}>{species.name}</span> 選擇了你!</h1>
       <p style={{ color: "#8a83a3", fontSize: 14, maxWidth: 360, margin: "0 auto 14px" }}>牠開心地跑向你 —— 從現在起,你們會一起走完整段冒險。</p>
@@ -1091,19 +1093,33 @@ export default function WonderAcademyGame({ onExit }: Props) {
       <div>
         <div style={{ textAlign: "center", letterSpacing: ".2em", fontSize: 11, fontWeight: 700, color: "#8a83a3", textTransform: "uppercase", margin: "6px 0" }}>序章 — 命運的相遇</div>
         <h1 style={{ textAlign: "center", fontSize: 28, fontWeight: 800, margin: "0 0 6px" }}>選擇你的第一個夥伴</h1>
-        <p style={{ textAlign: "center", color: "#8a83a3", fontSize: 14, maxWidth: 460, margin: "0 auto 22px" }}>牠會陪你走完整段冒險。看看牠的個性與屬性,再決定誰一起出發。</p>
+        <p style={{ textAlign: "center", color: "#8a83a3", fontSize: 14, maxWidth: 460, margin: "0 auto 22px" }}>牠會陪你走完整段冒險。看看牠的屬性、戰鬥定位、探索能力與進化線,再決定誰一起出發。</p>
+        <style>{`@keyframes waPop{0%{opacity:0;transform:translateY(12px) scale(.94)}100%{opacity:1;transform:none}}.wa-starter{animation:waPop .42s cubic-bezier(.2,.8,.2,1) both}@media (prefers-reduced-motion: reduce){.wa-starter{animation:none}}`}</style>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 14 }}>
-          {STARTER_SPECIES.map((s) => (
-            <button key={s.speciesId} onClick={() => dispatch({ type: "pickStarter", speciesId: s.speciesId })} style={cardBtn}>
-              <img src={s.portrait} alt={s.name} style={{ width: 96, height: 96, objectFit: "contain", margin: "0 auto 8px", display: "block", filter: "drop-shadow(0 6px 8px rgba(0,0,0,.12))" }} />
-              <div style={{ fontWeight: 800, fontSize: 18 }}>{s.name}</div>
-              <div style={{ fontSize: 12, color: "#8a83a3", marginBottom: 8 }}>{s.category}</div>
-              <div style={{ display: "flex", gap: 6, justifyContent: "center", marginBottom: 8 }}>
-                {s.elements.map((e) => <TypeBadge key={e} element={e} />)}
-              </div>
-              <div style={{ fontSize: 12, opacity: 0.8, minHeight: 32 }}>「{s.personality}」</div>
-            </button>
-          ))}
+          {STARTER_SPECIES.map((s, i) => {
+            const fs = s.fieldSkillId ? FIELD_SKILLS[s.fieldSkillId] : undefined;
+            const finalForm = s.growthStages[s.growthStages.length - 1];
+            return (
+              <button key={s.speciesId} className="wa-starter" onClick={() => dispatch({ type: "pickStarter", speciesId: s.speciesId })} style={{ ...cardBtn, animationDelay: `${i * 0.08}s` }}>
+                <img src={s.portrait} alt={s.name} style={{ width: 96, height: 96, objectFit: "contain", margin: "0 auto 8px", display: "block", filter: "drop-shadow(0 6px 8px rgba(0,0,0,.12))" }} />
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                  <span style={{ fontWeight: 800, fontSize: 18 }}>{s.name}</span>
+                  {s.role && <span style={roleBadge}>{s.role}</span>}
+                </div>
+                <div style={{ fontSize: 12, color: "#8a83a3", marginBottom: 8 }}>{s.category}</div>
+                <div style={{ display: "flex", gap: 6, justifyContent: "center", marginBottom: 8 }}>
+                  {s.elements.map((e) => <TypeBadge key={e} element={e} />)}
+                </div>
+                <div style={{ fontSize: 12, opacity: 0.8, minHeight: 32 }}>「{s.personality}」</div>
+                {fs && (
+                  <div style={{ fontSize: 11, marginTop: 6, padding: "5px 8px", borderRadius: 8, background: "#fff7e0", border: "1px solid #f0c869", color: "#8a6a12", textAlign: "left" }}>
+                    {fs.emoji} <b>{fs.name}</b> · {fs.desc}
+                  </div>
+                )}
+                <div style={{ fontSize: 11, color: "#8a83a3", marginTop: 6 }}>🌟 最終進化 <b style={{ color: "#6a52ff" }}>{finalForm}</b></div>
+              </button>
+            );
+          })}
         </div>
       </div>,
     );
@@ -1440,6 +1456,7 @@ const btnOutline: CSSProperties = { display: "inline-flex", alignItems: "center"
 const ctaBtn: CSSProperties = { display: "inline-flex", alignItems: "center", gap: 8, fontSize: 15, fontWeight: 800, color: "#fff", background: "linear-gradient(180deg,#7c6cff,#6a52ff)", border: "none", padding: "13px 24px", borderRadius: 14, boxShadow: "0 8px 20px rgba(106,82,255,.34)", cursor: "pointer" };
 const dailyBtn: CSSProperties = { display: "inline-flex", alignItems: "center", gap: 8, fontSize: 14, fontWeight: 800, color: "#5b3d00", background: "linear-gradient(180deg,#ffd66b,#f7b13a)", border: "none", padding: "11px 18px", borderRadius: 13, boxShadow: "0 6px 16px rgba(247,177,58,.4)", cursor: "pointer", marginBottom: 14 };
 const dailyFlashBox: CSSProperties = { display: "inline-flex", alignItems: "center", gap: 8, fontSize: 13.5, fontWeight: 800, color: "#5b3d00", background: "#fff4d6", border: "1px solid #f0c869", padding: "10px 16px", borderRadius: 13, marginBottom: 14 };
+const roleBadge: CSSProperties = { fontSize: 10, fontWeight: 800, color: "#6a52ff", background: "#efeaff", border: "1px solid #cdb6ef", borderRadius: 999, padding: "1px 7px" };
 const cardBtn: CSSProperties = { background: "rgba(255,255,255,.66)", backdropFilter: "blur(14px)", border: "1px solid rgba(60,40,90,.1)", borderRadius: 18, padding: "16px 14px", textAlign: "center", cursor: "pointer", boxShadow: "0 6px 18px rgba(80,50,130,.08)", transition: "transform .18s" };
 const cardStatic: CSSProperties = { background: "rgba(255,255,255,.66)", border: "1px solid rgba(60,40,90,.1)", borderRadius: 16, padding: 12, boxShadow: "0 5px 14px rgba(80,50,130,.07)" };
 const infoCard: CSSProperties = { background: "rgba(255,255,255,.85)", backdropFilter: "blur(6px)", border: "1px solid rgba(60,40,90,.1)", borderRadius: 12, padding: "8px 11px", width: 200, boxShadow: "0 5px 12px rgba(60,40,90,.1)" };
