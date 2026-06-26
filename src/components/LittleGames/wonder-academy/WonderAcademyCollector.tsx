@@ -1,5 +1,5 @@
 import academyHubUrl from "../../../assets/games/wonder-academy/backgrounds/academy-hub.png";
-import { ArrowLeft, Compass, Gift, Lock, MapPin, Plus, Sparkles, Upload, X } from "lucide-react";
+import { ArrowLeft, Compass, Gift, Lock, MapPin, Plus, ShoppingBag, Sparkles, Upload, X } from "lucide-react";
 import { useEffect, useMemo, useReducer, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { Volume2, VolumeX } from "lucide-react";
 import { useAuth } from "../../../hooks/useAuth";
@@ -72,7 +72,8 @@ type Screen =
   | "evolve"
   | "dex"
   | "builder"
-  | "skills";
+  | "skills"
+  | "shop";
 
 const SNACK_NAMES: Record<string, string> = {
   "starberry-cookie": "星莓餅乾",
@@ -81,6 +82,7 @@ const SNACK_NAMES: Record<string, string> = {
   "warm-cocoa-gem": "暖可可寶石",
 };
 const SNACK_POOL = Object.keys(SNACK_NAMES);
+const SNACK_PRICE = 12;
 
 type ResultInfo = {
   kind: BattleSession["outcome"] | "treasure";
@@ -164,7 +166,10 @@ type Action =
   | { type: "finishEvolution" }
   | { type: "openDex" }
   | { type: "closeDex" }
-  | { type: "claimDexReward"; caught: number };
+  | { type: "claimDexReward"; caught: number }
+  | { type: "openShop" }
+  | { type: "closeShop" }
+  | { type: "buySnack"; snackId: string };
 
 const INITIAL: GameState = {
   ready: false,
@@ -661,6 +666,18 @@ function reducer(state: GameState, action: Action): GameState {
       return { ...state, screen: "dex" };
     case "closeDex":
       return { ...state, screen: "hub" };
+    case "openShop":
+      return { ...state, screen: "shop" };
+    case "closeShop":
+      return { ...state, screen: "hub" };
+    case "buySnack": {
+      if (state.stardust < SNACK_PRICE || !SNACK_NAMES[action.snackId]) return state;
+      return {
+        ...state,
+        stardust: state.stardust - SNACK_PRICE,
+        snacks: { ...state.snacks, [action.snackId]: (state.snacks[action.snackId] ?? 0) + 1 },
+      };
+    }
     case "claimDexReward": {
       const reward = DEX_REWARDS.find((r) => r.caught === action.caught);
       if (!reward || state.dexRewardsClaimed.includes(reward.caught)) return state;
@@ -1340,6 +1357,7 @@ export default function WonderAcademyGame({ onExit }: Props) {
         <div style={{ display: "flex", gap: 12, marginBottom: 22, flexWrap: "wrap" }}>
           <button onClick={() => dispatch({ type: "openRegions" })} style={ctaBtn}><Compass size={18} /> 出發探索</button>
           <button onClick={() => dispatch({ type: "openDex" })} style={btnOutline}><Sparkles size={16} /> 圖鑑</button>
+          <button onClick={() => dispatch({ type: "openShop" })} style={btnOutline}><ShoppingBag size={16} /> 商店</button>
           <button onClick={() => dispatch({ type: "openBuilder" })} style={btnOutline}><Plus size={16} /> 建立寵物</button>
         </div>
 
@@ -1442,6 +1460,39 @@ export default function WonderAcademyGame({ onExit }: Props) {
   }
 
   // ---------- DEX ----------
+  if (state.screen === "shop") {
+    return frame(
+      <div>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+          <h1 style={{ fontSize: 24, fontWeight: 800, margin: 0 }}>🛍️ 點心商店</h1>
+          <button onClick={() => dispatch({ type: "closeShop" })} style={btnGhost}><X size={16} /> 關閉</button>
+        </div>
+        <p style={{ color: "#8a83a3", fontSize: 14, margin: "0 0 18px" }}>用探險賺到的 ✨ Stardust 換點心 —— 帶夥伴最愛的點心收服更容易!目前有 ✨ {state.stardust}。</p>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(180px,1fr))", gap: 12 }}>
+          {SNACK_POOL.map((id) => {
+            const owned = state.snacks[id] ?? 0;
+            const afford = state.stardust >= SNACK_PRICE;
+            return (
+              <div key={id} style={{ ...cardStatic, display: "flex", flexDirection: "column", gap: 8 }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <span style={{ fontWeight: 800, fontSize: 14 }}>🍪 {SNACK_NAMES[id]}</span>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: "#8a83a3" }}>持有 {owned}</span>
+                </div>
+                <button
+                  disabled={!afford}
+                  onClick={() => { sfx("snack_use"); dispatch({ type: "buySnack", snackId: id }); }}
+                  style={{ ...feedBtn, color: afford ? "#5b3d00" : "#b9b3c7", background: afford ? "linear-gradient(180deg,#ffd66b,#f7b13a)" : "#f0eef6", border: afford ? "none" : "1px solid rgba(60,40,90,.12)", cursor: afford ? "pointer" : "default" }}
+                >
+                  ✨ {SNACK_PRICE} 購買
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      </div>,
+    );
+  }
+
   if (state.screen === "dex") {
     return frame(
       <div>
