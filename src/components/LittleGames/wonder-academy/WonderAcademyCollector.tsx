@@ -431,23 +431,25 @@ function reducer(state: GameState, action: Action): GameState {
         const loot = rollLoot(chestTable, random);
         let snacks = state.snacks;
         let stardust = state.stardust;
-        const lines = ["你打開了寶箱!✨"];
+        const parts: string[] = [];
         for (const [item, qty] of Object.entries(loot)) {
           if (item === "stardust") {
             stardust += qty;
-            lines.push(`✨ Stardust ×${qty}`);
+            parts.push(`✨ Stardust ×${qty}`);
           } else {
             snacks = { ...snacks, [item]: (snacks[item] ?? 0) + qty };
-            lines.push(`🍪 ${SNACK_NAMES[item] ?? item} ×${qty}`);
+            parts.push(`🍪 ${SNACK_NAMES[item] ?? item} ×${qty}`);
           }
         }
         return {
           ...state,
           snacks,
           stardust,
-          scene: { ...moved, opened: [...state.scene.opened, cellId] },
-          result: { kind: "treasure", lines },
-          screen: "result",
+          scene: {
+            ...moved,
+            opened: [...state.scene.opened, cellId],
+            message: `打開寶箱!獲得 ${parts.join(" · ")} 🎁`,
+          },
         };
       }
 

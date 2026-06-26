@@ -67,6 +67,18 @@ export default function ExploreSceneKaplay({
     onMoveRef.current = onMove;
   }, [onMove]);
 
+  // Bridge so the reducer looting a chest (scene.opened grows) pops the matching
+  // chest open in the canvas, without rebuilding the whole world.
+  const openChestRef = useRef<((cellId: string) => void) | null>(null);
+  const prevOpenedRef = useRef(scene.opened);
+  useEffect(() => {
+    const prev = new Set(prevOpenedRef.current);
+    for (const cell of scene.opened) {
+      if (!prev.has(cell)) openChestRef.current?.(cell);
+    }
+    prevOpenedRef.current = scene.opened;
+  }, [scene.opened]);
+
   // First-render snapshot: the world is built once; later prop changes (a new
   // NPC line) must not rebuild the canvas.
   const buildRef = useRef({
@@ -155,6 +167,7 @@ export default function ExploreSceneKaplay({
 
       k.scene("explore", () => {
         const decor: Decor[] = [];
+        const chests = new Map<string, { px: number; py: number; grp: GameObj }>();
 
         const ground = (px: number, py: number, color: string) =>
           k.add([
@@ -210,7 +223,7 @@ export default function ExploreSceneKaplay({
           });
         };
 
-        const addChest = (px: number, py: number, opened: boolean) => {
+        const addChest = (px: number, py: number, opened: boolean, cellId: string) => {
           ground(px, py, theme.ground);
           const grp = k.add([k.pos(px + TILE / 2, py + TILE / 2), k.z(8)]);
           grp.add([k.rect(34, 22, { radius: 5 }), k.pos(0, 5), k.anchor("center"), k.color(opened ? "#9a7d52" : "#a9743e")]);
@@ -225,6 +238,7 @@ export default function ExploreSceneKaplay({
             grp.add([k.rect(36, 5), k.pos(0, 0), k.anchor("center"), k.color("#f4c542")]);
             grp.add([k.rect(7, 9, { radius: 2 }), k.pos(0, 1), k.anchor("center"), k.color("#f4c542")]);
             decor.push({ obj: grp, kind: "chest", baseY: py + TILE / 2, phase: (px + py) * 0.04 });
+            chests.set(cellId, { px, py, grp });
           }
         };
 
@@ -296,7 +310,7 @@ export default function ExploreSceneKaplay({
                 addGrass(px, py);
                 break;
               case "C":
-                addChest(px, py, openedSet.has(`${x},${y}`));
+                addChest(px, py, openedSet.has(`${x},${y}`), `${x},${y}`);
                 break;
               case "N":
                 addOwl(px, py);
@@ -312,6 +326,29 @@ export default function ExploreSceneKaplay({
             }
           }
         }
+
+        const openChest = (cellId: string) => {
+          const c = chests.get(cellId);
+          if (!c) return;
+          chests.delete(cellId);
+          c.grp.destroy();
+          const lid = k.add([k.pos(c.px + TILE / 2, c.py + TILE / 2), k.z(8)]);
+          lid.add([k.rect(34, 22, { radius: 5 }), k.pos(0, 5), k.anchor("center"), k.color("#9a7d52")]);
+          lid.add([k.rect(36, 13, { radius: 5 }), k.pos(-2, -10), k.anchor("center"), k.rotate(-34), k.color("#b3935f")]);
+          for (let i = 0; i < 8; i += 1) {
+            k.add([
+              k.circle(k.rand(2, 4)),
+              k.pos(c.px + TILE / 2 + k.rand(-14, 14), c.py + TILE / 2 + k.rand(-10, 6)),
+              k.anchor("center"),
+              k.color(k.choose(["#ffd66b", "#fff3b0", "#f4c542"])),
+              k.opacity(1),
+              k.move(k.rand(0, 360), k.rand(30, 70)),
+              k.lifespan(0.6, { fade: 0.3 }),
+              k.z(46),
+            ]);
+          }
+        };
+        openChestRef.current = openChest;
 
         // ---- player avatar: mover + grounded shadow + bobbing body ----
         let gx = build.start.x;
@@ -383,6 +420,7 @@ export default function ExploreSceneKaplay({
           }
           body.pos.y = moving ? -Math.abs(Math.sin(tm * 12)) * 4 : Math.sin(tm * 4) * 2.5;
           for (const d of decor) {
+            if (!d.obj.exists()) continue;
             if (d.kind === "grass") {
               (d.obj as GameObj).angle = Math.sin(tm * 2.4 + d.phase) * 10;
             } else if (d.kind === "chest" || d.kind === "owl") {
@@ -405,6 +443,7 @@ export default function ExploreSceneKaplay({
 
     return () => {
       disposed = true;
+      openChestRef.current = null;
       cancel();
       if (game) {
         if (activeExploreGame === game) activeExploreGame = null;
