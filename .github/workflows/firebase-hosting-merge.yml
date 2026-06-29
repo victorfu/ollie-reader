@@ -6,6 +6,10 @@ on:
   push:
     branches:
       - master
+    paths-ignore:
+      - 'docs/**'
+      - 'desktop/**'
+      - '**/*.md'
 jobs:
   build_and_deploy:
     runs-on: ubuntu-latest
