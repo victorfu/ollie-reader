@@ -6,7 +6,7 @@ const METEOR_BEST_KEY = "meteor-glider-best";
 const MUSHROOM_BEST_KEY = "mushroom-adventure-best";
 
 type GameCard = {
-  id: "bunny" | "meteor" | "mushroom" | "wonder-academy";
+  id: "spirit-adventure" | "bunny" | "meteor" | "mushroom" | "wonder-academy";
   to: string;
   title: string;
   blurb: string;
@@ -30,6 +30,16 @@ export default function GameHub() {
 
   const cards: GameCard[] = useMemo(
     () => [
+      {
+        id: "spirit-adventure",
+        to: "/games/spirit",
+        title: "精靈探險",
+        blurb:
+          "用生詞本的單字闖關，答對詞彙小測驗、收集可愛精靈夥伴。",
+        tag: "Quiz",
+        emoji: "🧚",
+        best: null,
+      },
       {
         id: "wonder-academy",
         to: "/games/wonder-academy",
@@ -118,7 +128,9 @@ export default function GameHub() {
                   ? `最高星星 ${card.best}`
                   : card.id === "wonder-academy"
                     ? "Firestore 雲端存檔"
-                    : "尚無紀錄"}
+                    : card.id === "spirit-adventure"
+                      ? "雲端存檔進度"
+                      : "尚無紀錄"}
               </span>
               <button
                 type="button"

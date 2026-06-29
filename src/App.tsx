@@ -16,7 +16,6 @@ import {
   PenLine,
   Music,
   MonitorPlay,
-  Gamepad2,
   Joystick,
   Settings as SettingsIcon,
   LogOut,
@@ -357,7 +356,6 @@ function AppContent() {
     { to: "/speech-practice", label: "演講練習", icon: Mic },
     { to: "/audio-uploads", label: "音訊庫", icon: Music },
     { to: "/show", label: "影集字幕", icon: MonitorPlay },
-    { to: "/game", label: "精靈探險", icon: Gamepad2 },
     { to: "/games", label: "小遊戲", icon: Joystick },
   ];
   const currentLabel =
@@ -632,8 +630,11 @@ function AppContent() {
                       />
                       <Route path="/audio-uploads" element={<AudioUploads />} />
                       <Route path="/show" element={<ShowSubtitlesPage />} />
-                      <Route path="/game" element={<SpiritAdventure />} />
                       <Route path="/games" element={<LittleGamesHub />} />
+                      <Route
+                        path="/games/spirit"
+                        element={<SpiritAdventure />}
+                      />
                       <Route
                         path="/games/bunny"
                         element={<BunnyJumper onExit={() => navigate("/games")} />}
