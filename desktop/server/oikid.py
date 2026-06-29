@@ -12,6 +12,7 @@ from typing import Any, Optional
 import httpx
 
 from server.oikid_secrets import get_oikid_credentials
+from server.ssl_compat import create_ssl_context
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +74,7 @@ def search_booking_records(*, client: Optional[httpx.Client] = None) -> dict[str
 
     own_client = client is None
     if own_client:
-        client = httpx.Client(timeout=30.0)
+        client = httpx.Client(timeout=30.0, verify=create_ssl_context())
     try:
         headers = _login(client, username, password)
         resp = client.post(_SEARCH_URL, headers=headers, data={"P": 1}, timeout=30.0)

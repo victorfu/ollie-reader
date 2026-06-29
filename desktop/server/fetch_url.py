@@ -13,6 +13,8 @@ from urllib.parse import unquote, urlparse
 
 import httpx
 
+from server.ssl_compat import create_ssl_context
+
 logger = logging.getLogger(__name__)
 
 # 常見 MIME → 副檔名:優先用顯式對映(避免 mimetypes.guess_extension 跨平台
@@ -68,6 +70,7 @@ async def fetch_url_content_async(
             timeout=httpx.Timeout(float(timeout)),
             follow_redirects=follow_redirects,
             max_redirects=max_redirects,
+            verify=create_ssl_context(),
         )
         should_close_client = True
 
