@@ -2,13 +2,16 @@
 
 import io
 import logging
+import sys
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, File, HTTPException, Query, UploadFile
 from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, StreamingResponse
 
-from server.config import CORS_ORIGINS, VERSION
+from server.config import CORS_ORIGINS, MODELS_DIR, VERSION
+from server import model_download
 from server.fetch_url import FetchError, fetch_url_content_async
 from server.oikid import OikidError, search_booking_records
 from server.models import SpeechRequest
@@ -19,8 +22,20 @@ from server.tts_piper import TTSError, generate_speech
 logger = logging.getLogger(__name__)
 
 
+@asynccontextmanager
+async def _lifespan(app: FastAPI):
+    # Dev 模式：背景下載缺少的 TTS 模型，不阻塞啟動。frozen build 已 bundle，跳過。
+    if model_download.should_auto_download():
+        model_download.start_background_download(MODELS_DIR)
+    yield
+
+
 def create_app() -> FastAPI:
-    app = FastAPI(title="ollie-reader local sidecar", version=VERSION)
+    app = FastAPI(
+        title="ollie-reader local sidecar",
+        version=VERSION,
+        lifespan=_lifespan,
+    )
     app.add_middleware(
         CORSMiddleware,
         allow_origins=CORS_ORIGINS,
@@ -32,6 +47,10 @@ def create_app() -> FastAPI:
     @app.get("/api/version", tags=["meta"])
     async def version():
         return {"version": VERSION, "engine": "local-sidecar"}
+
+    @app.get("/api/models/status", tags=["meta"])
+    async def models_status():
+        return model_download.get_status()
 
     @app.get("/api/fetch-url", tags=["utility"])
     async def fetch_url(
@@ -97,6 +116,10 @@ def create_app() -> FastAPI:
 
     @app.post("/api/tts", tags=["tts"])
     async def tts(request: SpeechRequest):
+        if model_download.is_downloading() and not (
+            MODELS_DIR / "en_US-lessac-medium.onnx"
+        ).exists():
+            raise HTTPException(status_code=503, detail="模型下載中，請稍候")
         length_scale = (
             min(2.0, max(0.1, 1.0 / request.speed)) if request.speed > 0 else 1.0
         )
@@ -127,6 +150,14 @@ def create_app() -> FastAPI:
 
     @app.post("/api/ktts", tags=["tts"])
     async def ktts(request: SpeechRequest):
+        _kokoro_needed = (
+            MODELS_DIR / "kokoro-v1.0.fp16.onnx",
+            MODELS_DIR / "voices-v1.0.bin",
+        )
+        if model_download.is_downloading() and not all(
+            p.exists() for p in _kokoro_needed
+        ):
+            raise HTTPException(status_code=503, detail="模型下載中，請稍候")
         try:
             result = await run_in_threadpool(
                 kokoro_synthesize_speech,
