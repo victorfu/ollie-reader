@@ -163,3 +163,50 @@ def _download_one(mf: ModelFile, models_dir: Path, status: DownloadStatus) -> No
 
     os.replace(part, final)
     status.mark_file(mf.filename, "done", mf.size, mf.size)
+
+
+def ensure_models(models_dir: Path, status: Optional["DownloadStatus"] = None) -> None:
+    status = status or STATUS
+    status.set_state("running")
+    any_failed = False
+    for mf in MANIFEST:
+        try:
+            _download_one(mf, Path(models_dir), status)
+        except Exception as e:  # 單檔失敗不影響其他檔
+            any_failed = True
+            logger.exception("模型下載失敗: %s", mf.filename)
+            status.set_error(f"{mf.filename}: {e}")
+    status.set_state("failed" if any_failed else "done")
+
+
+def should_auto_download() -> bool:
+    return not getattr(sys, "frozen", False)
+
+
+_thread_lock = threading.Lock()
+_thread: Optional[threading.Thread] = None
+
+
+def start_background_download(models_dir: Path) -> None:
+    global _thread
+    with _thread_lock:
+        if _thread is not None and _thread.is_alive():
+            return
+        _thread = threading.Thread(
+            target=ensure_models,
+            args=(models_dir,),
+            daemon=True,
+            name="model-download",
+        )
+        _thread.start()
+
+
+STATUS = DownloadStatus()
+
+
+def is_downloading() -> bool:
+    return STATUS.is_running()
+
+
+def get_status() -> dict:
+    return STATUS.snapshot()

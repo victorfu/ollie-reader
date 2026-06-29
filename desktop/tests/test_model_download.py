@@ -1,4 +1,5 @@
 import hashlib
+import threading
 
 import pytest
 
@@ -113,3 +114,65 @@ def test_bad_checksum_discards_part(tmp_path, monkeypatch):
     assert not (tmp_path / "c.onnx").exists()
     assert not (tmp_path / "c.onnx.part").exists()
     assert st.snapshot()["files"]["c.onnx"]["state"] == "failed"
+
+
+def test_ensure_models_continues_after_one_failure(tmp_path, monkeypatch):
+    good = b"good-data"
+    bad = b"bad-data"
+    manifest = [
+        md.ModelFile("g.bin", "https://e/g", hashlib.sha256(good).hexdigest(), len(good)),
+        md.ModelFile("b.bin", "https://e/b", "0" * 64, len(bad)),
+    ]
+    monkeypatch.setattr(md, "MANIFEST", manifest)
+
+    def fake_stream(method, url, **k):
+        return _FakeStream(good if url.endswith("/g") else bad)
+
+    monkeypatch.setattr(md.httpx, "stream", fake_stream)
+
+    st = md.DownloadStatus()
+    md.ensure_models(tmp_path, st)
+
+    assert (tmp_path / "g.bin").exists()          # 好的有下成功
+    assert not (tmp_path / "b.bin").exists()       # 壞的被丟棄
+    snap = st.snapshot()
+    assert snap["state"] == "failed"               # 整體標記 failed
+    assert snap["files"]["g.bin"]["state"] == "done"
+    assert snap["files"]["b.bin"]["state"] == "failed"
+
+
+def test_ensure_models_all_ok(tmp_path, monkeypatch):
+    data = b"ok"
+    manifest = [md.ModelFile("o.bin", "https://e/o", hashlib.sha256(data).hexdigest(), len(data))]
+    monkeypatch.setattr(md, "MANIFEST", manifest)
+    monkeypatch.setattr(md.httpx, "stream", lambda *a, **k: _FakeStream(data))
+
+    st = md.DownloadStatus()
+    md.ensure_models(tmp_path, st)
+    assert st.snapshot()["state"] == "done"
+
+
+def test_should_auto_download_respects_frozen(monkeypatch):
+    monkeypatch.setattr(md.sys, "frozen", False, raising=False)
+    assert md.should_auto_download() is True
+    monkeypatch.setattr(md.sys, "frozen", True, raising=False)
+    assert md.should_auto_download() is False
+
+
+def test_start_background_download_is_reentrant(tmp_path, monkeypatch):
+    started = []
+    release = threading.Event()
+
+    def blocking_ensure(models_dir, status=None):
+        started.append(1)
+        release.wait(timeout=5)
+
+    monkeypatch.setattr(md, "ensure_models", blocking_ensure)
+    monkeypatch.setattr(md, "_thread", None, raising=False)
+
+    md.start_background_download(tmp_path)
+    md.start_background_download(tmp_path)  # 第二次應被 lock 擋掉
+    release.set()
+    md._thread.join(timeout=5)
+
+    assert len(started) == 1
