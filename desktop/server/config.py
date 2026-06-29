@@ -18,6 +18,10 @@ def _resource_root() -> Path:
     return Path(__file__).resolve().parents[1]
 
 
+# Directory holding the TTS model files (bundled when frozen, downloaded in dev).
+MODELS_DIR = _resource_root() / "models"
+
+
 def _default_piper_model_path() -> str:
     return str(_resource_root() / _PIPER_MODEL_RELATIVE_PATH)
 
