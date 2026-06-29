@@ -41,3 +41,75 @@ def test_status_transitions():
     snap = s.snapshot()
     assert snap["state"] == "failed"
     assert snap["error"] == "boom"
+
+
+class _FakeStream:
+    """模擬 httpx.stream(...) 的 context manager。"""
+
+    def __init__(self, data: bytes):
+        self._data = data
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return False
+
+    def raise_for_status(self):
+        return None
+
+    def iter_bytes(self, chunk_size: int = 65536):
+        # 切成兩塊，確保進度累加路徑被走到
+        mid = max(1, len(self._data) // 2)
+        yield self._data[:mid]
+        yield self._data[mid:]
+
+
+def _model(tmp_name: str, data: bytes) -> "md.ModelFile":
+    return md.ModelFile(
+        filename=tmp_name,
+        url="https://example.test/x",
+        sha256=hashlib.sha256(data).hexdigest(),
+        size=len(data),
+    )
+
+
+def test_skips_existing_valid_file(tmp_path, monkeypatch):
+    data = b"hello-model"
+    mf = _model("a.onnx", data)
+    (tmp_path / "a.onnx").write_bytes(data)
+
+    def boom(*a, **k):
+        raise AssertionError("不應該下載已存在且正確的檔案")
+
+    monkeypatch.setattr(md.httpx, "stream", boom)
+    st = md.DownloadStatus()
+    md._download_one(mf, tmp_path, st)
+    assert st.snapshot()["files"]["a.onnx"]["state"] == "done"
+
+
+def test_downloads_missing_file(tmp_path, monkeypatch):
+    data = b"x" * 5000
+    mf = _model("b.bin", data)
+    monkeypatch.setattr(md.httpx, "stream", lambda *a, **k: _FakeStream(data))
+
+    st = md.DownloadStatus()
+    md._download_one(mf, tmp_path, st)
+
+    assert (tmp_path / "b.bin").read_bytes() == data
+    assert not (tmp_path / "b.bin.part").exists()
+    assert st.snapshot()["files"]["b.bin"]["state"] == "done"
+
+
+def test_bad_checksum_discards_part(tmp_path, monkeypatch):
+    data = b"real-bytes"
+    mf = md.ModelFile("c.onnx", "https://example.test/x", "0" * 64, len(data))
+    monkeypatch.setattr(md.httpx, "stream", lambda *a, **k: _FakeStream(data))
+
+    st = md.DownloadStatus()
+    with pytest.raises(ValueError):
+        md._download_one(mf, tmp_path, st)
+
+    assert not (tmp_path / "c.onnx").exists()
+    assert not (tmp_path / "c.onnx.part").exists()
+    assert st.snapshot()["files"]["c.onnx"]["state"] == "failed"

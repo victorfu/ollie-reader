@@ -106,3 +106,60 @@ class DownloadStatus:
                 "error": self._error,
                 "files": {k: dict(v) for k, v in self._files.items()},
             }
+
+
+_CHUNK = 1024 * 1024
+_LOG_EVERY = 10 * 1024 * 1024
+
+
+def _verify(path: Path, expected_sha256: str) -> bool:
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(_CHUNK), b""):
+            h.update(chunk)
+    return h.hexdigest() == expected_sha256
+
+
+def _download_one(mf: ModelFile, models_dir: Path, status: DownloadStatus) -> None:
+    final = models_dir / mf.filename
+    if final.exists() and _verify(final, mf.sha256):
+        status.mark_file(mf.filename, "done", mf.size, mf.size)
+        return
+
+    models_dir.mkdir(parents=True, exist_ok=True)
+    part = models_dir / (mf.filename + ".part")
+    status.mark_file(mf.filename, "running", 0, mf.size)
+
+    h = hashlib.sha256()
+    downloaded = 0
+    next_log = _LOG_EVERY
+    with httpx.stream(
+        "GET",
+        mf.url,
+        follow_redirects=True,
+        timeout=60.0,
+        verify=create_ssl_context(),
+    ) as resp:
+        resp.raise_for_status()
+        with open(part, "wb") as f:
+            for chunk in resp.iter_bytes(chunk_size=_CHUNK):
+                f.write(chunk)
+                h.update(chunk)
+                downloaded += len(chunk)
+                status.update_progress(mf.filename, downloaded)
+                if downloaded >= next_log:
+                    logger.info(
+                        "下載 %s: %d/%d MB",
+                        mf.filename,
+                        downloaded // (1024 * 1024),
+                        mf.size // (1024 * 1024),
+                    )
+                    next_log += _LOG_EVERY
+
+    if h.hexdigest() != mf.sha256:
+        part.unlink(missing_ok=True)
+        status.mark_file(mf.filename, "failed", downloaded, mf.size)
+        raise ValueError(f"sha256 不符: {mf.filename}")
+
+    os.replace(part, final)
+    status.mark_file(mf.filename, "done", mf.size, mf.size)
