@@ -210,3 +210,20 @@ def is_downloading() -> bool:
 
 def get_status() -> dict:
     return STATUS.snapshot()
+
+
+def main() -> None:
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
+    from server.config import MODELS_DIR
+
+    logger.info("下載 TTS 模型到 %s …", MODELS_DIR)
+    ensure_models(MODELS_DIR)
+    snap = STATUS.snapshot()
+    if snap["state"] != "done":
+        logger.error("部分模型下載失敗: %s", snap["error"])
+        raise SystemExit(1)
+    logger.info("完成。")
+
+
+if __name__ == "__main__":
+    main()

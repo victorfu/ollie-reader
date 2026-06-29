@@ -13,7 +13,7 @@ NPM     := npm
 
 .PHONY: help setup install desktop-setup \
         dev build lint preview \
-        desktop-serve desktop-run desktop-test desktop-icon desktop-package desktop-package-clean desktop-clean \
+        desktop-serve desktop-run desktop-test desktop-models desktop-icon desktop-package desktop-package-clean desktop-clean \
         desktop-verify desktop-dmg desktop-release \
         test clean
 
@@ -52,6 +52,9 @@ desktop-run: ## Run the PySide6 tray shell (it manages the sidecar)
 
 desktop-test: ## Run the desktop pytest suite
 	$(UV) run --directory $(DESKTOP) pytest -v
+
+desktop-models: ## 下載 dev 用的 TTS 模型檔到 desktop/models/
+	cd desktop && uv run python -m server.model_download
 
 desktop-icon: ## Generate assets/AppIcon.icns from tray-icon.png
 	bash $(DESKTOP)/release/make_icon.sh
