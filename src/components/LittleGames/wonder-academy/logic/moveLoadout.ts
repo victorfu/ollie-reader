@@ -9,15 +9,31 @@ import {
 
 const MAX_EQUIPPED_MOVES = 4;
 
+function knownMoveIds(moveIds: string[]): string[] {
+  return moveIds.filter((moveId) => !!getMoveById(moveId)).slice(0, MAX_EQUIPPED_MOVES);
+}
+
+function isValidExistingMove(
+  owned: OwnedCreature,
+  species: CreatureSpecies,
+  moveId: string,
+): boolean {
+  const pool = learnablePool(species);
+  const poolIndex = pool.indexOf(moveId);
+  if (poolIndex < 0) return false;
+  return defaultEquipped(species).includes(moveId) || owned.level >= moveUnlockLevel(poolIndex);
+}
+
 export function equippedMovesFor(
   owned: OwnedCreature,
   species: CreatureSpecies | undefined,
 ): string[] {
-  const moveIds =
-    owned.equippedMoveIds && owned.equippedMoveIds.length > 0
-      ? owned.equippedMoveIds
-      : species ? defaultEquipped(species) : [];
-  return moveIds.filter((moveId) => !!getMoveById(moveId)).slice(0, MAX_EQUIPPED_MOVES);
+  if (!species) return knownMoveIds(owned.equippedMoveIds ?? []);
+
+  const savedMoveIds = knownMoveIds(owned.equippedMoveIds ?? [])
+    .filter((moveId) => isValidExistingMove(owned, species, moveId));
+
+  return savedMoveIds.length > 0 ? savedMoveIds : knownMoveIds(defaultEquipped(species));
 }
 
 export function canEquipMoveForCreature(

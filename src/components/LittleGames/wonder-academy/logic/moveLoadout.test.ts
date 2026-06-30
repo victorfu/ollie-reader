@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   equipMoveForCreature,
+  equippedMovesFor,
   unequipMoveForCreature,
 } from "./moveLoadout";
 import { speciesById, type OwnedCreature } from "../wonderAcademyCreatures";
@@ -63,6 +64,40 @@ describe("Wonder Academy move loadouts", () => {
     expect(unequipMoveForCreature(owned, lumi, "zip-spark")).toEqual({
       ...owned,
       equippedMoveIds: ["tiny-flash"],
+    });
+  });
+
+  it("repairs known saved moves from another species", () => {
+    const owned = ownedLumi({ equippedMoveIds: ["bubble-pat"] });
+
+    expect(equippedMovesFor(owned, lumi)).toEqual([
+      "tiny-flash",
+      "zip-spark",
+      "wink-feint",
+      "starstep-dash",
+    ]);
+  });
+
+  it("repairs locked high-tier saved moves", () => {
+    const owned = ownedLumi({ level: 1, equippedMoveIds: ["aurora-parade"] });
+
+    expect(equippedMovesFor(owned, lumi)).toEqual([
+      "tiny-flash",
+      "zip-spark",
+      "wink-feint",
+      "starstep-dash",
+    ]);
+  });
+
+  it("drops invalid saved moves when equipping a valid move", () => {
+    const owned = ownedLumi({
+      level: 9,
+      equippedMoveIds: ["bubble-pat", "tiny-flash"],
+    });
+
+    expect(equipMoveForCreature(owned, lumi, "aurora-parade")).toEqual({
+      ...owned,
+      equippedMoveIds: ["tiny-flash", "aurora-parade"],
     });
   });
 });

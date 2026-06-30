@@ -37,6 +37,7 @@ import { canEvolve, evolve } from "./logic/evolution";
 import { rollLoot, type LootTable } from "./logic/loot";
 import {
   equipMoveForCreature,
+  equippedMovesFor,
   unequipMoveForCreature,
 } from "./logic/moveLoadout";
 import { gainXp } from "./logic/progression";
@@ -45,7 +46,6 @@ import { dexCompletion, recordDex } from "./logic/wonderdex";
 import {
   allSpecies,
   catchableSpecies,
-  defaultEquipped,
   ELEMENT_META,
   FIELD_SKILLS,
   fieldSkillForElements,
@@ -872,10 +872,7 @@ function SkillsScreen({
 }) {
   const sp = speciesById(owned.speciesId);
   if (!sp) return <div />;
-  const equipped =
-    owned.equippedMoveIds && owned.equippedMoveIds.length > 0
-      ? owned.equippedMoveIds
-      : defaultEquipped(sp);
+  const equipped = equippedMovesFor(owned, sp);
   const pool = learnablePool(sp);
 
   return (
