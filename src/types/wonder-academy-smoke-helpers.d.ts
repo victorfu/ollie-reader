@@ -1,5 +1,6 @@
 declare module "*.mjs" {
   export const WONDER_ACADEMY_GUEST_SAVE_KEY: string;
+  export const WONDER_ACADEMY_SMOKE_CHECKS: readonly string[];
 
   export type WonderAcademySmokeConsoleEntry = {
     type: string;

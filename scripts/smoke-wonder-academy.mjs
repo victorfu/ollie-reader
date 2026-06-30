@@ -5,10 +5,12 @@ import {
   buildWonderAcademyGuestSave,
   relevantWonderAcademyConsoleEntries,
   WONDER_ACADEMY_GUEST_SAVE_KEY,
+  WONDER_ACADEMY_SMOKE_CHECKS,
 } from "./wonder-academy-smoke-helpers.mjs";
 
 const targetUrl = process.env.WONDER_ACADEMY_SMOKE_URL
   ?? "http://localhost:5173/games/wonder-academy";
+const legacyUrl = new URL("/games/monster-academy", targetUrl).toString();
 
 async function assertServerReachable(url) {
   try {
@@ -43,6 +45,60 @@ async function seedGuestSave(page, save) {
   }, { key: WONDER_ACADEMY_GUEST_SAVE_KEY, value: save });
 }
 
+async function clearWonderAcademySavesOnLoad(page) {
+  await page.addInitScript(() => {
+    for (const key of Object.keys(window.localStorage)) {
+      if (key.startsWith("wonder-academy-")) window.localStorage.removeItem(key);
+    }
+  });
+}
+
+async function assertExploreCanvasRendered(page) {
+  const canvas = page.locator("canvas").first();
+  await canvas.waitFor({ timeout: 10000 });
+  await page.waitForTimeout(750);
+  const info = await canvas.evaluate((element) => {
+    const canvasElement = element;
+    const gl = canvasElement.getContext("webgl")
+      || canvasElement.getContext("webgl2")
+      || canvasElement.getContext("experimental-webgl");
+    let pixel = null;
+    if (gl) {
+      const data = new Uint8Array(4);
+      gl.readPixels(
+        Math.floor(canvasElement.width / 2),
+        Math.floor(canvasElement.height / 2),
+        1,
+        1,
+        gl.RGBA,
+        gl.UNSIGNED_BYTE,
+        data,
+      );
+      pixel = Array.from(data);
+    }
+    return {
+      width: canvasElement.width,
+      height: canvasElement.height,
+      hasWebGl: !!gl,
+      pixel,
+    };
+  });
+  const screenshot = await canvas.screenshot();
+  const hasVisiblePixel = !!info.pixel && info.pixel[3] > 0 && info.pixel.slice(0, 3).some((v) => v > 0);
+  if (
+    info.width <= 0
+    || info.height <= 0
+    || !info.hasWebGl
+    || !hasVisiblePixel
+    || screenshot.length < 2048
+  ) {
+    throw new Error(`Explore canvas did not render a visible WebGL scene: ${JSON.stringify({
+      ...info,
+      screenshotBytes: screenshot.length,
+    })}`);
+  }
+}
+
 async function openGuestHub(context, save) {
   const page = await context.newPage();
   const watch = createBrowserWatch(page);
@@ -50,6 +106,35 @@ async function openGuestHub(context, save) {
   await page.goto(targetUrl, { waitUntil: "networkidle" });
   await page.getByRole("heading", { name: "學院大廳" }).waitFor({ timeout: 10000 });
   return { page, watch };
+}
+
+async function smokeNewGameExploreFlow(context) {
+  const page = await context.newPage();
+  const watch = createBrowserWatch(page);
+  await clearWonderAcademySavesOnLoad(page);
+
+  await page.goto(legacyUrl, { waitUntil: "networkidle" });
+  await page.waitForURL(/\/games\/wonder-academy(?:$|[?#])/, { timeout: 10000 });
+  await page.getByRole("heading", { name: "Wonder Academy" }).waitFor({ timeout: 10000 });
+  await page.getByRole("button", { name: /訪客試玩/ }).click();
+  await page.getByPlaceholder("輸入你的名字").fill("QA");
+  await page.getByRole("button", { name: /這就是我/ }).click();
+  await page.getByRole("heading", { name: /選擇你的第一個夥伴/ }).waitFor({ timeout: 5000 });
+  await page.getByRole("button", { name: /^Lumi/ }).click();
+  await page.getByRole("heading", { name: /Lumi 選擇了你/ }).waitFor({ timeout: 5000 });
+  await page.getByPlaceholder(/幫牠取個暱稱/).fill("Spark");
+  await page.getByRole("button", { name: /一起出發/ }).click();
+  await page.getByRole("heading", { name: "學院大廳" }).waitFor({ timeout: 5000 });
+
+  await page.getByRole("button", { name: /出發探索/ }).click();
+  await page.getByRole("heading", { name: "選擇探索地點" }).waitFor({ timeout: 5000 });
+  await page.getByRole("button", { name: /星葉森林/ }).click();
+  await page.getByRole("heading", { name: /星葉森林/ }).waitFor({ timeout: 5000 });
+  await page.getByRole("button", { name: /^🐾 林間入口$/ }).click();
+  await assertExploreCanvasRendered(page);
+
+  await page.close();
+  return watch;
 }
 
 async function smokeMalformedSkillsRepair(context) {
@@ -107,6 +192,7 @@ async function main() {
   const watches = [];
 
   try {
+    watches.push(await smokeNewGameExploreFlow(context));
     watches.push(await smokeMalformedSkillsRepair(context));
     watches.push(await smokeHubSurfacesAndEquip(context));
   } finally {
@@ -123,14 +209,7 @@ async function main() {
   console.log(JSON.stringify({
     status: "passed",
     url: targetUrl,
-    checks: [
-      "guest hub loads",
-      "malformed skills loadout repairs",
-      "skill equip updates",
-      "Wonderdex opens",
-      "shop opens",
-      "no relevant console or page errors",
-    ],
+    checks: WONDER_ACADEMY_SMOKE_CHECKS,
   }, null, 2));
 }
 

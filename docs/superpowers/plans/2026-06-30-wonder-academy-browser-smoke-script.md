@@ -4,7 +4,7 @@
 
 **Goal:** Add a repeatable browser smoke script for `/games/wonder-academy` that runs against an already-running local dev server.
 
-**Architecture:** Add a Node Playwright smoke runner under `scripts/` and keep pure helper logic in a small helper module that Vitest can cover. The smoke runner never starts Vite; it reads `WONDER_ACADEMY_SMOKE_URL` or defaults to `http://localhost:5173/games/wonder-academy`, injects isolated guest saves, exercises core UI flows, filters known Firebase App Check noise, and exits non-zero on relevant console/page errors or missing UI states.
+**Architecture:** Add a Node Playwright smoke runner under `scripts/` and keep pure helper logic in a small helper module that Vitest can cover. The smoke runner never starts Vite; it reads `WONDER_ACADEMY_SMOKE_URL` or defaults to `http://localhost:5173/games/wonder-academy`, exercises entry/new-game/explore and saved-hub flows, filters known Firebase App Check and Playwright WebGL readback noise, and exits non-zero on relevant console/page errors or missing UI states.
 
 **Tech Stack:** React 19, TypeScript strict, Vitest, Playwright, existing Vite dev server.
 
@@ -87,6 +87,12 @@ Add `scripts/smoke-wonder-academy.mjs` and update `package.json`:
 Runner checks:
 
 - dev server responds at the target URL.
+- legacy `/games/monster-academy` redirects to `/games/wonder-academy`.
+- guest title loads.
+- new guest game reaches hub after player name, starter, and nickname steps.
+- region map opens.
+- node map opens.
+- explore WebGL canvas renders visibly.
 - guest hub loads from injected save.
 - skills panel repairs malformed saved loadout.
 - skill equip updates from 1/4 to 2/4.
@@ -128,3 +134,24 @@ git add docs/superpowers/plans/2026-06-30-wonder-academy-browser-smoke-script.md
   src/types/wonder-academy-smoke-helpers.d.ts
 git commit -m "test(wonder-academy): add browser smoke script"
 ```
+
+## Task 4: Expanded Canonical Browser Coverage
+
+- [x] **Step 1: Extend helper contract**
+
+Add `WONDER_ACADEMY_SMOKE_CHECKS` and focused Vitest coverage for the expanded smoke checklist plus Chromium WebGL readback warning filtering.
+
+- [x] **Step 2: Extend runner flow**
+
+Add a legacy route -> guest new-game -> starter selection -> hub -> region map -> node map -> explore canvas flow. Keep the runner pointed at the existing dev server; do not start Vite.
+
+- [x] **Step 3: Verify expanded smoke**
+
+Run:
+
+```bash
+npm run test -- src/components/LittleGames/wonder-academy/wonderAcademySmokeScript.test.ts
+npm run smoke:wonder-academy
+```
+
+Expected: focused tests pass, and smoke output includes `legacy route redirects`, `new game reaches hub`, `region map opens`, `node map opens`, and `explore canvas renders`.

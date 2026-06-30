@@ -4,6 +4,7 @@ import {
   buildWonderAcademyGuestSave,
   isKnownBenignWonderAcademyConsoleEntry,
   relevantWonderAcademyConsoleEntries,
+  WONDER_ACADEMY_SMOKE_CHECKS,
 } from "../../../../scripts/wonder-academy-smoke-helpers.mjs";
 
 describe("Wonder Academy browser smoke helpers", () => {
@@ -36,6 +37,15 @@ describe("Wonder Academy browser smoke helpers", () => {
     ).toBe(true);
   });
 
+  it("ignores Chromium WebGL readback warnings caused by canvas smoke checks", () => {
+    expect(
+      isKnownBenignWonderAcademyConsoleEntry({
+        type: "warning",
+        text: "[.WebGL-0x12c00549400]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
+      }),
+    ).toBe(true);
+  });
+
   it("keeps unrelated console errors relevant", () => {
     const entries = [
       {
@@ -47,6 +57,23 @@ describe("Wonder Academy browser smoke helpers", () => {
 
     expect(relevantWonderAcademyConsoleEntries(entries)).toEqual([
       { type: "error", text: "TypeError: Cannot read properties of undefined" },
+    ]);
+  });
+
+  it("documents the full browser smoke coverage contract", () => {
+    expect(WONDER_ACADEMY_SMOKE_CHECKS).toEqual([
+      "legacy route redirects",
+      "guest title loads",
+      "new game reaches hub",
+      "region map opens",
+      "node map opens",
+      "explore canvas renders",
+      "guest hub loads",
+      "malformed skills loadout repairs",
+      "skill equip updates",
+      "Wonderdex opens",
+      "shop opens",
+      "no relevant console or page errors",
     ]);
   });
 });
