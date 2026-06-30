@@ -5,6 +5,14 @@ export type WonderAcademyEntryCopy = {
   noticeBody: string | null;
 };
 
+export type WonderAcademyVisibleSaveStatus =
+  | "idle"
+  | "loading"
+  | "saving"
+  | "saved"
+  | "pending"
+  | "failed";
+
 export function getWonderAcademyEntryCopy({
   isGuest,
 }: {
@@ -29,4 +37,16 @@ export function getWonderAcademyEntryCopy({
 
 export function shouldConfirmWonderAcademyOverwrite(teamSize: number): boolean {
   return teamSize > 0;
+}
+
+export function visibleWonderAcademySaveStatus({
+  isGuest,
+  status,
+}: {
+  isGuest: boolean;
+  status: WonderAcademyVisibleSaveStatus;
+}): WonderAcademyVisibleSaveStatus {
+  if (!isGuest) return status;
+  if (status === "saving" || status === "failed" || status === "loading") return status;
+  return "saved";
 }

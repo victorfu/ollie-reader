@@ -90,6 +90,7 @@ import {
 import {
   getWonderAcademyEntryCopy,
   shouldConfirmWonderAcademyOverwrite,
+  visibleWonderAcademySaveStatus,
 } from "./wonderAcademySessionGuards";
 
 type Screen =
@@ -1103,7 +1104,7 @@ export default function WonderAcademyGame({ onExit }: Props) {
         setHasUnsyncedLocalProgress(!isGuest && result.hasUnsyncedLocalProgress);
         setSaveSnapshot({
           uid,
-          status: isGuest && result.status === "idle" ? "saved" : result.status,
+          status: visibleWonderAcademySaveStatus({ isGuest, status: result.status }),
         });
       })
       .catch(() => {

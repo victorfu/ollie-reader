@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   getWonderAcademyEntryCopy,
   shouldConfirmWonderAcademyOverwrite,
+  visibleWonderAcademySaveStatus,
 } from "./wonderAcademySessionGuards";
 
 describe("getWonderAcademyEntryCopy", () => {
@@ -29,5 +30,22 @@ describe("shouldConfirmWonderAcademyOverwrite", () => {
     expect(shouldConfirmWonderAcademyOverwrite(0)).toBe(false);
     expect(shouldConfirmWonderAcademyOverwrite(1)).toBe(true);
     expect(shouldConfirmWonderAcademyOverwrite(3)).toBe(true);
+  });
+});
+
+describe("visibleWonderAcademySaveStatus", () => {
+  it("maps guest local and pending states to saved", () => {
+    expect(visibleWonderAcademySaveStatus({ isGuest: true, status: "idle" })).toBe("saved");
+    expect(visibleWonderAcademySaveStatus({ isGuest: true, status: "pending" })).toBe("saved");
+  });
+
+  it("keeps guest saving and failed states explicit", () => {
+    expect(visibleWonderAcademySaveStatus({ isGuest: true, status: "saving" })).toBe("saving");
+    expect(visibleWonderAcademySaveStatus({ isGuest: true, status: "failed" })).toBe("failed");
+  });
+
+  it("does not rewrite signed-in save states", () => {
+    expect(visibleWonderAcademySaveStatus({ isGuest: false, status: "pending" })).toBe("pending");
+    expect(visibleWonderAcademySaveStatus({ isGuest: false, status: "saved" })).toBe("saved");
   });
 });
