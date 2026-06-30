@@ -3,6 +3,7 @@ import type { Wonderdex } from "./logic/wonderdex";
 import type { WonderAcademyAudioSettings, WonderAcademyElement } from "../../../types/wonderAcademy";
 import { normalizeAudioSettings } from "./wonderAcademyAudio";
 import {
+  FIELD_SKILLS,
   fieldSkillForElements,
   type CreatureSpecies,
   type OwnedCreature,
@@ -171,10 +172,12 @@ function normalizeCustomCreatures(value: unknown): CreatureSpecies[] {
     const elements = Array.isArray(record.elements)
       ? (record.elements as WonderAcademyElement[])
       : [];
-    const fieldSkillId =
-      typeof record.fieldSkillId === "string" && record.fieldSkillId.trim().length > 0
-        ? record.fieldSkillId
-        : fieldSkillForElements(elements);
+    const savedFieldSkillId = typeof record.fieldSkillId === "string"
+      ? record.fieldSkillId.trim()
+      : "";
+    const fieldSkillId = savedFieldSkillId && FIELD_SKILLS[savedFieldSkillId]
+      ? savedFieldSkillId
+      : fieldSkillForElements(elements);
     return [{ ...(record as unknown as CreatureSpecies), fieldSkillId }];
   });
 }

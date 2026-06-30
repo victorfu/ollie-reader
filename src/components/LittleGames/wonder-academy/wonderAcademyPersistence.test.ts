@@ -153,6 +153,31 @@ describe("normalizeWonderAcademySave", () => {
       ["custom-existing", "soft-float"],
     ]);
   });
+
+  it("repairs invalid custom creature field skills from elements", () => {
+    expect(
+      normalizeWonderAcademySave({
+        playerName: "Mina",
+        team: [],
+        customCreatures: [
+          {
+            speciesId: "custom-bad-skill",
+            name: "Bad Skill",
+            category: "自訂夥伴",
+            personality: "Legacy custom creature with bad metadata",
+            elements: ["tide"],
+            rarity: "rare",
+            favoriteSnack: "moon-milk-puff",
+            growthStages: ["Bad Skill"],
+            moveIds: ["bubble-pat"],
+            fieldSkillId: "missing-skill",
+            portrait: "bad.png",
+            wild: true,
+          },
+        ],
+      })?.customCreatures[0].fieldSkillId,
+    ).toBe("soft-float");
+  });
 });
 
 describe("local cache and pending queue", () => {
