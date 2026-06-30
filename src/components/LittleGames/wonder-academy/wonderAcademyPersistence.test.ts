@@ -236,6 +236,62 @@ describe("normalizeWonderAcademySave", () => {
       "moon-drizzle",
     ]);
   });
+
+  it("filters invalid custom creature elements before deriving metadata", () => {
+    const normalized = normalizeWonderAcademySave({
+      playerName: "Mina",
+      team: [],
+      customCreatures: [
+        {
+          speciesId: "custom-mixed-elements",
+          name: "Mixed Elements",
+          category: "自訂夥伴",
+          personality: "Legacy custom creature with mixed metadata",
+          elements: ["bogus", "leaf"],
+          rarity: "rare",
+          favoriteSnack: "clover-macaron",
+          growthStages: ["Mixed Elements"],
+          moveIds: ["missing-move"],
+          fieldSkillId: "missing-skill",
+          portrait: "mixed.png",
+          wild: true,
+        },
+      ],
+    });
+
+    expect(normalized?.customCreatures[0]).toMatchObject({
+      elements: ["leaf"],
+      fieldSkillId: "secret-sense",
+      moveIds: ["leaf-wink", "clover-patch", "mossy-tackle", "spore-puff"],
+    });
+  });
+
+  it("defaults custom creature elements to light when none are valid", () => {
+    const normalized = normalizeWonderAcademySave({
+      playerName: "Mina",
+      team: [],
+      customCreatures: [
+        {
+          speciesId: "custom-bad-elements",
+          name: "Bad Elements",
+          category: "自訂夥伴",
+          personality: "Legacy custom creature with bad elements",
+          elements: ["bogus"],
+          rarity: "rare",
+          favoriteSnack: "starberry-cookie",
+          growthStages: ["Bad Elements"],
+          portrait: "bad-elements.png",
+          wild: true,
+        },
+      ],
+    });
+
+    expect(normalized?.customCreatures[0]).toMatchObject({
+      elements: ["light"],
+      fieldSkillId: "light-trail",
+      moveIds: ["tiny-flash", "starstep-dash", "aurora-parade"],
+    });
+  });
 });
 
 describe("local cache and pending queue", () => {

@@ -1,7 +1,11 @@
 import type { DailyProgress } from "./logic/dailyTasks";
 import type { Wonderdex } from "./logic/wonderdex";
 import { getMoveById } from "../../../data/wonderAcademyMoves";
-import type { WonderAcademyAudioSettings, WonderAcademyElement } from "../../../types/wonderAcademy";
+import {
+  WONDER_ACADEMY_ELEMENTS,
+  type WonderAcademyAudioSettings,
+  type WonderAcademyElement,
+} from "../../../types/wonderAcademy";
 import { normalizeAudioSettings } from "./wonderAcademyAudio";
 import {
   FIELD_SKILLS,
@@ -166,13 +170,19 @@ function removeStorage(storage: Storage | null | undefined, key: string): void {
   }
 }
 
+const VALID_ELEMENTS = new Set<string>(WONDER_ACADEMY_ELEMENTS);
+
+function isWonderAcademyElement(value: unknown): value is WonderAcademyElement {
+  return typeof value === "string" && VALID_ELEMENTS.has(value);
+}
+
 function normalizeCustomCreatures(value: unknown): CreatureSpecies[] {
   if (!Array.isArray(value)) return [];
   return value.flatMap((item) => {
     const record = asRecord(item);
     if (!record) return [];
     const elements = Array.isArray(record.elements)
-      ? (record.elements as WonderAcademyElement[])
+      ? record.elements.filter(isWonderAcademyElement)
       : [];
     const normalizedElements: WonderAcademyElement[] = elements.length > 0 ? elements : ["light"];
     const moveIds = Array.isArray(record.moveIds)
