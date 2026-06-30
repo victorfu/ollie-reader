@@ -183,6 +183,24 @@ describe("normalizeWonderAcademySave", () => {
     });
   });
 
+  it("normalizes saved daily reward dates", () => {
+    expect(
+      normalizeWonderAcademySave({
+        playerName: "Mina",
+        team: [],
+        lastDailyReward: " 2026-6-30 ",
+      })?.lastDailyReward,
+    ).toBe("2026-6-30");
+
+    expect(
+      normalizeWonderAcademySave({
+        playerName: "Mina",
+        team: [],
+        lastDailyReward: " ",
+      })?.lastDailyReward,
+    ).toBeNull();
+  });
+
   it("preserves valid audio settings from saved progress", () => {
     expect(
       normalizeWonderAcademySave({

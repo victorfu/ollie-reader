@@ -166,6 +166,12 @@ function clampedInteger(value: unknown, fallback: number, min: number, max: numb
   return Math.min(max, Math.max(min, numberValue));
 }
 
+function optionalTrimmedString(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
+}
+
 const DEX_STATUSES = new Set<string>(["unseen", "seen", "caught", "evolved"]);
 
 function isDexStatus(value: unknown): value is DexStatus {
@@ -336,7 +342,7 @@ export function normalizeWonderAcademySave(input: unknown): WonderAcademyProgres
     clearedNodes: uniqueStringIds(parsed.clearedNodes),
     shinyDex: uniqueStringIds(parsed.shinyDex),
     dexRewardsClaimed: uniqueNonNegativeIntegers(parsed.dexRewardsClaimed),
-    lastDailyReward: typeof parsed.lastDailyReward === "string" ? parsed.lastDailyReward : null,
+    lastDailyReward: optionalTrimmedString(parsed.lastDailyReward),
     daily: normalizeDailyProgress(parsed.daily),
     audioSettings: normalizeAudioSettings(asRecord(parsed.audioSettings)),
   };
