@@ -502,6 +502,28 @@ describe("loadWonderAcademySave", () => {
       status: "pending",
       hasUnsyncedLocalProgress: true,
     });
+    expect(readWonderAcademyPending(uid)).toMatchObject({
+      updatedAt: 300,
+      data: sample({ playerName: "Local" }),
+    });
+  });
+
+  it("queues local cache as pending when cloud has no save", async () => {
+    const cloud = cloudAdapter();
+    writeWonderAcademyCache(uid, sample({ playerName: "Local only" }), 300);
+    vi.mocked(cloud.load).mockResolvedValue(null);
+
+    const loaded = await loadWonderAcademySave({ uid, cloud });
+
+    expect(loaded).toMatchObject({
+      source: "local",
+      status: "pending",
+      hasUnsyncedLocalProgress: true,
+    });
+    expect(readWonderAcademyPending(uid)).toMatchObject({
+      updatedAt: 300,
+      data: sample({ playerName: "Local only" }),
+    });
   });
 
   it("keeps a pending save when it is newer than cloud", async () => {

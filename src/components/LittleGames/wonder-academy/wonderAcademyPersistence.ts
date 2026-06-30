@@ -478,6 +478,9 @@ export async function loadWonderAcademySave({
   const hasUnsyncedLocalProgress =
     selected.source === "pending"
     || (!cloudFailed && (selected.source === "local" || selected.source === "legacy-local"));
+  if (hasUnsyncedLocalProgress && selected.source !== "pending") {
+    writeWonderAcademyPending(uid, selected.data, selected.updatedAt, storage);
+  }
 
   return {
     data: selected.data,
