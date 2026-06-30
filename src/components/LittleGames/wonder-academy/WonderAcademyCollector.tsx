@@ -63,6 +63,7 @@ import {
   FIRST_REGION,
   isNodeUnlocked,
   isRegionUnlocked,
+  nodeUnlockHint,
   nodeKey,
   REGIONS,
   regionById,
@@ -1441,6 +1442,7 @@ export default function WonderAcademyGame({ onExit }: Props) {
             const cleared = n.kind === "warden" ? wardenDone : state.clearedNodes.includes(nodeKey(region.id, n.id));
             const isWardenNode = n.kind === "warden";
             const live = unlocked && !cleared;
+            const unlockHint = nodeUnlockHint(n, region, state.clearedNodes);
             const dotBg = !unlocked ? "#cdc6dd" : isWardenNode ? (cleared ? "#9ac0e0" : "#ef5b6e") : cleared ? "#5fbf7a" : "#7c6cff";
             const glyph = !unlocked ? "🔒" : isWardenNode ? (cleared ? "✨" : "👑") : cleared ? "✓" : "🐾";
             return (
@@ -1453,6 +1455,9 @@ export default function WonderAcademyGame({ onExit }: Props) {
               >
                 <span className={live ? "wa-node-live" : undefined} style={{ width: 38, height: 38, borderRadius: "50%", background: dotBg, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, border: "2px solid #fff", boxShadow: "0 4px 10px rgba(60,40,90,.25)", animation: live ? "waNodePulse 1.8s ease-in-out infinite" : undefined }}>{glyph}</span>
                 <span style={{ fontSize: 11, fontWeight: 800, color: unlocked ? "#33304a" : "#8a83a3", background: "rgba(255,255,255,.82)", borderRadius: 8, padding: "2px 7px", whiteSpace: "nowrap" }}>{n.label}</span>
+                {unlockHint && (
+                  <span style={{ fontSize: 10, fontWeight: 800, color: "#6a6585", background: "rgba(255,255,255,.82)", borderRadius: 8, padding: "2px 6px", whiteSpace: "nowrap", boxShadow: "0 2px 6px rgba(60,40,90,.08)" }}>🔒 {unlockHint}</span>
+                )}
               </button>
             );
           })}

@@ -156,3 +156,15 @@ export function isNodeUnlocked(
 ): boolean {
   return node.requires.every((rid) => clearedNodes.includes(nodeKey(regionId, rid)));
 }
+
+export function nodeUnlockHint(
+  node: RegionNode,
+  region: Region,
+  clearedNodes: string[],
+): string | null {
+  const missing = node.requires.filter((rid) => !clearedNodes.includes(nodeKey(region.id, rid)));
+  if (missing.length === 0) return null;
+
+  const labels = missing.map((rid) => region.nodes.find((candidate) => candidate.id === rid)?.label ?? rid);
+  return `先完成「${labels.join("、")}」`;
+}
