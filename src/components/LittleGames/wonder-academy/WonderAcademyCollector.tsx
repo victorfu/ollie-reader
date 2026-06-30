@@ -42,6 +42,7 @@ import {
   defaultEquipped,
   ELEMENT_META,
   FIELD_SKILLS,
+  fieldSkillForElements,
   learnablePool,
   makeCustomCreature,
   moveUnlockLevel,
@@ -992,6 +993,7 @@ function CreatureBuilder({
 
   const canSave =
     name.trim().length > 0 && portrait.length > 0 && elements.length > 0;
+  const selectedFieldSkill = FIELD_SKILLS[fieldSkillForElements(elements)];
 
   return (
     <div>
@@ -1030,6 +1032,13 @@ function CreatureBuilder({
               );
             })}
           </div>
+          {elements.length > 0 && (
+            <div style={{ marginTop: 10, fontSize: 12, color: "#6a6585", background: "#fff", border: "1px solid rgba(60,40,90,.12)", borderRadius: 12, padding: "8px 10px" }}>
+              <div style={{ fontSize: 11, fontWeight: 800, color: "#8a83a3", marginBottom: 3 }}>建立後探索能力</div>
+              <div style={{ fontWeight: 800, color: "#33304a" }}>{selectedFieldSkill.emoji} {selectedFieldSkill.name}</div>
+              <div>{selectedFieldSkill.desc}</div>
+            </div>
+          )}
 
           <div style={{ ...fieldLabel, marginTop: 14 }}>最愛點心</div>
           <select value={favoriteSnack} onChange={(e) => setFavoriteSnack(e.target.value)} style={fieldInput}>
