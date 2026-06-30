@@ -7,6 +7,8 @@ import type { WonderAcademyAudioSettings } from "../../../types/wonderAcademy";
 import {
   createWonderAcademyAudio,
   defaultWonderAcademyAudioSettings,
+  selectWonderAcademyLoop,
+  wonderAcademyLoopIds,
   type WonderAcademyAudioManager,
 } from "./wonderAcademyAudio";
 import { getMoveById } from "../../../data/wonderAcademyMoves";
@@ -1138,13 +1140,11 @@ export default function WonderAcademyGame({ onExit }: Props) {
       audio.stopAll();
       return;
     }
-    const loop =
-      state.screen === "battle"
-        ? state.isWarden
-          ? "warden_trial_loop"
-          : "mood_trial_loop"
-        : "hub_loop";
-    for (const id of ["hub_loop", "mood_trial_loop", "warden_trial_loop"] as const) {
+    const loop = selectWonderAcademyLoop({
+      screen: state.screen,
+      isWarden: state.isWarden,
+    });
+    for (const id of wonderAcademyLoopIds) {
       if (id !== loop) audio.stopLoop(id);
     }
     audio.startLoop(loop);

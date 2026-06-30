@@ -5,6 +5,7 @@ import {
   wonderAcademySfxUrls,
   createWonderAcademyAudio,
   normalizeAudioSettings,
+  selectWonderAcademyLoop,
   type WonderAcademyLoopId,
   type WonderAcademySfxId,
 } from "./wonderAcademyAudio";
@@ -82,6 +83,34 @@ describe("Wonder Academy audio manifest", () => {
     for (const id of requiredLoopIds) {
       expect(wonderAcademyLoopUrls[id]).toContain(`${id}.wav`);
     }
+  });
+});
+
+describe("Wonder Academy loop selection", () => {
+  it.each(["title", "hub", "dex", "shop", "builder", "skills"])(
+    "uses the hub loop on %s screens",
+    (screen) => {
+      expect(selectWonderAcademyLoop({ screen })).toBe("hub_loop");
+    },
+  );
+
+  it.each(["regions", "nodeMap", "scene"])(
+    "uses the region map loop on %s screens",
+    (screen) => {
+      expect(selectWonderAcademyLoop({ screen })).toBe("region_map_loop");
+    },
+  );
+
+  it("uses the normal battle loop for non-warden battles", () => {
+    expect(selectWonderAcademyLoop({ screen: "battle", isWarden: false })).toBe(
+      "mood_trial_loop",
+    );
+  });
+
+  it("uses the warden loop for warden battles", () => {
+    expect(selectWonderAcademyLoop({ screen: "battle", isWarden: true })).toBe(
+      "warden_trial_loop",
+    );
   });
 });
 
