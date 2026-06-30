@@ -1,4 +1,8 @@
-import type { DailyProgress } from "./logic/dailyTasks";
+import {
+  DAILY_TASKS,
+  type DailyProgress,
+  type DailyTaskId,
+} from "./logic/dailyTasks";
 import type { Wonderdex } from "./logic/wonderdex";
 import { getMoveById } from "../../../data/wonderAcademyMoves";
 import { MAX_BOND } from "./logic/bond";
@@ -162,6 +166,40 @@ function clampedInteger(value: unknown, fallback: number, min: number, max: numb
   return Math.min(max, Math.max(min, numberValue));
 }
 
+const DAILY_TASK_IDS = DAILY_TASKS.map((task) => task.id);
+const DAILY_TASK_ID_SET = new Set<string>(DAILY_TASK_IDS);
+
+function isDailyTaskId(value: unknown): value is DailyTaskId {
+  return typeof value === "string" && DAILY_TASK_ID_SET.has(value);
+}
+
+function uniqueDailyTaskIds(value: unknown): DailyTaskId[] {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set<DailyTaskId>();
+  return value.flatMap((item) => {
+    if (!isDailyTaskId(item) || seen.has(item)) return [];
+    seen.add(item);
+    return [item];
+  });
+}
+
+function normalizeDailyProgress(value: unknown): DailyProgress | null {
+  const record = asRecord(value);
+  if (!record || typeof record.date !== "string") return null;
+  const countsRecord = asRecord(record.counts);
+  const counts = Object.fromEntries(
+    DAILY_TASK_IDS.map((id) => [
+      id,
+      clampedInteger(countsRecord?.[id], 0, 0, Number.MAX_SAFE_INTEGER),
+    ]),
+  ) as Record<DailyTaskId, number>;
+  return {
+    date: record.date,
+    counts,
+    claimed: uniqueDailyTaskIds(record.claimed),
+  };
+}
+
 function defaultStorage(): Storage | null {
   return typeof window === "undefined" ? null : window.localStorage;
 }
@@ -281,7 +319,7 @@ export function normalizeWonderAcademySave(input: unknown): WonderAcademyProgres
     shinyDex: uniqueStringIds(parsed.shinyDex),
     dexRewardsClaimed: uniqueNonNegativeIntegers(parsed.dexRewardsClaimed),
     lastDailyReward: typeof parsed.lastDailyReward === "string" ? parsed.lastDailyReward : null,
-    daily: asRecord(parsed.daily) ? (parsed.daily as DailyProgress) : null,
+    daily: normalizeDailyProgress(parsed.daily),
     audioSettings: normalizeAudioSettings(asRecord(parsed.audioSettings)),
   };
 }

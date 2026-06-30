@@ -137,6 +137,31 @@ describe("normalizeWonderAcademySave", () => {
     });
   });
 
+  it("normalizes malformed daily progress", () => {
+    expect(
+      normalizeWonderAcademySave({
+        playerName: "Mina",
+        team: [],
+        daily: {
+          date: "2026-6-30",
+          counts: {
+            catch: 1.8,
+            win: -2,
+            chest: "many",
+            extra: 99,
+          },
+          claimed: ["catch", "catch", "bogus", 7, "win"],
+        },
+      }),
+    ).toMatchObject({
+      daily: {
+        date: "2026-6-30",
+        counts: { catch: 1, win: 0, chest: 0 },
+        claimed: ["catch", "win"],
+      },
+    });
+  });
+
   it("preserves valid audio settings from saved progress", () => {
     expect(
       normalizeWonderAcademySave({
