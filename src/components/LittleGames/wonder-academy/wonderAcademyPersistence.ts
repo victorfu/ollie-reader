@@ -118,8 +118,29 @@ function asRecord(value: unknown): Record<string, unknown> | null {
     : null;
 }
 
-function stringArray(value: unknown): string[] {
-  return Array.isArray(value) ? value.filter((v): v is string => typeof v === "string") : [];
+function uniqueStringIds(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set<string>();
+  return value.flatMap((item) => {
+    if (typeof item !== "string") return [];
+    const id = item.trim();
+    if (!id || seen.has(id)) return [];
+    seen.add(id);
+    return [id];
+  });
+}
+
+function uniqueNonNegativeIntegers(value: unknown): number[] {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set<number>();
+  return value.flatMap((item) => {
+    if (typeof item !== "number" || !Number.isFinite(item)) return [];
+    const milestone = Math.floor(item);
+    if (milestone < 0 || milestone > Number.MAX_SAFE_INTEGER) return [];
+    if (seen.has(milestone)) return [];
+    seen.add(milestone);
+    return [milestone];
+  });
 }
 
 function nonNegativeIntegerRecord(value: unknown): Record<string, number> {
@@ -255,12 +276,10 @@ export function normalizeWonderAcademySave(input: unknown): WonderAcademyProgres
     stardust: clampedInteger(parsed.stardust, 0, 0, Number.MAX_SAFE_INTEGER),
     snacks: nonNegativeIntegerRecord(parsed.snacks),
     customCreatures: normalizeCustomCreatures(parsed.customCreatures),
-    wardensDefeated: stringArray(parsed.wardensDefeated),
-    clearedNodes: stringArray(parsed.clearedNodes),
-    shinyDex: stringArray(parsed.shinyDex),
-    dexRewardsClaimed: Array.isArray(parsed.dexRewardsClaimed)
-      ? parsed.dexRewardsClaimed.filter((v): v is number => typeof v === "number" && Number.isFinite(v))
-      : [],
+    wardensDefeated: uniqueStringIds(parsed.wardensDefeated),
+    clearedNodes: uniqueStringIds(parsed.clearedNodes),
+    shinyDex: uniqueStringIds(parsed.shinyDex),
+    dexRewardsClaimed: uniqueNonNegativeIntegers(parsed.dexRewardsClaimed),
     lastDailyReward: typeof parsed.lastDailyReward === "string" ? parsed.lastDailyReward : null,
     daily: asRecord(parsed.daily) ? (parsed.daily as DailyProgress) : null,
     audioSettings: normalizeAudioSettings(asRecord(parsed.audioSettings)),

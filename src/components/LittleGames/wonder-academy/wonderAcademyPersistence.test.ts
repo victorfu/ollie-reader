@@ -115,6 +115,28 @@ describe("normalizeWonderAcademySave", () => {
     });
   });
 
+  it("normalizes progress arrays to unique safe ids and milestones", () => {
+    expect(
+      normalizeWonderAcademySave({
+        playerName: "Mina",
+        team: [],
+        wardensDefeated: ["sparkleaf-grove", " ", "sparkleaf-grove", 7],
+        clearedNodes: [
+          "sparkleaf-grove:meadow-path",
+          "sparkleaf-grove:meadow-path",
+          "",
+        ],
+        shinyDex: ["lumi", "lumi", "  momo  ", null],
+        dexRewardsClaimed: [3, 3, -1, 5.9, Number.NaN, "8"],
+      }),
+    ).toMatchObject({
+      wardensDefeated: ["sparkleaf-grove"],
+      clearedNodes: ["sparkleaf-grove:meadow-path"],
+      shinyDex: ["lumi", "momo"],
+      dexRewardsClaimed: [3, 5],
+    });
+  });
+
   it("preserves valid audio settings from saved progress", () => {
     expect(
       normalizeWonderAcademySave({
