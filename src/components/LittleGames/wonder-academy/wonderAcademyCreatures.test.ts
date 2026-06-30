@@ -7,6 +7,7 @@ import {
   WA_CREATURES,
   learnablePool,
   makeCustomCreature,
+  starterSnackBundle,
 } from "./wonderAcademyCreatures";
 
 describe("Wonder Academy creature registry", () => {
@@ -72,5 +73,31 @@ describe("Wonder Academy creature registry", () => {
       favoriteSnack: "starberry-cookie",
       seed: 3,
     }).fieldSkillId).toBe("light-trail");
+  });
+
+  it("starts every starter with its favorite snack", () => {
+    for (const species of STARTER_SPECIES) {
+      const snacks = starterSnackBundle(species);
+      const total = Object.values(snacks).reduce((sum, qty) => sum + qty, 0);
+
+      expect(snacks[species.favoriteSnack], `${species.speciesId} needs favorite snacks`).toBeGreaterThanOrEqual(2);
+      expect(total, `${species.speciesId} should keep the starter bundle small`).toBe(4);
+    }
+  });
+
+  it("keeps Lumi's old starter snacks while giving Momo moon milk puffs", () => {
+    const lumi = STARTER_SPECIES.find((species) => species.speciesId === "lumi");
+    const momo = STARTER_SPECIES.find((species) => species.speciesId === "momo");
+
+    expect(lumi).toBeDefined();
+    expect(momo).toBeDefined();
+    expect(starterSnackBundle(lumi!)).toEqual({
+      "starberry-cookie": 2,
+      "clover-macaron": 2,
+    });
+    expect(starterSnackBundle(momo!)).toEqual({
+      "moon-milk-puff": 2,
+      "starberry-cookie": 2,
+    });
   });
 });

@@ -163,6 +163,15 @@ export function catchableSpecies(): CreatureSpecies[] {
   return [...WILD_SPECIES, ...customRegistry.values()];
 }
 
+export function starterSnackBundle(species: CreatureSpecies): Record<string, number> {
+  const fallbackSnack =
+    species.favoriteSnack === "starberry-cookie" ? "clover-macaron" : "starberry-cookie";
+  return {
+    [species.favoriteSnack]: 2,
+    [fallbackSnack]: 2,
+  };
+}
+
 function movesForElements(elements: WonderAcademyElement[]): string[] {
   const matched = Object.values(WONDER_ACADEMY_MOVES)
     .filter((m) => elements.includes(m.element))

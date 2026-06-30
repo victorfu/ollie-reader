@@ -49,6 +49,7 @@ import {
   rollShiny,
   SHINY_FILTER,
   speciesById,
+  starterSnackBundle,
   STARTER_SPECIES,
   toCombatant,
   toWarden,
@@ -429,7 +430,7 @@ function reducer(state: GameState, action: Action): GameState {
           },
         ],
         dex: recordDex(state.dex, species.speciesId, "caught"),
-        snacks: { "clover-macaron": 2, "starberry-cookie": 2 },
+        snacks: starterSnackBundle(species),
         pendingStarterId: null,
         screen: "hub",
       };
