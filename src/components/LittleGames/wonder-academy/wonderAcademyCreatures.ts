@@ -253,13 +253,21 @@ export function defaultEquipped(species: CreatureSpecies): string[] {
   return learnablePool(species).slice(0, 4);
 }
 
+function knownMoveIds(ids: string[]): string[] {
+  return ids.filter((id) => !!WONDER_ACADEMY_MOVES[id]).slice(0, 4);
+}
+
 export function toCombatant(owned: OwnedCreature): BattleCombatant {
   const species = speciesById(owned.speciesId);
   const elements = species?.elements ?? ["light"];
+  const equippedMoveIds = owned.equippedMoveIds
+    ? knownMoveIds(owned.equippedMoveIds)
+    : [];
+  const defaultMoveIds = species ? knownMoveIds(defaultEquipped(species)) : ["tiny-flash"];
   const moveIds =
-    owned.equippedMoveIds && owned.equippedMoveIds.length > 0
-      ? owned.equippedMoveIds.slice(0, 4)
-      : species?.moveIds.slice(0, 4) ?? ["tiny-flash"];
+    equippedMoveIds.length > 0
+      ? equippedMoveIds
+      : defaultMoveIds.length > 0 ? defaultMoveIds : ["tiny-flash"];
   const { maxHp, attack } = combatStats(owned.level);
   return {
     ownedId: owned.ownedId,

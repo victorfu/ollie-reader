@@ -8,6 +8,7 @@ import {
   learnablePool,
   makeCustomCreature,
   starterSnackBundle,
+  toCombatant,
 } from "./wonderAcademyCreatures";
 
 describe("Wonder Academy creature registry", () => {
@@ -99,5 +100,31 @@ describe("Wonder Academy creature registry", () => {
       "moon-milk-puff": 2,
       "starberry-cookie": 2,
     });
+  });
+
+  it("keeps valid equipped moves when building a battle combatant", () => {
+    expect(toCombatant({
+      ownedId: "owned-lumi",
+      speciesId: "lumi",
+      nickname: "Lumi",
+      level: 5,
+      xp: 0,
+      bond: 0,
+      stage: 0,
+      equippedMoveIds: ["zip-spark", "tiny-flash"],
+    }).moveIds).toEqual(["zip-spark", "tiny-flash"]);
+  });
+
+  it("repairs unknown equipped moves before battle", () => {
+    expect(toCombatant({
+      ownedId: "owned-lumi",
+      speciesId: "lumi",
+      nickname: "Lumi",
+      level: 5,
+      xp: 0,
+      bond: 0,
+      stage: 0,
+      equippedMoveIds: ["missing-move"],
+    }).moveIds).toEqual(["tiny-flash", "zip-spark", "wink-feint", "starstep-dash"]);
   });
 });
