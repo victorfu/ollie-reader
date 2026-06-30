@@ -178,6 +178,64 @@ describe("normalizeWonderAcademySave", () => {
       })?.customCreatures[0].fieldSkillId,
     ).toBe("soft-float");
   });
+
+  it("backfills missing custom creature moves from elements", () => {
+    const normalized = normalizeWonderAcademySave({
+      playerName: "Mina",
+      team: [],
+      customCreatures: [
+        {
+          speciesId: "custom-no-moves",
+          name: "No Moves",
+          category: "自訂夥伴",
+          personality: "Legacy custom creature without moves",
+          elements: ["leaf"],
+          rarity: "rare",
+          favoriteSnack: "clover-macaron",
+          growthStages: ["No Moves"],
+          fieldSkillId: "secret-sense",
+          portrait: "no-moves.png",
+          wild: true,
+        },
+      ],
+    });
+
+    expect(normalized?.customCreatures[0].moveIds).toEqual([
+      "leaf-wink",
+      "clover-patch",
+      "mossy-tackle",
+      "spore-puff",
+    ]);
+  });
+
+  it("repairs invalid custom creature moves from elements", () => {
+    const normalized = normalizeWonderAcademySave({
+      playerName: "Mina",
+      team: [],
+      customCreatures: [
+        {
+          speciesId: "custom-invalid-moves",
+          name: "Invalid Moves",
+          category: "自訂夥伴",
+          personality: "Legacy custom creature with invalid moves",
+          elements: ["tide"],
+          rarity: "rare",
+          favoriteSnack: "moon-milk-puff",
+          growthStages: ["Invalid Moves"],
+          moveIds: ["missing-move"],
+          fieldSkillId: "soft-float",
+          portrait: "invalid-moves.png",
+          wild: true,
+        },
+      ],
+    });
+
+    expect(normalized?.customCreatures[0].moveIds).toEqual([
+      "bubble-pat",
+      "cozy-shield",
+      "moon-drizzle",
+    ]);
+  });
 });
 
 describe("local cache and pending queue", () => {

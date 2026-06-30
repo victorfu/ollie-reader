@@ -172,7 +172,7 @@ export function starterSnackBundle(species: CreatureSpecies): Record<string, num
   };
 }
 
-function movesForElements(elements: WonderAcademyElement[]): string[] {
+export function movesForElements(elements: WonderAcademyElement[]): string[] {
   const matched = Object.values(WONDER_ACADEMY_MOVES)
     .filter((m) => elements.includes(m.element))
     .map((m) => m.id);

@@ -1,10 +1,12 @@
 import type { DailyProgress } from "./logic/dailyTasks";
 import type { Wonderdex } from "./logic/wonderdex";
+import { getMoveById } from "../../../data/wonderAcademyMoves";
 import type { WonderAcademyAudioSettings, WonderAcademyElement } from "../../../types/wonderAcademy";
 import { normalizeAudioSettings } from "./wonderAcademyAudio";
 import {
   FIELD_SKILLS,
   fieldSkillForElements,
+  movesForElements,
   type CreatureSpecies,
   type OwnedCreature,
 } from "./wonderAcademyCreatures";
@@ -172,13 +174,24 @@ function normalizeCustomCreatures(value: unknown): CreatureSpecies[] {
     const elements = Array.isArray(record.elements)
       ? (record.elements as WonderAcademyElement[])
       : [];
+    const normalizedElements: WonderAcademyElement[] = elements.length > 0 ? elements : ["light"];
+    const moveIds = Array.isArray(record.moveIds)
+      ? record.moveIds.filter((moveId): moveId is string => (
+          typeof moveId === "string" && !!getMoveById(moveId)
+        ))
+      : [];
     const savedFieldSkillId = typeof record.fieldSkillId === "string"
       ? record.fieldSkillId.trim()
       : "";
     const fieldSkillId = savedFieldSkillId && FIELD_SKILLS[savedFieldSkillId]
       ? savedFieldSkillId
-      : fieldSkillForElements(elements);
-    return [{ ...(record as unknown as CreatureSpecies), fieldSkillId }];
+      : fieldSkillForElements(normalizedElements);
+    return [{
+      ...(record as unknown as CreatureSpecies),
+      elements: normalizedElements,
+      moveIds: moveIds.length > 0 ? moveIds : movesForElements(normalizedElements),
+      fieldSkillId,
+    }];
   });
 }
 
