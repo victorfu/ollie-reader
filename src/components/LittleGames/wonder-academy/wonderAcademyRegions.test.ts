@@ -62,6 +62,7 @@ describe("regionValidationErrors", () => {
       id: "broken",
       minLevel: 9,
       maxLevel: 4,
+      wardenSpeciesId: "missing-warden",
       wardenLevel: 3,
       map: [
         "TTTT",
@@ -83,6 +84,7 @@ describe("regionValidationErrors", () => {
       "broken: expected at least one exit tile X",
       "broken: minLevel 9 exceeds maxLevel 4",
       "broken: wardenLevel 3 is below maxLevel 4",
+      "broken: unknown warden species 'missing-warden'",
       "broken: duplicate node id 'entry'",
       "broken: node 'entry' x must be between 0 and 1",
       "broken: node 'entry' requires unknown node 'missing'",

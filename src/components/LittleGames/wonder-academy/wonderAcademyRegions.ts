@@ -5,6 +5,8 @@
 // Tile legend (shared with sceneMap / ExploreSceneKaplay):
 // T=tree(blocked) P=path G=grass C=chest N=npc X=exit S=start W=warden
 
+import { speciesById } from "./wonderAcademyCreatures";
+
 export type RegionTheme = {
   /** Kaplay clear colour (RGB 0-255). */
   bg: [number, number, number];
@@ -208,6 +210,9 @@ export function regionValidationErrors(region: Region): string[] {
   }
   if (region.wardenLevel < region.maxLevel) {
     errors.push(`${prefix} wardenLevel ${region.wardenLevel} is below maxLevel ${region.maxLevel}`);
+  }
+  if (!speciesById(region.wardenSpeciesId)) {
+    errors.push(`${prefix} unknown warden species '${region.wardenSpeciesId}'`);
   }
 
   const ids = new Set<string>();
