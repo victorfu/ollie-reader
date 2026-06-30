@@ -35,6 +35,10 @@ import { teamFieldPerks } from "./logic/fieldSkills";
 import { rollEncounter, type EncounterTable } from "./logic/encounter";
 import { canEvolve, evolve } from "./logic/evolution";
 import { rollLoot, type LootTable } from "./logic/loot";
+import {
+  equipMoveForCreature,
+  unequipMoveForCreature,
+} from "./logic/moveLoadout";
 import { gainXp } from "./logic/progression";
 import { getEffectivenessAgainst } from "./logic/typeChart";
 import { dexCompletion, recordDex } from "./logic/wonderdex";
@@ -677,20 +681,14 @@ function reducer(state: GameState, action: Action): GameState {
     case "equipMove": {
       const team = state.team.map((o) => {
         if (o.ownedId !== action.ownedId) return o;
-        const sp = speciesById(o.speciesId);
-        const current = o.equippedMoveIds ?? (sp ? defaultEquipped(sp) : []);
-        if (current.includes(action.moveId) || current.length >= 4) return o;
-        return { ...o, equippedMoveIds: [...current, action.moveId] };
+        return equipMoveForCreature(o, speciesById(o.speciesId), action.moveId);
       });
       return { ...state, team };
     }
     case "unequipMove": {
       const team = state.team.map((o) => {
         if (o.ownedId !== action.ownedId) return o;
-        const sp = speciesById(o.speciesId);
-        const current = o.equippedMoveIds ?? (sp ? defaultEquipped(sp) : []);
-        if (current.length <= 1) return o;
-        return { ...o, equippedMoveIds: current.filter((m) => m !== action.moveId) };
+        return unequipMoveForCreature(o, speciesById(o.speciesId), action.moveId);
       });
       return { ...state, team };
     }
