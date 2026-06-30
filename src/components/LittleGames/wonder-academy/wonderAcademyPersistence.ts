@@ -1,5 +1,7 @@
 import type { DailyProgress } from "./logic/dailyTasks";
 import type { Wonderdex } from "./logic/wonderdex";
+import type { WonderAcademyAudioSettings } from "../../../types/wonderAcademy";
+import { normalizeAudioSettings } from "./wonderAcademyAudio";
 import type { CreatureSpecies, OwnedCreature } from "./wonderAcademyCreatures";
 
 export const WONDER_ACADEMY_SCHEMA_VERSION = 2;
@@ -22,6 +24,7 @@ export type WonderAcademyProgressData = {
   dexRewardsClaimed: number[];
   lastDailyReward: string | null;
   daily: DailyProgress | null;
+  audioSettings: WonderAcademyAudioSettings;
 };
 
 export type WonderAcademySaveStatus =
@@ -179,6 +182,7 @@ export function normalizeWonderAcademySave(input: unknown): WonderAcademyProgres
       : [],
     lastDailyReward: typeof parsed.lastDailyReward === "string" ? parsed.lastDailyReward : null,
     daily: asRecord(parsed.daily) ? (parsed.daily as DailyProgress) : null,
+    audioSettings: normalizeAudioSettings(asRecord(parsed.audioSettings)),
   };
 }
 

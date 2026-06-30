@@ -3,6 +3,7 @@ import { ArrowLeft, Compass, Gift, Lock, MapPin, Plus, RotateCcw, ShoppingBag, S
 import { useEffect, useMemo, useReducer, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { Volume2, VolumeX } from "lucide-react";
 import { useAuth } from "../../../hooks/useAuth";
+import type { WonderAcademyAudioSettings } from "../../../types/wonderAcademy";
 import {
   createWonderAcademyAudio,
   defaultWonderAcademyAudioSettings,
@@ -156,6 +157,7 @@ type Action =
   | { type: "load"; state: Persisted | null }
   | { type: "beginNewGame" }
   | { type: "resetNewGame" }
+  | { type: "toggleMute" }
   | { type: "setName"; name: string }
   | { type: "arriveNext" }
   | { type: "pickStarter"; speciesId: string }
@@ -210,6 +212,7 @@ const INITIAL: GameState = {
   dexRewardsClaimed: [],
   lastDailyReward: null,
   daily: null,
+  audioSettings: defaultWonderAcademyAudioSettings,
   battle: null,
   result: null,
   pendingEvolution: null,
@@ -391,6 +394,13 @@ function reducer(state: GameState, action: Action): GameState {
       return { ...state, screen: "arrival" };
     case "resetNewGame":
       return { ...INITIAL, ready: true, screen: "arrival" };
+    case "toggleMute": {
+      const audioSettings: WonderAcademyAudioSettings = {
+        ...state.audioSettings,
+        muted: !state.audioSettings.muted,
+      };
+      return { ...state, audioSettings };
+    }
     case "setName":
       return { ...state, playerName: action.name };
     case "arriveNext":
@@ -1094,7 +1104,6 @@ export default function WonderAcademyGame({ onExit }: Props) {
 
   // ---- audio ----
   const audioRef = useRef<WonderAcademyAudioManager | null>(null);
-  const [muted, setMuted] = useState(false);
   const [dailyFlash, setDailyFlash] = useState<string | null>(null);
   const sfx = (id: Parameters<WonderAcademyAudioManager["playSfx"]>[0]) =>
     audioRef.current?.playSfx(id);
@@ -1124,8 +1133,8 @@ export default function WonderAcademyGame({ onExit }: Props) {
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
-    audio.setSettings({ muted });
-    if (muted) {
+    audio.setSettings(state.audioSettings);
+    if (state.audioSettings.muted) {
       audio.stopAll();
       return;
     }
@@ -1139,7 +1148,7 @@ export default function WonderAcademyGame({ onExit }: Props) {
       if (id !== loop) audio.stopLoop(id);
     }
     audio.startLoop(loop);
-  }, [state.screen, state.isWarden, muted]);
+  }, [state.screen, state.isWarden, state.audioSettings]);
 
   useEffect(() => {
     if (!state.result) return;
@@ -1174,6 +1183,7 @@ export default function WonderAcademyGame({ onExit }: Props) {
       dexRewardsClaimed: state.dexRewardsClaimed,
       lastDailyReward: state.lastDailyReward,
       daily: state.daily,
+      audioSettings: state.audioSettings,
     };
     latestSaveDataRef.current = data;
     const timer = window.setTimeout(() => {
@@ -1196,7 +1206,7 @@ export default function WonderAcademyGame({ onExit }: Props) {
         });
     }, 900);
     return () => window.clearTimeout(timer);
-  }, [uid, isGuest, state.ready, state.playerName, state.team, state.dex, state.stardust, state.snacks, state.customCreatures, state.wardensDefeated, state.clearedNodes, state.shinyDex, state.dexRewardsClaimed, state.lastDailyReward, state.daily]);
+  }, [uid, isGuest, state.ready, state.playerName, state.team, state.dex, state.stardust, state.snacks, state.customCreatures, state.wardensDefeated, state.clearedNodes, state.shinyDex, state.dexRewardsClaimed, state.lastDailyReward, state.daily, state.audioSettings]);
 
   useEffect(() => {
     if (!state.ready) return;
@@ -1287,8 +1297,8 @@ export default function WonderAcademyGame({ onExit }: Props) {
         <button onClick={onExit} style={btnGhost}><ArrowLeft size={16} /> 離開</button>
         <div style={{ fontSize: 13, fontWeight: 800, letterSpacing: ".04em" }}>✦ Sparkleaf 星葉學院</div>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <button onClick={() => setMuted((m) => !m)} style={{ ...btnGhost, padding: 4 }} title={muted ? "開啟音效" : "靜音"}>
-            {muted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+          <button onClick={() => dispatch({ type: "toggleMute" })} style={{ ...btnGhost, padding: 4 }} title={state.audioSettings.muted ? "開啟音效" : "靜音"}>
+            {state.audioSettings.muted ? <VolumeX size={16} /> : <Volume2 size={16} />}
           </button>
           <span aria-live="polite" style={saveStatusChip(effectiveSaveStatus)}>{saveLabel}</span>
           <span style={{ fontSize: 12, fontWeight: 700, color: "#8a83a3" }}>✨ {state.stardust}</span>

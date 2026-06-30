@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { defaultWonderAcademyAudioSettings } from "./wonderAcademyAudio";
 import {
   checkpointWonderAcademyProgress,
   clearWonderAcademyPending,
@@ -30,6 +31,7 @@ function sample(overrides: Partial<WonderAcademyProgressData> = {}): WonderAcade
     dexRewardsClaimed: [],
     lastDailyReward: null,
     daily: null,
+    audioSettings: defaultWonderAcademyAudioSettings,
     ...overrides,
   };
 }
@@ -55,6 +57,46 @@ describe("normalizeWonderAcademySave", () => {
     expect(normalizeWonderAcademySave({ playerName: "Mina", team: [] })).toEqual(
       sample({ playerName: "Mina" }),
     );
+  });
+
+  it("preserves valid audio settings from saved progress", () => {
+    expect(
+      normalizeWonderAcademySave({
+        playerName: "Mina",
+        team: [],
+        audioSettings: {
+          musicVolume: 0.25,
+          sfxVolume: 0.75,
+          muted: true,
+        },
+      }),
+    ).toMatchObject({
+      audioSettings: {
+        musicVolume: 0.25,
+        sfxVolume: 0.75,
+        muted: true,
+      },
+    });
+  });
+
+  it("defaults missing or malformed audio settings", () => {
+    expect(
+      normalizeWonderAcademySave({
+        playerName: "Mina",
+        team: [],
+        audioSettings: {
+          musicVolume: Number.NaN,
+          sfxVolume: "loud",
+          muted: "sometimes",
+        },
+      }),
+    ).toMatchObject({
+      audioSettings: defaultWonderAcademyAudioSettings,
+    });
+
+    expect(normalizeWonderAcademySave({ playerName: "Mina", team: [] })).toMatchObject({
+      audioSettings: defaultWonderAcademyAudioSettings,
+    });
   });
 });
 
