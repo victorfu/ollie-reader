@@ -59,6 +59,41 @@ describe("normalizeWonderAcademySave", () => {
     );
   });
 
+  it("normalizes malformed owned team creatures", () => {
+    const normalized = normalizeWonderAcademySave({
+      playerName: "Mina",
+      team: [
+        {
+          ownedId: "owned-lumi",
+          speciesId: "lumi",
+          nickname: 42,
+          level: "high",
+          xp: -20,
+          bond: 500,
+          stage: -2,
+          equippedMoveIds: ["zip-spark", "missing-move", 7],
+          shiny: true,
+        },
+        { ownedId: "bad-species", speciesId: 42 },
+        null,
+      ],
+    });
+
+    expect(normalized?.team).toEqual([
+      {
+        ownedId: "owned-lumi",
+        speciesId: "lumi",
+        nickname: "",
+        level: 1,
+        xp: 0,
+        bond: 100,
+        stage: 0,
+        equippedMoveIds: ["zip-spark"],
+        shiny: true,
+      },
+    ]);
+  });
+
   it("preserves valid audio settings from saved progress", () => {
     expect(
       normalizeWonderAcademySave({

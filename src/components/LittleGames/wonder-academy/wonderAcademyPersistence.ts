@@ -1,6 +1,8 @@
 import type { DailyProgress } from "./logic/dailyTasks";
 import type { Wonderdex } from "./logic/wonderdex";
 import { getMoveById } from "../../../data/wonderAcademyMoves";
+import { MAX_BOND } from "./logic/bond";
+import { MAX_LEVEL } from "./logic/progression";
 import {
   WONDER_ACADEMY_ELEMENTS,
   type WonderAcademyAudioSettings,
@@ -130,6 +132,13 @@ function numberRecord(value: unknown): Record<string, number> {
   );
 }
 
+function clampedInteger(value: unknown, fallback: number, min: number, max: number): number {
+  const numberValue = typeof value === "number" && Number.isFinite(value)
+    ? Math.floor(value)
+    : fallback;
+  return Math.min(max, Math.max(min, numberValue));
+}
+
 function defaultStorage(): Storage | null {
   return typeof window === "undefined" ? null : window.localStorage;
 }
@@ -176,6 +185,34 @@ function isWonderAcademyElement(value: unknown): value is WonderAcademyElement {
   return typeof value === "string" && VALID_ELEMENTS.has(value);
 }
 
+function knownMoveIds(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((moveId): moveId is string => (
+        typeof moveId === "string" && !!getMoveById(moveId)
+      ))
+    : [];
+}
+
+function normalizeTeam(value: unknown): OwnedCreature[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    const record = asRecord(item);
+    if (!record || typeof record.ownedId !== "string" || typeof record.speciesId !== "string") return [];
+    const equippedMoveIds = knownMoveIds(record.equippedMoveIds);
+    return [{
+      ownedId: record.ownedId,
+      speciesId: record.speciesId,
+      nickname: typeof record.nickname === "string" ? record.nickname : "",
+      level: clampedInteger(record.level, 1, 1, MAX_LEVEL),
+      xp: clampedInteger(record.xp, 0, 0, Number.MAX_SAFE_INTEGER),
+      bond: clampedInteger(record.bond, 0, 0, MAX_BOND),
+      stage: clampedInteger(record.stage, 0, 0, Number.MAX_SAFE_INTEGER),
+      ...(equippedMoveIds.length > 0 ? { equippedMoveIds } : {}),
+      ...(record.shiny === true ? { shiny: true } : {}),
+    }];
+  });
+}
+
 function normalizeCustomCreatures(value: unknown): CreatureSpecies[] {
   if (!Array.isArray(value)) return [];
   return value.flatMap((item) => {
@@ -211,7 +248,7 @@ export function normalizeWonderAcademySave(input: unknown): WonderAcademyProgres
 
   return {
     playerName: typeof parsed.playerName === "string" ? parsed.playerName : "",
-    team: parsed.team as OwnedCreature[],
+    team: normalizeTeam(parsed.team),
     dex: (asRecord(parsed.dex) ?? {}) as Wonderdex,
     stardust: typeof parsed.stardust === "number" && Number.isFinite(parsed.stardust)
       ? parsed.stardust
