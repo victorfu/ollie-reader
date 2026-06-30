@@ -41,6 +41,7 @@ import {
   unequipMoveForCreature,
 } from "./logic/moveLoadout";
 import { gainXp } from "./logic/progression";
+import { isKnownSnack, SNACK_NAMES, SNACK_POOL } from "./logic/snacks";
 import { getEffectivenessAgainst } from "./logic/typeChart";
 import { dexCompletion, recordDex } from "./logic/wonderdex";
 import {
@@ -108,13 +109,6 @@ type Screen =
   | "skills"
   | "shop";
 
-const SNACK_NAMES: Record<string, string> = {
-  "starberry-cookie": "星莓餅乾",
-  "moon-milk-puff": "月乳泡芙",
-  "clover-macaron": "三葉草馬卡龍",
-  "warm-cocoa-gem": "暖可可寶石",
-};
-const SNACK_POOL = Object.keys(SNACK_NAMES);
 const SNACK_PRICE = 12;
 
 type ResultInfo = {
@@ -494,7 +488,7 @@ function reducer(state: GameState, action: Action): GameState {
       };
     }
     case "claimDaily": {
-      if (state.lastDailyReward === action.today) return state;
+      if (state.lastDailyReward === action.today || !isKnownSnack(action.snackId)) return state;
       return {
         ...state,
         stardust: state.stardust + 20,
@@ -729,7 +723,7 @@ function reducer(state: GameState, action: Action): GameState {
     case "closeShop":
       return { ...state, screen: "hub" };
     case "buySnack": {
-      if (state.stardust < SNACK_PRICE || !SNACK_NAMES[action.snackId]) return state;
+      if (state.stardust < SNACK_PRICE || !isKnownSnack(action.snackId)) return state;
       return {
         ...state,
         stardust: state.stardust - SNACK_PRICE,
