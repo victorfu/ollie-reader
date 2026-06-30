@@ -5,7 +5,7 @@
 // Tile legend (shared with sceneMap / ExploreSceneKaplay):
 // T=tree(blocked) P=path G=grass C=chest N=npc X=exit S=start W=warden
 
-import { speciesById } from "./wonderAcademyCreatures";
+import { FIELD_SKILLS, speciesById } from "./wonderAcademyCreatures";
 
 export type RegionTheme = {
   /** Kaplay clear colour (RGB 0-255). */
@@ -27,6 +27,8 @@ export type RegionNode = {
   y: number;
   /** Node ids that must be cleared before this one unlocks. */
   requires: string[];
+  /** Optional active-team field skill required for this node. */
+  fieldSkillId?: string;
 };
 
 export type Region = {
@@ -90,6 +92,7 @@ const GLIMMER_MAP = [
 
 const SPARKLEAF_NODES: RegionNode[] = [
   { id: "entry", label: "林間入口", kind: "explore", x: 0.18, y: 0.72, requires: [] },
+  { id: "secret-garden", label: "祕密花圃", kind: "explore", x: 0.3, y: 0.18, requires: ["entry"], fieldSkillId: "secret-sense" },
   { id: "meadow", label: "螢火草原", kind: "explore", x: 0.42, y: 0.4, requires: ["entry"] },
   { id: "grove", label: "古樹空地", kind: "explore", x: 0.66, y: 0.66, requires: ["meadow"] },
   { id: "warden", label: "守關之地", kind: "warden", x: 0.86, y: 0.32, requires: ["grove"] },
@@ -155,20 +158,31 @@ export function isNodeUnlocked(
   node: RegionNode,
   regionId: string,
   clearedNodes: string[],
+  fieldSkillIds: readonly string[] = [],
 ): boolean {
-  return node.requires.every((rid) => clearedNodes.includes(nodeKey(regionId, rid)));
+  const prerequisitesMet = node.requires.every((rid) => clearedNodes.includes(nodeKey(regionId, rid)));
+  const fieldSkillMet = !node.fieldSkillId || fieldSkillIds.includes(node.fieldSkillId);
+  return prerequisitesMet && fieldSkillMet;
 }
 
 export function nodeUnlockHint(
   node: RegionNode,
   region: Region,
   clearedNodes: string[],
+  fieldSkillIds: readonly string[] = [],
 ): string | null {
   const missing = node.requires.filter((rid) => !clearedNodes.includes(nodeKey(region.id, rid)));
-  if (missing.length === 0) return null;
+  if (missing.length > 0) {
+    const labels = missing.map((rid) => region.nodes.find((candidate) => candidate.id === rid)?.label ?? rid);
+    return `先完成「${labels.join("、")}」`;
+  }
 
-  const labels = missing.map((rid) => region.nodes.find((candidate) => candidate.id === rid)?.label ?? rid);
-  return `先完成「${labels.join("、")}」`;
+  if (node.fieldSkillId && !fieldSkillIds.includes(node.fieldSkillId)) {
+    const skill = FIELD_SKILLS[node.fieldSkillId];
+    return `需要「${skill?.name ?? node.fieldSkillId}」探索能力`;
+  }
+
+  return null;
 }
 
 export const VALID_REGION_TILES = new Set(["T", "P", "G", "C", "N", "X", "S", "W", "F", "O"]);
@@ -241,6 +255,9 @@ export function regionValidationErrors(region: Region): string[] {
       if (requiredId === node.id) {
         errors.push(`${prefix} node '${node.id}' cannot require itself`);
       }
+    }
+    if (node.fieldSkillId && !FIELD_SKILLS[node.fieldSkillId]) {
+      errors.push(`${prefix} node '${node.id}' requires unknown field skill '${node.fieldSkillId}'`);
     }
   }
   if (wardenCount !== 1) {

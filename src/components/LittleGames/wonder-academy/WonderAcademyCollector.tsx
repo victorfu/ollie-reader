@@ -233,6 +233,14 @@ const displayName = (owned: OwnedCreature): string => {
   return sp?.growthStages[owned.stage] ?? sp?.name ?? owned.speciesId;
 };
 
+const teamFieldSkillIds = (team: OwnedCreature[]): string[] => [
+  ...new Set(
+    team
+      .map((owned) => speciesById(owned.speciesId)?.fieldSkillId)
+      .filter((id): id is string => !!id),
+  ),
+];
+
 function resolveOutcome(state: GameState, session: BattleSession): GameState {
   const activeOwnedId = session.active.ownedId;
   const wildSpeciesId = session.wild.speciesId;
@@ -455,7 +463,8 @@ function reducer(state: GameState, action: Action): GameState {
       const region = state.activeRegionId ? regionById(state.activeRegionId) : undefined;
       const node = region?.nodes.find((n) => n.id === action.nodeId);
       if (!region || !node) return state;
-      if (!isNodeUnlocked(node, region.id, state.clearedNodes)) return state;
+      const skillIds = teamFieldSkillIds(state.team);
+      if (!isNodeUnlocked(node, region.id, state.clearedNodes, skillIds)) return state;
       if (node.kind === "warden") {
         if (state.wardensDefeated.includes(region.id)) return state;
         const warden = speciesById(region.wardenSpeciesId);
@@ -1430,6 +1439,7 @@ export default function WonderAcademyGame({ onExit }: Props) {
   if (state.screen === "nodeMap") {
     const region = (state.activeRegionId ? regionById(state.activeRegionId) : FIRST_REGION) ?? FIRST_REGION;
     const wardenDone = state.wardensDefeated.includes(region.id);
+    const skillIds = teamFieldSkillIds(state.team);
     const [br, bg, bb] = region.theme.bg;
     return frame(
       <div>
@@ -1451,11 +1461,11 @@ export default function WonderAcademyGame({ onExit }: Props) {
             )}
           </svg>
           {region.nodes.map((n) => {
-            const unlocked = isNodeUnlocked(n, region.id, state.clearedNodes);
+            const unlocked = isNodeUnlocked(n, region.id, state.clearedNodes, skillIds);
             const cleared = n.kind === "warden" ? wardenDone : state.clearedNodes.includes(nodeKey(region.id, n.id));
             const isWardenNode = n.kind === "warden";
             const live = unlocked && !cleared;
-            const unlockHint = nodeUnlockHint(n, region, state.clearedNodes);
+            const unlockHint = nodeUnlockHint(n, region, state.clearedNodes, skillIds);
             const dotBg = !unlocked ? "#cdc6dd" : isWardenNode ? (cleared ? "#9ac0e0" : "#ef5b6e") : cleared ? "#5fbf7a" : "#7c6cff";
             const glyph = !unlocked ? "🔒" : isWardenNode ? (cleared ? "✨" : "👑") : cleared ? "✓" : "🐾";
             return (
@@ -1660,7 +1670,7 @@ export default function WonderAcademyGame({ onExit }: Props) {
         </div>
         <p style={{ color: "#8a83a3", fontSize: 14, margin: "0 0 14px" }}>打敗一個區域的守關魔王,就能解鎖下一個更深的地方。</p>
         {(() => {
-          const skillIds = [...new Set(state.team.map((o) => speciesById(o.speciesId)?.fieldSkillId).filter((id): id is string => !!id))];
+          const skillIds = teamFieldSkillIds(state.team);
           if (skillIds.length === 0) return null;
           return (
             <div style={{ ...cardStatic, marginBottom: 16, padding: "10px 14px" }}>
