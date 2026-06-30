@@ -102,8 +102,28 @@ describe("loadWonderAcademySave", () => {
       data: sample({ playerName: "Cloud" }),
       source: "cloud",
       status: "saved",
+      hasUnsyncedLocalProgress: false,
     });
     expect(readWonderAcademyCache(uid)?.data.playerName).toBe("Cloud");
+  });
+
+  it("marks a newer local cache as unsynced when cloud is older", async () => {
+    const cloud = cloudAdapter();
+    writeWonderAcademyCache(uid, sample({ playerName: "Local" }), 300);
+    vi.mocked(cloud.load).mockResolvedValue({
+      schemaVersion: 2,
+      updatedAt: 200,
+      data: sample({ playerName: "Cloud" }),
+    });
+
+    const loaded = await loadWonderAcademySave({ uid, cloud });
+
+    expect(loaded).toEqual({
+      data: sample({ playerName: "Local" }),
+      source: "local",
+      status: "pending",
+      hasUnsyncedLocalProgress: true,
+    });
   });
 
   it("keeps a pending save when it is newer than cloud", async () => {
@@ -122,6 +142,7 @@ describe("loadWonderAcademySave", () => {
       data: sample({ playerName: "Pending" }),
       source: "pending",
       status: "pending",
+      hasUnsyncedLocalProgress: true,
     });
   });
 });

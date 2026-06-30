@@ -1055,6 +1055,7 @@ export default function WonderAcademyGame({ onExit }: Props) {
     uid,
     status: "loading",
   }));
+  const [hasUnsyncedLocalProgress, setHasUnsyncedLocalProgress] = useState(false);
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   const loadedUidRef = useRef<string | null>(null);
   const latestSaveDataRef = useRef<Persisted | null>(null);
@@ -1072,6 +1073,7 @@ export default function WonderAcademyGame({ onExit }: Props) {
         if (cancelled) return;
         dispatch({ type: "load", state: result.data });
         loadedUidRef.current = uid;
+        setHasUnsyncedLocalProgress(!isGuest && result.hasUnsyncedLocalProgress);
         setSaveSnapshot({
           uid,
           status: isGuest && result.status === "idle" ? "saved" : result.status,
@@ -1081,6 +1083,7 @@ export default function WonderAcademyGame({ onExit }: Props) {
         if (cancelled) return;
         dispatch({ type: "load", state: null });
         loadedUidRef.current = uid;
+        setHasUnsyncedLocalProgress(false);
         setSaveSnapshot({ uid, status: "failed" });
       });
 
@@ -1183,10 +1186,12 @@ export default function WonderAcademyGame({ onExit }: Props) {
       })
         .then((result) => {
           if (seq !== saveSeqRef.current) return;
+          setHasUnsyncedLocalProgress(!isGuest && result.status === "pending");
           setSaveSnapshot({ uid, status: isGuest ? "saved" : result.status });
         })
         .catch(() => {
           if (seq !== saveSeqRef.current) return;
+          setHasUnsyncedLocalProgress(!isGuest);
           setSaveSnapshot({ uid, status: "failed" });
         });
     }, 900);
@@ -1204,10 +1209,12 @@ export default function WonderAcademyGame({ onExit }: Props) {
       void syncWonderAcademyPendingSave({ uid })
         .then((result) => {
           if (disposed || seq !== saveSeqRef.current || result.status === "idle") return;
+          setHasUnsyncedLocalProgress(result.status === "pending");
           setSaveSnapshot({ uid, status: result.status });
         })
         .catch(() => {
           if (disposed || seq !== saveSeqRef.current) return;
+          setHasUnsyncedLocalProgress(true);
           setSaveSnapshot({ uid, status: "failed" });
         });
     };
@@ -1272,6 +1279,7 @@ export default function WonderAcademyGame({ onExit }: Props) {
     saveSnapshot.uid === uid ? saveSnapshot.status : "loading";
   const saveLabel = saveStatusLabel(effectiveSaveStatus, isGuest);
   const entryCopy = getWonderAcademyEntryCopy({ isGuest });
+  const showUnsyncedLocalNotice = !isGuest && hasUnsyncedLocalProgress;
 
   const frame = (children: ReactNode) => (
     <div style={{ minHeight: "100dvh", background: PANEL_BG, fontFamily: '-apple-system, "PingFang TC", "Noto Sans TC", sans-serif', color: "#33304a" }}>
@@ -1475,6 +1483,14 @@ export default function WonderAcademyGame({ onExit }: Props) {
               <button onClick={handleSignIn} style={{ ...btnOutline, padding: "9px 13px", fontSize: 12 }}>登入同步</button>
             </div>
             {authError && <div style={{ ...authErrorBox, margin: "10px 0 0", textAlign: "left" }}>{authError}</div>}
+          </div>
+        )}
+        {showUnsyncedLocalNotice && (
+          <div style={unsyncedNoticeBox}>
+            <div style={{ fontWeight: 900, color: "#5b3d00", marginBottom: 3 }}>
+              此裝置有尚未同步的 Wonder Academy 進度
+            </div>
+            <div>我會自動同步到雲端。同步完成前,請先不要在其他裝置覆蓋這份進度。</div>
           </div>
         )}
 
@@ -1950,6 +1966,7 @@ const dangerBtn: CSSProperties = { display: "inline-flex", alignItems: "center",
 const dailyBtn: CSSProperties = { display: "inline-flex", alignItems: "center", gap: 8, fontSize: 14, fontWeight: 800, color: "#5b3d00", background: "linear-gradient(180deg,#ffd66b,#f7b13a)", border: "none", padding: "11px 18px", borderRadius: 13, boxShadow: "0 6px 16px rgba(247,177,58,.4)", cursor: "pointer", marginBottom: 14 };
 const dailyFlashBox: CSSProperties = { display: "inline-flex", alignItems: "center", gap: 8, fontSize: 13.5, fontWeight: 800, color: "#5b3d00", background: "#fff4d6", border: "1px solid #f0c869", padding: "10px 16px", borderRadius: 13, marginBottom: 14 };
 const guestNoticeBox: CSSProperties = { maxWidth: 520, margin: "0 auto 16px", padding: "12px 14px", borderRadius: 14, background: "#fff7e0", border: "1px solid #f0c869", color: "#8a6a12", fontSize: 12.5, lineHeight: 1.5, boxShadow: "0 5px 14px rgba(120,86,30,.07)" };
+const unsyncedNoticeBox: CSSProperties = { ...guestNoticeBox, maxWidth: "none", margin: "0 0 16px", textAlign: "left" };
 const authErrorBox: CSSProperties = { maxWidth: 520, margin: "0 auto 14px", padding: "9px 12px", borderRadius: 12, background: "#ffecef", border: "1px solid #efb1bb", color: "#b64255", fontSize: 12.5, fontWeight: 800 };
 const resetConfirmBox: CSSProperties = { margin: "-8px 0 22px", padding: "14px 16px", borderRadius: 14, background: "#fff2f4", border: "1px solid #efb1bb", boxShadow: "0 8px 22px rgba(182,66,85,.12)" };
 const roleBadge: CSSProperties = { fontSize: 10, fontWeight: 800, color: "#6a52ff", background: "#efeaff", border: "1px solid #cdb6ef", borderRadius: 999, padding: "1px 7px" };

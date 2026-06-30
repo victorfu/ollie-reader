@@ -46,6 +46,7 @@ export type WonderAcademyLoadResult = {
   data: WonderAcademyProgressData | null;
   source: "cloud" | "local" | "legacy-local" | "pending" | "empty";
   status: WonderAcademySaveStatus;
+  hasUnsyncedLocalProgress: boolean;
 };
 
 export type WonderAcademySaveResult = {
@@ -287,7 +288,12 @@ export async function loadWonderAcademySave({
 
   const selected = chooseFreshest(cloudRecord, pending, local);
   if (!selected) {
-    return { data: null, source: "empty", status: cloudFailed ? "failed" : "idle" };
+    return {
+      data: null,
+      source: "empty",
+      status: cloudFailed ? "failed" : "idle",
+      hasUnsyncedLocalProgress: false,
+    };
   }
 
   if (selected.source === "cloud") {
@@ -295,13 +301,23 @@ export async function loadWonderAcademySave({
     if (pending && pending.updatedAt <= selected.updatedAt) {
       clearWonderAcademyPending(uid, storage);
     }
-    return { data: selected.data, source: "cloud", status: "saved" };
+    return {
+      data: selected.data,
+      source: "cloud",
+      status: "saved",
+      hasUnsyncedLocalProgress: false,
+    };
   }
+
+  const hasUnsyncedLocalProgress =
+    selected.source === "pending"
+    || (!cloudFailed && (selected.source === "local" || selected.source === "legacy-local"));
 
   return {
     data: selected.data,
     source: selected.source,
-    status: selected.source === "pending" ? "pending" : cloudFailed ? "failed" : "saved",
+    status: hasUnsyncedLocalProgress ? "pending" : cloudFailed ? "failed" : "saved",
+    hasUnsyncedLocalProgress,
   };
 }
 
