@@ -94,6 +94,27 @@ describe("normalizeWonderAcademySave", () => {
     ]);
   });
 
+  it("normalizes economy values to non-negative integers", () => {
+    expect(
+      normalizeWonderAcademySave({
+        playerName: "Mina",
+        team: [],
+        stardust: -12.8,
+        snacks: {
+          "starberry-cookie": -2,
+          "moon-milk-puff": 3.8,
+          "warm-cocoa-gem": Number.NaN,
+        },
+      }),
+    ).toMatchObject({
+      stardust: 0,
+      snacks: {
+        "starberry-cookie": 0,
+        "moon-milk-puff": 3,
+      },
+    });
+  });
+
   it("preserves valid audio settings from saved progress", () => {
     expect(
       normalizeWonderAcademySave({

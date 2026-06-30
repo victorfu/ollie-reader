@@ -122,13 +122,15 @@ function stringArray(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((v): v is string => typeof v === "string") : [];
 }
 
-function numberRecord(value: unknown): Record<string, number> {
+function nonNegativeIntegerRecord(value: unknown): Record<string, number> {
   const record = asRecord(value);
   if (!record) return {};
   return Object.fromEntries(
-    Object.entries(record).filter((entry): entry is [string, number] => (
-      typeof entry[1] === "number" && Number.isFinite(entry[1])
-    )),
+    Object.entries(record)
+      .filter((entry): entry is [string, number] => (
+        typeof entry[1] === "number" && Number.isFinite(entry[1])
+      ))
+      .map(([key, amount]) => [key, clampedInteger(amount, 0, 0, Number.MAX_SAFE_INTEGER)]),
   );
 }
 
@@ -250,10 +252,8 @@ export function normalizeWonderAcademySave(input: unknown): WonderAcademyProgres
     playerName: typeof parsed.playerName === "string" ? parsed.playerName : "",
     team: normalizeTeam(parsed.team),
     dex: (asRecord(parsed.dex) ?? {}) as Wonderdex,
-    stardust: typeof parsed.stardust === "number" && Number.isFinite(parsed.stardust)
-      ? parsed.stardust
-      : 0,
-    snacks: numberRecord(parsed.snacks),
+    stardust: clampedInteger(parsed.stardust, 0, 0, Number.MAX_SAFE_INTEGER),
+    snacks: nonNegativeIntegerRecord(parsed.snacks),
     customCreatures: normalizeCustomCreatures(parsed.customCreatures),
     wardensDefeated: stringArray(parsed.wardensDefeated),
     clearedNodes: stringArray(parsed.clearedNodes),
