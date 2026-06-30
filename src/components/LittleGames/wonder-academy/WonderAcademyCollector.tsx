@@ -1,5 +1,5 @@
 import academyHubUrl from "../../../assets/games/wonder-academy/backgrounds/academy-hub.png";
-import { ArrowLeft, Compass, Gift, Lock, MapPin, Plus, ShoppingBag, Sparkles, Upload, X } from "lucide-react";
+import { ArrowLeft, Compass, Gift, Lock, MapPin, Plus, RotateCcw, ShoppingBag, Sparkles, Upload, X } from "lucide-react";
 import { useEffect, useMemo, useReducer, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { Volume2, VolumeX } from "lucide-react";
 import { useAuth } from "../../../hooks/useAuth";
@@ -71,6 +71,10 @@ import {
   type WonderAcademyProgressData,
   type WonderAcademySaveStatus,
 } from "./wonderAcademyPersistence";
+import {
+  getWonderAcademyEntryCopy,
+  shouldConfirmWonderAcademyOverwrite,
+} from "./wonderAcademySessionGuards";
 
 type Screen =
   | "title"
@@ -149,6 +153,7 @@ type GameState = Persisted & {
 type Action =
   | { type: "load"; state: Persisted | null }
   | { type: "beginNewGame" }
+  | { type: "resetNewGame" }
   | { type: "setName"; name: string }
   | { type: "arriveNext" }
   | { type: "pickStarter"; speciesId: string }
@@ -382,6 +387,8 @@ function reducer(state: GameState, action: Action): GameState {
     }
     case "beginNewGame":
       return { ...state, screen: "arrival" };
+    case "resetNewGame":
+      return { ...INITIAL, ready: true, screen: "arrival" };
     case "setName":
       return { ...state, playerName: action.name };
     case "arriveNext":
@@ -1038,7 +1045,7 @@ type SaveStatusSnapshot = {
 };
 
 export default function WonderAcademyGame({ onExit }: Props) {
-  const { user } = useAuth();
+  const { user, signInWithGoogle, authError } = useAuth();
   const isGuest = !user?.uid;
   const uid = user?.uid ?? "guest";
   const [state, dispatch] = useReducer(reducer, INITIAL);
@@ -1046,6 +1053,7 @@ export default function WonderAcademyGame({ onExit }: Props) {
     uid,
     status: "loading",
   }));
+  const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   const loadedUidRef = useRef<string | null>(null);
   const saveSeqRef = useRef(0);
 
@@ -1084,6 +1092,20 @@ export default function WonderAcademyGame({ onExit }: Props) {
   const [dailyFlash, setDailyFlash] = useState<string | null>(null);
   const sfx = (id: Parameters<WonderAcademyAudioManager["playSfx"]>[0]) =>
     audioRef.current?.playSfx(id);
+  const handleSignIn = () => {
+    void signInWithGoogle().catch(() => {
+      // Auth context exposes the localized error message.
+    });
+  };
+  const startNewGame = () => {
+    sfx("ui_select");
+    dispatch({ type: "beginNewGame" });
+  };
+  const confirmResetNewGame = () => {
+    sfx("ui_confirm");
+    setResetConfirmOpen(false);
+    dispatch({ type: "resetNewGame" });
+  };
 
   useEffect(() => {
     audioRef.current = createWonderAcademyAudio({
@@ -1193,6 +1215,7 @@ export default function WonderAcademyGame({ onExit }: Props) {
   const effectiveSaveStatus: WonderAcademySaveStatus =
     saveSnapshot.uid === uid ? saveSnapshot.status : "loading";
   const saveLabel = saveStatusLabel(effectiveSaveStatus, isGuest);
+  const entryCopy = getWonderAcademyEntryCopy({ isGuest });
 
   const frame = (children: ReactNode) => (
     <div style={{ minHeight: "100dvh", background: PANEL_BG, fontFamily: '-apple-system, "PingFang TC", "Noto Sans TC", sans-serif', color: "#33304a" }}>
@@ -1220,7 +1243,19 @@ export default function WonderAcademyGame({ onExit }: Props) {
         <div style={{ fontSize: 56, marginBottom: 4 }}>✦</div>
         <h1 style={{ fontSize: 34, fontWeight: 800, margin: "0 0 6px" }}>Wonder Academy</h1>
         <p style={{ color: "#8a83a3", fontSize: 15, margin: "0 0 28px" }}>在發光的森林裡,遇見、收服、養大你的夥伴。</p>
-        <button onClick={() => dispatch({ type: "beginNewGame" })} style={ctaBtn}>開始冒險 →</button>
+        {entryCopy.noticeTitle && entryCopy.noticeBody && (
+          <div style={guestNoticeBox}>
+            <div style={{ fontWeight: 900, color: "#5b3d00", marginBottom: 4 }}>{entryCopy.noticeTitle}</div>
+            <div>{entryCopy.noticeBody}</div>
+          </div>
+        )}
+        {authError && <div style={authErrorBox}>{authError}</div>}
+        <div style={{ display: "flex", justifyContent: "center", gap: 10, flexWrap: "wrap" }}>
+          <button onClick={isGuest ? handleSignIn : startNewGame} style={ctaBtn}>{entryCopy.primaryLabel} →</button>
+          {entryCopy.secondaryLabel && (
+            <button onClick={startNewGame} style={btnOutline}>{entryCopy.secondaryLabel}</button>
+          )}
+        </div>
       </div>,
     );
   }
@@ -1374,6 +1409,18 @@ export default function WonderAcademyGame({ onExit }: Props) {
       <div>
         <h1 style={{ fontSize: 24, fontWeight: 800, margin: "8px 0 2px" }}>學院大廳</h1>
         <p style={{ color: "#8a83a3", fontSize: 14, margin: "0 0 18px" }}>圖鑑進度 {completion.caught}/{completion.total} 已收服 · {completion.seen} 已遇見 · 🍪 點心 ×{totalSnacks}</p>
+        {isGuest && entryCopy.noticeTitle && entryCopy.noticeBody && (
+          <div style={{ ...guestNoticeBox, margin: "0 0 16px", textAlign: "left", maxWidth: "none" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+              <div style={{ flex: "1 1 240px" }}>
+                <div style={{ fontWeight: 900, color: "#5b3d00", marginBottom: 3 }}>{entryCopy.noticeTitle}</div>
+                <div>{entryCopy.noticeBody}</div>
+              </div>
+              <button onClick={handleSignIn} style={{ ...btnOutline, padding: "9px 13px", fontSize: 12 }}>登入同步</button>
+            </div>
+            {authError && <div style={{ ...authErrorBox, margin: "10px 0 0", textAlign: "left" }}>{authError}</div>}
+          </div>
+        )}
 
         <style>{`@keyframes waBob{0%,100%{transform:translateY(0)}50%{transform:translateY(-9px)}}@media (prefers-reduced-motion: reduce){.wa-bob{animation:none!important}}`}</style>
         <div style={{ position: "relative", height: 152, borderRadius: 16, overflow: "hidden", marginBottom: 20, backgroundImage: `url(${academyHubUrl})`, backgroundSize: "cover", backgroundPosition: "center", boxShadow: "inset 0 -34px 44px rgba(0,0,0,.14), 0 6px 18px rgba(80,50,130,.1)" }}>
@@ -1437,7 +1484,31 @@ export default function WonderAcademyGame({ onExit }: Props) {
           <button onClick={() => dispatch({ type: "openDex" })} style={btnOutline}><Sparkles size={16} /> 圖鑑</button>
           <button onClick={() => dispatch({ type: "openShop" })} style={btnOutline}><ShoppingBag size={16} /> 商店</button>
           <button onClick={() => dispatch({ type: "openBuilder" })} style={btnOutline}><Plus size={16} /> 建立寵物</button>
+          <button
+            onClick={() => {
+              if (shouldConfirmWonderAcademyOverwrite(state.team.length)) {
+                setResetConfirmOpen(true);
+              } else {
+                dispatch({ type: "resetNewGame" });
+              }
+            }}
+            style={dangerOutlineBtn}
+          >
+            <RotateCcw size={16} /> 重新開始
+          </button>
         </div>
+        {resetConfirmOpen && (
+          <div role="dialog" aria-labelledby="wa-reset-title" style={resetConfirmBox}>
+            <div id="wa-reset-title" style={{ fontSize: 15, fontWeight: 900, color: "#5f2030", marginBottom: 4 }}>確定要重新開始?</div>
+            <p style={{ fontSize: 13, lineHeight: 1.55, color: "#7a5160", margin: "0 0 12px" }}>
+              目前的隊伍、星塵、圖鑑與地圖進度會被新的存檔覆蓋。這個動作會在下一次保存時同步。
+            </p>
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap" }}>
+              <button onClick={() => setResetConfirmOpen(false)} style={{ ...btnOutline, padding: "9px 13px", fontSize: 12 }}>取消</button>
+              <button onClick={confirmResetNewGame} style={dangerBtn}>清空並重新開始</button>
+            </div>
+          </div>
+        )}
 
         <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: ".1em", color: "#8a83a3", textTransform: "uppercase", marginBottom: 10 }}>你的隊伍</div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(150px,1fr))", gap: 12 }}>
@@ -1817,9 +1888,14 @@ export default function WonderAcademyGame({ onExit }: Props) {
 // ---- shared styles ----
 const btnGhost: CSSProperties = { display: "inline-flex", alignItems: "center", gap: 5, fontSize: 13, fontWeight: 600, color: "#6a6585", background: "transparent", border: "none", cursor: "pointer", padding: "6px 8px" };
 const btnOutline: CSSProperties = { display: "inline-flex", alignItems: "center", gap: 6, fontSize: 14, fontWeight: 800, color: "#6a52ff", background: "rgba(255,255,255,.7)", border: "1px solid rgba(106,82,255,.3)", borderRadius: 13, padding: "12px 18px", cursor: "pointer" };
+const dangerOutlineBtn: CSSProperties = { display: "inline-flex", alignItems: "center", gap: 6, fontSize: 14, fontWeight: 800, color: "#b64255", background: "rgba(255,255,255,.72)", border: "1px solid rgba(182,66,85,.24)", borderRadius: 13, padding: "12px 18px", cursor: "pointer" };
 const ctaBtn: CSSProperties = { display: "inline-flex", alignItems: "center", gap: 8, fontSize: 15, fontWeight: 800, color: "#fff", background: "linear-gradient(180deg,#7c6cff,#6a52ff)", border: "none", padding: "13px 24px", borderRadius: 14, boxShadow: "0 8px 20px rgba(106,82,255,.34)", cursor: "pointer" };
+const dangerBtn: CSSProperties = { display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, fontSize: 12.5, fontWeight: 900, color: "#fff", background: "linear-gradient(180deg,#d95f72,#b64255)", border: "none", padding: "10px 14px", borderRadius: 12, boxShadow: "0 7px 16px rgba(182,66,85,.24)", cursor: "pointer" };
 const dailyBtn: CSSProperties = { display: "inline-flex", alignItems: "center", gap: 8, fontSize: 14, fontWeight: 800, color: "#5b3d00", background: "linear-gradient(180deg,#ffd66b,#f7b13a)", border: "none", padding: "11px 18px", borderRadius: 13, boxShadow: "0 6px 16px rgba(247,177,58,.4)", cursor: "pointer", marginBottom: 14 };
 const dailyFlashBox: CSSProperties = { display: "inline-flex", alignItems: "center", gap: 8, fontSize: 13.5, fontWeight: 800, color: "#5b3d00", background: "#fff4d6", border: "1px solid #f0c869", padding: "10px 16px", borderRadius: 13, marginBottom: 14 };
+const guestNoticeBox: CSSProperties = { maxWidth: 520, margin: "0 auto 16px", padding: "12px 14px", borderRadius: 14, background: "#fff7e0", border: "1px solid #f0c869", color: "#8a6a12", fontSize: 12.5, lineHeight: 1.5, boxShadow: "0 5px 14px rgba(120,86,30,.07)" };
+const authErrorBox: CSSProperties = { maxWidth: 520, margin: "0 auto 14px", padding: "9px 12px", borderRadius: 12, background: "#ffecef", border: "1px solid #efb1bb", color: "#b64255", fontSize: 12.5, fontWeight: 800 };
+const resetConfirmBox: CSSProperties = { margin: "-8px 0 22px", padding: "14px 16px", borderRadius: 14, background: "#fff2f4", border: "1px solid #efb1bb", boxShadow: "0 8px 22px rgba(182,66,85,.12)" };
 const roleBadge: CSSProperties = { fontSize: 10, fontWeight: 800, color: "#6a52ff", background: "#efeaff", border: "1px solid #cdb6ef", borderRadius: 999, padding: "1px 7px" };
 const cardBtn: CSSProperties = { background: "rgba(255,255,255,.66)", backdropFilter: "blur(14px)", border: "1px solid rgba(60,40,90,.1)", borderRadius: 18, padding: "16px 14px", textAlign: "center", cursor: "pointer", boxShadow: "0 6px 18px rgba(80,50,130,.08)", transition: "transform .18s" };
 const cardStatic: CSSProperties = { background: "rgba(255,255,255,.66)", border: "1px solid rgba(60,40,90,.1)", borderRadius: 16, padding: 12, boxShadow: "0 5px 14px rgba(80,50,130,.07)" };
