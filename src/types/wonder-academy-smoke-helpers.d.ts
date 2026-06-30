@@ -46,9 +46,13 @@ declare module "*.mjs" {
     equippedMoveIds?: string[];
     stardust?: number;
     snacks?: Record<string, number>;
+    clearedNodes?: string[];
+    wardensDefeated?: string[];
   }): WonderAcademySmokeSave;
 
   export function buildMalformedLoadoutGuestSave(): WonderAcademySmokeSave;
+
+  export function buildWardenReadyGuestSave(): WonderAcademySmokeSave;
 
   export function isKnownBenignWonderAcademyConsoleEntry(
     entry: WonderAcademySmokeConsoleEntry,

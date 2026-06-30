@@ -7,6 +7,13 @@ export const WONDER_ACADEMY_SMOKE_CHECKS = Object.freeze([
   "region map opens",
   "node map opens",
   "explore canvas renders",
+  "battle opens from grass",
+  "catch flow reaches result",
+  "chest loot message appears",
+  "Warden battle opens",
+  "reload preserves guest hub",
+  "mobile touch flow opens hub surfaces",
+  "keyboard flow reaches starter selection",
   "guest hub loads",
   "malformed skills loadout repairs",
   "skill equip updates",
@@ -21,6 +28,8 @@ export function buildWonderAcademyGuestSave({
   equippedMoveIds = ["tiny-flash"],
   stardust = 100,
   snacks = { "starberry-cookie": 2 },
+  clearedNodes = ["sparkleaf:entry"],
+  wardensDefeated = [],
 } = {}) {
   return {
     schemaVersion: 2,
@@ -41,8 +50,8 @@ export function buildWonderAcademyGuestSave({
       stardust,
       snacks,
       customCreatures: [],
-      wardensDefeated: [],
-      clearedNodes: ["sparkleaf:entry"],
+      wardensDefeated,
+      clearedNodes,
       shinyDex: [],
       dexRewardsClaimed: [],
       lastDailyReward: null,
@@ -58,6 +67,19 @@ export function buildMalformedLoadoutGuestSave() {
   });
 }
 
+export function buildWardenReadyGuestSave() {
+  return buildWonderAcademyGuestSave({
+    level: 50,
+    equippedMoveIds: ["tiny-flash", "zip-spark", "wink-feint", "starstep-dash"],
+    stardust: 250,
+    snacks: {
+      "starberry-cookie": 5,
+      "clover-macaron": 5,
+    },
+    clearedNodes: ["sparkleaf:entry", "sparkleaf:meadow", "sparkleaf:grove"],
+  });
+}
+
 export function isKnownBenignWonderAcademyConsoleEntry(entry) {
   const text = entry?.text ?? "";
   return text.includes("content-firebaseappcheck.googleapis.com")
@@ -66,6 +88,11 @@ export function isKnownBenignWonderAcademyConsoleEntry(entry) {
       entry?.type === "warning"
       && text.includes("GL Driver Message")
       && text.includes("ReadPixels")
+    )
+    || (
+      entry?.type === "warning"
+      && text.includes("KAPLAY already initialized")
+      && text.includes("kaplay() multiple times")
     )
     || (
       text.includes("Failed to load resource")

@@ -4,6 +4,7 @@ import {
   checkpointWonderAcademyProgress,
   clearWonderAcademyPending,
   loadWonderAcademySave,
+  localOnlyWonderAcademyCloudAdapter,
   normalizeWonderAcademySave,
   readWonderAcademyCache,
   readWonderAcademyPending,
@@ -545,6 +546,26 @@ describe("loadWonderAcademySave", () => {
       hasUnsyncedLocalProgress: true,
     });
   });
+
+  it("clears stale pending data when cloud is newer during load", async () => {
+    const cloud = cloudAdapter();
+    writeWonderAcademyPending(uid, sample({ playerName: "Old pending" }), 300);
+    vi.mocked(cloud.load).mockResolvedValue({
+      schemaVersion: 2,
+      updatedAt: 400,
+      data: sample({ playerName: "New cloud" }),
+    });
+
+    const loaded = await loadWonderAcademySave({ uid, cloud });
+
+    expect(loaded).toEqual({
+      data: sample({ playerName: "New cloud" }),
+      source: "cloud",
+      status: "saved",
+      hasUnsyncedLocalProgress: false,
+    });
+    expect(readWonderAcademyPending(uid)).toBeNull();
+  });
 });
 
 describe("saveWonderAcademyProgress", () => {
@@ -587,6 +608,19 @@ describe("saveWonderAcademyProgress", () => {
       updatedAt: 500,
       data: sample({ playerName: "Offline" }),
     });
+  });
+
+  it("saves guest progress locally without leaving pending sync work", async () => {
+    const result = await saveWonderAcademyProgress({
+      uid: "guest",
+      data: sample({ playerName: "Guest local" }),
+      cloud: localOnlyWonderAcademyCloudAdapter,
+      now: () => 600,
+    });
+
+    expect(result).toEqual({ status: "saved", updatedAt: 600 });
+    expect(readWonderAcademyCache("guest")?.data.playerName).toBe("Guest local");
+    expect(readWonderAcademyPending("guest")).toBeNull();
   });
 });
 

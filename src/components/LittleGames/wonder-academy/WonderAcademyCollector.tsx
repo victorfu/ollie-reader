@@ -92,6 +92,8 @@ import {
   shouldConfirmWonderAcademyOverwrite,
   visibleWonderAcademySaveStatus,
 } from "./wonderAcademySessionGuards";
+import { HpBar, TypeBadge } from "./wonderAcademyPresentation";
+import { saveStatusChip } from "./wonderAcademyPresentationStyles";
 
 type Screen =
   | "title"
@@ -769,63 +771,6 @@ function saveStatusLabel(status: WonderAcademySaveStatus, isGuest: boolean): str
     default:
       return "未保存";
   }
-}
-
-function saveStatusChip(status: WonderAcademySaveStatus): CSSProperties {
-  const palette: Record<WonderAcademySaveStatus, { bg: string; border: string; color: string }> = {
-    idle: { bg: "rgba(255,255,255,.58)", border: "rgba(60,40,90,.12)", color: "#8a83a3" },
-    loading: { bg: "#eef5ff", border: "#b9d4ff", color: "#4270bc" },
-    saving: { bg: "#eef5ff", border: "#b9d4ff", color: "#4270bc" },
-    saved: { bg: "#eef9ee", border: "#b8ddb8", color: "#3b7b45" },
-    pending: { bg: "#fff7e0", border: "#f0c869", color: "#9a6a10" },
-    failed: { bg: "#ffecef", border: "#efb1bb", color: "#b64255" },
-  };
-  const c = palette[status];
-  return {
-    display: "inline-flex",
-    alignItems: "center",
-    minHeight: 24,
-    borderRadius: 999,
-    padding: "2px 8px",
-    border: `1px solid ${c.border}`,
-    background: c.bg,
-    color: c.color,
-    fontSize: 11,
-    fontWeight: 800,
-    whiteSpace: "nowrap",
-  };
-}
-
-function TypeBadge({ element }: { element: keyof typeof ELEMENT_META }) {
-  const m = ELEMENT_META[element];
-  return (
-    <span
-      style={{
-        fontSize: 11,
-        fontWeight: 700,
-        padding: "2px 8px",
-        borderRadius: 999,
-        color: m.fg,
-        background: m.bg,
-      }}
-    >
-      {m.emoji} {m.label}
-    </span>
-  );
-}
-
-function HpBar({ hp, maxHp }: { hp: number; maxHp: number }) {
-  const pct = Math.max(0, Math.round((hp / maxHp) * 100));
-  const color =
-    pct > 50 ? "linear-gradient(90deg,#6fd07f,#42b86a)" : pct > 20 ? "linear-gradient(90deg,#ffcf5b,#f4a93a)" : "linear-gradient(90deg,#ff8a5b,#ef5b6e)";
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-      <div style={{ flex: 1, height: 8, borderRadius: 999, background: "#e7e3ef", overflow: "hidden" }}>
-        <div style={{ width: `${pct}%`, height: "100%", borderRadius: 999, background: color, transition: "width .35s" }} />
-      </div>
-      <span style={{ fontSize: 10, fontWeight: 700, color: "#8a83a3", minWidth: 28, textAlign: "right" }}>{pct}%</span>
-    </div>
-  );
 }
 
 function battleHeadline(session: BattleSession): string {

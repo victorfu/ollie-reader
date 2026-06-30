@@ -2,6 +2,7 @@
 import { chromium } from "playwright";
 import {
   buildMalformedLoadoutGuestSave,
+  buildWardenReadyGuestSave,
   buildWonderAcademyGuestSave,
   relevantWonderAcademyConsoleEntries,
   WONDER_ACADEMY_GUEST_SAVE_KEY,
@@ -53,6 +54,13 @@ async function clearWonderAcademySavesOnLoad(page) {
   });
 }
 
+async function seedRandom(page, values, fallback = 0.01) {
+  await page.addInitScript(({ seededValues, fallbackValue }) => {
+    const queue = [...seededValues];
+    Math.random = () => queue.shift() ?? fallbackValue;
+  }, { seededValues: values, fallbackValue: fallback });
+}
+
 async function assertExploreCanvasRendered(page) {
   const canvas = page.locator("canvas").first();
   await canvas.waitFor({ timeout: 10000 });
@@ -99,6 +107,46 @@ async function assertExploreCanvasRendered(page) {
   }
 }
 
+async function pressExploreKey(page, key) {
+  await page.keyboard.press(key);
+  await page.waitForTimeout(300);
+}
+
+async function clickExploreTile(page, x, y) {
+  await page.locator("canvas").first().click({
+    position: {
+      x: 20 + x * 64 + 32,
+      y: 20 + y * 64 + 32,
+    },
+  });
+  await page.waitForTimeout(800);
+}
+
+async function walkToFirstGrassBattle(page) {
+  const canvas = page.locator("canvas").first();
+  await canvas.click({ position: { x: 300, y: 240 } });
+  await pressExploreKey(page, "ArrowRight");
+  await pressExploreKey(page, "ArrowRight");
+  await pressExploreKey(page, "ArrowRight");
+  await page.getByText(/野生的 .* 出現了!/).waitFor({ timeout: 10000 });
+  await page.getByRole("button", { name: /遞點心收服/ }).waitFor({ timeout: 5000 });
+}
+
+async function catchCurrentBattleAndReturnToScene(page) {
+  await page.getByRole("button", { name: /遞點心收服/ }).click();
+  await page.getByRole("heading", { name: /新夥伴/ }).waitFor({ timeout: 10000 });
+  await page.getByRole("button", { name: /回到森林/ }).click();
+  await page.getByRole("heading", { name: "探索中" }).waitFor({ timeout: 5000 });
+  await assertExploreCanvasRendered(page);
+}
+
+async function walkToChestAndAssertLoot(page) {
+  await clickExploreTile(page, 7, 2);
+  await clickExploreTile(page, 7, 1);
+  await clickExploreTile(page, 6, 1);
+  await page.getByText(/打開寶箱!獲得/).waitFor({ timeout: 10000 });
+}
+
 async function openGuestHub(context, save) {
   const page = await context.newPage();
   const watch = createBrowserWatch(page);
@@ -112,6 +160,20 @@ async function smokeNewGameExploreFlow(context) {
   const page = await context.newPage();
   const watch = createBrowserWatch(page);
   await clearWonderAcademySavesOnLoad(page);
+  await seedRandom(page, [
+    0.01, // grass encounter threshold
+    0.01, // rollEncounter chance
+    0.01, // pick Mossmew
+    0.01, // low wild level
+    0.99, // not shiny
+    0.01, // catch succeeds
+    0.01, // caught ownedId suffix
+    0.01, // caught reward snack
+    0.01,
+    0.01,
+    0.01,
+    0.01,
+  ]);
 
   await page.goto(legacyUrl, { waitUntil: "networkidle" });
   await page.waitForURL(/\/games\/wonder-academy(?:$|[?#])/, { timeout: 10000 });
@@ -132,7 +194,106 @@ async function smokeNewGameExploreFlow(context) {
   await page.getByRole("heading", { name: /星葉森林/ }).waitFor({ timeout: 5000 });
   await page.getByRole("button", { name: /^🐾 林間入口$/ }).click();
   await assertExploreCanvasRendered(page);
+  await walkToFirstGrassBattle(page);
+  await catchCurrentBattleAndReturnToScene(page);
+  await walkToChestAndAssertLoot(page);
 
+  await page.close();
+  return watch;
+}
+
+async function smokeWardenBattle(context) {
+  const { page, watch } = await openGuestHub(context, buildWardenReadyGuestSave());
+  await page.getByRole("button", { name: /出發探索/ }).click();
+  await page.getByRole("heading", { name: "選擇探索地點" }).waitFor({ timeout: 5000 });
+  await page.getByRole("button", { name: /星葉森林/ }).click();
+  await page.getByRole("heading", { name: /星葉森林/ }).waitFor({ timeout: 5000 });
+  await page.getByRole("button", { name: /^👑 守關之地$/ }).click();
+  await page.getByText("👑 守關魔王").waitFor({ timeout: 5000 });
+  await page.getByRole("button", { name: /微光閃/ }).click();
+  await page.getByText(/反擊了!/).waitFor({ timeout: 5000 });
+  await page.close();
+  return watch;
+}
+
+async function smokeGuestReload(context) {
+  const page = await context.newPage();
+  const watch = createBrowserWatch(page);
+  await page.goto(targetUrl, { waitUntil: "networkidle" });
+  await page.evaluate(({ key, save }) => {
+    for (const storageKey of Object.keys(window.localStorage)) {
+      if (storageKey.startsWith("wonder-academy-")) window.localStorage.removeItem(storageKey);
+    }
+    window.localStorage.setItem(key, JSON.stringify(save));
+  }, {
+    key: WONDER_ACADEMY_GUEST_SAVE_KEY,
+    save: buildWonderAcademyGuestSave({ playerName: "Reload QA" }),
+  });
+  await page.reload({ waitUntil: "networkidle" });
+  await page.getByRole("heading", { name: "學院大廳" }).waitFor({ timeout: 10000 });
+  await page.getByText(/圖鑑進度/).first().waitFor({ timeout: 5000 });
+  await page.close();
+  return watch;
+}
+
+async function assertNoHorizontalOverflow(page) {
+  const layout = await page.evaluate(() => ({
+    innerWidth: window.innerWidth,
+    scrollWidth: document.documentElement.scrollWidth,
+  }));
+  if (layout.scrollWidth > layout.innerWidth + 2) {
+    throw new Error(`Mobile layout overflows horizontally: ${JSON.stringify(layout)}`);
+  }
+}
+
+async function assertTouchTarget(page, roleName) {
+  const box = await page.getByRole("button", { name: roleName }).first().boundingBox();
+  if (!box || box.width < 44 || box.height < 44) {
+    throw new Error(`Touch target is too small for ${roleName}: ${JSON.stringify(box)}`);
+  }
+}
+
+async function smokeMobileTouchFlow(browser) {
+  const context = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    isMobile: true,
+    hasTouch: true,
+  });
+  const { page, watch } = await openGuestHub(
+    context,
+    buildWonderAcademyGuestSave({ playerName: "Mobile QA" }),
+  );
+  await assertNoHorizontalOverflow(page);
+  await assertTouchTarget(page, /出發探索/);
+  await assertTouchTarget(page, /圖鑑/);
+  await assertTouchTarget(page, /商店/);
+
+  await page.getByRole("button", { name: /圖鑑/ }).tap();
+  await page.getByRole("heading", { name: "Wonderdex" }).waitFor({ timeout: 5000 });
+  await assertNoHorizontalOverflow(page);
+  await page.getByRole("button", { name: /關閉/ }).tap();
+  await page.getByRole("heading", { name: "學院大廳" }).waitFor({ timeout: 5000 });
+
+  await page.getByRole("button", { name: /商店/ }).tap();
+  await page.getByRole("heading", { name: "點心商店" }).waitFor({ timeout: 5000 });
+  await assertNoHorizontalOverflow(page);
+  await page.close();
+  await context.close();
+  return watch;
+}
+
+async function smokeKeyboardEntryFlow(context) {
+  const page = await context.newPage();
+  const watch = createBrowserWatch(page);
+  await clearWonderAcademySavesOnLoad(page);
+  await page.goto(targetUrl, { waitUntil: "networkidle" });
+  await page.getByRole("heading", { name: "Wonder Academy" }).waitFor({ timeout: 10000 });
+  await page.getByRole("button", { name: /訪客試玩/ }).focus();
+  await page.keyboard.press("Enter");
+  await page.getByPlaceholder("輸入你的名字").fill("Key QA");
+  await page.getByRole("button", { name: /這就是我/ }).focus();
+  await page.keyboard.press("Enter");
+  await page.getByRole("heading", { name: /選擇你的第一個夥伴/ }).waitFor({ timeout: 5000 });
   await page.close();
   return watch;
 }
@@ -193,6 +354,10 @@ async function main() {
 
   try {
     watches.push(await smokeNewGameExploreFlow(context));
+    watches.push(await smokeWardenBattle(context));
+    watches.push(await smokeGuestReload(context));
+    watches.push(await smokeKeyboardEntryFlow(context));
+    watches.push(await smokeMobileTouchFlow(browser));
     watches.push(await smokeMalformedSkillsRepair(context));
     watches.push(await smokeHubSurfacesAndEquip(context));
   } finally {

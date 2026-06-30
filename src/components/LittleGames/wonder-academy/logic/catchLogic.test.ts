@@ -40,6 +40,24 @@ describe("computeCatchChance", () => {
     expect(guaranteedish).toBeLessThanOrEqual(0.95);
     expect(nearImpossible).toBeGreaterThanOrEqual(0.05);
   });
+
+  it("keeps sleepy common favorite-snack catches high but not guaranteed", () => {
+    const chance = computeCatchChance(
+      ctx({ hpRatio: 0.2, rarity: "common", treatTier: 2, isFavoriteSnack: true }),
+    );
+
+    expect(chance).toBeGreaterThanOrEqual(0.85);
+    expect(chance).toBeLessThanOrEqual(0.95);
+  });
+
+  it("keeps healthy uncommon non-favorite catches meaningfully harder", () => {
+    const chance = computeCatchChance(
+      ctx({ hpRatio: 0.8, rarity: "uncommon", treatTier: 2, isFavoriteSnack: false }),
+    );
+
+    expect(chance).toBeGreaterThanOrEqual(0.2);
+    expect(chance).toBeLessThanOrEqual(0.45);
+  });
 });
 
 describe("attemptCatch", () => {

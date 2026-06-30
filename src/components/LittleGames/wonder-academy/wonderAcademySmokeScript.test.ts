@@ -46,6 +46,15 @@ describe("Wonder Academy browser smoke helpers", () => {
     ).toBe(true);
   });
 
+  it("ignores Kaplay repeated-init warnings caused by multi-canvas smoke checks", () => {
+    expect(
+      isKnownBenignWonderAcademyConsoleEntry({
+        type: "warning",
+        text: "KAPLAY already initialized, you are calling kaplay() multiple times, it may lead bugs!",
+      }),
+    ).toBe(true);
+  });
+
   it("keeps unrelated console errors relevant", () => {
     const entries = [
       {
@@ -68,6 +77,13 @@ describe("Wonder Academy browser smoke helpers", () => {
       "region map opens",
       "node map opens",
       "explore canvas renders",
+      "battle opens from grass",
+      "catch flow reaches result",
+      "chest loot message appears",
+      "Warden battle opens",
+      "reload preserves guest hub",
+      "mobile touch flow opens hub surfaces",
+      "keyboard flow reaches starter selection",
       "guest hub loads",
       "malformed skills loadout repairs",
       "skill equip updates",
