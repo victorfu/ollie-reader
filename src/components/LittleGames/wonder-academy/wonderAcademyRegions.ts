@@ -57,14 +57,34 @@ const FOREST_THEME: RegionTheme = {
   trunk: "#8a5a32",
 };
 
-const GLIMMER_THEME: RegionTheme = {
-  bg: [188, 201, 230],
-  ground: "#d7dcef",
-  grass: "#a9d6df",
-  treeBase: "#6f8fb4",
-  canopyA: "#5f7fb0",
-  canopyB: "#7ba6d2",
-  trunk: "#6b5a7a",
+const TIDEGLASS_THEME: RegionTheme = {
+  bg: [188, 225, 235],
+  ground: "#e5d7bf",
+  grass: "#91d3da",
+  treeBase: "#5f9faa",
+  canopyA: "#4f94a7",
+  canopyB: "#75bed0",
+  trunk: "#7a6b62",
+};
+
+const CLOCKTOWER_THEME: RegionTheme = {
+  bg: [209, 200, 224],
+  ground: "#d8c7a7",
+  grass: "#b8b3cf",
+  treeBase: "#8d86a8",
+  canopyA: "#746f98",
+  canopyB: "#9b95be",
+  trunk: "#6f5a43",
+};
+
+const SUGARCLOUD_THEME: RegionTheme = {
+  bg: [245, 214, 225],
+  ground: "#f2d9b8",
+  grass: "#f5b9d0",
+  treeBase: "#d892b5",
+  canopyA: "#e784ad",
+  canopyB: "#f3a8c9",
+  trunk: "#9c6274",
 };
 
 // Walkable scenes hold explore content (grass/chest/npc/exit) plus decorative
@@ -80,13 +100,33 @@ const SPARKLEAF_MAP = [
   "TTTTXTTTT",
 ];
 
-const GLIMMER_MAP = [
+const TIDEGLASS_MAP = [
   "TTTTTTTTT",
-  "TGPCPGPNT",
-  "TPOPTTTPT",
+  "TPPGPCPNT",
+  "TPOPTGPPT",
+  "TGPSFPGPT",
+  "TPTTTPTPT",
+  "TCPGPGPPT",
+  "TTTTXTTTT",
+];
+
+const CLOCKTOWER_MAP = [
+  "TTTTTTTTT",
+  "TPNPGPCPT",
+  "TPTOTTTPT",
+  "TGPFSPGPT",
+  "TPTTTPTNT",
+  "TCPGPGPPT",
+  "TTTTXTTTT",
+];
+
+const SUGARCLOUD_MAP = [
+  "TTTTTTTTT",
+  "TGPCPNPPT",
+  "TPOPGTTPT",
   "TPPSFPGPT",
   "TPTTTPTPT",
-  "TCPGPFPPT",
+  "TCPGPGPPT",
   "TTTTXTTTT",
 ];
 
@@ -98,11 +138,28 @@ const SPARKLEAF_NODES: RegionNode[] = [
   { id: "warden", label: "守關之地", kind: "warden", x: 0.86, y: 0.32, requires: ["grove"] },
 ];
 
-const GLIMMER_NODES: RegionNode[] = [
-  { id: "entry", label: "微光入口", kind: "explore", x: 0.16, y: 0.5, requires: [] },
-  { id: "mist", label: "霧林小徑", kind: "explore", x: 0.4, y: 0.74, requires: ["entry"] },
-  { id: "hollow", label: "晶石凹地", kind: "explore", x: 0.64, y: 0.4, requires: ["mist"] },
-  { id: "warden", label: "守關之地", kind: "warden", x: 0.86, y: 0.66, requires: ["hollow"] },
+const TIDEGLASS_NODES: RegionNode[] = [
+  { id: "entry", label: "潮汐入口", kind: "explore", x: 0.16, y: 0.52, requires: [] },
+  { id: "lagoon", label: "珍珠潟湖", kind: "explore", x: 0.38, y: 0.74, requires: ["entry"] },
+  { id: "reef", label: "玻璃礁", kind: "explore", x: 0.62, y: 0.42, requires: ["lagoon"] },
+  { id: "drift-cove", label: "漂浮小灣", kind: "explore", x: 0.43, y: 0.18, requires: ["entry"], fieldSkillId: "soft-float" },
+  { id: "warden", label: "守關之地", kind: "warden", x: 0.86, y: 0.64, requires: ["reef"] },
+];
+
+const CLOCKTOWER_NODES: RegionNode[] = [
+  { id: "entry", label: "宿舍門廊", kind: "explore", x: 0.16, y: 0.62, requires: [] },
+  { id: "stair", label: "齒輪階梯", kind: "explore", x: 0.36, y: 0.36, requires: ["entry"] },
+  { id: "attic", label: "星鐘閣樓", kind: "explore", x: 0.6, y: 0.64, requires: ["stair"] },
+  { id: "gear-cache", label: "晶石機關房", kind: "explore", x: 0.58, y: 0.2, requires: ["stair"], fieldSkillId: "crystal-push" },
+  { id: "warden", label: "守關之地", kind: "warden", x: 0.84, y: 0.38, requires: ["attic"] },
+];
+
+const SUGARCLOUD_NODES: RegionNode[] = [
+  { id: "entry", label: "市集入口", kind: "explore", x: 0.14, y: 0.5, requires: [] },
+  { id: "bakery", label: "糖雲烘焙街", kind: "explore", x: 0.36, y: 0.72, requires: ["entry"] },
+  { id: "stage", label: "點心舞台", kind: "explore", x: 0.62, y: 0.44, requires: ["bakery"] },
+  { id: "backstage", label: "祕密後台", kind: "explore", x: 0.42, y: 0.2, requires: ["entry"], fieldSkillId: "secret-sense" },
+  { id: "warden", label: "守關之地", kind: "warden", x: 0.86, y: 0.68, requires: ["stage"] },
 ];
 
 export const REGIONS: Region[] = [
@@ -121,18 +178,46 @@ export const REGIONS: Region[] = [
     nodes: SPARKLEAF_NODES,
   },
   {
-    id: "glimmer",
-    name: "微光林海",
-    subtitle: "適合 Lv.8–14 · 進階",
-    badge: "🌌",
-    map: GLIMMER_MAP,
-    theme: GLIMMER_THEME,
+    id: "tideglass",
+    name: "玻璃海岸",
+    subtitle: "適合 Lv.8–14 · 潮汐",
+    badge: "🌊",
+    map: TIDEGLASS_MAP,
+    theme: TIDEGLASS_THEME,
     minLevel: 8,
     maxLevel: 14,
-    wardenSpeciesId: "mossmew",
+    wardenSpeciesId: "pearlwhisker-seal",
     wardenLevel: 20,
     lootTier: 2,
-    nodes: GLIMMER_NODES,
+    nodes: TIDEGLASS_NODES,
+  },
+  {
+    id: "clocktower",
+    name: "鐘塔宿舍",
+    subtitle: "適合 Lv.14–22 · 機關",
+    badge: "🕰️",
+    map: CLOCKTOWER_MAP,
+    theme: CLOCKTOWER_THEME,
+    minLevel: 14,
+    maxLevel: 22,
+    wardenSpeciesId: "clockbell-tanuki",
+    wardenLevel: 30,
+    lootTier: 3,
+    nodes: CLOCKTOWER_NODES,
+  },
+  {
+    id: "sugarcloud",
+    name: "糖雲市集",
+    subtitle: "適合 Lv.22–32 · 點心",
+    badge: "🍬",
+    map: SUGARCLOUD_MAP,
+    theme: SUGARCLOUD_THEME,
+    minLevel: 22,
+    maxLevel: 32,
+    wardenSpeciesId: "marshmallow-maestro",
+    wardenLevel: 40,
+    lootTier: 4,
+    nodes: SUGARCLOUD_NODES,
   },
 ];
 

@@ -30,6 +30,10 @@ function sample(overrides: Partial<WonderAcademyProgressData> = {}): WonderAcade
     clearedNodes: [],
     shinyDex: [],
     dexRewardsClaimed: [],
+    materials: {},
+    charms: {},
+    activeCharms: [],
+    trialWins: {},
     lastDailyReward: null,
     daily: null,
     audioSettings: defaultWonderAcademyAudioSettings,
@@ -133,6 +137,56 @@ describe("normalizeWonderAcademySave", () => {
       snacks: {
         "starberry-cookie": 0,
         "moon-milk-puff": 3,
+      },
+    });
+  });
+
+  it("defaults missing materials, charms, active charms, and trial wins", () => {
+    expect(normalizeWonderAcademySave({ playerName: "Mina", team: [] })).toMatchObject({
+      materials: {},
+      charms: {},
+      activeCharms: [],
+      trialWins: {},
+    });
+  });
+
+  it("normalizes malformed materials, charms, active charms, and trial wins", () => {
+    expect(
+      normalizeWonderAcademySave({
+        playerName: "Mina",
+        team: [],
+        materials: {
+          "glow-petal": 2.8,
+          "tide-glass": -1,
+          "missing-material": 10,
+          "bell-shard": 1,
+        },
+        charms: {
+          "lucky-lantern": 1,
+          "treasure-ribbon": 2.5,
+          "quiet-sneakers": -1,
+          "bad-charm": 4,
+        },
+        activeCharms: ["bad-charm", "lucky-lantern", "lucky-lantern", "treasure-ribbon", "training-bell"],
+        trialWins: {
+          "warden-rematch": 2.8,
+          "bad": -1,
+          "bellheart-trial": 1,
+        },
+      }),
+    ).toMatchObject({
+      materials: {
+        "glow-petal": 2,
+        "bell-shard": 1,
+      },
+      charms: {
+        "lucky-lantern": 1,
+        "treasure-ribbon": 2,
+      },
+      activeCharms: ["lucky-lantern", "treasure-ribbon"],
+      trialWins: {
+        "warden-rematch": 2,
+        "bellheart-trial": 1,
       },
     });
   });
@@ -377,6 +431,7 @@ describe("normalizeWonderAcademySave", () => {
       "bubble-pat",
       "cozy-shield",
       "moon-drizzle",
+      "pearl-splash",
     ]);
   });
 
@@ -432,7 +487,7 @@ describe("normalizeWonderAcademySave", () => {
     expect(normalized?.customCreatures[0]).toMatchObject({
       elements: ["light"],
       fieldSkillId: "light-trail",
-      moveIds: ["tiny-flash", "starstep-dash", "aurora-parade"],
+      moveIds: ["tiny-flash", "starstep-dash", "aurora-parade", "sugar-sparkle"],
     });
   });
 });

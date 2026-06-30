@@ -21,6 +21,42 @@ describe("Wonder Academy moves data", () => {
     }
   });
 
+  it("defines the canonical P1/P2 creature and warden moves", () => {
+    const required = [
+      "pearl-splash",
+      "tideglass-song",
+      "seal-slide",
+      "clockwork-tap",
+      "bell-chime",
+      "tanuki-twirl",
+      "sugar-sparkle",
+      "marshmallow-bounce",
+      "maestro-finale",
+      "comet-dash",
+      "starrail-echo",
+      "pillow-moonbeam",
+      "dream-drift",
+      "silent-bell",
+      "heart-crystal",
+    ];
+
+    for (const id of required) {
+      expect(WONDER_ACADEMY_MOVES[id], `missing move ${id}`).toBeDefined();
+    }
+  });
+
+  it("keeps sleep moves intentional and readable", () => {
+    const sleepMoves = Object.values(WONDER_ACADEMY_MOVES).filter((move) => move.sleep);
+
+    expect(sleepMoves.map((move) => move.id).sort()).toEqual([
+      "dream-drift",
+      "dreamcloud-haven",
+      "nap-song",
+      "pillow-moonbeam",
+      "tideglass-song",
+    ]);
+  });
+
   it("gives every move a positive power and a display name", () => {
     for (const move of Object.values(WONDER_ACADEMY_MOVES)) {
       expect(move.power).toBeGreaterThan(0);

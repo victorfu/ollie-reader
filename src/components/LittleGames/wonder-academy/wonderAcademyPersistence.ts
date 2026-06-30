@@ -20,6 +20,13 @@ import {
   type CreatureSpecies,
   type OwnedCreature,
 } from "./wonderAcademyCreatures";
+import {
+  normalizeActiveCharms,
+  normalizeCharms,
+  normalizeMaterials,
+  type CharmInventory,
+  type MaterialInventory,
+} from "./logic/charms";
 
 export const WONDER_ACADEMY_SCHEMA_VERSION = 2;
 export const WONDER_ACADEMY_CLOUD_DOC = "wonderAcademy";
@@ -39,6 +46,10 @@ export type WonderAcademyProgressData = {
   clearedNodes: string[];
   shinyDex: string[];
   dexRewardsClaimed: number[];
+  materials: MaterialInventory;
+  charms: CharmInventory;
+  activeCharms: string[];
+  trialWins: Record<string, number>;
   lastDailyReward: string | null;
   daily: DailyProgress | null;
   audioSettings: WonderAcademyAudioSettings;
@@ -156,6 +167,22 @@ function nonNegativeIntegerRecord(value: unknown): Record<string, number> {
         typeof entry[1] === "number" && Number.isFinite(entry[1])
       ))
       .map(([key, amount]) => [key, clampedInteger(amount, 0, 0, Number.MAX_SAFE_INTEGER)]),
+  );
+}
+
+function positiveIntegerRecord(value: unknown): Record<string, number> {
+  const record = asRecord(value);
+  if (!record) return {};
+  return Object.fromEntries(
+    Object.entries(record)
+      .filter((entry): entry is [string, number] => (
+        typeof entry[1] === "number" && Number.isFinite(entry[1])
+      ))
+      .flatMap(([rawKey, amount]) => {
+        const key = rawKey.trim();
+        const qty = Math.floor(amount);
+        return key && qty > 0 ? [[key, qty] as const] : [];
+      }),
   );
 }
 
@@ -331,6 +358,7 @@ export function normalizeWonderAcademySave(input: unknown): WonderAcademyProgres
   const parsed = asRecord(input);
   if (!parsed || !Array.isArray(parsed.team)) return null;
 
+  const charms = normalizeCharms(parsed.charms);
   return {
     playerName: typeof parsed.playerName === "string" ? parsed.playerName : "",
     team: normalizeTeam(parsed.team),
@@ -342,6 +370,10 @@ export function normalizeWonderAcademySave(input: unknown): WonderAcademyProgres
     clearedNodes: uniqueStringIds(parsed.clearedNodes),
     shinyDex: uniqueStringIds(parsed.shinyDex),
     dexRewardsClaimed: uniqueNonNegativeIntegers(parsed.dexRewardsClaimed),
+    materials: normalizeMaterials(parsed.materials),
+    charms,
+    activeCharms: normalizeActiveCharms(parsed.activeCharms, charms),
+    trialWins: positiveIntegerRecord(parsed.trialWins),
     lastDailyReward: optionalTrimmedString(parsed.lastDailyReward),
     daily: normalizeDailyProgress(parsed.daily),
     audioSettings: normalizeAudioSettings(asRecord(parsed.audioSettings)),

@@ -2,6 +2,7 @@
 import { chromium } from "playwright";
 import {
   buildMalformedLoadoutGuestSave,
+  buildPostgameReadyGuestSave,
   buildWardenReadyGuestSave,
   buildWonderAcademyGuestSave,
   relevantWonderAcademyConsoleEntries,
@@ -282,6 +283,31 @@ async function smokeMobileTouchFlow(browser) {
   return watch;
 }
 
+async function smokeReducedMotionStarterFlow(browser) {
+  const context = await browser.newContext({
+    viewport: { width: 1280, height: 900 },
+    reducedMotion: "reduce",
+  });
+  const page = await context.newPage();
+  const watch = createBrowserWatch(page);
+  await clearWonderAcademySavesOnLoad(page);
+  await page.goto(targetUrl, { waitUntil: "networkidle" });
+  await page.getByRole("heading", { name: "Wonder Academy" }).waitFor({ timeout: 10000 });
+  await page.getByRole("button", { name: /訪客試玩/ }).click();
+  await page.getByPlaceholder("輸入你的名字").fill("Motion QA");
+  await page.getByRole("button", { name: /這就是我/ }).click();
+  await page.getByRole("heading", { name: /選擇你的第一個夥伴/ }).waitFor({ timeout: 5000 });
+  const animationName = await page.locator(".wa-starter").first().evaluate((el) =>
+    window.getComputedStyle(el).animationName,
+  );
+  if (animationName !== "none") {
+    throw new Error(`Reduced motion starter card still animates: ${animationName}`);
+  }
+  await page.close();
+  await context.close();
+  return watch;
+}
+
 async function smokeKeyboardEntryFlow(context) {
   const page = await context.newPage();
   const watch = createBrowserWatch(page);
@@ -294,6 +320,54 @@ async function smokeKeyboardEntryFlow(context) {
   await page.getByRole("button", { name: /這就是我/ }).focus();
   await page.keyboard.press("Enter");
   await page.getByRole("heading", { name: /選擇你的第一個夥伴/ }).waitFor({ timeout: 5000 });
+  await page.close();
+  return watch;
+}
+
+async function setRangeValue(locator, value) {
+  await locator.focus();
+  await locator.press("Home");
+  const steps = Math.round(value / 0.05);
+  for (let i = 0; i < steps; i += 1) {
+    await locator.press("ArrowRight");
+  }
+}
+
+async function smokeExpandedRegions(context) {
+  const { page, watch } = await openGuestHub(context, buildWonderAcademyGuestSave());
+  await page.getByRole("button", { name: /出發探索/ }).click();
+  await page.getByRole("heading", { name: "選擇探索地點" }).waitFor({ timeout: 5000 });
+  for (const regionName of ["星葉森林", "玻璃海岸", "鐘塔宿舍", "糖雲市集"]) {
+    await page.getByRole("button", { name: new RegExp(regionName) }).waitFor({ timeout: 5000 });
+  }
+  await page.close();
+  return watch;
+}
+
+async function smokeWorkshopAndAudio(context) {
+  const { page, watch } = await openGuestHub(context, buildPostgameReadyGuestSave());
+  await page.getByRole("button", { name: /工房/ }).click();
+  await page.getByRole("heading", { name: /護符工房/ }).waitFor({ timeout: 5000 });
+  await page.getByText("幸運提燈").waitFor({ timeout: 5000 });
+  await page.getByRole("button", { name: "製作" }).first().click();
+  await page.getByText("持有 1").waitFor({ timeout: 5000 });
+  await page.getByRole("button", { name: "啟用" }).first().click();
+  await page.getByText("啟用中").waitFor({ timeout: 5000 });
+  await setRangeValue(page.getByLabel("音樂音量"), 0.2);
+  await page.getByText("20%").waitFor({ timeout: 5000 });
+  await setRangeValue(page.getByLabel("音效音量"), 0.35);
+  await page.getByText("35%").waitFor({ timeout: 5000 });
+  await page.close();
+  return watch;
+}
+
+async function smokePostgameTrial(context) {
+  const { page, watch } = await openGuestHub(context, buildPostgameReadyGuestSave());
+  await page.getByRole("button", { name: /試煉/ }).click();
+  await page.getByRole("heading", { name: /Wonder Keeper 試煉/ }).waitFor({ timeout: 5000 });
+  await page.getByText("靜鐘之心試煉").waitFor({ timeout: 5000 });
+  await page.getByRole("button", { name: /開始試煉/ }).first().click();
+  await page.getByText("👑 守關魔王").waitFor({ timeout: 5000 });
   await page.close();
   return watch;
 }
@@ -360,6 +434,10 @@ async function main() {
     watches.push(await smokeMobileTouchFlow(browser));
     watches.push(await smokeMalformedSkillsRepair(context));
     watches.push(await smokeHubSurfacesAndEquip(context));
+    watches.push(await smokeExpandedRegions(context));
+    watches.push(await smokeWorkshopAndAudio(context));
+    watches.push(await smokePostgameTrial(context));
+    watches.push(await smokeReducedMotionStarterFlow(browser));
   } finally {
     await browser.close();
   }

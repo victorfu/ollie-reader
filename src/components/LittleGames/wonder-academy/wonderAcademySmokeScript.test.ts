@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildMalformedLoadoutGuestSave,
+  buildPostgameReadyGuestSave,
   buildWonderAcademyGuestSave,
   isKnownBenignWonderAcademyConsoleEntry,
   relevantWonderAcademyConsoleEntries,
@@ -28,6 +29,33 @@ describe("Wonder Academy browser smoke helpers", () => {
     });
   });
 
+  it("builds a postgame save for workshop and trial smoke checks", () => {
+    const save = buildPostgameReadyGuestSave();
+
+    expect(save.data).toMatchObject({
+      stardust: 300,
+      materials: {
+        "glow-petal": 3,
+        "bell-shard": 1,
+      },
+      charms: {},
+      activeCharms: [],
+      trialWins: {},
+      wardensDefeated: ["sparkleaf", "tideglass", "clocktower", "sugarcloud"],
+    });
+  });
+
+  it("includes P1/P2 save fields in normal seeded saves", () => {
+    const save = buildWonderAcademyGuestSave();
+
+    expect(save.data).toMatchObject({
+      materials: {},
+      charms: {},
+      activeCharms: [],
+      trialWins: {},
+    });
+  });
+
   it("ignores known Firebase App Check console noise", () => {
     expect(
       isKnownBenignWonderAcademyConsoleEntry({
@@ -51,6 +79,15 @@ describe("Wonder Academy browser smoke helpers", () => {
       isKnownBenignWonderAcademyConsoleEntry({
         type: "warning",
         text: "KAPLAY already initialized, you are calling kaplay() multiple times, it may lead bugs!",
+      }),
+    ).toBe(true);
+  });
+
+  it("ignores Google report-only frame CSP noise from auth/app-check internals", () => {
+    expect(
+      isKnownBenignWonderAcademyConsoleEntry({
+        type: "error",
+        text: "Framing 'https://www.google.com/' violates the following report-only Content Security Policy directive: \"frame-ancestors 'self'\". The violation has been logged, but no further action has been taken.",
       }),
     ).toBe(true);
   });
@@ -89,6 +126,11 @@ describe("Wonder Academy browser smoke helpers", () => {
       "skill equip updates",
       "Wonderdex opens",
       "shop opens",
+      "expanded regions are listed",
+      "workshop opens and charm toggles",
+      "postgame trial opens",
+      "audio controls adjust volume",
+      "reduced motion starter flow renders",
       "no relevant console or page errors",
     ]);
   });

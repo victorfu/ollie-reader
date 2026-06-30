@@ -30,6 +30,10 @@ declare module "*.mjs" {
       clearedNodes: string[];
       shinyDex: string[];
       dexRewardsClaimed: number[];
+      materials: Record<string, number>;
+      charms: Record<string, number>;
+      activeCharms: string[];
+      trialWins: Record<string, number>;
       lastDailyReward: string | null;
       daily: unknown | null;
       audioSettings: {
@@ -48,11 +52,17 @@ declare module "*.mjs" {
     snacks?: Record<string, number>;
     clearedNodes?: string[];
     wardensDefeated?: string[];
+    materials?: Record<string, number>;
+    charms?: Record<string, number>;
+    activeCharms?: string[];
+    trialWins?: Record<string, number>;
   }): WonderAcademySmokeSave;
 
   export function buildMalformedLoadoutGuestSave(): WonderAcademySmokeSave;
 
   export function buildWardenReadyGuestSave(): WonderAcademySmokeSave;
+
+  export function buildPostgameReadyGuestSave(): WonderAcademySmokeSave;
 
   export function isKnownBenignWonderAcademyConsoleEntry(
     entry: WonderAcademySmokeConsoleEntry,

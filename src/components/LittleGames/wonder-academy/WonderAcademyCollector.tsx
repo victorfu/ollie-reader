@@ -1,5 +1,5 @@
 import academyHubUrl from "../../../assets/games/wonder-academy/backgrounds/academy-hub.png";
-import { ArrowLeft, Compass, Gift, Lock, MapPin, Plus, RotateCcw, ShoppingBag, Sparkles, Upload, X } from "lucide-react";
+import { ArrowLeft, Compass, Gift, Hammer, Lock, MapPin, Plus, RotateCcw, ShoppingBag, Sparkles, Upload, X } from "lucide-react";
 import { useEffect, useMemo, useReducer, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { Volume2, VolumeX } from "lucide-react";
 import { useAuth } from "../../../hooks/useAuth";
@@ -25,6 +25,20 @@ import { gainBond } from "./logic/bond";
 import { effectivenessBadge } from "./logic/battleText";
 import { chooseCatchSnack } from "./logic/catchSnacks";
 import {
+  CHARM_DEFS,
+  MATERIAL_DEFS,
+  canCraftCharm,
+  charmEffects,
+  craftCharm,
+  lootMaterialsForTier,
+  mergeMaterials,
+  toggleActiveCharm,
+  type CharmInventory,
+  type CharmId,
+  type MaterialInventory,
+  type MaterialId,
+} from "./logic/charms";
+import {
   bumpDaily,
   claimTask,
   DAILY_TASKS,
@@ -40,6 +54,13 @@ import {
   equippedMovesFor,
   unequipMoveForCreature,
 } from "./logic/moveLoadout";
+import { nextWonderAcademyObjective } from "./logic/objectives";
+import {
+  POSTGAME_TRIALS,
+  awardTrialWin,
+  isPostgameUnlocked,
+  postgameTrialById,
+} from "./logic/postgameTrials";
 import { gainXp } from "./logic/progression";
 import { isKnownSnack, SNACK_NAMES, SNACK_POOL } from "./logic/snacks";
 import { getEffectivenessAgainst } from "./logic/typeChart";
@@ -109,6 +130,8 @@ type Screen =
   | "evolve"
   | "dex"
   | "builder"
+  | "workshop"
+  | "trials"
   | "skills"
   | "shop";
 
@@ -156,6 +179,7 @@ type GameState = Persisted & {
   sceneActive: boolean;
   activeRegionId: string | null;
   isWarden: boolean;
+  trialId: string | null;
   skillsOwnedId: string | null;
   battle: BattleSession | null;
   result: ResultInfo | null;
@@ -190,6 +214,14 @@ type Action =
   | { type: "equipMove"; ownedId: string; moveId: string }
   | { type: "unequipMove"; ownedId: string; moveId: string }
   | { type: "openBuilder" }
+  | { type: "openWorkshop" }
+  | { type: "closeWorkshop" }
+  | { type: "craftCharm"; charmId: string }
+  | { type: "toggleCharm"; charmId: string }
+  | { type: "setAudioVolume"; channel: "musicVolume" | "sfxVolume"; value: number }
+  | { type: "openTrials" }
+  | { type: "closeTrials" }
+  | { type: "startTrial"; trialId: string }
   | { type: "addCustom"; creature: CreatureSpecies }
   | { type: "closeResult" }
   | { type: "finishEvolution" }
@@ -208,6 +240,7 @@ const INITIAL: GameState = {
   sceneActive: false,
   activeRegionId: null,
   isWarden: false,
+  trialId: null,
   skillsOwnedId: null,
   playerName: "",
   team: [],
@@ -219,6 +252,10 @@ const INITIAL: GameState = {
   clearedNodes: [],
   shinyDex: [],
   dexRewardsClaimed: [],
+  materials: {},
+  charms: {},
+  activeCharms: [],
+  trialWins: {},
   lastDailyReward: null,
   daily: null,
   audioSettings: defaultWonderAcademyAudioSettings,
@@ -247,6 +284,7 @@ function resolveOutcome(state: GameState, session: BattleSession): GameState {
   const activeOwnedId = session.active.ownedId;
   const wildSpeciesId = session.wild.speciesId;
   const wildName = speciesById(wildSpeciesId)?.name ?? "野生寵物";
+  const effects = charmEffects(state.activeCharms);
   const lines: string[] = [];
   let team = state.team;
   let dex = state.dex;
@@ -262,9 +300,10 @@ function resolveOutcome(state: GameState, session: BattleSession): GameState {
   };
 
   const awardXp = (amount: number) => {
+    const boostedAmount = Math.max(1, Math.round(amount * effects.xpMultiplier));
     team = team.map((o) => {
       if (o.ownedId !== activeOwnedId) return o;
-      const res = gainXp(o.level, o.xp, amount);
+      const res = gainXp(o.level, o.xp, boostedAmount);
       let owned: OwnedCreature = { ...o, level: res.level, xp: res.xp };
       if (res.levelsGained > 0) {
         lines.push(`${displayName(o)} 升到了 Lv.${res.level}!✨`);
@@ -284,6 +323,51 @@ function resolveOutcome(state: GameState, session: BattleSession): GameState {
       return owned;
     });
   };
+
+  if (state.trialId) {
+    if (session.outcome === "won") {
+      const reward = awardTrialWin({
+        trialId: state.trialId,
+        stardust: state.stardust,
+        materials: state.materials,
+        trialWins: state.trialWins,
+      });
+      const trial = postgameTrialById(state.trialId);
+      lines.push(`🏆 ${trial?.name ?? "試煉"} 完成!`);
+      lines.push(`✨ Stardust ×${reward.stardust - state.stardust}`);
+      awardXp(session.wild.level * 7);
+      return {
+        ...state,
+        team,
+        dex,
+        stardust: reward.stardust,
+        materials: reward.materials,
+        trialWins: reward.trialWins,
+        isWarden: false,
+        trialId: null,
+        battle: null,
+        pendingEvolution,
+        result: { kind: "won", speciesId: wildSpeciesId, lines },
+        screen: "result",
+      };
+    }
+    lines.push(
+      session.outcome === "lost"
+        ? "試煉太難了…調整護符與隊伍再來!"
+        : "你暫時離開了試煉。",
+    );
+    return {
+      ...state,
+      team,
+      dex,
+      isWarden: false,
+      trialId: null,
+      battle: null,
+      pendingEvolution,
+      result: { kind: session.outcome, speciesId: wildSpeciesId, lines },
+      screen: "result",
+    };
+  }
 
   if (state.isWarden) {
     if (session.outcome === "won") {
@@ -418,6 +502,13 @@ function reducer(state: GameState, action: Action): GameState {
       };
       return { ...state, audioSettings };
     }
+    case "setAudioVolume": {
+      const audioSettings: WonderAcademyAudioSettings = {
+        ...state.audioSettings,
+        [action.channel]: Math.min(1, Math.max(0, action.value)),
+      };
+      return { ...state, audioSettings };
+    }
     case "setName":
       return { ...state, playerName: action.name };
     case "arriveNext":
@@ -512,6 +603,7 @@ function reducer(state: GameState, action: Action): GameState {
       if (!state.scene || state.team.length === 0) return state;
       const region = state.activeRegionId ? regionById(state.activeRegionId) : undefined;
       if (!region) return state;
+      const effects = charmEffects(state.activeCharms);
       const perks = teamFieldPerks(
         state.team
           .map((o) => speciesById(o.speciesId)?.fieldSkillId)
@@ -528,12 +620,12 @@ function reducer(state: GameState, action: Action): GameState {
         return { ...state, scene: null, sceneActive: false, screen: "nodeMap" };
       }
 
-      if (tile === "G" && random() < Math.min(0.85, 0.4 * perks.encounterMultiplier)) {
+      if (tile === "G" && random() < Math.min(0.85, 0.4 * perks.encounterMultiplier * effects.encounterMultiplier)) {
         const table: EncounterTable = {
           encounterChance: 1,
           entries: catchableSpecies().map((s) => ({
             speciesId: s.speciesId,
-            weight: s.rarity === "common" ? 3 : 1 * perks.rareWeightBonus,
+            weight: s.rarity === "common" ? 3 : 1 * perks.rareWeightBonus * effects.rareWeightBonus,
           })),
           minLevel: region.minLevel,
           maxLevel: region.maxLevel,
@@ -545,7 +637,16 @@ function reducer(state: GameState, action: Action): GameState {
             ...state,
             scene: moved,
             dex: recordDex(state.dex, enc.speciesId, "seen"),
-            battle: startBattle(state.team.map(toCombatant), toWild(species, enc.level, rollShiny(random))),
+            battle: startBattle(
+              state.team.map(toCombatant),
+              toWild(
+                species,
+                enc.level,
+                effects.shinyBonus > 0
+                  ? random() < Math.min(0.18, 1 / 16 + effects.shinyBonus)
+                  : rollShiny(random),
+              ),
+            ),
             result: null,
             screen: "battle",
           };
@@ -555,7 +656,7 @@ function reducer(state: GameState, action: Action): GameState {
 
       if (tile === "C" && !state.scene.opened.includes(cellId)) {
         const chestTable: LootTable = {
-          rolls: 2 + perks.lootRollBonus,
+          rolls: 2 + perks.lootRollBonus + effects.lootRollBonus,
           entries: [
             { itemId: "starberry-cookie", quantity: 1, weight: 2 },
             { itemId: "clover-macaron", quantity: 1, weight: 2 },
@@ -567,6 +668,7 @@ function reducer(state: GameState, action: Action): GameState {
         const loot = rollLoot(chestTable, random);
         let snacks = state.snacks;
         let stardust = state.stardust;
+        let materials = state.materials;
         const parts: string[] = [];
         for (const [item, qty] of Object.entries(loot)) {
           if (item === "stardust") {
@@ -581,15 +683,26 @@ function reducer(state: GameState, action: Action): GameState {
           stardust += perks.chestStardustBonus;
           parts.push(`💎 Stardust ×${perks.chestStardustBonus}`);
         }
+        if (effects.chestStardustBonus > 0) {
+          stardust += effects.chestStardustBonus;
+          parts.push(`🎀 Stardust ×${effects.chestStardustBonus}`);
+        }
         const tierBonus = (region.lootTier - 1) * 8;
         if (tierBonus > 0) {
           stardust += tierBonus;
           parts.push(`✨ Stardust ×${tierBonus}`);
         }
+        const materialLoot = lootMaterialsForTier(region.lootTier);
+        materials = mergeMaterials(materials, materialLoot);
+        for (const [materialId, qty] of Object.entries(materialLoot) as [MaterialId, number][]) {
+          const material = MATERIAL_DEFS[materialId];
+          parts.push(`${material.emoji} ${material.name} ×${qty}`);
+        }
         return {
           ...state,
           snacks,
           stardust,
+          materials,
           daily: bumpDaily(state.daily, "chest", action.today),
           scene: {
             ...moved,
@@ -694,6 +807,51 @@ function reducer(state: GameState, action: Action): GameState {
     }
     case "openBuilder":
       return { ...state, screen: "builder" };
+    case "openWorkshop":
+      return { ...state, screen: "workshop" };
+    case "closeWorkshop":
+      return { ...state, screen: "hub" };
+    case "craftCharm": {
+      const result = craftCharm({
+        stardust: state.stardust,
+        materials: state.materials,
+        charms: state.charms,
+        charmId: action.charmId,
+      });
+      if (!result.crafted) return state;
+      return {
+        ...state,
+        stardust: result.stardust,
+        materials: result.materials,
+        charms: result.charms,
+      };
+    }
+    case "toggleCharm":
+      return {
+        ...state,
+        activeCharms: toggleActiveCharm(state.activeCharms, state.charms, action.charmId),
+      };
+    case "openTrials":
+      return { ...state, screen: "trials" };
+    case "closeTrials":
+      return { ...state, screen: "hub" };
+    case "startTrial": {
+      if (!isPostgameUnlocked(REGIONS.map((region) => region.id), state.wardensDefeated)) return state;
+      const trial = postgameTrialById(action.trialId);
+      const species = trial ? speciesById(trial.speciesId) : undefined;
+      if (!trial || !species || state.team.length === 0) return state;
+      return {
+        ...state,
+        activeRegionId: null,
+        scene: null,
+        sceneActive: false,
+        isWarden: true,
+        trialId: trial.id,
+        battle: startBattle(state.team.map(toCombatant), toWarden(species, trial.level)),
+        result: null,
+        screen: "battle",
+      };
+    }
     case "addCustom":
       return {
         ...state,
@@ -1012,6 +1170,163 @@ function CreatureBuilder({
   );
 }
 
+function materialCostText(cost: MaterialInventory): string {
+  return (Object.entries(cost) as [MaterialId, number][])
+    .map(([id, qty]) => {
+      const material = MATERIAL_DEFS[id];
+      return `${material.emoji}${material.name}×${qty}`;
+    })
+    .join(" · ");
+}
+
+function WorkshopScreen({
+  stardust,
+  materials,
+  charms,
+  activeCharms,
+  audioSettings,
+  onCraft,
+  onToggle,
+  onSetVolume,
+  onClose,
+}: {
+  stardust: number;
+  materials: MaterialInventory;
+  charms: CharmInventory;
+  activeCharms: string[];
+  audioSettings: WonderAcademyAudioSettings;
+  onCraft: (charmId: CharmId) => void;
+  onToggle: (charmId: CharmId) => void;
+  onSetVolume: (channel: "musicVolume" | "sfxVolume", value: number) => void;
+  onClose: () => void;
+}) {
+  const charmEntries = Object.entries(CHARM_DEFS) as [CharmId, (typeof CHARM_DEFS)[CharmId]][];
+  const materialEntries = Object.entries(MATERIAL_DEFS) as [MaterialId, (typeof MATERIAL_DEFS)[MaterialId]][];
+
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+        <h1 style={{ fontSize: 24, fontWeight: 800, margin: 0 }}>🔨 護符工房</h1>
+        <button onClick={onClose} style={btnGhost}><X size={16} /> 關閉</button>
+      </div>
+      <p style={{ color: "#8a83a3", fontSize: 14, margin: "0 0 16px" }}>用探索材料製作護符,最多同時啟用 2 個。護符會影響遇敵、寶箱、閃光與 XP 節奏。</p>
+
+      <div style={{ ...cardStatic, marginBottom: 16 }}>
+        <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: ".08em", color: "#8a83a3", textTransform: "uppercase", marginBottom: 8 }}>材料袋 · ✨ {stardust}</div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+          {materialEntries.map(([id, material]) => (
+            <span key={id} style={{ fontSize: 12, fontWeight: 800, background: "#fff", border: "1px solid rgba(60,40,90,.12)", borderRadius: 999, padding: "5px 10px" }}>
+              {material.emoji} {material.name} ×{materials[id] ?? 0}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ ...cardStatic, marginBottom: 16 }}>
+        <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: ".08em", color: "#8a83a3", textTransform: "uppercase", marginBottom: 10 }}>音量</div>
+        <label style={{ display: "grid", gridTemplateColumns: "82px 1fr 42px", alignItems: "center", gap: 10, fontSize: 13, fontWeight: 800, marginBottom: 10 }}>
+          <span>音樂</span>
+          <input aria-label="音樂音量" type="range" min={0} max={1} step={0.05} value={audioSettings.musicVolume} onChange={(e) => onSetVolume("musicVolume", Number(e.target.value))} />
+          <span style={{ color: "#8a83a3" }}>{Math.round(audioSettings.musicVolume * 100)}%</span>
+        </label>
+        <label style={{ display: "grid", gridTemplateColumns: "82px 1fr 42px", alignItems: "center", gap: 10, fontSize: 13, fontWeight: 800 }}>
+          <span>音效</span>
+          <input aria-label="音效音量" type="range" min={0} max={1} step={0.05} value={audioSettings.sfxVolume} onChange={(e) => onSetVolume("sfxVolume", Number(e.target.value))} />
+          <span style={{ color: "#8a83a3" }}>{Math.round(audioSettings.sfxVolume * 100)}%</span>
+        </label>
+      </div>
+
+      <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: ".08em", color: "#8a83a3", textTransform: "uppercase", marginBottom: 10 }}>護符 · 啟用 {activeCharms.length}/2</div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(210px,1fr))", gap: 12 }}>
+        {charmEntries.map(([id, charm]) => {
+          const owned = charms[id] ?? 0;
+          const active = activeCharms.includes(id);
+          const craftable = canCraftCharm(stardust, materials, id);
+          const cannotToggle = owned <= 0 || (!active && activeCharms.length >= 2);
+          return (
+            <div key={id} style={cardStatic}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 6 }}>
+                <div style={{ fontWeight: 900 }}>{charm.emoji} {charm.name}</div>
+                <span style={{ fontSize: 11, fontWeight: 800, color: active ? "#42b86a" : "#8a83a3" }}>{active ? "啟用中" : `持有 ${owned}`}</span>
+              </div>
+              <p style={{ fontSize: 12.5, color: "#6a6585", lineHeight: 1.45, minHeight: 36, margin: "0 0 8px" }}>{charm.desc}</p>
+              <div style={{ fontSize: 11, color: "#8a83a3", fontWeight: 700, marginBottom: 10 }}>
+                ✨{charm.stardustCost} · {materialCostText(charm.materialCost)}
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button
+                  disabled={!craftable}
+                  onClick={() => onCraft(id)}
+                  style={{ ...feedBtn, flex: 1, color: craftable ? "#5b3d00" : "#b9b3c7", background: craftable ? "linear-gradient(180deg,#ffd66b,#f7b13a)" : "#f0eef6", border: craftable ? "none" : "1px solid rgba(60,40,90,.12)", cursor: craftable ? "pointer" : "default" }}
+                >
+                  製作
+                </button>
+                <button
+                  disabled={cannotToggle}
+                  onClick={() => onToggle(id)}
+                  style={{ ...feedBtn, flex: 1, color: active ? "#42b86a" : cannotToggle ? "#b9b3c7" : "#6a52ff", background: active ? "#eefbe9" : cannotToggle ? "#f0eef6" : "#efeaff", border: "1px solid rgba(60,40,90,.12)", cursor: cannotToggle ? "default" : "pointer" }}
+                >
+                  {active ? "停用" : "啟用"}
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function TrialsScreen({
+  unlocked,
+  trialWins,
+  onStart,
+  onClose,
+}: {
+  unlocked: boolean;
+  trialWins: Record<string, number>;
+  onStart: (trialId: string) => void;
+  onClose: () => void;
+}) {
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+        <h1 style={{ fontSize: 24, fontWeight: 800, margin: 0 }}>🏆 Wonder Keeper 試煉</h1>
+        <button onClick={onClose} style={btnGhost}><X size={16} /> 關閉</button>
+      </div>
+      <p style={{ color: "#8a83a3", fontSize: 14, margin: "0 0 16px" }}>
+        {unlocked
+          ? "所有區域都恢復平靜了。挑戰高等級守護者,收集 Bell Shards 與稀有材料。"
+          : "打敗所有地區的守關者後,這裡會開放長期挑戰。"}
+      </p>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(220px,1fr))", gap: 12 }}>
+        {POSTGAME_TRIALS.map((trial) => {
+          const wins = trialWins[trial.id] ?? 0;
+          return (
+            <div key={trial.id} style={{ ...cardStatic, opacity: unlocked ? 1 : 0.58 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 6 }}>
+                <div style={{ fontWeight: 900 }}>{trial.name}</div>
+                <span style={{ fontSize: 11, fontWeight: 800, color: "#8a83a3" }}>Lv.{trial.level}</span>
+              </div>
+              <div style={{ fontSize: 12, color: "#6a6585", marginBottom: 8 }}>對手: {speciesById(trial.speciesId)?.name ?? trial.speciesId}</div>
+              <div style={{ fontSize: 11, color: "#8a83a3", fontWeight: 700, marginBottom: 10 }}>
+                勝利 {wins} 次 · ✨{trial.stardust}{wins === 0 ? ` + 首勝 ${trial.firstWinBonus}` : ""} · {materialCostText(trial.materials)}
+              </div>
+              <button
+                disabled={!unlocked}
+                onClick={() => onStart(trial.id)}
+                style={{ ...feedBtn, color: unlocked ? "#5b3d00" : "#b9b3c7", background: unlocked ? "linear-gradient(180deg,#ffd66b,#f7b13a)" : "#f0eef6", border: unlocked ? "none" : "1px solid rgba(60,40,90,.12)", cursor: unlocked ? "pointer" : "default" }}
+              >
+                {unlocked ? "開始試煉" : "尚未開放"}
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 type Props = { onExit?: () => void };
 
 type SaveStatusSnapshot = {
@@ -1142,6 +1457,10 @@ export default function WonderAcademyGame({ onExit }: Props) {
       clearedNodes: state.clearedNodes,
       shinyDex: state.shinyDex,
       dexRewardsClaimed: state.dexRewardsClaimed,
+      materials: state.materials,
+      charms: state.charms,
+      activeCharms: state.activeCharms,
+      trialWins: state.trialWins,
       lastDailyReward: state.lastDailyReward,
       daily: state.daily,
       audioSettings: state.audioSettings,
@@ -1167,7 +1486,7 @@ export default function WonderAcademyGame({ onExit }: Props) {
         });
     }, 900);
     return () => window.clearTimeout(timer);
-  }, [uid, isGuest, state.ready, state.playerName, state.team, state.dex, state.stardust, state.snacks, state.customCreatures, state.wardensDefeated, state.clearedNodes, state.shinyDex, state.dexRewardsClaimed, state.lastDailyReward, state.daily, state.audioSettings]);
+  }, [uid, isGuest, state.ready, state.playerName, state.team, state.dex, state.stardust, state.snacks, state.customCreatures, state.wardensDefeated, state.clearedNodes, state.shinyDex, state.dexRewardsClaimed, state.materials, state.charms, state.activeCharms, state.trialWins, state.lastDailyReward, state.daily, state.audioSettings]);
 
   useEffect(() => {
     if (!state.ready) return;
@@ -1233,6 +1552,29 @@ export default function WonderAcademyGame({ onExit }: Props) {
   const totalSnacks = useMemo(
     () => Object.values(state.snacks).reduce((a, b) => a + b, 0),
     [state.snacks],
+  );
+  const totalMaterials = useMemo(
+    () => Object.values(state.materials).reduce((a, b) => a + b, 0),
+    [state.materials],
+  );
+  const totalCharms = useMemo(
+    () => Object.values(state.charms).reduce((a, b) => a + b, 0),
+    [state.charms],
+  );
+  const regionIds = useMemo(() => REGIONS.map((region) => region.id), []);
+  const postgameUnlocked = isPostgameUnlocked(regionIds, state.wardensDefeated);
+  const currentObjective = useMemo(
+    () => nextWonderAcademyObjective({
+      teamCount: state.team.length,
+      clearedNodes: state.clearedNodes,
+      wardensDefeated: state.wardensDefeated,
+      regionIds,
+      dexCaught: completion.caught,
+      dexTotal: completion.total,
+      charmCount: totalCharms,
+      trialWins: state.trialWins,
+    }),
+    [state.team.length, state.clearedNodes, state.wardensDefeated, regionIds, completion.caught, completion.total, totalCharms, state.trialWins],
   );
   const today = useMemo(() => {
     const d = new Date();
@@ -1448,7 +1790,7 @@ export default function WonderAcademyGame({ onExit }: Props) {
     return frame(
       <div>
         <h1 style={{ fontSize: 24, fontWeight: 800, margin: "8px 0 2px" }}>學院大廳</h1>
-        <p style={{ color: "#8a83a3", fontSize: 14, margin: "0 0 18px" }}>圖鑑進度 {completion.caught}/{completion.total} 已收服 · {completion.seen} 已遇見 · 🍪 點心 ×{totalSnacks}</p>
+        <p style={{ color: "#8a83a3", fontSize: 14, margin: "0 0 18px" }}>圖鑑進度 {completion.caught}/{completion.total} 已收服 · {completion.seen} 已遇見 · 🍪 點心 ×{totalSnacks} · 🔨 材料 ×{totalMaterials}</p>
         {isGuest && entryCopy.noticeTitle && entryCopy.noticeBody && (
           <div style={{ ...guestNoticeBox, margin: "0 0 16px", textAlign: "left", maxWidth: "none" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
@@ -1469,6 +1811,17 @@ export default function WonderAcademyGame({ onExit }: Props) {
             <div>我會自動同步到雲端。同步完成前,請先不要在其他裝置覆蓋這份進度。</div>
           </div>
         )}
+
+        <div style={{ ...cardStatic, marginBottom: 16, padding: "12px 14px", borderColor: "rgba(106,82,255,.18)", background: "rgba(255,255,255,.78)" }}>
+          <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: ".08em", color: "#8a83a3", textTransform: "uppercase", marginBottom: 5 }}>目前目標</div>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+            <div style={{ flex: "1 1 260px" }}>
+              <div style={{ fontSize: 15, fontWeight: 900, color: "#33304a" }}>{currentObjective.label}</div>
+              <div style={{ fontSize: 12.5, color: "#6a6585", lineHeight: 1.45 }}>{currentObjective.description}</div>
+            </div>
+            <span style={{ fontSize: 12, fontWeight: 900, color: "#6a52ff", background: "#efeaff", border: "1px solid #cdb6ef", borderRadius: 999, padding: "6px 10px" }}>{currentObjective.actionLabel}</span>
+          </div>
+        </div>
 
         <style>{`@keyframes waBob{0%,100%{transform:translateY(0)}50%{transform:translateY(-9px)}}@media (prefers-reduced-motion: reduce){.wa-bob{animation:none!important}}`}</style>
         <div style={{ position: "relative", height: 152, borderRadius: 16, overflow: "hidden", marginBottom: 20, backgroundImage: `url(${academyHubUrl})`, backgroundSize: "cover", backgroundPosition: "center", boxShadow: "inset 0 -34px 44px rgba(0,0,0,.14), 0 6px 18px rgba(80,50,130,.1)" }}>
@@ -1531,6 +1884,14 @@ export default function WonderAcademyGame({ onExit }: Props) {
           <button onClick={() => dispatch({ type: "openRegions" })} style={ctaBtn}><Compass size={18} /> 出發探索</button>
           <button onClick={() => dispatch({ type: "openDex" })} style={btnOutline}><Sparkles size={16} /> 圖鑑</button>
           <button onClick={() => dispatch({ type: "openShop" })} style={btnOutline}><ShoppingBag size={16} /> 商店</button>
+          <button onClick={() => dispatch({ type: "openWorkshop" })} style={btnOutline}><Hammer size={16} /> 工房</button>
+          <button
+            disabled={!postgameUnlocked}
+            onClick={() => { if (postgameUnlocked) dispatch({ type: "openTrials" }); }}
+            style={{ ...btnOutline, opacity: postgameUnlocked ? 1 : 0.52, cursor: postgameUnlocked ? "pointer" : "default" }}
+          >
+            <Sparkles size={16} /> 試煉
+          </button>
           <button onClick={() => dispatch({ type: "openBuilder" })} style={btnOutline}><Plus size={16} /> 建立寵物</button>
           <button
             onClick={() => {
@@ -1763,6 +2124,44 @@ export default function WonderAcademyGame({ onExit }: Props) {
           sfx("ui_confirm");
           dispatch({ type: "addCustom", creature });
         }}
+      />,
+    );
+  }
+
+  // ---------- WORKSHOP ----------
+  if (state.screen === "workshop") {
+    return frame(
+      <WorkshopScreen
+        stardust={state.stardust}
+        materials={state.materials}
+        charms={state.charms}
+        activeCharms={state.activeCharms}
+        audioSettings={state.audioSettings}
+        onCraft={(charmId) => {
+          sfx("wonderdex_update");
+          dispatch({ type: "craftCharm", charmId });
+        }}
+        onToggle={(charmId) => {
+          sfx("ui_confirm");
+          dispatch({ type: "toggleCharm", charmId });
+        }}
+        onSetVolume={(channel, value) => dispatch({ type: "setAudioVolume", channel, value })}
+        onClose={() => dispatch({ type: "closeWorkshop" })}
+      />,
+    );
+  }
+
+  // ---------- TRIALS ----------
+  if (state.screen === "trials") {
+    return frame(
+      <TrialsScreen
+        unlocked={postgameUnlocked}
+        trialWins={state.trialWins}
+        onStart={(trialId) => {
+          sfx("ui_confirm");
+          dispatch({ type: "startTrial", trialId });
+        }}
+        onClose={() => dispatch({ type: "closeTrials" })}
       />,
     );
   }

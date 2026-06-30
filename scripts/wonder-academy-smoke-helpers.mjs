@@ -19,6 +19,11 @@ export const WONDER_ACADEMY_SMOKE_CHECKS = Object.freeze([
   "skill equip updates",
   "Wonderdex opens",
   "shop opens",
+  "expanded regions are listed",
+  "workshop opens and charm toggles",
+  "postgame trial opens",
+  "audio controls adjust volume",
+  "reduced motion starter flow renders",
   "no relevant console or page errors",
 ]);
 
@@ -30,6 +35,10 @@ export function buildWonderAcademyGuestSave({
   snacks = { "starberry-cookie": 2 },
   clearedNodes = ["sparkleaf:entry"],
   wardensDefeated = [],
+  materials = {},
+  charms = {},
+  activeCharms = [],
+  trialWins = {},
 } = {}) {
   return {
     schemaVersion: 2,
@@ -54,6 +63,10 @@ export function buildWonderAcademyGuestSave({
       clearedNodes,
       shinyDex: [],
       dexRewardsClaimed: [],
+      materials,
+      charms,
+      activeCharms,
+      trialWins,
       lastDailyReward: null,
       daily: null,
       audioSettings: { musicVolume: 0.45, sfxVolume: 0.65, muted: true },
@@ -64,6 +77,43 @@ export function buildWonderAcademyGuestSave({
 export function buildMalformedLoadoutGuestSave() {
   return buildWonderAcademyGuestSave({
     equippedMoveIds: ["bubble-pat"],
+  });
+}
+
+export function buildPostgameReadyGuestSave() {
+  return buildWonderAcademyGuestSave({
+    playerName: "Postgame QA",
+    level: 60,
+    equippedMoveIds: ["tiny-flash", "zip-spark", "wink-feint", "starstep-dash"],
+    stardust: 300,
+    snacks: {
+      "starberry-cookie": 8,
+      "clover-macaron": 8,
+      "moon-milk-puff": 8,
+      "warm-cocoa-gem": 8,
+    },
+    clearedNodes: [
+      "sparkleaf:entry",
+      "sparkleaf:meadow",
+      "sparkleaf:grove",
+      "tideglass:entry",
+      "tideglass:lagoon",
+      "tideglass:reef",
+      "clocktower:entry",
+      "clocktower:stair",
+      "clocktower:attic",
+      "sugarcloud:entry",
+      "sugarcloud:bakery",
+      "sugarcloud:stage",
+    ],
+    wardensDefeated: ["sparkleaf", "tideglass", "clocktower", "sugarcloud"],
+    materials: {
+      "glow-petal": 3,
+      "bell-shard": 1,
+    },
+    charms: {},
+    activeCharms: [],
+    trialWins: {},
   });
 }
 
@@ -93,6 +143,10 @@ export function isKnownBenignWonderAcademyConsoleEntry(entry) {
       entry?.type === "warning"
       && text.includes("KAPLAY already initialized")
       && text.includes("kaplay() multiple times")
+    )
+    || (
+      text.includes("Framing 'https://www.google.com/' violates")
+      && text.includes("report-only Content Security Policy")
     )
     || (
       text.includes("Failed to load resource")

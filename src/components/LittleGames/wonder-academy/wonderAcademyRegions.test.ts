@@ -3,6 +3,7 @@ import {
   FIRST_REGION,
   REGIONS,
   isNodeUnlocked,
+  isRegionUnlocked,
   nodeKey,
   nodeUnlockHint,
   regionValidationErrors,
@@ -79,6 +80,29 @@ describe("regionValidationErrors", () => {
   it("accepts every shipped Wonder Academy region", () => {
     for (const region of REGIONS) {
       expect(regionValidationErrors(region), `${region.id} should be valid`).toEqual([]);
+    }
+  });
+
+  it("ships the canonical P1/P2 chapter regions in order", () => {
+    expect(REGIONS.map((region) => region.id)).toEqual([
+      "sparkleaf",
+      "tideglass",
+      "clocktower",
+      "sugarcloud",
+    ]);
+  });
+
+  it("unlocks each region from the previous Warden and keeps loot tiers rising", () => {
+    expect(isRegionUnlocked(0, [])).toBe(true);
+    expect(isRegionUnlocked(1, [])).toBe(false);
+    expect(isRegionUnlocked(1, ["sparkleaf"])).toBe(true);
+    expect(isRegionUnlocked(2, ["sparkleaf"])).toBe(false);
+    expect(isRegionUnlocked(2, ["sparkleaf", "tideglass"])).toBe(true);
+    expect(isRegionUnlocked(3, ["sparkleaf", "tideglass"])).toBe(false);
+    expect(isRegionUnlocked(3, ["sparkleaf", "tideglass", "clocktower"])).toBe(true);
+
+    for (let i = 1; i < REGIONS.length; i += 1) {
+      expect(REGIONS[i].lootTier).toBeGreaterThanOrEqual(REGIONS[i - 1].lootTier);
     }
   });
 

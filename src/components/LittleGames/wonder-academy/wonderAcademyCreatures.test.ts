@@ -56,6 +56,36 @@ describe("Wonder Academy creature registry", () => {
     }
   });
 
+  it("ships a P1/P2 roster with wild, warden, and mythling coverage", () => {
+    expect(WA_CREATURES.map((species) => species.speciesId)).toEqual(
+      expect.arrayContaining([
+        "mossmew",
+        "sparkleaf-fawn",
+        "pearlwhisker-seal",
+        "clockbell-tanuki",
+        "marshmallow-maestro",
+        "comet-kitsune",
+        "pillowmoon-ram",
+        "silent-bellheart",
+      ]),
+    );
+
+    const builtInEncounterSpecies = WA_CREATURES.filter((species) => species.wild);
+    expect(builtInEncounterSpecies.length).toBeGreaterThanOrEqual(6);
+    expect(Array.from(new Set(WA_CREATURES.map((species) => species.rarity)))).toEqual(
+      expect.arrayContaining(["common", "uncommon", "rare", "warden", "mythling"]),
+    );
+  });
+
+  it("keeps every built-in species inside the four-stage evolution cap", () => {
+    for (const species of WA_CREATURES) {
+      expect(
+        species.growthStages.length,
+        `${species.speciesId} exceeds the four-stage cap`,
+      ).toBeLessThanOrEqual(4);
+    }
+  });
+
   it("assigns deterministic field skills to custom creatures", () => {
     expect(makeCustomCreature({
       name: "Leaf Scout",
