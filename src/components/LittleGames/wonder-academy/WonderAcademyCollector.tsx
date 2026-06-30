@@ -22,6 +22,7 @@ import {
   type BattleSession,
 } from "./logic/battleSession";
 import { gainBond } from "./logic/bond";
+import { effectivenessBadge } from "./logic/battleText";
 import {
   bumpDaily,
   claimTask,
@@ -1938,11 +1939,15 @@ export default function WonderAcademyGame({ onExit }: Props) {
                 const mv = getMoveById(id);
                 if (!mv) return null;
                 const eff = getEffectivenessAgainst(mv.element, s.wild.elements);
+                const badge = effectivenessBadge(eff);
                 const m = ELEMENT_META[mv.element];
                 return (
                   <button key={id} onClick={() => dispatch({ type: "battleMove", moveId: id, today })} style={moveBtn}>
-                    {eff >= 2 && <span style={effBadge}>剋制 2×</span>}
-                    {eff <= 0.5 && <span style={{ ...effBadge, background: "#9aa0b5" }}>沒效 ½</span>}
+                    {badge && (
+                      <span style={badge.tone === "weak" ? { ...effBadge, background: "#9aa0b5" } : effBadge}>
+                        {badge.label}
+                      </span>
+                    )}
                     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                       <span style={{ width: 10, height: 10, borderRadius: "50%", background: m.fg }} />
                       <span style={{ fontWeight: 800, fontSize: 13 }}>{mv.name}</span>
