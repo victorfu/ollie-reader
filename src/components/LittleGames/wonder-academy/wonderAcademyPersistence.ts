@@ -53,6 +53,10 @@ export type WonderAcademySaveResult = {
   updatedAt: number;
 };
 
+export type WonderAcademyPendingSyncResult =
+  | WonderAcademySaveResult
+  | { status: "idle"; updatedAt: null };
+
 export type WonderAcademyCloudAdapter = {
   load: (uid: string) => Promise<WonderAcademySaveRecord | null>;
   save: (uid: string, record: WonderAcademySaveRecord) => Promise<void>;
@@ -73,6 +77,20 @@ type SaveOptions = {
   cloud?: WonderAcademyCloudAdapter;
   storage?: Storage | null;
   now?: () => number;
+};
+
+type CheckpointOptions = {
+  uid: string;
+  data: WonderAcademyProgressData;
+  storage?: Storage | null;
+  now?: () => number;
+  queuePending?: boolean;
+};
+
+type PendingSyncOptions = {
+  uid: string;
+  cloud?: WonderAcademyCloudAdapter;
+  storage?: Storage | null;
 };
 
 const keyFor = (prefix: string, uid: string): string => `${prefix}-${uid}`;
@@ -310,6 +328,52 @@ export async function saveWonderAcademyProgress({
   } catch {
     writeWonderAcademyPending(uid, data, updatedAt, storage);
     return { status: "pending", updatedAt };
+  }
+}
+
+export function checkpointWonderAcademyProgress({
+  uid,
+  data,
+  storage = defaultStorage(),
+  now = Date.now,
+  queuePending = true,
+}: CheckpointOptions): WonderAcademySaveRecord {
+  const updatedAt = now();
+  const record: WonderAcademySaveRecord = {
+    schemaVersion: WONDER_ACADEMY_SCHEMA_VERSION,
+    updatedAt,
+    data,
+  };
+
+  writeWonderAcademyCache(uid, data, updatedAt, storage);
+  if (queuePending) {
+    writeWonderAcademyPending(uid, data, updatedAt, storage);
+  }
+
+  return record;
+}
+
+export async function syncWonderAcademyPendingSave({
+  uid,
+  cloud = firestoreWonderAcademyCloudAdapter,
+  storage = defaultStorage(),
+}: PendingSyncOptions): Promise<WonderAcademyPendingSyncResult> {
+  const pending = readWonderAcademyPending(uid, storage);
+  if (!pending) return { status: "idle", updatedAt: null };
+
+  const record: WonderAcademySaveRecord = {
+    schemaVersion: WONDER_ACADEMY_SCHEMA_VERSION,
+    updatedAt: pending.updatedAt,
+    data: pending.data,
+  };
+
+  try {
+    await cloud.save(uid, record);
+    writeWonderAcademyCache(uid, pending.data, pending.updatedAt, storage);
+    clearWonderAcademyPending(uid, storage);
+    return { status: "saved", updatedAt: pending.updatedAt };
+  } catch {
+    return { status: "pending", updatedAt: pending.updatedAt };
   }
 }
 

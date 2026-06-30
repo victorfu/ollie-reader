@@ -65,9 +65,11 @@ import {
   regionById,
 } from "./wonderAcademyRegions";
 import {
+  checkpointWonderAcademyProgress,
   loadWonderAcademySave,
   localOnlyWonderAcademyCloudAdapter,
   saveWonderAcademyProgress,
+  syncWonderAcademyPendingSave,
   type WonderAcademyProgressData,
   type WonderAcademySaveStatus,
 } from "./wonderAcademyPersistence";
@@ -1055,6 +1057,7 @@ export default function WonderAcademyGame({ onExit }: Props) {
   }));
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   const loadedUidRef = useRef<string | null>(null);
+  const latestSaveDataRef = useRef<Persisted | null>(null);
   const saveSeqRef = useRef(0);
 
   useEffect(() => {
@@ -1169,6 +1172,7 @@ export default function WonderAcademyGame({ onExit }: Props) {
       lastDailyReward: state.lastDailyReward,
       daily: state.daily,
     };
+    latestSaveDataRef.current = data;
     const timer = window.setTimeout(() => {
       const seq = ++saveSeqRef.current;
       setSaveSnapshot({ uid, status: "saving" });
@@ -1188,6 +1192,58 @@ export default function WonderAcademyGame({ onExit }: Props) {
     }, 900);
     return () => window.clearTimeout(timer);
   }, [uid, isGuest, state.ready, state.playerName, state.team, state.dex, state.stardust, state.snacks, state.customCreatures, state.wardensDefeated, state.clearedNodes, state.shinyDex, state.dexRewardsClaimed, state.lastDailyReward, state.daily]);
+
+  useEffect(() => {
+    if (!state.ready) return;
+    let disposed = false;
+
+    const syncPending = () => {
+      if (isGuest || loadedUidRef.current !== uid) return;
+      const seq = ++saveSeqRef.current;
+      setSaveSnapshot({ uid, status: "saving" });
+      void syncWonderAcademyPendingSave({ uid })
+        .then((result) => {
+          if (disposed || seq !== saveSeqRef.current || result.status === "idle") return;
+          setSaveSnapshot({ uid, status: result.status });
+        })
+        .catch(() => {
+          if (disposed || seq !== saveSeqRef.current) return;
+          setSaveSnapshot({ uid, status: "failed" });
+        });
+    };
+
+    const checkpoint = () => {
+      if (loadedUidRef.current !== uid) return;
+      const data = latestSaveDataRef.current;
+      if (!data) return;
+      checkpointWonderAcademyProgress({
+        uid,
+        data,
+        queuePending: !isGuest,
+      });
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        checkpoint();
+      } else {
+        syncPending();
+      }
+    };
+
+    window.addEventListener("online", syncPending);
+    window.addEventListener("pagehide", checkpoint);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    const retryTimer = window.setTimeout(syncPending, 0);
+
+    return () => {
+      disposed = true;
+      window.clearTimeout(retryTimer);
+      window.removeEventListener("online", syncPending);
+      window.removeEventListener("pagehide", checkpoint);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [uid, isGuest, state.ready]);
 
   // Keep the runtime species registry in sync with the player's custom creatures.
   registerCustomCreatures(state.customCreatures);

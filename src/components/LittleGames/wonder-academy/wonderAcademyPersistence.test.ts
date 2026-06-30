@@ -1,11 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  checkpointWonderAcademyProgress,
   clearWonderAcademyPending,
   loadWonderAcademySave,
   normalizeWonderAcademySave,
   readWonderAcademyCache,
   readWonderAcademyPending,
   saveWonderAcademyProgress,
+  syncWonderAcademyPendingSave,
   writeWonderAcademyCache,
   writeWonderAcademyPending,
   type WonderAcademyCloudAdapter,
@@ -163,6 +165,70 @@ describe("saveWonderAcademyProgress", () => {
     expect(readWonderAcademyPending(uid)).toMatchObject({
       updatedAt: 500,
       data: sample({ playerName: "Offline" }),
+    });
+  });
+});
+
+describe("checkpointWonderAcademyProgress", () => {
+  it("writes local cache and queues a pending save by default", () => {
+    const result = checkpointWonderAcademyProgress({
+      uid,
+      data: sample({ playerName: "Checkpoint" }),
+      now: () => 700,
+    });
+
+    expect(result).toMatchObject({
+      updatedAt: 700,
+      data: sample({ playerName: "Checkpoint" }),
+    });
+    expect(readWonderAcademyCache(uid)?.data.playerName).toBe("Checkpoint");
+    expect(readWonderAcademyPending(uid)).toMatchObject({
+      updatedAt: 700,
+      data: sample({ playerName: "Checkpoint" }),
+    });
+  });
+
+  it("can skip pending queue writes for guest saves", () => {
+    checkpointWonderAcademyProgress({
+      uid,
+      data: sample({ playerName: "Guest" }),
+      queuePending: false,
+      now: () => 800,
+    });
+
+    expect(readWonderAcademyCache(uid)?.data.playerName).toBe("Guest");
+    expect(readWonderAcademyPending(uid)).toBeNull();
+  });
+});
+
+describe("syncWonderAcademyPendingSave", () => {
+  it("flushes pending saves to cloud and clears the queue", async () => {
+    const cloud = cloudAdapter();
+    vi.mocked(cloud.save).mockResolvedValue(undefined);
+    writeWonderAcademyPending(uid, sample({ playerName: "Queued" }), 900);
+
+    const result = await syncWonderAcademyPendingSave({ uid, cloud });
+
+    expect(result).toEqual({ status: "saved", updatedAt: 900 });
+    expect(cloud.save).toHaveBeenCalledWith(uid, {
+      schemaVersion: 2,
+      updatedAt: 900,
+      data: sample({ playerName: "Queued" }),
+    });
+    expect(readWonderAcademyPending(uid)).toBeNull();
+  });
+
+  it("keeps pending saves queued when cloud sync fails", async () => {
+    const cloud = cloudAdapter();
+    vi.mocked(cloud.save).mockRejectedValue(new Error("still offline"));
+    writeWonderAcademyPending(uid, sample({ playerName: "Still queued" }), 1000);
+
+    const result = await syncWonderAcademyPendingSave({ uid, cloud });
+
+    expect(result).toEqual({ status: "pending", updatedAt: 1000 });
+    expect(readWonderAcademyPending(uid)).toMatchObject({
+      updatedAt: 1000,
+      data: sample({ playerName: "Still queued" }),
     });
   });
 });
