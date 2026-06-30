@@ -1,246 +1,516 @@
-# Wonder Academy 重新設計 —— 探索・捕捉・養成的萌系收集冒險
+# Wonder Academy Canonical Spec — 探索、捕捉、養成的萌系收集冒險
 
 <metadata>
 date: 2026-06-23
-status: approved (design); pending implementation plan
-supersedes: docs/superpowers/specs/2026-06-23-wonder-academy-redesign-design.md（取代其「療癒對話式」玩法方向）、docs/superpowers/specs/2026-06-21-wonder-academy-rpg-design.md（取代玩法方向）。三者共用的美術、音訊、與已強化的持久化層皆保留並延用。
+last_updated: 2026-06-30
+status: canonical merged spec
+scope: /games/wonder-academy
 audience: 開發者的 10 歲女兒(台灣國小四年級、繁中閱讀流暢)+ 開發者本人,親子共玩;私人使用、不公開發行。
 </metadata>
 
-## 1. 摘要與定位
+## 1. 定位
 
-前一版把 Wonder Academy 設計成「療癒系對話 befriend 遊戲」(讀情緒線索→選回應)。實際檢視後,核心問題是**缺乏遊戲性**——它比較像一則故事,而不是一款會讓孩子想一直玩的遊戲。本次重新設計把它轉成一款**寶可夢式的探索・捕捉・養成冒險**:在發光森林裡探索、尋寶、遇見野生寵物,用屬性相剋把牠打到「想睡」再遞點心收服,組隊、養大、進化,填滿圖鑑,挑戰各區守關魔王(Warden)。
+Wonder Academy 是一款親子共玩的可愛收集冒險遊戲。玩家是剛入學的 Wonder Keeper，在 Sparkleaf 星葉學院中選擇第一隻夥伴，前往發光森林與後續區域探索、尋寶、遇見野生 Wonderlings，透過輕策略戰鬥把牠們打到「想睡」，再遞點心收服。回到學院後，玩家能餵點心、升級、進化、調整隊伍、填滿 Wonderdex，並挑戰各區 Warden。
 
-**一句話:** 你和女兒是 Sparkleaf 星葉學院的見習馴獸師。出門探索 → 草叢遇見寵物 → 輕策略戰鬥打到牠想睡 → 遞點心收服 → 回學院養大/進化 → 解鎖更深的森林與更稀有的寵物 → 再出發。
+這份 spec 是 Wonder Academy 的唯一 canonical design。它融合並取代舊 RPG 世界觀 spec 與後續療癒 redesign spec：保留世界觀、角色、章節、存檔、音訊與驗證要求；玩法方向以目前的「探索 -> 戰鬥 -> 捕捉 -> 養成」為準。舊的 Mood Trial / Befriend 對話選項玩法不再是主軸，只作為世界觀語彙與非暴力調性的來源。
 
-**定位決策(與使用者腦力激盪確立):**
+一句話：
 
-- **要的是遊戲性,不是故事。** 重點在「探索→戰鬥→捕捉→養成」這個會上癮的循環,而非劇情演出。
-- **親子共玩、輕策略。** 目標玩家是 10 歲 + 家長。戰鬥保留真正的策略樂趣(屬性相剋、隊伍搭配),但去掉太硬的數值細節,節奏輕鬆好上手。
-- **不暴力、療癒基調。** 寶可夢式「累倒/想睡」而非傷害;捕捉是「遞點心做朋友」而非強抓。延續既有世界觀的溫暖。
-- **保留既有美術/音訊/存檔,重做玩法。** 既有的 4 隻初始寵物(含 sprite/立繪/剪影)、背景、BGM/SFX、雲端存檔同步全部沿用。
-- **混合渲染。** 探索場景與戰鬥畫面用 Kaplay canvas(會動的 sprite、攻擊演出);選單、隊伍、圖鑑、背包用 React/DOM + Framer Motion(手感)。
-- **美術可抽換 + 自訂寵物為一等公民。** 每隻寵物 = 一張圖 + 一筆資料;新增一隻要極簡。專案出貨只附**原創**萌寵;使用者可在私人版本用同一管線放入自己的圖。
+> 你和女兒是 Sparkleaf 星葉學院的見習馴獸師。出門探索 -> 草叢遇見寵物 -> 用屬性相剋打到牠想睡 -> 遞點心收服 -> 回學院養大/進化 -> 解鎖更深的區域與更稀有的寵物 -> 再出發。
 
-## 2. 目標與非目標
+## 2. 設計目標
 
-**目標**
-- 一個完整、會上癮的「探索 → 戰鬥 → 捕捉 → 養成 → 填圖鑑」循環,短時段也好玩、適合親子共玩。
-- 輕策略但有深度感的戰鬥:8 屬性相剋一眼看懂,隊伍搭配有意義。
-- 精心設計的**序章**(開場 → 選第一隻寵物 → 啟程),作為強烈的第一印象。
-- 出色手感:控制層為真實 DOM 按鈕;探索/戰鬥的「會動感」交給 canvas。
-- 最大化重用既有美術、音訊、持久化與已建模的資料系統(屬性、角色、技能、進化、地圖節點、守關魔王皆已存在)。
-- **新增一隻寵物極簡**:丟一張圖 + 一筆資料即可——這也是使用者把家裡愛的角色加進私人版本的管道。
+- 做成真正可重複遊玩的遊戲，而不是故事展示。核心樂趣是探索、戰鬥、收服、養成、收集。
+- 適合 10 歲孩子與家長共玩。規則要能看懂，但隊伍搭配、屬性相剋、點心與收服率要有可討論的策略。
+- 保持溫暖、不暴力。戰鬥語彙是累了、想睡、休息；捕捉是遞點心做朋友，不是強抓。
+- 每次遊玩 10-20 分鐘要能完成一個有意義的小目標，例如開一個寶箱、收服一隻、打過一個節點、領一個圖鑑獎勵。
+- 保留並善用既有原創美術、BGM/SFX、Firestore/local save、React + Kaplay 技術基礎。
+- 自訂寵物是重要能力。專案出貨只含原創內容，但私人版本可透過資料 + 圖檔加入自己的寵物。
 
-**非目標**
-- 不公開發行、不做多人連線/排行榜/付費。
-- **不暴力**:無流血、無死亡。戰鬥框架是「累倒/想睡」,捕捉是「遞點心做朋友」。
-- 不在**專案出貨/版控內容**裡打包任何第三方版權角色或其美術(見 §7)。
-- MVP 不依賴大量委製新美術(用既有原創寵物 + 變體/進化階段 + 自訂管線擴充)。
-- 不做正統寶可夢的完整數值深度(PP、能力增減、複雜道具、狀態效果叢集)——MVP 走輕策略,深度留待後續分階段加。
+## 3. 非目標
 
-## 3. 核心循環
+- 不公開發行、不做多人連線、排行榜、付費、抽卡或營利機制。
+- 不在版控內容中打包任何第三方版權角色或其美術。
+- 不做正統寶可夢的完整數值深度。MVP 不需要 PP、複雜道具、能力階段、天氣、繁殖等系統。
+- 不以長篇劇情或大量文字作為主要內容。世界觀提供情感與方向，但每個互動都要優先服務可玩性。
+- 初期不新增 Cloud Functions 或自訂後端服務；使用既有 Firebase Auth + Firestore。
 
-一圈約 2–4 分鐘、可重複:
+## 4. 核心循環
 
-```
+一圈約 2-4 分鐘：
+
+```text
 節點地圖選一個地點
-   → 進入小探索場景(走動・踩草叢・開寶箱・找 NPC)
-   → 草叢遇到野生寵物 → 進入戰鬥
-   → 用屬性相剋把牠打到 HP 低、「想睡」
-   → 遞點心收服 → 加入圖鑑
-   → 回學院:餵點心養感情・升級・進化・換隊伍
-   → 解鎖更深地點 / 更稀有寵物 / 守關魔王
-   → 再出發 ↻
+  -> 進入小探索場景(走動、草叢、寶箱、NPC)
+  -> 草叢遇到野生 Wonderling
+  -> 進入 1v1 戰鬥
+  -> 用屬性相剋把牠打到低 HP / 想睡
+  -> 遞點心收服
+  -> 更新 Wonderdex、隊伍、XP、Stardust、每日任務
+  -> 回學院餵點心、裝技能、進化、買點心
+  -> 解鎖更深節點 / Warden / 新區域
 ```
 
-學院(Hub)是收集的情感錨點:收服到的寵物在此漫遊。
+學院 Hub 是情感錨點：收服的 Wonderlings 在這裡被看見、餵養、升級、進化。Map / Explore / Battle 是外出冒險節奏；Wonderdex / Team / Shop / Builder 是收集與養成節奏。
 
-## 4. 序章:開場 → 選寵 → 啟程(精心設計)
+## 5. 世界觀
 
-序章是一段**一氣呵成、可跳過**的儀式,只在存檔尚未設定 `starterSpeciesId` 時播放;選完即設值並標記完成,之後自動略過。設計原則:**低文字、靠畫面與聲音帶情緒;handfeel 優先(DOM + Framer Motion);無新美術門檻(導師 NPC 先以對話框呈現);尊重 `reducedMotion`。**
+玩家是剛入學的新生 Wonder Keeper。Wonder Academy 是漂浮在雲海上的溫暖學院，連接著發光森林、玻璃海岸、鐘塔宿舍、雲端市集、雪鈴山脊、夢境祭典、星空列車與 Crystal Bell Tower。
 
-### 4.1 六個 Beat
+舊 RPG spec 中的 Crystal Bell 世界觀保留為長期敘事背景：Crystal Bell 的聲音逐漸變弱，Wonderlings 與 Wardens 變得不安、迷路或封閉。玩家不是去打敗敵人，而是透過探索、照顧、收服、訓練與挑戰 Warden，重新建立學院與各地區的連結。
+
+### 5.1 主要角色
+
+- **薇拉院長 / Professor Bellwyn**：Wonder Academy 的院長，負責 Crystal Bell 傳統與 Wonder Keeper 儀式。MVP 可用原創對話框與貓頭鷹符號呈現，不必先做完整立繪。
+- **Keeper Mira**：新生導師，負責教學、任務、隊伍管理與早期探索。可作為 tutorial 與 current objective 的主要聲音。
+- **Chef Pippa**：Snack Workshop 老師，負責點心、最愛零食、捕捉加成與親密度。
+- **Inventor Tink**：工房老師，負責 charms、探索道具、場景機關與區域工具。
+- **Ranger Rowan**：野外老師，教玩家追蹤、探索、稀有 Wonderlings 出現條件與 Warden 生態。
+- **Archivist Lune**：圖書館老師，負責 Wonderdex、Bell Pages、Crystal Bell 歷史與傳說線索。
+- **Kiki**：同班同學與友善競爭者。不是反派，可用於後續教學、挑戰與成長對照。
+- **The First Keeper**：歷史人物。曾試圖用力量控制 Crystal Bell，後期故事可補完這段歷史。
+- **The Silent Bellheart**：Crystal Bell 的心，也是最終 Warden。最終目標不是破壞牠，而是讓牠重新信任 Wonder Keepers。
+
+### 5.2 學院 Hub
+
+- **Dorm Room**：玩家身份、初始夥伴暱稱、隊伍與外觀設定。
+- **Wonderdex Hall**：依區域、稀有度、屬性、已見 / 已收服 / 已進化查看收藏。
+- **Snack Workshop**：購買、製作與管理點心；強化 favorite snack 機制。
+- **Training Garden**：餵養、訓練、技能 loadout、升級與進化。
+- **Charm Workshop**：後續 charms / 探索道具 / field skill 擴充。
+- **Map Atrium**：進入 region map、查看 current objective 與可探索區域。
+
+## 6. 序章
+
+序章是一段一氣呵成、可跳過的儀式，只在新存檔或尚未選 starter 時播放。原則是低文字、靠畫面和聲音建立情緒；控制項使用 DOM + Framer Motion；動畫尊重 `prefers-reduced-motion`。
 
 | Beat | 內容 |
 |---|---|
-| 0 · 標題 | Wonder Academy logo + 柔光 + `hub_loop`;「開始冒險」按鈕。 |
-| 1 · 抵達學院 | 用 `academy-hub` 背景的破曉場景;原創導師 **薇拉院長 🦉** 登場歡迎,建立「你是新來的見習馴獸師」身分。視覺小說式對話框。 |
-| 2 · 取名 | 「你叫什麼名字?」→ 輸入 `playerName`。 |
-| 3 · 命運的相遇(核心) | 4 個發光剪影 → 逐一點擊使寵物醒來/探頭亮相(立繪 + SFX + squash/stretch);顯示名字、屬性徽章、玩法標籤、個性一句話、**進化線預覽(最終型)**。可來回比較。 |
-| 4 · 確認與羈絆 | 選定 →「確定選 ___ 當第一個夥伴嗎?」→ 被選中的寵物開心跑向你(動畫 + `attune_success`/`ui_confirm` + 愛心)。情感高潮。 |
-| 5 · 取暱稱 | 「幫牠取個暱稱嗎?」→ `starterNickname`(可跳過用本名)。 |
-| 6 · 啟程(= 正式開始) | 導師給起始道具(數顆點心 + 收服用點心);學院大門打開,踏出第一步 → 切到節點地圖。**遊戲正式開始**,寫入 `starterSpeciesId`。 |
+| 0 · 標題 | Wonder Academy logo、柔光、`hub_loop`、「開始冒險」。 |
+| 1 · 抵達學院 | 用 academy hub 背景與薇拉院長對話框，建立「新生 Wonder Keeper」身份。 |
+| 2 · 取名 | 輸入 `playerName`。 |
+| 3 · 命運的相遇 | 四隻 starter 逐一亮相，顯示名字、屬性、戰鬥定位、field skill、個性與最終進化預覽。 |
+| 4 · 確認與羈絆 | 選定夥伴後播放成功 SFX / 愛心 / 小動畫。 |
+| 5 · 暱稱 | 可替 starter 取暱稱；略過時使用 species 名。 |
+| 6 · 啟程 | 發放起始點心，寫入 starter，切到地圖。 |
 
-### 4.2 四選一的初始寵物(資料已存在)
+### 6.1 Starter
 
-4 隻剛好把 8 種屬性**各佔 2 種、零重疊**,設計上很乾淨;每隻在「屬性/戰鬥定位/場地技能」三軸都不同,讓選擇有意義(影響戰鬥手感,也影響早期能探索/挖到的東西)。
+四隻 starter 剛好覆蓋 8 種屬性且不重疊。選擇應同時影響戰鬥、探索與早期資源。
 
-| 寵物 | 類型 | 屬性 | 戰鬥定位 | 最愛零食 | 場地技能 | 個性 | 進化線(4 階) |
+| 寵物 | 類型 | 屬性 | 戰鬥定位 | 最愛零食 | 場地技能 | 個性 | 進化線 |
 |---|---|---|---|---|---|---|---|
-| **Lumi** | 星光小狐 | light · spark | 速攻(striker/trickster) | starberry-cookie | light-trail | 聰明、急性子、想證明自己 | → Tailglow → Prismtail → **Aurorafox** |
-| **Momo** | 雲朵小貓 | dream · tide | 守護/補(healer/guardian) | moon-milk-puff | soft-float | 愛睡、溫柔、關鍵時刻可靠 | → Rainpuff → Mooncloud → **Dreamnimbus** |
-| **Pico** | 星塵小妖精 | star · leaf | 巧術/探索(trickster/scout) | clover-macaron | secret-sense | 好奇、愛惡作劇、會找祕密 | → Budspark → Wishpetal → **Celestibloom** |
-| **Nibi** | 迷你小龍 | ember · crystal | 坦克/猛攻(guardian/striker) | warm-cocoa-gem | crystal-push | 勇敢、逞強、其實怕寂寞 | → Pebblehorn → Embercrest → **Hearthdrake** |
+| **Lumi** | 星光小狐 | light · spark | 速攻 / trickster | starberry-cookie | light-trail | 聰明、急性子、想證明自己 | Tailglow -> Prismtail -> Aurorafox |
+| **Momo** | 雲朵小貓 | dream · tide | 守護 / healer | moon-milk-puff | soft-float | 愛睡、溫柔、關鍵時刻可靠 | Rainpuff -> Mooncloud -> Dreamnimbus |
+| **Pico** | 星塵小妖精 | star · leaf | 巧術 / scout | clover-macaron | secret-sense | 好奇、愛惡作劇、會找祕密 | Budspark -> Wishpetal -> Celestibloom |
+| **Nibi** | 迷你小龍 | ember · crystal | 坦克 / striker | warm-cocoa-gem | crystal-push | 勇敢、逞強、其實怕寂寞 | Pebblehorn -> Embercrest -> Hearthdrake |
 
-## 5. 三大支柱
+## 7. 探索
 
-### ① 探索(混合地圖)
-- **節點地圖**(沿用 `sparkleaf-map`)作為移動骨幹:點節點旅行。
-- 進入某些地點 = 一小塊**可走動的 Kaplay 場景**:小主角走動、**草叢觸發野生遭遇**、**寶箱**給點心/道具/材料、**NPC** 給對話與任務。
-- **守關節點**(`kind: "warden"`)= 魔王戰,沿用 `warden_trial_loop` 與每章 `wardenSpeciesId`。
-- **場地技能**(`fieldSkillId`:light-trail / soft-float / secret-sense / crystal-push)解鎖/加成特定探索內容(如 secret-sense 揭示隱藏寶箱或稀有寵物)——讓初始選擇與多樣化陣容有意義。
-- 更深/更稀有的地點隨進度解鎖(`storyProgress` 指標已建模)。
+探索由兩層組成：
 
-**可單元測試的純邏輯:** 遭遇擲骰(given 地點 + 隊伍)、寶箱掉落表、節點解鎖條件。
+- **Region / Node Map**：節點式移動骨幹。每個 region 有數個 explore node 與一個 warden node。節點有 locked condition、推薦目標、完成狀態與短時間目標。
+- **Walkable Scene**：進入 explore node 後開啟小型 Kaplay 場景。玩家可走動、踩草叢、開寶箱、碰 NPC、從出口返回節點地圖。
 
-### ② 戰鬥 + 捕捉(輕策略)
-- 回合制 **1v1**,可在隊伍(在場最多 3 隻)間**切換**。
-- 每隻 **4 招**;**無 PP**、**MVP 不做狀態效果**(照「親子輕鬆玩」路線)。
-- 核心策略 = **8 屬性相剋**(見 §6):剋制 2×、被剋 0.5×。UI 用紅徽章「剋制 2×」即時提示,讓 10 歲一眼看懂。
-- **捕捉(不暴力):** 把野生寵物打到 HP 低 → 進入「**想睡 😴**」狀態 → 用「**遞點心收服**」動作。成功率 = f(剩餘 HP 越低、稀有度、點心等級)。**帶其 `favoriteSnack`** = 大加成。失敗時牠**溫和逃走**(可再遇),不殘酷。
-- 戰鬥拿 **XP**;魔王戰是區域里程碑。
+探索內容：
 
-**可單元測試的純邏輯:** 傷害計算、屬性相剋倍率、行動順序、收服成功率、勝負/逃走判定。
+- 草叢觸發野生 encounter，依 region、節點、稀有度、隊伍 field skills 擲骰。
+- 寶箱給 Stardust、點心、材料或 charm。更深 region 有更高 tier 掉落。
+- NPC 給短句、提示、任務或 field skill bonus。
+- Warden node 進入 boss battle。打敗該 region 的 Warden 後解鎖下一個 region。
+- 支線節點可用 field skill、snack、quest flag 或 Wonderdex clue 解鎖。
 
-### ③ 收集 + 養成
-- **升級**:戰鬥/收服得 XP → 提升能力、解鎖招式槽。
-- **進化**:達等級門檻 + 條件,沿 `growthStages`(4 階)推進 = 視覺升級 + 變強,重要滿足感節拍。
-- **技能**:`learnableSkillIds` / `equippedSkillIds` / `skillLoadouts`,升級解鎖、裝備有限數量。
-- **感情(bond)**:餵 `favoriteSnack`、帶去探險而上升;高 bond 給加成 + 可愛互動。
-- **圖鑑(Wonderdex)**:未見 / 已收服 / 已進化;分區完成 → 獎勵 → 驅動「全部收集」。
-- **經濟極簡**:一種軟貨幣(如 Stardust)+ 少數進化材料;優先映射既有 `snacks`/`charms`/`careerLevels`,必要時加小型 `materials`。
+Field skills：
 
-## 6. 屬性相剋(輕策略型)
+- `light-trail`：提高 encounter 節奏或揭示安全路線。
+- `soft-float`：增加 NPC / support 互動收益。
+- `secret-sense`：提高稀有 encounter 權重、揭示隱藏寶箱。
+- `crystal-push`：增加寶箱 Stardust 或解鎖晶石障礙。
 
-8 屬性排成一個平衡循環,**每個剋制循環中接下來 2 個、被前面 2 個剋制,其餘普通**。初版循環(保留直覺對應:電剋水、火剋草、水剋火),確切數值於實作 playtest 微調:
+## 8. 戰鬥與捕捉
 
+戰鬥是非暴力的 1v1 輕策略系統。每隻 Wonderling 有 HP、level、屬性、4 招與暫時狀態。玩家可攻擊、切換隊伍、遞點心收服或撤退。
+
+規則：
+
+- 每隻最多帶 4 招，MVP 無 PP。
+- 核心策略是 8 屬性相剋。UI 需顯示招式屬性與「剋制 2x / 不利 0.5x」提示。
+- HP 低於門檻時，野生 Wonderling 進入「想睡」狀態，捕捉率提高。
+- `sleep` 類狀態可作為 Phase 2+ 的第一個狀態效果；它應保持簡單且可讀。
+- 捕捉是「遞點心做朋友」。成功率受剩餘 HP、稀有度、點心等級與 favorite snack 影響。
+- 捕捉失敗時，野生 Wonderling 溫和逃走或繼續互動，不使用殘酷語彙。
+- Warden 可被打敗並記錄，但不一定用一般捕捉流程加入隊伍；可作為 region blessing、support 或故事解鎖。
+
+## 9. 屬性系統
+
+8 屬性形成可讀的輕策略循環：
+
+```text
+spark -> tide -> ember -> leaf -> crystal -> dream -> star -> light -> spark
 ```
-spark → tide → ember → leaf → crystal → dream → star → light →(回到 spark)
-```
 
-| 屬性 | 剋制(2×) | 被剋(0.5×) |
+每個屬性剋制循環中接下來 2 個屬性，被前面 2 個剋制，其餘普通。
+
+| 屬性 | 剋制(2x) | 被剋(0.5x) |
 |---|---|---|
-| spark ⚡ | tide, ember | light, star |
-| tide 🌊 | ember, leaf | spark, light |
-| ember 🔥 | leaf, crystal | tide, spark |
-| leaf 🍀 | crystal, dream | ember, tide |
-| crystal 💎 | dream, star | leaf, ember |
-| dream 🌙 | star, light | crystal, leaf |
-| star ⭐ | light, spark | dream, crystal |
-| light ☀️ | spark, tide | star, dream |
+| spark | tide, ember | light, star |
+| tide | ember, leaf | spark, light |
+| ember | leaf, crystal | tide, spark |
+| leaf | crystal, dream | ember, tide |
+| crystal | dream, star | leaf, ember |
+| dream | star, light | crystal, leaf |
+| star | light, spark | dream, crystal |
+| light | spark, tide | star, dream |
 
-雙屬性寵物:對其任一屬性的剋制取「最有利」倍率(MVP 簡化;細節留實作)。
+雙屬性防守時，MVP 取對玩家最容易理解的倍率：任一屬性被剋就顯示有利，任一屬性抵抗且沒有被剋才顯示不利。若後續平衡需要，可改為乘法倍率，但 UI 必須保持簡單。
 
-## 7. 自訂寵物管線(一等公民)+ 美術策略
+## 10. 收集與養成
 
-每隻寵物 = **一筆資料 + 一張圖**(`portraitAsset`/`spriteAsset`/可選 `silhouetteAsset` + `artPrompt` 欄位已存在)。架構上「角色」與「美術」完全解耦——戰鬥/捕捉/地圖/相剋/進化都不在意最終塞什麼圖。
+### 10.1 Team
 
-- **新增一隻寵物極簡**:把圖放進資料夾 + 加一筆 species 資料(名字、屬性、招式、進化、最愛零食、稀有度)。
-- **MVP**:用「丟檔 + 資料」的開發者流程即可。**Phase 2** 可做 app 內「建立寵物」表單(上傳圖、填欄位,存進個人存檔/Storage)。
-- **美術廣度**:目前約 6 隻原創設計(4 初始 + Mossmew + Sparkleaf Fawn)。以「**可擴展架構 + 延展既有美術**」放大收集量:4 進化階段各算一筆圖鑑、顏色/屬性變體(tinting,不重畫)、稀有度階層 → 約 6 base 可撐 20+ 圖鑑格。
+- Active adventure team 初期最多 3 隻；長期可擴充到 6 隻 Keeper Team。
+- 戰鬥中可切換隊友。
+- 隊伍中的 field skills 影響探索收益與節點解鎖。
 
-**版權邊界(明確):** 本專案**出貨與版控內容只包含原創萌寵與原創美術**,不打包任何第三方版權角色(如各家商業吉祥物)或其圖。自訂寵物管線是**內容中性**的能力(類似自訂 sprite 包);使用者在自己的私人、不公開版本裡要放入哪些自有圖檔,屬其自行決定與自備,不由本專案產製或散布。
+### 10.2 XP、Level、Bond
 
-## 8. 渲染架構(混合)
+- 戰鬥、收服、Warden、每日任務與探索可給 XP。
+- Level 提升 HP / power，並解鎖 move pool 中更高階招式。
+- Bond 透過餵 favorite snack、帶出探索、完成目標提升。
+- 高 bond 可給小型加成、Hub 互動或特殊稱號，但不應讓戰鬥失衡。
 
+### 10.3 進化
+
+- 每個 species 有 `growthStages`。達到等級門檻與條件後可進化。
+- 進化是重要滿足感節拍，要有明確動畫、SFX、前後名字。
+- MVP 可使用固定 `EVOLUTION_LEVELS`，但資料層需限制 `totalStages <= EVOLUTION_LEVELS.length + 1`，或改成每 species 自帶門檻，避免超過 4 階時無聲卡住。
+
+### 10.4 Skills
+
+- Species 定義 `learnableSkillIds`。
+- Owned creature 有 equipped move IDs / loadout。
+- 升級解鎖招式，玩家在 Hub 中裝備。
+- 戰鬥 UI 顯示屬性、威力與相剋提示。
+
+### 10.5 Wonderdex
+
+Wonderdex 是主要收集畫面。狀態至少包含：
+
+- `unseen`
+- `seen`
+- `caught`
+- `evolved`
+
+延伸狀態：
+
+- shiny / variant 是否已收服。
+- Warden recorded / defeated。
+- 地區完成度與獎勵。
+
+Wonderdex 應支援 completion rewards，讓「全部收集」有明確動機。
+
+### 10.6 Economy
+
+- 使用一種軟貨幣：Stardust。
+- Stardust 來源：探索寶箱、戰鬥、每日任務、圖鑑獎勵。
+- Stardust 用途：買點心、後續買 charm / 材料。
+- MVP 點心種類維持少量，與 starter favorite snack 對應。
+
+## 11. 自訂寵物與美術策略
+
+每隻 Wonderling = 一筆資料 + 一張圖：
+
+- `speciesId`
+- `name`
+- `elements`
+- `rarity`
+- `favoriteSnack`
+- `fieldSkillId`
+- `growthStages`
+- `learnableSkillIds`
+- `portraitAsset`
+- optional `spriteAsset`
+- optional `silhouetteAsset`
+- optional `artPrompt`
+
+新增寵物的最小流程是放入圖檔並新增資料。App 內 builder 是 Phase 2+ 能力：可輸入名字、選屬性、上傳圖、選 favorite snack，存入個人存檔或 Storage。專案出貨只附原創內容；私人自訂圖由使用者自備。
+
+美術廣度可透過以下方式放大：
+
+- 進化階段。
+- 顏色 / shiny 變體。
+- 稀有度階層。
+- Warden 版本。
+- 自訂寵物。
+
+## 12. Region 與長期章節
+
+MVP 至少要有 Sparkleaf Grove / 星葉森林與一場 Warden。Phase 2 可擴到第二區。長期世界章節如下，作為內容 roadmap，而不是單一 MVP 的完成條件。
+
+| 階段 | 地區 | 主題 | Warden / 目標 |
+|---|---|---|---|
+| Prologue | Wonder Academy | 入學、選 starter、取得 Wonderdex | 解鎖 Sparkleaf Grove |
+| Chapter 1 | Sparkleaf Grove | 發光森林、草叢、入門收服 | Sparkleaf Fawn |
+| Chapter 2 | Tideglass Coast | 潮汐、玻璃海岸、水系互動 | Pearlwhisker Seal |
+| Chapter 3 | Clocktower Dorms | 宿舍、時間機關、節奏謎題 | Clockbell Tanuki |
+| Chapter 4 | Sugarcloud Market | 點心、商店、表演、經濟 | Marshmallow Maestro |
+| Chapter 5 | Snowbell Ridge | 寒冷、耐久、守護角色 | Aurora Alpaca |
+| Chapter 6 | Dreamcloud Festival | 夢境、狀態、支援技能 | Pillowmoon Ram |
+| Chapter 7 | Starrail Observatory | 星空、稀有 encounter、圖鑑線索 | Comet Kitsune |
+| Final | Crystal Bell Tower | 信任、Crystal Bell、最終挑戰 | The Silent Bellheart |
+| Postgame | Wonder Keeper Trials | rematch、Mythlings、稀有變體、挑戰塔 | 長期收集 |
+
+## 13. 渲染與 UI 架構
+
+採混合架構：
+
+```text
+React / DOM + Framer Motion
+  序章、Hub、Region map、Team、Wonderdex、Shop、Builder、Battle commands
+
+Kaplay canvas
+  可走動探索場景、戰鬥舞台、sprite 偶動畫、攻擊/收服/進化演出
 ```
-┌─────────────────────────────────────────────┐
-│  React / DOM + Framer Motion（控制層）         │
-│  序章卡片・選單・隊伍・圖鑑・背包・戰鬥指令面板    │
-│   ┌─────────────────────────────────────┐     │
-│   │  Kaplay canvas（會動的層）             │     │
-│   │  探索場景(走動/草叢/寶箱)、            │     │
-│   │  戰鬥舞台(sprite/攻擊演出/想睡)        │     │
-│   └─────────────────────────────────────┘     │
-└─────────────────────────────────────────────┘
+
+原則：
+
+- 互動控制項使用真實 DOM button/input，保留 keyboard、focus、hover、touch 與 responsive 行為。
+- Kaplay 只負責會動的場景與角色，不承擔大量文字或主控制 UI。
+- CJK 文字盡量留在 DOM；若進 canvas，需使用正確 font family，避免豆腐字。
+- 網頁版遵循 macOS HIG for Web：玻璃只用於浮層，主內容清楚、低噪、touch target 足夠。
+- 遊戲是獨立 route，不繼承主 app layout。
+
+主要畫面：
+
+- Title / Continue
+- Intro / Starter Selection
+- Academy Hub
+- Region Map
+- Node Map
+- Explore Scene
+- Battle
+- Team / Skills / Growth
+- Wonderdex
+- Snack Shop
+- Creature Builder
+- Result / Evolution
+
+## 14. 技術架構
+
+目標架構：
+
+- `WonderAcademyCollector` 或後續 `WonderAcademyPage` 作為獨立 page shell，負責 auth、load/save、audio lifecycle、route exit。
+- 狀態由 reducer 管理，action 必須可測且副作用集中在 shell / effects。
+- 純邏輯拆到 `logic/`：
+  - `typeChart`
+  - `rng`
+  - `battleLogic`
+  - `battleSession`
+  - `catchLogic`
+  - `progression`
+  - `evolution`
+  - `bond`
+  - `weighted`
+  - `encounter`
+  - `loot`
+  - `wonderdex`
+  - `fieldSkills`
+  - `dailyTasks`
+- `wonderAcademyCreatures.ts` 管 species registry、starter、wild、custom creatures、portrait mapping。
+- `wonderAcademyRegions.ts` 管 regions、nodes、tile maps、warden data。
+- `ExploreSceneKaplay.tsx` 與 `BattleStageKaplay.tsx` 包裝 canvas。
+- `wonderAcademyAudio.ts` 管 SFX、loops、mute、volume。
+
+如果檔案過大，優先拆出 screens / components，而不是新增跨層全域狀態。
+
+## 15. 存檔與同步
+
+存檔必須保護孩子的長期進度。Firestore 是正式持久來源；localStorage 只能是啟動快取與離線 pending queue。若目前實作採 localStorage primary、cloud best-effort，視為技術債，後續應收斂到本節。
+
+Firestore path：
+
+```text
+gameProgress/{uid}/littleGames/wonderAcademy
 ```
 
-- **控制項全留 DOM** → 手感從根本修正(真實按鈕、hover/focus、RWD、a11y、設計系統)。
-- **Kaplay 負責「會動的場景」**:探索的可走動場景 + 戰鬥舞台的 sprite 與演出;戰鬥的指令面板(招式/收服按鈕)仍是 DOM 疊加層 → 視覺有汁、按鈕手感好。
-- **不需 spritesheet**:單立繪「偶動畫」(移動 + squash + hop)即可,契合既有美術;逐格動畫是後期投資。
-- 重用既有 `kaplayLifecycle` helper。
-- **CJK 注意**:canvas 內文字須傳 CSS font-family(PingFang TC / Noto Sans TC),避免豆腐字;盡量讓文字留在 DOM 層。
+要求：
 
-## 9. 技術架構
+- 未登入時，New Game / Continue 前要引導登入；不要默默建立只有本機存在的長期進度。可允許 guest demo，但必須明確標示不保證跨裝置保存。
+- Save blob 包含 schema version。
+- local cache 可用於快速啟動，但不能無提示覆蓋較新的 cloud save。
+- 離線時寫入 pending save queue；恢復連線後同步。
+- UI 顯示 Saved、Saving、Offline changes pending、Save failed。
+- 保存失敗不能讓玩家誤以為已保存。
+- Reset / New Game overwrite 必須二次確認。
+- 跨裝置讀取時若 local 比 cloud 新，要提示「此裝置有尚未同步的進度」。
 
-**保留**
-- `services/wonderAcademyProgressService.ts` + `components/.../wonderAcademyPersistence.ts` —— 已強化的雲端/本地存檔同步,原樣重用。
-- `wonderAcademyAudio.ts` —— 音樂/SFX 管理器,接上新 UI。
-- `data/wonderAcademyData.ts` + `types/wonderAcademy.ts` —— 內容資料 + schema,保留並擴充。
+存檔時機：
 
-**替換**
-- `components/LittleGames/wonder-academy/wonderAcademyGame.ts`(1083 行全 Kaplay UI)→ 角色縮小為「探索場景 + 戰鬥舞台」兩個 canvas 模組。
-- `WonderAcademyHost.tsx`(canvas host)→ 改造為 canvas 場景的包裝層。
-- 596 行萬用 `wonderAcademyLogic.ts` → 依領域切成純、可測試模組:`battleLogic`、`catchLogic`、`explorationLogic`、`progressionLogic`、`dexLogic`、`typeChart`。保留 reducer 模式、重設 action 集合。
+- New Game 建立 starter 後。
+- 每次進入或完成 node。
+- 收服成功、Wonderdex 更新、Warden 完成、隊伍/技能/暱稱調整。
+- 餵食、進化、購買、領取每日/圖鑑獎勵。
+- 返回 Hub、離開 route、頁面背景化。
+- 較長 Warden / chapter 事件需 phase checkpoint。
 
-**新增(遵循 CLAUDE.md:Context/hooks、PascalCase 元件、camelCase utils、2-space、strict TS)**
-- `WonderAcademyPage.tsx` —— 精簡為 auth / load / save 外殼。
-- `useWonderAcademyGame.ts`(hook)—— 狀態 + dispatch。
-- `screens/`:`IntroSequence`(序章)、`HubScreen`、`MapScreen`、`ExploreScene`(Kaplay 包裝)、`BattleScreen`、`TeamScreen`、`WonderdexScreen`、`BagScreen`。
-- `components/`:`StarterCard`、`DialogueBox`、`WonderlingCard`、`TeamPicker`、`HpBar`、`MoveButton`、`TypeBadge`、`CatchPrompt`、`CreatureSprite`、`BattleStage`/`ExploreCanvas`(Kaplay wrappers)等。
-- **狀態管理**:Reducer(`applyWonderAcademyAction`)+ context/hook,符合「Context API 管全域、custom hooks 管業務邏輯」慣例。
+存檔資料至少包含：
 
-**測試**:vitest(專案 runner)。純邏輯(相剋倍率、傷害、收服率、遭遇/掉落擲骰、升級/進化門檻、圖鑑完成度)以 TDD 開發。既有持久化測試保留。
+- player name / uid
+- starter species + nickname
+- owned Wonderlings / team / loadouts
+- Wonderdex states + shiny / variants
+- region / node progress / wardens defeated
+- snacks / stardust / materials / charms
+- daily progress / claimed rewards
+- custom creatures metadata
+- audio settings
+- schema version / updatedAt / pending sync metadata
 
-**路由/入口**:維持現狀。
+## 16. 音效與音樂
 
-## 10. 資料模型改動
+聲音是療癒感的一部分，不是最後 polish。
 
-既有 `WonderAcademyProgress` 已涵蓋多數所需(`ownedWonderlings`、`wonderdex`、`keeperTeam`、`skillLoadouts`、`snacks`、`charms`、`careerLevels` 等)。改動:
+方向：
 
-- **提升 `schemaVersion`(1 → 2)並重置舊存檔**(無遷移)。理由:遊戲早期、唯一玩家是開發者家庭;新結構差異大。存檔機制不變,只變 blob 結構。
-- **新增資料(內容層,非存檔)**:`typeChart`(§6)、`moves`(招式:屬性、威力、效果)、每地點的 `encounterTable`(野生物種 + 機率)、`treasureTable`、野生寵物的等級範圍。
-- **存檔新增**:`materials: Record<string, number>`(或復用 `charms`/`careerLevels`,實作時定案);(Phase 2)`customCreatures` 存放使用者自建寵物。
-- **戰鬥屬性**:在 species/owned 上補必要的戰鬥數值(HP、攻防或簡化的 power、各 owned 的當前 HP/狀態於戰鬥期暫存)。
-- **擴充 `wonderdex` enum**:表示 未見/已收服/已進化(或加平行 `wonderdexVariants` map),實作時定案。
-- **啟用既有停擺欄位**:`fieldSkillId`、`growthStages`、`learnableSkillIds`、`favoriteSnack`、`rarity`、`personality`、各章 `wardenSpeciesId`、節點 `kind`。
-- 序章的初始選擇 UI 取代暫時寫死的「直接給 Lumi」。
+- BGM 輕柔、溫暖、低壓力，適合親子長時間聽。
+- Hub 像安靜學院與雲端房間。
+- Region / Explore 有輕微地方感。
+- Battle / Warden 有節奏，但不緊張刺耳。
+- UI SFX 柔和：select、confirm、back、locked、unlock、save、treasure、Wonderdex update。
+- Wonderling 互動音效避免高頻、突兀、過度重複。
 
-## 11. 分階段
+必要 loop：
 
-每階段都交付可玩成果;先把「探索→戰鬥→捕捉→養成」核心做好,再加深度。
+- `hub_loop`
+- `region_map_loop`
+- `mood_trial_loop` / normal battle loop
+- `warden_trial_loop`
 
-**Phase 1 — MVP(垂直切片:核心循環手感良好)**
-- React UI 外殼 + 導覽 + DaisyUI/Framer Motion;Kaplay 縮為探索/戰鬥場景;新 schema + 重置 + 重用持久化。
-- **序章**(開場 → 四選一選寵 → 羈絆 → 啟程)。
-- **探索**:節點地圖 + 1–2 個可走動小場景(草叢遭遇、寶箱、NPC)。
-- **戰鬥**:1v1 + 切換、8 屬性相剋、每隻 4 招、HP;無 PP、無狀態。
-- **捕捉**:打到想睡 + 遞點心 + 最愛零食加成。
-- **養成**:餵點心、升級、基本 bond。
-- **圖鑑**:未見/已收服 + 收集總覽。
-- **一場守關魔王戰**作為里程碑。
-- 既有約 6 隻寵物;純邏輯由 vitest 覆蓋。自訂寵物支援「丟檔 + 資料」流程。
-- → 一款完整的小遊戲:探索 → 戰鬥 → 收服 → 養成 → 填圖鑑。
+必要 SFX：
 
-**Phase 2 — 深度與廣度**
-- 進化動畫 + 4 階進化全開;技能解鎖/裝備、場地技能 gating 探索;顏色/屬性變體(shiny)擴充收集;更多地點/魔王/稀有度/掉落表;圖鑑完成獎勵;**app 內「建立寵物」上傳表單**;狀態效果(先加 1 種,如「想睡」入戰);更豐富的探索場景。
+- `ui_select`
+- `ui_confirm`
+- `ui_back`
+- `ui_locked`
+- `node_unlock`
+- `save_success`
+- `save_pending`
+- `attune_ready`
+- `attune_success`
+- `attune_fail_soft`
+- `wonderdex_update`
+- `snack_use`
+- `bond_skill_ready`
 
-**Phase 3 — 內容與打磨(持續)**
-- 更多寵物與區域;經濟/材料精修;每日節奏;音訊與無障礙(reduced-motion)打磨;探索/戰鬥演出加汁。
+音訊設定跟隨存檔同步，但本機互動必須立即生效。瀏覽器 autoplay policy 下，首次播放需由使用者手勢觸發。
 
-## 12. 風險與待解問題
+## 17. 分階段
 
-- **戰鬥平衡**:輕策略要「有得想又不卡關」,屬性循環倍率與野生等級需 playtest 微調。
-- **相剋可讀性**:10 歲要能一眼看懂剋制——徽章/顏色/提示文案需測。
-- **美術廣度**:收集要夠豐富;以變體/階段緩解,隨陣容成長再評估。
-- **收服手感**:成功率公式(HP/稀有度/點心)要「努力打就抓得到、稀有的要拼一下」的甜蜜點。
-- **場景範圍蔓延**:MVP 探索場景保持小(走動 + 草叢 + 寶箱),日夜/視差等留 Phase 2+。
-- **材料/經濟結構**、**圖鑑變體表示法**:實作計畫定案。
-- **進化階段數假設**:進化邏輯的 `EVOLUTION_LEVELS` 目前寫死 3 個門檻(對應 4 階成長線)。若未來有寵物超過 4 階,會在第 2 階後無聲卡住、無法再進化。reducer/整合計畫需限制 `totalStages <= EVOLUTION_LEVELS.length + 1`,或改為每物種自帶門檻。
+### Phase 1 — MVP 核心循環
 
-## 13. 決策紀錄(來自腦力激盪)
+- 獨立 `/games/wonder-academy` route，舊 `/games/monster-academy` redirect。
+- Title、New Game、四選一 starter、暱稱、Hub。
+- Region / node map。
+- 1-2 個可走動探索場景：草叢、寶箱、NPC、出口。
+- 1v1 battle：攻擊、切換、撤退、捕捉。
+- 8 屬性相剋、4 招、HP、想睡捕捉。
+- 收服、XP、level、bond、餵點心。
+- Wonderdex：未見 / 已見 / 已收服。
+- 至少一場 Warden。
+- Firestore/local save 基礎與可理解 save status。
+- Vitest 覆蓋核心純邏輯。
+
+### Phase 2 — 深度與廣度
+
+- 進化動畫 + 4 階進化完整化。
+- 技能解鎖 / 裝備 / loadout。
+- Field skills gating 探索。
+- Shiny / variant 收集。
+- 更多地點 / Warden / 稀有度 / 掉落表。
+- Wonderdex completion rewards。
+- App 內 Creature Builder。
+- 第一種狀態效果：sleep。
+- 第二 region 與更豐富探索場景。
+- 存檔衝突、pending queue 與跨裝置同步完善。
+
+### Phase 3 — 長期內容與打磨
+
+- 更多章節、Wonderlings、Warden、postgame trials。
+- 經濟 / 材料 / charms 精修。
+- 每日任務、每日 reward、短期目標節奏。
+- 音訊品質與區域 BGM 擴充。
+- Reduced motion、mobile layout、keyboard/touch QA。
+- 戰鬥、收服、進化、開寶箱等演出加汁。
+
+## 18. 驗證策略
+
+### Unit tests
+
+- Species / move data validation。
+- Type chart effectiveness。
+- Battle damage、turn resolution、sleep、faint / sleepy 判定。
+- Catch chance formula。
+- Battle session：start、enemy turn、player attack、catch、switch、flee。
+- RNG、weighted pick、encounter roll、loot roll。
+- XP / level / evolution / bond。
+- Wonderdex state promotion and completion。
+- Field skill aggregation。
+- Daily task rollover、progress、claim。
+- Audio manifest、volume、mute、fallback。
+- Save parser、schema migration、malformed save、local/cloud precedence、pending queue。
+
+### Browser smoke
+
+- 開啟 GameHub。
+- 開啟 `/games/wonder-academy`。
+- `/games/monster-academy` redirect 到新 route。
+- New Game。
+- 選 starter、輸入 player name / nickname。
+- 進入 Hub。
+- 開啟 Wonderdex、Team / Skills、Shop。
+- 進入 Region Map 與 Node Map。
+- 使用 mouse / touch / keyboard 選節點。
+- Locked node 顯示條件。
+- 進入 Explore Scene，確認 canvas 非空，可移動、草叢、寶箱、NPC、出口。
+- 進入 Battle，確認 DOM 指令面板可操作。
+- 完成捕捉、開寶箱、Warden。
+- 離開 route 再進入，確認沒有重複 loop 或 stale canvas。
+- reload / 換瀏覽器登入同帳號，確認 Firestore progress 可讀。
+- 模擬離線與保存失敗，確認 pending / error UI。
+
+### Visual QA
+
+- Desktop / mobile screenshots。
+- Canvas pixel check 非空。
+- 文字不破版、不互相遮擋。
+- 觸控目標最小 44px。
+- Reduced motion 下動畫停止或簡化。
+- CJK 文字正常顯示。
+- Wonder Academy route 不繼承 main app layout。
+
+## 19. 風險與待解問題
+
+- **戰鬥平衡**：屬性倍率、野生等級、Warden 等級、捕捉率需要 playtest。
+- **相剋可讀性**：10 歲要能一眼懂 UI。徽章、顏色、文案要實測。
+- **收服手感**：稀有寵不能太難，也不能完全無腦。
+- **美術廣度**：原創數量有限，需靠階段、variant、shiny、自訂寵物與後續追加支撐。
+- **存檔一致性**：local/cloud/pending 的 precedence 必須明確，避免覆蓋孩子進度。
+- **檔案邊界**：若單一 React file 過大，應拆 screens/components/hooks，保持可測性。
+- **長期 scope**：完整章節世界很大；每階段都要交付可玩的垂直 slice，不一次吃完整世界。
+
+## 20. 決策紀錄
 
 | 決策 | 選擇 |
 |---|---|
-| 在 app 中的角色 | 純樂趣遊戲;**要遊戲性、非故事**;不公開、親子共玩 |
-| 類型方向 | 寶可夢式:地圖探索 + 尋寶 + 戰鬥捕捉 + 養成 |
-| 目標玩家 | 10 歲(國小四年級,繁中流暢)+ 家長共玩 |
-| 戰鬥深度 | **輕策略**:8 屬性相剋 + 隊伍切換;無 PP、MVP 無狀態效果 |
-| 捕捉機制 | 打到「想睡」→ 遞點心收服;不暴力;最愛零食加成;失敗溫和逃走 |
-| 地圖探索 | **混合**:節點地圖移動 + 場景小探索(草叢/寶箱/NPC) |
-| 序章 | 精心設計、一氣呵成:開場 → 四選一選寵 → 羈絆 → 啟程才算正式開始 |
-| 導師角色 | 原創「薇拉院長 🦉」,MVP 先以對話框呈現 |
-| 美術/IP | 出貨只附**原創**萌寵;美術可抽換;自訂寵物管線供使用者於私人版本自備自有圖 |
-| 渲染 | 混合:探索/戰鬥用 Kaplay canvas,選單/控制用 DOM + Framer Motion |
-| 存檔遷移 | 重置(bump schemaVersion);無遷移 |
+| 遊戲角色 | 私人親子共玩小遊戲，不公開發行 |
+| 核心類型 | 寶可夢式探索 + 戰鬥捕捉 + 養成收集 |
+| 舊玩法 | Mood Trial / Befriend 不再是主軸 |
+| 調性 | 非暴力、療癒、可愛，但要有實際遊戲性 |
+| 目標玩家 | 10 歲孩子 + 家長 |
+| 戰鬥深度 | 8 屬性相剋 + 隊伍切換 + favorite snack |
+| 捕捉 | 打到想睡 -> 遞點心收服 |
+| 地圖 | 節點地圖 + 小型 walkable Kaplay scene |
+| UI | DOM 控制層 + Kaplay 動態層 |
+| 存檔 | Firestore 正式來源；localStorage 作 cache / pending |
+| IP | Repo 只含原創內容；自訂管線允許私人自備圖 |
+| 擴充 | 先核心循環，再章節、更多 Warden、postgame |
