@@ -127,4 +127,43 @@ describe("Wonder Academy creature registry", () => {
       equippedMoveIds: ["missing-move"],
     }).moveIds).toEqual(["tiny-flash", "zip-spark", "wink-feint", "starstep-dash"]);
   });
+
+  it("repairs equipped moves from another species before battle", () => {
+    expect(toCombatant({
+      ownedId: "owned-lumi",
+      speciesId: "lumi",
+      nickname: "Lumi",
+      level: 9,
+      xp: 0,
+      bond: 0,
+      stage: 0,
+      equippedMoveIds: ["bubble-pat"],
+    }).moveIds).toEqual(["tiny-flash", "zip-spark", "wink-feint", "starstep-dash"]);
+  });
+
+  it("repairs locked high-tier equipped moves before battle", () => {
+    expect(toCombatant({
+      ownedId: "owned-lumi",
+      speciesId: "lumi",
+      nickname: "Lumi",
+      level: 1,
+      xp: 0,
+      bond: 0,
+      stage: 0,
+      equippedMoveIds: ["aurora-parade"],
+    }).moveIds).toEqual(["tiny-flash", "zip-spark", "wink-feint", "starstep-dash"]);
+  });
+
+  it("preserves default loadout moves for low-level creatures", () => {
+    expect(toCombatant({
+      ownedId: "owned-lumi",
+      speciesId: "lumi",
+      nickname: "Lumi",
+      level: 1,
+      xp: 0,
+      bond: 0,
+      stage: 0,
+      equippedMoveIds: ["zip-spark", "wink-feint"],
+    }).moveIds).toEqual(["zip-spark", "wink-feint"]);
+  });
 });

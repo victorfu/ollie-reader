@@ -257,12 +257,21 @@ function knownMoveIds(ids: string[]): string[] {
   return ids.filter((id) => !!WONDER_ACADEMY_MOVES[id]).slice(0, 4);
 }
 
+function validEquippedMoveIds(owned: OwnedCreature, species: CreatureSpecies): string[] {
+  const pool = learnablePool(species);
+  const defaultMoveIds = new Set(defaultEquipped(species));
+  return knownMoveIds(owned.equippedMoveIds ?? [])
+    .filter((moveId) => {
+      const poolIndex = pool.indexOf(moveId);
+      if (poolIndex < 0) return false;
+      return defaultMoveIds.has(moveId) || owned.level >= moveUnlockLevel(poolIndex);
+    });
+}
+
 export function toCombatant(owned: OwnedCreature): BattleCombatant {
   const species = speciesById(owned.speciesId);
   const elements = species?.elements ?? ["light"];
-  const equippedMoveIds = owned.equippedMoveIds
-    ? knownMoveIds(owned.equippedMoveIds)
-    : [];
+  const equippedMoveIds = species ? validEquippedMoveIds(owned, species) : [];
   const defaultMoveIds = species ? knownMoveIds(defaultEquipped(species)) : ["tiny-flash"];
   const moveIds =
     equippedMoveIds.length > 0
