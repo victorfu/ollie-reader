@@ -98,6 +98,61 @@ describe("normalizeWonderAcademySave", () => {
       audioSettings: defaultWonderAcademyAudioSettings,
     });
   });
+
+  it("backfills missing custom creature field skills from elements", () => {
+    expect(
+      normalizeWonderAcademySave({
+        playerName: "Mina",
+        team: [],
+        customCreatures: [
+          {
+            speciesId: "custom-leaf",
+            name: "Leaf Scout",
+            category: "自訂夥伴",
+            personality: "Legacy custom creature",
+            elements: ["leaf"],
+            rarity: "rare",
+            favoriteSnack: "clover-macaron",
+            growthStages: ["Leaf Scout"],
+            moveIds: ["leaf-wink"],
+            portrait: "leaf.png",
+            wild: true,
+          },
+          {
+            speciesId: "custom-empty",
+            name: "Default Friend",
+            category: "自訂夥伴",
+            personality: "Legacy custom creature",
+            elements: [],
+            rarity: "rare",
+            favoriteSnack: "starberry-cookie",
+            growthStages: ["Default Friend"],
+            moveIds: ["tiny-flash"],
+            portrait: "default.png",
+            wild: true,
+          },
+          {
+            speciesId: "custom-existing",
+            name: "Existing Skill",
+            category: "自訂夥伴",
+            personality: "Already migrated",
+            elements: ["tide"],
+            rarity: "rare",
+            favoriteSnack: "moon-milk-puff",
+            growthStages: ["Existing Skill"],
+            moveIds: ["bubble-pat"],
+            fieldSkillId: "soft-float",
+            portrait: "existing.png",
+            wild: true,
+          },
+        ],
+      })?.customCreatures.map((creature) => [creature.speciesId, creature.fieldSkillId]),
+    ).toEqual([
+      ["custom-leaf", "secret-sense"],
+      ["custom-empty", "light-trail"],
+      ["custom-existing", "soft-float"],
+    ]);
+  });
 });
 
 describe("local cache and pending queue", () => {

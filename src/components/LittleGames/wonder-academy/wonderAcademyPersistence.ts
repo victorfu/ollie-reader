@@ -1,8 +1,12 @@
 import type { DailyProgress } from "./logic/dailyTasks";
 import type { Wonderdex } from "./logic/wonderdex";
-import type { WonderAcademyAudioSettings } from "../../../types/wonderAcademy";
+import type { WonderAcademyAudioSettings, WonderAcademyElement } from "../../../types/wonderAcademy";
 import { normalizeAudioSettings } from "./wonderAcademyAudio";
-import type { CreatureSpecies, OwnedCreature } from "./wonderAcademyCreatures";
+import {
+  fieldSkillForElements,
+  type CreatureSpecies,
+  type OwnedCreature,
+} from "./wonderAcademyCreatures";
 
 export const WONDER_ACADEMY_SCHEMA_VERSION = 2;
 export const WONDER_ACADEMY_CLOUD_DOC = "wonderAcademy";
@@ -159,6 +163,22 @@ function removeStorage(storage: Storage | null | undefined, key: string): void {
   }
 }
 
+function normalizeCustomCreatures(value: unknown): CreatureSpecies[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    const record = asRecord(item);
+    if (!record) return [];
+    const elements = Array.isArray(record.elements)
+      ? (record.elements as WonderAcademyElement[])
+      : [];
+    const fieldSkillId =
+      typeof record.fieldSkillId === "string" && record.fieldSkillId.trim().length > 0
+        ? record.fieldSkillId
+        : fieldSkillForElements(elements);
+    return [{ ...(record as unknown as CreatureSpecies), fieldSkillId }];
+  });
+}
+
 export function normalizeWonderAcademySave(input: unknown): WonderAcademyProgressData | null {
   const parsed = asRecord(input);
   if (!parsed || !Array.isArray(parsed.team)) return null;
@@ -171,9 +191,7 @@ export function normalizeWonderAcademySave(input: unknown): WonderAcademyProgres
       ? parsed.stardust
       : 0,
     snacks: numberRecord(parsed.snacks),
-    customCreatures: Array.isArray(parsed.customCreatures)
-      ? (parsed.customCreatures as CreatureSpecies[])
-      : [],
+    customCreatures: normalizeCustomCreatures(parsed.customCreatures),
     wardensDefeated: stringArray(parsed.wardensDefeated),
     clearedNodes: stringArray(parsed.clearedNodes),
     shinyDex: stringArray(parsed.shinyDex),

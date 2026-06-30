@@ -179,7 +179,7 @@ function movesForElements(elements: WonderAcademyElement[]): string[] {
   return matched.length > 0 ? matched.slice(0, 4) : ["tiny-flash"];
 }
 
-function fieldSkillForElements(elements: WonderAcademyElement[]): string {
+export function fieldSkillForElements(elements: WonderAcademyElement[]): string {
   const primary = elements[0] ?? "light";
   if (primary === "dream" || primary === "tide") return "soft-float";
   if (primary === "star" || primary === "leaf") return "secret-sense";
