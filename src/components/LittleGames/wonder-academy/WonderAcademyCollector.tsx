@@ -24,7 +24,6 @@ import {
   claimTask,
   DAILY_TASKS,
   rolloverDaily,
-  type DailyProgress,
   type DailyTaskId,
 } from "./logic/dailyTasks";
 import { teamFieldPerks } from "./logic/fieldSkills";
@@ -33,7 +32,7 @@ import { canEvolve, evolve } from "./logic/evolution";
 import { rollLoot, type LootTable } from "./logic/loot";
 import { gainXp } from "./logic/progression";
 import { getEffectivenessAgainst } from "./logic/typeChart";
-import { dexCompletion, recordDex, type Wonderdex } from "./logic/wonderdex";
+import { dexCompletion, recordDex } from "./logic/wonderdex";
 import {
   allSpecies,
   catchableSpecies,
@@ -65,6 +64,13 @@ import {
   REGIONS,
   regionById,
 } from "./wonderAcademyRegions";
+import {
+  loadWonderAcademySave,
+  localOnlyWonderAcademyCloudAdapter,
+  saveWonderAcademyProgress,
+  type WonderAcademyProgressData,
+  type WonderAcademySaveStatus,
+} from "./wonderAcademyPersistence";
 
 type Screen =
   | "title"
@@ -100,26 +106,7 @@ type ResultInfo = {
 
 type EvolutionInfo = { display: string; after: string; portrait: string };
 
-type Persisted = {
-  playerName: string;
-  team: OwnedCreature[];
-  dex: Wonderdex;
-  stardust: number;
-  snacks: Record<string, number>;
-  customCreatures: CreatureSpecies[];
-  /** Region ids whose warden has been beaten (gates region unlocks). */
-  wardensDefeated: string[];
-  /** "regionId:nodeId" keys for explore nodes that have been entered. */
-  clearedNodes: string[];
-  /** Species ids the player has caught a shiny of. */
-  shinyDex: string[];
-  /** Dex milestone thresholds whose reward has been claimed. */
-  dexRewardsClaimed: number[];
-  /** YYYY-M-D of the last claimed daily reward, or null. */
-  lastDailyReward: string | null;
-  /** Today's daily-quest progress (null until the first event/claim). */
-  daily: DailyProgress | null;
-};
+type Persisted = WonderAcademyProgressData;
 
 /** Wonderdex collection milestones (by number of species caught). */
 const DEX_REWARDS = [
@@ -144,9 +131,6 @@ const CATCH_CONFETTI = Array.from({ length: 16 }, (_, i) => {
     round: i % 2 === 0,
   };
 });
-
-/** Shape read back from storage/cloud — any field may be missing. */
-type StoredGame = Partial<Persisted>;
 
 type GameState = Persisted & {
   ready: boolean;
@@ -732,69 +716,53 @@ function reducer(state: GameState, action: Action): GameState {
   }
 }
 
-const storageKey = (uid: string) => `wonder-academy-game-v2-${uid}`;
+// ---- small presentational pieces ----
 
-// Read back a stored payload (local or cloud), filling in any missing fields.
-// No migration: a save from before regions just starts with no warden progress.
-function normalizeStored(parsed: StoredGame | null): Persisted | null {
-  if (!parsed || !Array.isArray(parsed.team)) return null;
+function saveStatusLabel(status: WonderAcademySaveStatus, isGuest: boolean): string {
+  if (isGuest && (status === "idle" || status === "saved")) return "本機保存";
+  if (isGuest && status === "saving") return "保存中";
+
+  switch (status) {
+    case "loading":
+      return "讀取中";
+    case "saving":
+      return "同步中";
+    case "saved":
+      return "已同步";
+    case "pending":
+      return "待同步";
+    case "failed":
+      return "同步失敗";
+    case "idle":
+    default:
+      return "未保存";
+  }
+}
+
+function saveStatusChip(status: WonderAcademySaveStatus): CSSProperties {
+  const palette: Record<WonderAcademySaveStatus, { bg: string; border: string; color: string }> = {
+    idle: { bg: "rgba(255,255,255,.58)", border: "rgba(60,40,90,.12)", color: "#8a83a3" },
+    loading: { bg: "#eef5ff", border: "#b9d4ff", color: "#4270bc" },
+    saving: { bg: "#eef5ff", border: "#b9d4ff", color: "#4270bc" },
+    saved: { bg: "#eef9ee", border: "#b8ddb8", color: "#3b7b45" },
+    pending: { bg: "#fff7e0", border: "#f0c869", color: "#9a6a10" },
+    failed: { bg: "#ffecef", border: "#efb1bb", color: "#b64255" },
+  };
+  const c = palette[status];
   return {
-    playerName: parsed.playerName ?? "",
-    team: parsed.team,
-    dex: parsed.dex ?? {},
-    stardust: parsed.stardust ?? 0,
-    snacks: parsed.snacks ?? {},
-    customCreatures: parsed.customCreatures ?? [],
-    wardensDefeated: Array.isArray(parsed.wardensDefeated) ? parsed.wardensDefeated : [],
-    clearedNodes: Array.isArray(parsed.clearedNodes) ? parsed.clearedNodes : [],
-    shinyDex: Array.isArray(parsed.shinyDex) ? parsed.shinyDex : [],
-    dexRewardsClaimed: Array.isArray(parsed.dexRewardsClaimed) ? parsed.dexRewardsClaimed : [],
-    lastDailyReward: parsed.lastDailyReward ?? null,
-    daily: parsed.daily ?? null,
+    display: "inline-flex",
+    alignItems: "center",
+    minHeight: 24,
+    borderRadius: 999,
+    padding: "2px 8px",
+    border: `1px solid ${c.border}`,
+    background: c.bg,
+    color: c.color,
+    fontSize: 11,
+    fontWeight: 800,
+    whiteSpace: "nowrap",
   };
 }
-
-function loadPersisted(uid: string): Persisted | null {
-  try {
-    const raw = window.localStorage.getItem(storageKey(uid));
-    if (!raw) return null;
-    return normalizeStored(JSON.parse(raw) as StoredGame);
-  } catch {
-    return null;
-  }
-}
-
-const CLOUD_DOC = "wonderAcademyCollector";
-
-async function loadCloudGame(uid: string): Promise<Persisted | null> {
-  try {
-    const [{ doc, getDoc }, { db }] = await Promise.all([
-      import("firebase/firestore"),
-      import("../../../utils/firebaseUtil"),
-    ]);
-    const ref = doc(db, "gameProgress", uid, "littleGames", CLOUD_DOC);
-    const snap = await getDoc(ref);
-    if (!snap.exists()) return null;
-    return normalizeStored(snap.data() as StoredGame);
-  } catch {
-    return null;
-  }
-}
-
-async function saveCloudGame(uid: string, data: Persisted): Promise<void> {
-  try {
-    const [{ doc, setDoc }, { db }] = await Promise.all([
-      import("firebase/firestore"),
-      import("../../../utils/firebaseUtil"),
-    ]);
-    const ref = doc(db, "gameProgress", uid, "littleGames", CLOUD_DOC);
-    await setDoc(ref, { ...data, updatedAt: Date.now() });
-  } catch {
-    // ignore — localStorage stays the source of truth
-  }
-}
-
-// ---- small presentational pieces ----
 
 function TypeBadge({ element }: { element: keyof typeof ELEMENT_META }) {
   const m = ELEMENT_META[element];
@@ -1064,27 +1032,51 @@ function CreatureBuilder({
 
 type Props = { onExit?: () => void };
 
+type SaveStatusSnapshot = {
+  uid: string;
+  status: WonderAcademySaveStatus;
+};
+
 export default function WonderAcademyGame({ onExit }: Props) {
   const { user } = useAuth();
+  const isGuest = !user?.uid;
   const uid = user?.uid ?? "guest";
   const [state, dispatch] = useReducer(reducer, INITIAL);
+  const [saveSnapshot, setSaveSnapshot] = useState<SaveStatusSnapshot>(() => ({
+    uid,
+    status: "loading",
+  }));
+  const loadedUidRef = useRef<string | null>(null);
+  const saveSeqRef = useRef(0);
 
   useEffect(() => {
-    const local = loadPersisted(uid);
-    dispatch({ type: "load", state: local });
-    // On a device with no local save yet, pull cloud progress (never clobbers
-    // existing local progress).
-    if (local && local.team.length > 0) return;
     let cancelled = false;
-    void loadCloudGame(uid).then((cloud) => {
-      if (!cancelled && cloud && cloud.team.length > 0) {
-        dispatch({ type: "load", state: cloud });
-      }
-    });
+    loadedUidRef.current = null;
+
+    void loadWonderAcademySave({
+      uid,
+      cloud: isGuest ? localOnlyWonderAcademyCloudAdapter : undefined,
+    })
+      .then((result) => {
+        if (cancelled) return;
+        dispatch({ type: "load", state: result.data });
+        loadedUidRef.current = uid;
+        setSaveSnapshot({
+          uid,
+          status: isGuest && result.status === "idle" ? "saved" : result.status,
+        });
+      })
+      .catch(() => {
+        if (cancelled) return;
+        dispatch({ type: "load", state: null });
+        loadedUidRef.current = uid;
+        setSaveSnapshot({ uid, status: "failed" });
+      });
+
     return () => {
       cancelled = true;
     };
-  }, [uid]);
+  }, [uid, isGuest]);
 
   // ---- audio ----
   const audioRef = useRef<WonderAcademyAudioManager | null>(null);
@@ -1140,7 +1132,7 @@ export default function WonderAcademyGame({ onExit }: Props) {
   }, [state.screen]);
 
   useEffect(() => {
-    if (!state.ready) return;
+    if (!state.ready || loadedUidRef.current !== uid) return;
     const data: Persisted = {
       playerName: state.playerName,
       team: state.team,
@@ -1155,15 +1147,25 @@ export default function WonderAcademyGame({ onExit }: Props) {
       lastDailyReward: state.lastDailyReward,
       daily: state.daily,
     };
-    try {
-      window.localStorage.setItem(storageKey(uid), JSON.stringify(data));
-    } catch {
-      // ignore quota / availability errors
-    }
-    // Debounced cloud sync (best-effort; localStorage stays primary).
-    const timer = setTimeout(() => void saveCloudGame(uid, data), 900);
-    return () => clearTimeout(timer);
-  }, [uid, state.ready, state.playerName, state.team, state.dex, state.stardust, state.snacks, state.customCreatures, state.wardensDefeated, state.clearedNodes, state.shinyDex, state.dexRewardsClaimed, state.lastDailyReward, state.daily]);
+    const timer = window.setTimeout(() => {
+      const seq = ++saveSeqRef.current;
+      setSaveSnapshot({ uid, status: "saving" });
+      void saveWonderAcademyProgress({
+        uid,
+        data,
+        cloud: isGuest ? localOnlyWonderAcademyCloudAdapter : undefined,
+      })
+        .then((result) => {
+          if (seq !== saveSeqRef.current) return;
+          setSaveSnapshot({ uid, status: isGuest ? "saved" : result.status });
+        })
+        .catch(() => {
+          if (seq !== saveSeqRef.current) return;
+          setSaveSnapshot({ uid, status: "failed" });
+        });
+    }, 900);
+    return () => window.clearTimeout(timer);
+  }, [uid, isGuest, state.ready, state.playerName, state.team, state.dex, state.stardust, state.snacks, state.customCreatures, state.wardensDefeated, state.clearedNodes, state.shinyDex, state.dexRewardsClaimed, state.lastDailyReward, state.daily]);
 
   // Keep the runtime species registry in sync with the player's custom creatures.
   registerCustomCreatures(state.customCreatures);
@@ -1188,6 +1190,9 @@ export default function WonderAcademyGame({ onExit }: Props) {
     setDailyFlash(`✨ Stardust ×20 · 🍪 ${SNACK_NAMES[pick]} ×1`);
     window.setTimeout(() => setDailyFlash(null), 5000);
   };
+  const effectiveSaveStatus: WonderAcademySaveStatus =
+    saveSnapshot.uid === uid ? saveSnapshot.status : "loading";
+  const saveLabel = saveStatusLabel(effectiveSaveStatus, isGuest);
 
   const frame = (children: ReactNode) => (
     <div style={{ minHeight: "100dvh", background: PANEL_BG, fontFamily: '-apple-system, "PingFang TC", "Noto Sans TC", sans-serif', color: "#33304a" }}>
@@ -1198,6 +1203,7 @@ export default function WonderAcademyGame({ onExit }: Props) {
           <button onClick={() => setMuted((m) => !m)} style={{ ...btnGhost, padding: 4 }} title={muted ? "開啟音效" : "靜音"}>
             {muted ? <VolumeX size={16} /> : <Volume2 size={16} />}
           </button>
+          <span aria-live="polite" style={saveStatusChip(effectiveSaveStatus)}>{saveLabel}</span>
           <span style={{ fontSize: 12, fontWeight: 700, color: "#8a83a3" }}>✨ {state.stardust}</span>
         </div>
       </header>
