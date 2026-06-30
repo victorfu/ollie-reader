@@ -142,6 +142,10 @@ export const WA_CREATURES: CreatureSpecies[] = [
 export const STARTER_SPECIES = WA_CREATURES.filter((c) => !c.wild);
 export const WILD_SPECIES = WA_CREATURES.filter((c) => c.wild);
 
+export function starterById(id: string): CreatureSpecies | undefined {
+  return STARTER_SPECIES.find((c) => c.speciesId === id);
+}
+
 // Player-created creatures (with their own uploaded art), kept in a runtime
 // registry that the game component syncs from the persisted save each render.
 const customRegistry = new Map<string, CreatureSpecies>();

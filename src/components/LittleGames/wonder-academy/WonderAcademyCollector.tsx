@@ -56,6 +56,7 @@ import {
   rollShiny,
   SHINY_FILTER,
   speciesById,
+  starterById,
   starterSnackBundle,
   STARTER_SPECIES,
   toCombatant,
@@ -425,10 +426,12 @@ function reducer(state: GameState, action: Action): GameState {
     case "arriveNext":
       return { ...state, screen: "select" };
     case "pickStarter":
-      return { ...state, pendingStarterId: action.speciesId, screen: "confirm" };
+      return starterById(action.speciesId)
+        ? { ...state, pendingStarterId: action.speciesId, screen: "confirm" }
+        : state;
     case "confirmStarter": {
       const species = state.pendingStarterId
-        ? speciesById(state.pendingStarterId)
+        ? starterById(state.pendingStarterId)
         : undefined;
       if (!species) return state;
       return {

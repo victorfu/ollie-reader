@@ -7,6 +7,7 @@ import {
   WA_CREATURES,
   learnablePool,
   makeCustomCreature,
+  starterById,
   starterSnackBundle,
   toCombatant,
 } from "./wonderAcademyCreatures";
@@ -34,6 +35,11 @@ describe("Wonder Academy creature registry", () => {
       pico: "secret-sense",
       nibi: "crystal-push",
     });
+  });
+
+  it("looks up only canonical starter species by id", () => {
+    expect(starterById("lumi")?.name).toBe("Lumi");
+    expect(starterById("mossmew")).toBeUndefined();
   });
 
   it("keeps species move references and evolution stages valid", () => {
