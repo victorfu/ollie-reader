@@ -3,10 +3,11 @@ import textwrap
 import pytest
 
 from release.version import read_version
+from server.config import VERSION
 
 
 def test_reads_project_version_from_real_pyproject():
-    assert read_version("pyproject.toml") == "0.1.0"
+    assert read_version("pyproject.toml") == VERSION
 
 
 def test_reads_version_from_arbitrary_pyproject(tmp_path):
