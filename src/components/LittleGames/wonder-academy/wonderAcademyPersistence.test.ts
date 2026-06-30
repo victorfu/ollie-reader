@@ -639,6 +639,23 @@ describe("syncWonderAcademyPendingSave", () => {
     expect(readWonderAcademyPending(uid)).toBeNull();
   });
 
+  it("does not overwrite newer cloud saves with stale pending data", async () => {
+    const cloud = cloudAdapter();
+    writeWonderAcademyPending(uid, sample({ playerName: "Old pending" }), 900);
+    vi.mocked(cloud.load).mockResolvedValue({
+      schemaVersion: 2,
+      updatedAt: 1000,
+      data: sample({ playerName: "New cloud" }),
+    });
+
+    const result = await syncWonderAcademyPendingSave({ uid, cloud });
+
+    expect(result).toEqual({ status: "saved", updatedAt: 1000 });
+    expect(cloud.save).not.toHaveBeenCalled();
+    expect(readWonderAcademyCache(uid)?.data.playerName).toBe("New cloud");
+    expect(readWonderAcademyPending(uid)).toBeNull();
+  });
+
   it("keeps pending saves queued when cloud sync fails", async () => {
     const cloud = cloudAdapter();
     vi.mocked(cloud.save).mockRejectedValue(new Error("still offline"));

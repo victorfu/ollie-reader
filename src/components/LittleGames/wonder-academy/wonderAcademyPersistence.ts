@@ -546,13 +546,19 @@ export async function syncWonderAcademyPendingSave({
   const pending = readWonderAcademyPending(uid, storage);
   if (!pending) return { status: "idle", updatedAt: null };
 
-  const record: WonderAcademySaveRecord = {
-    schemaVersion: WONDER_ACADEMY_SCHEMA_VERSION,
-    updatedAt: pending.updatedAt,
-    data: pending.data,
-  };
-
   try {
+    const cloudRecord = await cloud.load(uid);
+    if (cloudRecord && cloudRecord.updatedAt >= pending.updatedAt) {
+      writeWonderAcademyCache(uid, cloudRecord.data, cloudRecord.updatedAt, storage);
+      clearWonderAcademyPending(uid, storage);
+      return { status: "saved", updatedAt: cloudRecord.updatedAt };
+    }
+
+    const record: WonderAcademySaveRecord = {
+      schemaVersion: WONDER_ACADEMY_SCHEMA_VERSION,
+      updatedAt: pending.updatedAt,
+      data: pending.data,
+    };
     await cloud.save(uid, record);
     writeWonderAcademyCache(uid, pending.data, pending.updatedAt, storage);
     clearWonderAcademyPending(uid, storage);
