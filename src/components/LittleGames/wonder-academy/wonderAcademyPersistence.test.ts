@@ -94,6 +94,27 @@ describe("normalizeWonderAcademySave", () => {
     ]);
   });
 
+  it("normalizes malformed Wonderdex records", () => {
+    const normalized = normalizeWonderAcademySave({
+      playerName: "Mina",
+      team: [],
+      dex: {
+        lumi: "caught",
+        "  momo  ": "evolved",
+        pico: "mystery",
+        nibi: 3,
+        "": "seen",
+        sparkleaf: "unseen",
+      },
+    });
+
+    expect(normalized?.dex).toEqual({
+      lumi: "caught",
+      momo: "evolved",
+      sparkleaf: "unseen",
+    });
+  });
+
   it("normalizes economy values to non-negative integers", () => {
     expect(
       normalizeWonderAcademySave({

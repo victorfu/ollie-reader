@@ -3,7 +3,7 @@ import {
   type DailyProgress,
   type DailyTaskId,
 } from "./logic/dailyTasks";
-import type { Wonderdex } from "./logic/wonderdex";
+import type { DexStatus, Wonderdex } from "./logic/wonderdex";
 import { getMoveById } from "../../../data/wonderAcademyMoves";
 import { MAX_BOND } from "./logic/bond";
 import { MAX_LEVEL } from "./logic/progression";
@@ -166,6 +166,24 @@ function clampedInteger(value: unknown, fallback: number, min: number, max: numb
   return Math.min(max, Math.max(min, numberValue));
 }
 
+const DEX_STATUSES = new Set<string>(["unseen", "seen", "caught", "evolved"]);
+
+function isDexStatus(value: unknown): value is DexStatus {
+  return typeof value === "string" && DEX_STATUSES.has(value);
+}
+
+function normalizeWonderdex(value: unknown): Wonderdex {
+  const record = asRecord(value);
+  if (!record) return {};
+  const dex: Wonderdex = {};
+  for (const [rawSpeciesId, status] of Object.entries(record)) {
+    const speciesId = rawSpeciesId.trim();
+    if (!speciesId || !isDexStatus(status) || dex[speciesId]) continue;
+    dex[speciesId] = status;
+  }
+  return dex;
+}
+
 const DAILY_TASK_IDS = DAILY_TASKS.map((task) => task.id);
 const DAILY_TASK_ID_SET = new Set<string>(DAILY_TASK_IDS);
 
@@ -310,7 +328,7 @@ export function normalizeWonderAcademySave(input: unknown): WonderAcademyProgres
   return {
     playerName: typeof parsed.playerName === "string" ? parsed.playerName : "",
     team: normalizeTeam(parsed.team),
-    dex: (asRecord(parsed.dex) ?? {}) as Wonderdex,
+    dex: normalizeWonderdex(parsed.dex),
     stardust: clampedInteger(parsed.stardust, 0, 0, Number.MAX_SAFE_INTEGER),
     snacks: nonNegativeIntegerRecord(parsed.snacks),
     customCreatures: normalizeCustomCreatures(parsed.customCreatures),
