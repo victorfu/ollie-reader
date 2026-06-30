@@ -23,6 +23,7 @@ import {
 } from "./logic/battleSession";
 import { gainBond } from "./logic/bond";
 import { effectivenessBadge } from "./logic/battleText";
+import { chooseCatchSnack } from "./logic/catchSnacks";
 import {
   bumpDaily,
   claimTask,
@@ -631,12 +632,13 @@ function reducer(state: GameState, action: Action): GameState {
     case "battleCatch": {
       if (!state.battle) return state;
       const fav = speciesById(state.battle.wild.speciesId)?.favoriteSnack;
-      const hasFav = !!fav && (state.snacks?.[fav] ?? 0) > 0;
-      const snacks =
-        hasFav && fav
-          ? { ...(state.snacks ?? {}), [fav]: (state.snacks?.[fav] ?? 0) - 1 }
-          : (state.snacks ?? {});
-      return afterBattle({ ...state, snacks }, playerCatch(state.battle, 2, hasFav, random), action.today);
+      const choice = chooseCatchSnack(state.snacks, fav, SNACK_POOL);
+      if (!choice) return state;
+      return afterBattle(
+        { ...state, snacks: choice.snacks },
+        playerCatch(state.battle, choice.treatTier, choice.isFavorite, random),
+        action.today,
+      );
     }
     case "battleSwitch":
       return state.battle ? afterBattle(state, playerSwitch(state.battle, action.ownedId), action.today) : state;
@@ -1894,6 +1896,7 @@ export default function WonderAcademyGame({ onExit }: Props) {
     const favSnack = wildSp?.favoriteSnack;
     const favCount = favSnack ? (state.snacks?.[favSnack] ?? 0) : 0;
     const hasFav = favCount > 0;
+    const hasCatchSnack = SNACK_POOL.some((id) => (state.snacks?.[id] ?? 0) > 0);
     return frame(
       <div>
         <div style={{ borderRadius: 18, overflow: "hidden", boxShadow: "0 10px 30px rgba(80,50,130,.12)" }}>
@@ -1964,11 +1967,19 @@ export default function WonderAcademyGame({ onExit }: Props) {
                   <small style={{ display: "block", fontSize: 9.5, fontWeight: 700, opacity: 0.85, marginTop: 2 }}>打敗牠就好,無法收服</small>
                 </div>
               ) : (
-                <button onClick={() => dispatch({ type: "battleCatch", today })} style={{ ...actBtn, background: "linear-gradient(180deg,#ffd66b,#f7b13a)", color: "#5b3d00", border: "none", boxShadow: "0 6px 16px rgba(247,177,58,.4)", lineHeight: 1.25 }}>
+                <button
+                  disabled={!hasCatchSnack}
+                  onClick={() => { if (hasCatchSnack) dispatch({ type: "battleCatch", today }); }}
+                  style={{ ...actBtn, opacity: hasCatchSnack ? 1 : 0.55, cursor: hasCatchSnack ? "pointer" : "not-allowed", background: "linear-gradient(180deg,#ffd66b,#f7b13a)", color: "#5b3d00", border: "none", boxShadow: hasCatchSnack ? "0 6px 16px rgba(247,177,58,.4)" : "none", lineHeight: 1.25 }}
+                >
                   🍪 遞點心收服
                   {favSnack && (
                     <small style={{ display: "block", fontSize: 9.5, fontWeight: 700, opacity: 0.85, marginTop: 2 }}>
-                      {hasFav ? `最愛 ${SNACK_NAMES[favSnack] ?? favSnack} ×${favCount} · 加成!` : `最愛 ${SNACK_NAMES[favSnack] ?? favSnack}(沒有)`}
+                      {hasFav
+                        ? `最愛 ${SNACK_NAMES[favSnack] ?? favSnack} ×${favCount} · 加成!`
+                        : hasCatchSnack
+                          ? `最愛 ${SNACK_NAMES[favSnack] ?? favSnack}(沒有) · 改用一般點心`
+                          : "沒有可用點心"}
                     </small>
                   )}
                 </button>
