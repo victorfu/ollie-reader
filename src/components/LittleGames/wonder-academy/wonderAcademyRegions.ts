@@ -168,3 +168,79 @@ export function nodeUnlockHint(
   const labels = missing.map((rid) => region.nodes.find((candidate) => candidate.id === rid)?.label ?? rid);
   return `先完成「${labels.join("、")}」`;
 }
+
+export const VALID_REGION_TILES = new Set(["T", "P", "G", "C", "N", "X", "S", "W", "F", "O"]);
+
+export function regionValidationErrors(region: Region): string[] {
+  const errors: string[] = [];
+  const prefix = `${region.id}:`;
+
+  const width = region.map[0]?.length ?? 0;
+  let startCount = 0;
+  let exitCount = 0;
+
+  if (region.map.length === 0) {
+    errors.push(`${prefix} map must have at least one row`);
+  }
+
+  region.map.forEach((row, y) => {
+    if (row.length !== width) {
+      errors.push(`${prefix} map row ${y} has width ${row.length}, expected ${width}`);
+    }
+
+    Array.from(row).forEach((tile, x) => {
+      if (!VALID_REGION_TILES.has(tile)) {
+        errors.push(`${prefix} unknown tile '${tile}' at ${x},${y}`);
+      }
+      if (tile === "S") startCount += 1;
+      if (tile === "X") exitCount += 1;
+    });
+  });
+
+  if (startCount !== 1) {
+    errors.push(`${prefix} expected exactly one start tile S, found ${startCount}`);
+  }
+  if (exitCount < 1) {
+    errors.push(`${prefix} expected at least one exit tile X`);
+  }
+  if (region.minLevel > region.maxLevel) {
+    errors.push(`${prefix} minLevel ${region.minLevel} exceeds maxLevel ${region.maxLevel}`);
+  }
+  if (region.wardenLevel < region.maxLevel) {
+    errors.push(`${prefix} wardenLevel ${region.wardenLevel} is below maxLevel ${region.maxLevel}`);
+  }
+
+  const ids = new Set<string>();
+  const duplicateIds = new Set<string>();
+  for (const node of region.nodes) {
+    if (ids.has(node.id)) duplicateIds.add(node.id);
+    ids.add(node.id);
+  }
+  for (const id of duplicateIds) {
+    errors.push(`${prefix} duplicate node id '${id}'`);
+  }
+
+  let wardenCount = 0;
+  for (const node of region.nodes) {
+    if (node.kind === "warden") wardenCount += 1;
+    if (node.x < 0 || node.x > 1) {
+      errors.push(`${prefix} node '${node.id}' x must be between 0 and 1`);
+    }
+    if (node.y < 0 || node.y > 1) {
+      errors.push(`${prefix} node '${node.id}' y must be between 0 and 1`);
+    }
+    for (const requiredId of node.requires) {
+      if (!ids.has(requiredId)) {
+        errors.push(`${prefix} node '${node.id}' requires unknown node '${requiredId}'`);
+      }
+      if (requiredId === node.id) {
+        errors.push(`${prefix} node '${node.id}' cannot require itself`);
+      }
+    }
+  }
+  if (wardenCount !== 1) {
+    errors.push(`${prefix} expected exactly one warden node, found ${wardenCount}`);
+  }
+
+  return errors;
+}
