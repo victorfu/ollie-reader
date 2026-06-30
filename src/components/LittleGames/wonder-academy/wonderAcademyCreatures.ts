@@ -27,7 +27,7 @@ export type CreatureSpecies = {
   /** Battle role tag shown in the starter picker (速攻 / 守護 / 巧術 / 坦克). */
   role?: string;
   /** Exploration field skill granted while this creature is on the team. */
-  fieldSkillId?: string;
+  fieldSkillId: string;
   portrait: string;
   /** Appears in the wild and can be befriended on expeditions. */
   wild: boolean;
@@ -119,6 +119,7 @@ export const WA_CREATURES: CreatureSpecies[] = [
     favoriteSnack: "clover-macaron",
     growthStages: ["Mossmew", "Mossmew Sprig", "Mossmew Thicket"],
     moveIds: ["mossy-tackle", "spore-puff"],
+    fieldSkillId: "secret-sense",
     portrait: mossmewPortrait,
     wild: true,
   },
@@ -132,6 +133,7 @@ export const WA_CREATURES: CreatureSpecies[] = [
     favoriteSnack: "starberry-cookie",
     growthStages: ["Sparkleaf Fawn", "Sparkleaf Stag", "Sparkleaf Monarch"],
     moveIds: ["leaf-wink", "tiny-flash"],
+    fieldSkillId: "light-trail",
     portrait: sparkleafFawnPortrait,
     wild: true,
   },
@@ -168,6 +170,14 @@ function movesForElements(elements: WonderAcademyElement[]): string[] {
   return matched.length > 0 ? matched.slice(0, 4) : ["tiny-flash"];
 }
 
+function fieldSkillForElements(elements: WonderAcademyElement[]): string {
+  const primary = elements[0] ?? "light";
+  if (primary === "dream" || primary === "tide") return "soft-float";
+  if (primary === "star" || primary === "leaf") return "secret-sense";
+  if (primary === "ember" || primary === "crystal") return "crystal-push";
+  return "light-trail";
+}
+
 export function makeCustomCreature(input: {
   name: string;
   portrait: string;
@@ -188,6 +198,7 @@ export function makeCustomCreature(input: {
     favoriteSnack: input.favoriteSnack,
     growthStages: [name],
     moveIds: movesForElements(elements),
+    fieldSkillId: fieldSkillForElements(elements),
     portrait: input.portrait,
     wild: true,
   };
