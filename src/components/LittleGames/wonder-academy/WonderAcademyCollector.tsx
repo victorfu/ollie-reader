@@ -1,5 +1,5 @@
 import academyHubUrl from "../../../assets/games/wonder-academy/backgrounds/academy-hub.png";
-import { ArrowLeft, Compass, Gift, Hammer, Lock, MapPin, Plus, RotateCcw, ShoppingBag, Sparkles, Upload, X } from "lucide-react";
+import { ArrowLeft, Compass, Gift, Hammer, Lock, MapPin, Plus, RotateCcw, ShoppingBag, Sparkles, X } from "lucide-react";
 import { useEffect, useMemo, useReducer, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { Volume2, VolumeX } from "lucide-react";
 import { useAuth } from "../../../hooks/useAuth";
@@ -25,17 +25,12 @@ import { gainBond } from "./logic/bond";
 import { effectivenessBadge } from "./logic/battleText";
 import { chooseCatchSnack } from "./logic/catchSnacks";
 import {
-  CHARM_DEFS,
   MATERIAL_DEFS,
-  canCraftCharm,
   charmEffects,
   craftCharm,
   lootMaterialsForTier,
   mergeMaterials,
   toggleActiveCharm,
-  type CharmInventory,
-  type CharmId,
-  type MaterialInventory,
   type MaterialId,
 } from "./logic/charms";
 import {
@@ -49,14 +44,9 @@ import { teamFieldPerks } from "./logic/fieldSkills";
 import { rollEncounter, type EncounterTable } from "./logic/encounter";
 import { canEvolve, evolve } from "./logic/evolution";
 import { rollLoot, type LootTable } from "./logic/loot";
-import {
-  equipMoveForCreature,
-  equippedMovesFor,
-  unequipMoveForCreature,
-} from "./logic/moveLoadout";
+import { equipMoveForCreature, unequipMoveForCreature } from "./logic/moveLoadout";
 import { nextWonderAcademyObjective } from "./logic/objectives";
 import {
-  POSTGAME_TRIALS,
   awardTrialWin,
   isPostgameUnlocked,
   postgameTrialById,
@@ -70,10 +60,6 @@ import {
   catchableSpecies,
   ELEMENT_META,
   FIELD_SKILLS,
-  fieldSkillForElements,
-  learnablePool,
-  makeCustomCreature,
-  moveUnlockLevel,
   registerCustomCreatures,
   rollShiny,
   SHINY_FILTER,
@@ -113,8 +99,31 @@ import {
   shouldConfirmWonderAcademyOverwrite,
   visibleWonderAcademySaveStatus,
 } from "./wonderAcademySessionGuards";
+import { CreatureBuilder, SkillsScreen, StarterConfirm, TrialsScreen, WorkshopScreen } from "./wonderAcademyScreens";
 import { HpBar, TypeBadge } from "./wonderAcademyPresentation";
 import { saveStatusChip } from "./wonderAcademyPresentationStyles";
+import {
+  actBtn,
+  actBtnSub,
+  authErrorBox,
+  btnGhost,
+  btnOutline,
+  cardBtn,
+  cardStatic,
+  ctaBtn,
+  dailyBtn,
+  dailyFlashBox,
+  dangerBtn,
+  dangerOutlineBtn,
+  effBadge,
+  feedBtn,
+  guestNoticeBox,
+  infoCard,
+  moveBtn,
+  resetConfirmBox,
+  roleBadge,
+  unsyncedNoticeBox,
+} from "./wonderAcademyStyles";
 
 type Screen =
   | "title"
@@ -959,373 +968,6 @@ function battleHeadline(session: BattleSession): string {
 
 const PANEL_BG =
   "radial-gradient(120% 90% at 12% 0%, #fff7ec 0%, rgba(255,247,236,0) 55%), radial-gradient(120% 110% at 100% 0%, #efe7ff 0%, rgba(239,231,255,0) 50%), linear-gradient(180deg, #fbf6ff 0%, #f3eefe 60%, #efeafc 100%)";
-
-function SkillsScreen({
-  owned,
-  onEquip,
-  onUnequip,
-  onClose,
-}: {
-  owned: OwnedCreature;
-  onEquip: (moveId: string) => void;
-  onUnequip: (moveId: string) => void;
-  onClose: () => void;
-}) {
-  const sp = speciesById(owned.speciesId);
-  if (!sp) return <div />;
-  const equipped = equippedMovesFor(owned, sp);
-  const pool = learnablePool(sp);
-
-  return (
-    <div>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 800, margin: 0 }}>技能</h1>
-        <button onClick={onClose} style={btnGhost}><X size={16} /> 完成</button>
-      </div>
-
-      <div style={{ display: "flex", gap: 14, alignItems: "center", marginBottom: 18 }}>
-        <img src={sp.portrait} alt={sp.name} style={{ width: 72, height: 72, objectFit: "contain" }} />
-        <div>
-          <div style={{ fontWeight: 800, fontSize: 18 }}>{owned.nickname || sp.growthStages[owned.stage] || sp.name}</div>
-          <div style={{ fontSize: 12, color: "#8a83a3" }}>Lv.{owned.level} · 裝備 {equipped.length}/4</div>
-        </div>
-      </div>
-
-      <div style={fieldLabel}>已裝備(點一下卸下)</div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(150px,1fr))", gap: 8, marginBottom: 18 }}>
-        {equipped.map((id) => {
-          const mv = getMoveById(id);
-          if (!mv) return null;
-          const m = ELEMENT_META[mv.element];
-          return (
-            <button key={id} onClick={() => onUnequip(id)} disabled={equipped.length <= 1} style={{ ...moveBtn, opacity: equipped.length <= 1 ? 0.6 : 1 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <span style={{ width: 10, height: 10, borderRadius: "50%", background: m.fg }} />
-                <span style={{ fontWeight: 800, fontSize: 13 }}>{mv.name}</span>
-              </div>
-              <div style={{ fontSize: 10, color: "#8a83a3", fontWeight: 700 }}>{mv.element} · 威力 {mv.power}</div>
-            </button>
-          );
-        })}
-      </div>
-
-      <div style={fieldLabel}>可學招式</div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(150px,1fr))", gap: 8 }}>
-        {pool.map((id, i) => {
-          const mv = getMoveById(id);
-          if (!mv) return null;
-          const m = ELEMENT_META[mv.element];
-          const isEquipped = equipped.includes(id);
-          const unlockLv = moveUnlockLevel(i);
-          const locked = owned.level < unlockLv;
-          const canEquip = !isEquipped && !locked && equipped.length < 4;
-          return (
-            <button key={id} onClick={() => { if (canEquip) onEquip(id); }} disabled={!canEquip} style={{ ...moveBtn, opacity: locked ? 0.45 : isEquipped ? 0.5 : equipped.length >= 4 ? 0.6 : 1, cursor: canEquip ? "pointer" : "default" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <span style={{ width: 10, height: 10, borderRadius: "50%", background: m.fg }} />
-                <span style={{ fontWeight: 800, fontSize: 13 }}>{mv.name}</span>
-              </div>
-              <div style={{ fontSize: 10, color: "#8a83a3", fontWeight: 700 }}>
-                {locked ? `🔒 Lv.${unlockLv} 解鎖` : isEquipped ? "✓ 已裝備" : `${mv.element} · 威力 ${mv.power}`}
-              </div>
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-function StarterConfirm({
-  species,
-  onBack,
-  onConfirm,
-}: {
-  species: CreatureSpecies;
-  onBack: () => void;
-  onConfirm: (nickname: string) => void;
-}) {
-  const [nickname, setNickname] = useState("");
-  return (
-    <div style={{ textAlign: "center", paddingTop: 18 }}>
-      <style>{`@keyframes waRunIn{0%{opacity:0;transform:translateX(-110px) scale(.78)}62%{transform:translateX(9px) scale(1.06)}100%{opacity:1;transform:none}}@keyframes waHeartFloat{0%{opacity:0;transform:translateY(2px) scale(.6)}25%{opacity:1}100%{opacity:0;transform:translateY(-44px) scale(1.1)}}.wa-runin{animation:waRunIn .7s cubic-bezier(.2,.8,.2,1) both}.wa-heart{animation:waHeartFloat 2.2s ease-in-out infinite}@media (prefers-reduced-motion: reduce){.wa-runin{animation:none}.wa-heart{display:none}}`}</style>
-      <div style={{ letterSpacing: ".2em", fontSize: 11, fontWeight: 700, color: "#8a83a3", textTransform: "uppercase", marginBottom: 12 }}>序章 — 命定的夥伴</div>
-      <div style={{ position: "relative", width: 160, margin: "0 auto 8px" }}>
-        <img className="wa-runin" src={species.portrait} alt={species.name} style={{ width: 160, height: 160, objectFit: "contain", filter: "drop-shadow(0 10px 14px rgba(244,169,58,.3))" }} />
-        <div className="wa-heart" style={{ position: "absolute", top: 6, right: 2, fontSize: 22 }}>💛</div>
-        <div className="wa-heart" style={{ position: "absolute", top: 20, left: 2, fontSize: 16, animationDelay: ".7s" }}>💛</div>
-        <div className="wa-heart" style={{ position: "absolute", bottom: 16, left: 10, fontSize: 18, animationDelay: "1.3s" }}>✨</div>
-      </div>
-      <h1 style={{ fontSize: 26, fontWeight: 800, margin: "0 0 6px" }}><span style={{ color: "#f0922a" }}>{species.name}</span> 選擇了你!</h1>
-      <p style={{ color: "#8a83a3", fontSize: 14, maxWidth: 360, margin: "0 auto 14px" }}>牠開心地跑向你 —— 從現在起,你們會一起走完整段冒險。</p>
-      <div style={{ display: "flex", gap: 6, justifyContent: "center", marginBottom: 16 }}>
-        {species.elements.map((e) => <TypeBadge key={e} element={e} />)}
-      </div>
-      <input value={nickname} onChange={(e) => setNickname(e.target.value)} placeholder={`幫牠取個暱稱?(預設 ${species.name})`} style={{ ...fieldInput, maxWidth: 300, margin: "0 auto 18px", textAlign: "center" }} />
-      <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
-        <button onClick={onBack} style={btnGhost}>← 再想想</button>
-        <button onClick={() => onConfirm(nickname)} style={ctaBtn}>和 {nickname.trim() || species.name} 一起出發 →</button>
-      </div>
-    </div>
-  );
-}
-
-function CreatureBuilder({
-  onSave,
-  onCancel,
-}: {
-  onSave: (creature: CreatureSpecies) => void;
-  onCancel: () => void;
-}) {
-  const [name, setName] = useState("");
-  const [portrait, setPortrait] = useState("");
-  const [elements, setElements] = useState<(keyof typeof ELEMENT_META)[]>([]);
-  const [favoriteSnack, setFavoriteSnack] = useState(SNACK_POOL[0]);
-
-  const toggleElement = (e: keyof typeof ELEMENT_META) =>
-    setElements((cur) =>
-      cur.includes(e)
-        ? cur.filter((x) => x !== e)
-        : cur.length < 2
-          ? [...cur, e]
-          : cur,
-    );
-
-  const onFile = (file: File | undefined) => {
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () =>
-      setPortrait(typeof reader.result === "string" ? reader.result : "");
-    reader.readAsDataURL(file);
-  };
-
-  const canSave =
-    name.trim().length > 0 && portrait.length > 0 && elements.length > 0;
-  const selectedFieldSkill = FIELD_SKILLS[fieldSkillForElements(elements)];
-
-  return (
-    <div>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-        <h1 style={{ fontSize: 24, fontWeight: 800, margin: 0 }}>建立寵物</h1>
-        <button onClick={onCancel} style={btnGhost}><X size={16} /> 取消</button>
-      </div>
-      <p style={{ color: "#8a83a3", fontSize: 13, margin: "0 0 18px" }}>上傳一張圖、取名、選屬性 —— 就會多一隻能在森林裡遇到、收服的夥伴!</p>
-
-      <div style={{ display: "grid", gridTemplateColumns: "140px 1fr", gap: 18, alignItems: "start" }}>
-        <label style={{ ...cardStatic, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: 140, cursor: "pointer", textAlign: "center", color: "#8a83a3" }}>
-          {portrait ? (
-            <img src={portrait} alt="預覽" style={{ width: 110, height: 110, objectFit: "contain" }} />
-          ) : (
-            <>
-              <Upload size={22} />
-              <span style={{ fontSize: 12, marginTop: 6 }}>上傳圖片</span>
-            </>
-          )}
-          <input type="file" accept="image/*" onChange={(e) => onFile(e.target.files?.[0])} style={{ display: "none" }} />
-        </label>
-
-        <div>
-          <div style={fieldLabel}>名字</div>
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="例如:咪咪" style={fieldInput} />
-
-          <div style={{ ...fieldLabel, marginTop: 14 }}>屬性(選 1–2 個)</div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-            {(Object.keys(ELEMENT_META) as (keyof typeof ELEMENT_META)[]).map((e) => {
-              const m = ELEMENT_META[e];
-              const on = elements.includes(e);
-              return (
-                <button key={e} onClick={() => toggleElement(e)} style={{ fontSize: 12, fontWeight: 700, padding: "5px 10px", borderRadius: 999, cursor: "pointer", border: on ? `2px solid ${m.fg}` : "1px solid rgba(60,40,90,.15)", background: on ? m.bg : "#fff", color: m.fg }}>
-                  {m.emoji} {m.label}
-                </button>
-              );
-            })}
-          </div>
-          {elements.length > 0 && (
-            <div style={{ marginTop: 10, fontSize: 12, color: "#6a6585", background: "#fff", border: "1px solid rgba(60,40,90,.12)", borderRadius: 12, padding: "8px 10px" }}>
-              <div style={{ fontSize: 11, fontWeight: 800, color: "#8a83a3", marginBottom: 3 }}>建立後探索能力</div>
-              <div style={{ fontWeight: 800, color: "#33304a" }}>{selectedFieldSkill.emoji} {selectedFieldSkill.name}</div>
-              <div>{selectedFieldSkill.desc}</div>
-            </div>
-          )}
-
-          <div style={{ ...fieldLabel, marginTop: 14 }}>最愛點心</div>
-          <select value={favoriteSnack} onChange={(e) => setFavoriteSnack(e.target.value)} style={fieldInput}>
-            {SNACK_POOL.map((s) => (
-              <option key={s} value={s}>{SNACK_NAMES[s]}</option>
-            ))}
-          </select>
-        </div>
-      </div>
-
-      <div style={{ marginTop: 22, display: "flex", justifyContent: "flex-end" }}>
-        <button
-          disabled={!canSave}
-          onClick={() => onSave(makeCustomCreature({ name, portrait, elements, favoriteSnack, seed: Math.floor(Date.now()) }))}
-          style={{ ...ctaBtn, opacity: canSave ? 1 : 0.4, pointerEvents: canSave ? "auto" : "none" }}
-        >
-          ✨ 加入森林
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function materialCostText(cost: MaterialInventory): string {
-  return (Object.entries(cost) as [MaterialId, number][])
-    .map(([id, qty]) => {
-      const material = MATERIAL_DEFS[id];
-      return `${material.emoji}${material.name}×${qty}`;
-    })
-    .join(" · ");
-}
-
-function WorkshopScreen({
-  stardust,
-  materials,
-  charms,
-  activeCharms,
-  audioSettings,
-  onCraft,
-  onToggle,
-  onSetVolume,
-  onClose,
-}: {
-  stardust: number;
-  materials: MaterialInventory;
-  charms: CharmInventory;
-  activeCharms: string[];
-  audioSettings: WonderAcademyAudioSettings;
-  onCraft: (charmId: CharmId) => void;
-  onToggle: (charmId: CharmId) => void;
-  onSetVolume: (channel: "musicVolume" | "sfxVolume", value: number) => void;
-  onClose: () => void;
-}) {
-  const charmEntries = Object.entries(CHARM_DEFS) as [CharmId, (typeof CHARM_DEFS)[CharmId]][];
-  const materialEntries = Object.entries(MATERIAL_DEFS) as [MaterialId, (typeof MATERIAL_DEFS)[MaterialId]][];
-
-  return (
-    <div>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-        <h1 style={{ fontSize: 24, fontWeight: 800, margin: 0 }}>🔨 護符工房</h1>
-        <button onClick={onClose} style={btnGhost}><X size={16} /> 關閉</button>
-      </div>
-      <p style={{ color: "#8a83a3", fontSize: 14, margin: "0 0 16px" }}>用探索材料製作護符,最多同時啟用 2 個。護符會影響遇敵、寶箱、閃光與 XP 節奏。</p>
-
-      <div style={{ ...cardStatic, marginBottom: 16 }}>
-        <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: ".08em", color: "#8a83a3", textTransform: "uppercase", marginBottom: 8 }}>材料袋 · ✨ {stardust}</div>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-          {materialEntries.map(([id, material]) => (
-            <span key={id} style={{ fontSize: 12, fontWeight: 800, background: "#fff", border: "1px solid rgba(60,40,90,.12)", borderRadius: 999, padding: "5px 10px" }}>
-              {material.emoji} {material.name} ×{materials[id] ?? 0}
-            </span>
-          ))}
-        </div>
-      </div>
-
-      <div style={{ ...cardStatic, marginBottom: 16 }}>
-        <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: ".08em", color: "#8a83a3", textTransform: "uppercase", marginBottom: 10 }}>音量</div>
-        <label style={{ display: "grid", gridTemplateColumns: "82px 1fr 42px", alignItems: "center", gap: 10, fontSize: 13, fontWeight: 800, marginBottom: 10 }}>
-          <span>音樂</span>
-          <input aria-label="音樂音量" type="range" min={0} max={1} step={0.05} value={audioSettings.musicVolume} onChange={(e) => onSetVolume("musicVolume", Number(e.target.value))} />
-          <span style={{ color: "#8a83a3" }}>{Math.round(audioSettings.musicVolume * 100)}%</span>
-        </label>
-        <label style={{ display: "grid", gridTemplateColumns: "82px 1fr 42px", alignItems: "center", gap: 10, fontSize: 13, fontWeight: 800 }}>
-          <span>音效</span>
-          <input aria-label="音效音量" type="range" min={0} max={1} step={0.05} value={audioSettings.sfxVolume} onChange={(e) => onSetVolume("sfxVolume", Number(e.target.value))} />
-          <span style={{ color: "#8a83a3" }}>{Math.round(audioSettings.sfxVolume * 100)}%</span>
-        </label>
-      </div>
-
-      <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: ".08em", color: "#8a83a3", textTransform: "uppercase", marginBottom: 10 }}>護符 · 啟用 {activeCharms.length}/2</div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(210px,1fr))", gap: 12 }}>
-        {charmEntries.map(([id, charm]) => {
-          const owned = charms[id] ?? 0;
-          const active = activeCharms.includes(id);
-          const craftable = canCraftCharm(stardust, materials, id);
-          const cannotToggle = owned <= 0 || (!active && activeCharms.length >= 2);
-          return (
-            <div key={id} style={cardStatic}>
-              <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 6 }}>
-                <div style={{ fontWeight: 900 }}>{charm.emoji} {charm.name}</div>
-                <span style={{ fontSize: 11, fontWeight: 800, color: active ? "#42b86a" : "#8a83a3" }}>{active ? "啟用中" : `持有 ${owned}`}</span>
-              </div>
-              <p style={{ fontSize: 12.5, color: "#6a6585", lineHeight: 1.45, minHeight: 36, margin: "0 0 8px" }}>{charm.desc}</p>
-              <div style={{ fontSize: 11, color: "#8a83a3", fontWeight: 700, marginBottom: 10 }}>
-                ✨{charm.stardustCost} · {materialCostText(charm.materialCost)}
-              </div>
-              <div style={{ display: "flex", gap: 8 }}>
-                <button
-                  disabled={!craftable}
-                  onClick={() => onCraft(id)}
-                  style={{ ...feedBtn, flex: 1, color: craftable ? "#5b3d00" : "#b9b3c7", background: craftable ? "linear-gradient(180deg,#ffd66b,#f7b13a)" : "#f0eef6", border: craftable ? "none" : "1px solid rgba(60,40,90,.12)", cursor: craftable ? "pointer" : "default" }}
-                >
-                  製作
-                </button>
-                <button
-                  disabled={cannotToggle}
-                  onClick={() => onToggle(id)}
-                  style={{ ...feedBtn, flex: 1, color: active ? "#42b86a" : cannotToggle ? "#b9b3c7" : "#6a52ff", background: active ? "#eefbe9" : cannotToggle ? "#f0eef6" : "#efeaff", border: "1px solid rgba(60,40,90,.12)", cursor: cannotToggle ? "default" : "pointer" }}
-                >
-                  {active ? "停用" : "啟用"}
-                </button>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-function TrialsScreen({
-  unlocked,
-  trialWins,
-  onStart,
-  onClose,
-}: {
-  unlocked: boolean;
-  trialWins: Record<string, number>;
-  onStart: (trialId: string) => void;
-  onClose: () => void;
-}) {
-  return (
-    <div>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-        <h1 style={{ fontSize: 24, fontWeight: 800, margin: 0 }}>🏆 Wonder Keeper 試煉</h1>
-        <button onClick={onClose} style={btnGhost}><X size={16} /> 關閉</button>
-      </div>
-      <p style={{ color: "#8a83a3", fontSize: 14, margin: "0 0 16px" }}>
-        {unlocked
-          ? "所有區域都恢復平靜了。挑戰高等級守護者,收集 Bell Shards 與稀有材料。"
-          : "打敗所有地區的守關者後,這裡會開放長期挑戰。"}
-      </p>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(220px,1fr))", gap: 12 }}>
-        {POSTGAME_TRIALS.map((trial) => {
-          const wins = trialWins[trial.id] ?? 0;
-          return (
-            <div key={trial.id} style={{ ...cardStatic, opacity: unlocked ? 1 : 0.58 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 6 }}>
-                <div style={{ fontWeight: 900 }}>{trial.name}</div>
-                <span style={{ fontSize: 11, fontWeight: 800, color: "#8a83a3" }}>Lv.{trial.level}</span>
-              </div>
-              <div style={{ fontSize: 12, color: "#6a6585", marginBottom: 8 }}>對手: {speciesById(trial.speciesId)?.name ?? trial.speciesId}</div>
-              <div style={{ fontSize: 11, color: "#8a83a3", fontWeight: 700, marginBottom: 10 }}>
-                勝利 {wins} 次 · ✨{trial.stardust}{wins === 0 ? ` + 首勝 ${trial.firstWinBonus}` : ""} · {materialCostText(trial.materials)}
-              </div>
-              <button
-                disabled={!unlocked}
-                onClick={() => onStart(trial.id)}
-                style={{ ...feedBtn, color: unlocked ? "#5b3d00" : "#b9b3c7", background: unlocked ? "linear-gradient(180deg,#ffd66b,#f7b13a)" : "#f0eef6", border: unlocked ? "none" : "1px solid rgba(60,40,90,.12)", cursor: unlocked ? "pointer" : "default" }}
-              >
-                {unlocked ? "開始試煉" : "尚未開放"}
-              </button>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
 
 type Props = { onExit?: () => void };
 
@@ -2344,27 +1986,3 @@ export default function WonderAcademyGame({ onExit }: Props) {
 
   return frame(<div style={{ textAlign: "center", padding: 60, color: "#8a83a3" }}>…</div>);
 }
-
-// ---- shared styles ----
-const btnGhost: CSSProperties = { display: "inline-flex", alignItems: "center", gap: 5, fontSize: 13, fontWeight: 600, color: "#6a6585", background: "transparent", border: "none", cursor: "pointer", padding: "6px 8px" };
-const btnOutline: CSSProperties = { display: "inline-flex", alignItems: "center", gap: 6, fontSize: 14, fontWeight: 800, color: "#6a52ff", background: "rgba(255,255,255,.7)", border: "1px solid rgba(106,82,255,.3)", borderRadius: 13, padding: "12px 18px", cursor: "pointer" };
-const dangerOutlineBtn: CSSProperties = { display: "inline-flex", alignItems: "center", gap: 6, fontSize: 14, fontWeight: 800, color: "#b64255", background: "rgba(255,255,255,.72)", border: "1px solid rgba(182,66,85,.24)", borderRadius: 13, padding: "12px 18px", cursor: "pointer" };
-const ctaBtn: CSSProperties = { display: "inline-flex", alignItems: "center", gap: 8, fontSize: 15, fontWeight: 800, color: "#fff", background: "linear-gradient(180deg,#7c6cff,#6a52ff)", border: "none", padding: "13px 24px", borderRadius: 14, boxShadow: "0 8px 20px rgba(106,82,255,.34)", cursor: "pointer" };
-const dangerBtn: CSSProperties = { display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, fontSize: 12.5, fontWeight: 900, color: "#fff", background: "linear-gradient(180deg,#d95f72,#b64255)", border: "none", padding: "10px 14px", borderRadius: 12, boxShadow: "0 7px 16px rgba(182,66,85,.24)", cursor: "pointer" };
-const dailyBtn: CSSProperties = { display: "inline-flex", alignItems: "center", gap: 8, fontSize: 14, fontWeight: 800, color: "#5b3d00", background: "linear-gradient(180deg,#ffd66b,#f7b13a)", border: "none", padding: "11px 18px", borderRadius: 13, boxShadow: "0 6px 16px rgba(247,177,58,.4)", cursor: "pointer", marginBottom: 14 };
-const dailyFlashBox: CSSProperties = { display: "inline-flex", alignItems: "center", gap: 8, fontSize: 13.5, fontWeight: 800, color: "#5b3d00", background: "#fff4d6", border: "1px solid #f0c869", padding: "10px 16px", borderRadius: 13, marginBottom: 14 };
-const guestNoticeBox: CSSProperties = { maxWidth: 520, margin: "0 auto 16px", padding: "12px 14px", borderRadius: 14, background: "#fff7e0", border: "1px solid #f0c869", color: "#8a6a12", fontSize: 12.5, lineHeight: 1.5, boxShadow: "0 5px 14px rgba(120,86,30,.07)" };
-const unsyncedNoticeBox: CSSProperties = { ...guestNoticeBox, maxWidth: "none", margin: "0 0 16px", textAlign: "left" };
-const authErrorBox: CSSProperties = { maxWidth: 520, margin: "0 auto 14px", padding: "9px 12px", borderRadius: 12, background: "#ffecef", border: "1px solid #efb1bb", color: "#b64255", fontSize: 12.5, fontWeight: 800 };
-const resetConfirmBox: CSSProperties = { margin: "-8px 0 22px", padding: "14px 16px", borderRadius: 14, background: "#fff2f4", border: "1px solid #efb1bb", boxShadow: "0 8px 22px rgba(182,66,85,.12)" };
-const roleBadge: CSSProperties = { fontSize: 10, fontWeight: 800, color: "#6a52ff", background: "#efeaff", border: "1px solid #cdb6ef", borderRadius: 999, padding: "1px 7px" };
-const cardBtn: CSSProperties = { background: "rgba(255,255,255,.66)", backdropFilter: "blur(14px)", border: "1px solid rgba(60,40,90,.1)", borderRadius: 18, padding: "16px 14px", textAlign: "center", cursor: "pointer", boxShadow: "0 6px 18px rgba(80,50,130,.08)", transition: "transform .18s" };
-const cardStatic: CSSProperties = { background: "rgba(255,255,255,.66)", border: "1px solid rgba(60,40,90,.1)", borderRadius: 16, padding: 12, boxShadow: "0 5px 14px rgba(80,50,130,.07)" };
-const infoCard: CSSProperties = { background: "rgba(255,255,255,.85)", backdropFilter: "blur(6px)", border: "1px solid rgba(60,40,90,.1)", borderRadius: 12, padding: "8px 11px", width: 200, boxShadow: "0 5px 12px rgba(60,40,90,.1)" };
-const moveBtn: CSSProperties = { position: "relative", background: "#fff", border: "1px solid rgba(60,40,90,.12)", borderRadius: 12, padding: "10px 11px", cursor: "pointer", textAlign: "left", boxShadow: "0 2px 6px rgba(60,40,90,.06)" };
-const effBadge: CSSProperties = { position: "absolute", top: -8, right: -6, fontSize: 10, fontWeight: 800, color: "#fff", background: "#ef5b6e", padding: "2px 7px", borderRadius: 999, boxShadow: "0 3px 7px rgba(239,91,110,.4)" };
-const actBtn: CSSProperties = { borderRadius: 12, padding: "10px 8px", fontSize: 12.5, fontWeight: 800, textAlign: "center", cursor: "pointer", border: "1px solid rgba(60,40,90,.12)", background: "#fff" };
-const actBtnSub: CSSProperties = { ...actBtn, color: "#6a6585" };
-const feedBtn: CSSProperties = { width: "100%", borderRadius: 10, padding: "7px 8px", fontSize: 12, fontWeight: 800, color: "#c98a12", background: "#fff7e0", border: "1px solid #f0c869" };
-const fieldLabel: CSSProperties = { fontSize: 12, fontWeight: 800, color: "#33304a", marginBottom: 6 };
-const fieldInput: CSSProperties = { width: "100%", fontSize: 14, padding: "9px 11px", borderRadius: 10, border: "1px solid rgba(60,40,90,.18)", background: "rgba(255,255,255,.85)", fontFamily: "inherit", color: "#33304a" };
