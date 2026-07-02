@@ -421,7 +421,7 @@ export default function ExploreSceneKaplay({
           const nx = gx + dx;
           const ny = gy + dy;
           const t = tileAt(worldMap, nx, ny);
-          if (!t || t === "T") return;
+          if (!t || t === "T" || t === "O") return;
           gx = nx;
           gy = ny;
           target = center(gx, gy);

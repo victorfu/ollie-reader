@@ -1,10 +1,13 @@
 import airportImage from "../../assets/travel/airport.jpg";
 import attractionsImage from "../../assets/travel/attractions.jpg";
+import beforeDepartureImage from "../../assets/travel/before-departure.jpg";
 import foodImage from "../../assets/travel/food.jpg";
+import goingHomeImage from "../../assets/travel/going-home.jpg";
 import helpImage from "../../assets/travel/help.jpg";
 import hotelImage from "../../assets/travel/hotel.jpg";
 import mandaiImage from "../../assets/travel/mandai.jpg";
 import planeImage from "../../assets/travel/plane.jpg";
+import sentosaImage from "../../assets/travel/sentosa.jpg";
 import shoppingImage from "../../assets/travel/shopping.jpg";
 import transportImage from "../../assets/travel/transport.jpg";
 import type { TravelTopic } from "../../types/travelEnglish";
@@ -21,6 +24,15 @@ const topicVisuals: Record<
     sourceUrl: string;
   }
 > = {
+  "before-departure": {
+    gradient: "from-violet-100 via-white to-sky-100 dark:from-violet-950 dark:via-base-200 dark:to-sky-950",
+    accent: "bg-violet-500",
+    image: beforeDepartureImage,
+    alt: "Parent packing a child's suitcase with clothes and a toy plane before the trip",
+    objectPosition: "center",
+    credit: "Familydestinationsguide.com Images / CC BY 2.0",
+    sourceUrl: "https://commons.wikimedia.org/wiki/File:Father_Packing_Kid%27s_Luggage_for_Holiday.jpg",
+  },
   airport: {
     gradient: "from-sky-100 via-white to-emerald-100 dark:from-sky-950 dark:via-base-200 dark:to-emerald-950",
     accent: "bg-sky-500",
@@ -84,6 +96,15 @@ const topicVisuals: Record<
     credit: "Basile Morin / CC BY-SA 4.0",
     sourceUrl: "https://commons.wikimedia.org/wiki/File:Large_interior_view_of_Plaza_Singapura_Shopping_mall_Orchard_Road_Singapore.jpg",
   },
+  sentosa: {
+    gradient: "from-cyan-100 via-white to-fuchsia-100 dark:from-cyan-950 dark:via-base-200 dark:to-fuchsia-950",
+    accent: "bg-cyan-500",
+    image: sentosaImage,
+    alt: "Universal Studios Singapore rotating globe at the park entrance on Sentosa",
+    objectPosition: "center",
+    credit: "Moheen Reeyad / CC BY-SA 4.0",
+    sourceUrl: "https://commons.wikimedia.org/wiki/File:Universal_Studios_Singapore_globe_(125026).jpg",
+  },
   mandai: {
     gradient: "from-emerald-100 via-white to-lime-100 dark:from-emerald-950 dark:via-base-200 dark:to-lime-950",
     accent: "bg-emerald-500",
@@ -101,6 +122,15 @@ const topicVisuals: Record<
     objectPosition: "center",
     credit: "LN9267 / CC BY-SA 4.0",
     sourceUrl: "https://commons.wikimedia.org/wiki/File:Singapore_Changi_Airport_Terminal_4_information_counter_18-05-2024.jpg",
+  },
+  "going-home": {
+    gradient: "from-rose-100 via-white to-indigo-100 dark:from-rose-950 dark:via-base-200 dark:to-indigo-950",
+    accent: "bg-rose-500",
+    image: goingHomeImage,
+    alt: "Singapore Airlines A380 parked at a Changi Airport gate ready for the flight home",
+    objectPosition: "center",
+    credit: "Bahnfrend / CC BY-SA 4.0",
+    sourceUrl: "https://commons.wikimedia.org/wiki/File:Singapore_Airlines_Airbus_A380_9V-SKN_Singapore_2024_(01).jpg",
   },
 };
 

@@ -9,6 +9,7 @@ import {
   regionValidationErrors,
   type Region,
 } from "./wonderAcademyRegions";
+import { speciesById } from "./wonderAcademyCreatures";
 
 describe("nodeUnlockHint", () => {
   it("returns null for nodes without requirements", () => {
@@ -89,7 +90,28 @@ describe("regionValidationErrors", () => {
       "tideglass",
       "clocktower",
       "sugarcloud",
+      "snowbell",
+      "dreamcloud",
+      "starrail",
+      "crystalbell",
     ]);
+  });
+
+  it("gives each shipped region a distinct exploration layout and encounter pool", () => {
+    const mapSignatures = REGIONS.map((region) => region.map.join("\n"));
+    const encounterSignatures = REGIONS.map((region) => region.encounterSpeciesIds.join(","));
+
+    expect(new Set(mapSignatures).size).toBe(REGIONS.length);
+    expect(new Set(encounterSignatures).size).toBe(REGIONS.length);
+
+    for (const region of REGIONS) {
+      expect(region.encounterSpeciesIds.length, `${region.id} needs a varied encounter pool`).toBeGreaterThanOrEqual(6);
+      for (const speciesId of region.encounterSpeciesIds) {
+        const species = speciesById(speciesId);
+        expect(species, `${region.id} references unknown species ${speciesId}`).toBeDefined();
+        expect(species?.wild, `${region.id} encounter ${speciesId} must be catchable`).toBe(true);
+      }
+    }
   });
 
   it("unlocks each region from the previous Warden and keeps loot tiers rising", () => {
@@ -98,8 +120,10 @@ describe("regionValidationErrors", () => {
     expect(isRegionUnlocked(1, ["sparkleaf"])).toBe(true);
     expect(isRegionUnlocked(2, ["sparkleaf"])).toBe(false);
     expect(isRegionUnlocked(2, ["sparkleaf", "tideglass"])).toBe(true);
-    expect(isRegionUnlocked(3, ["sparkleaf", "tideglass"])).toBe(false);
-    expect(isRegionUnlocked(3, ["sparkleaf", "tideglass", "clocktower"])).toBe(true);
+    for (let i = 1; i < REGIONS.length; i += 1) {
+      expect(isRegionUnlocked(i, REGIONS.slice(0, i - 1).map((region) => region.id))).toBe(false);
+      expect(isRegionUnlocked(i, REGIONS.slice(0, i).map((region) => region.id))).toBe(true);
+    }
 
     for (let i = 1; i < REGIONS.length; i += 1) {
       expect(REGIONS[i].lootTier).toBeGreaterThanOrEqual(REGIONS[i - 1].lootTier);

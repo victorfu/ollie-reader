@@ -41,7 +41,16 @@ describe("Wonder Academy browser smoke helpers", () => {
       charms: {},
       activeCharms: [],
       trialWins: {},
-      wardensDefeated: ["sparkleaf", "tideglass", "clocktower", "sugarcloud"],
+      wardensDefeated: [
+        "sparkleaf",
+        "tideglass",
+        "clocktower",
+        "sugarcloud",
+        "snowbell",
+        "dreamcloud",
+        "starrail",
+        "crystalbell",
+      ],
     });
   });
 
