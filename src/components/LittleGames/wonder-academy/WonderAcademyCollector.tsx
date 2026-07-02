@@ -1333,7 +1333,7 @@ export default function WonderAcademyGame({ onExit }: Props) {
             const finalForm = s.growthStages[s.growthStages.length - 1];
             return (
               <button key={s.speciesId} className="wa-starter" onClick={() => dispatch({ type: "pickStarter", speciesId: s.speciesId })} style={{ ...cardBtn, animationDelay: `${i * 0.08}s` }}>
-                <img src={s.portrait} alt={s.name} style={{ width: 96, height: 96, objectFit: "contain", margin: "0 auto 8px", display: "block", filter: "drop-shadow(0 6px 8px rgba(0,0,0,.12))" }} />
+                <img src={s.portrait} alt={s.name} style={{ width: "auto", maxWidth: 118, height: 102, objectFit: "contain", margin: "0 auto 8px", display: "block", filter: "drop-shadow(0 6px 8px rgba(0,0,0,.12))" }} />
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
                   <span style={{ fontWeight: 800, fontSize: 18 }}>{s.name}</span>
                   {s.role && <span style={roleBadge}>{s.role}</span>}
@@ -1568,7 +1568,7 @@ export default function WonderAcademyGame({ onExit }: Props) {
             const hearts = Math.min(5, Math.round(o.bond / 20));
             return (
               <div key={o.ownedId} style={cardStatic}>
-                <img src={sp?.portrait} alt={sp?.name} style={{ width: 64, height: 64, objectFit: "contain", margin: "0 auto 6px", display: "block", filter: o.shiny ? SHINY_FILTER : undefined }} />
+                <img src={sp?.portrait} alt={sp?.name} style={{ width: "auto", maxWidth: 82, height: 66, objectFit: "contain", margin: "0 auto 6px", display: "block", filter: o.shiny ? SHINY_FILTER : undefined }} />
                 <div style={{ fontWeight: 800, textAlign: "center" }}>{o.shiny && "✨ "}{displayName(o)}</div>
                 <div style={{ fontSize: 11, color: "#8a83a3", textAlign: "center", marginBottom: 6 }}>Lv.{o.level} · {sp?.category}</div>
                 <div style={{ display: "flex", gap: 4, justifyContent: "center", marginBottom: 6 }}>
@@ -1730,7 +1730,7 @@ export default function WonderAcademyGame({ onExit }: Props) {
             const shinyCaught = state.shinyDex.includes(s.speciesId);
             return (
               <div key={s.speciesId} style={{ ...cardStatic, opacity: seen ? 1 : 0.55, textAlign: "center" }}>
-                <img src={s.portrait} alt={seen ? s.name : "???"} style={{ width: 64, height: 64, objectFit: "contain", margin: "0 auto 6px", display: "block", filter: !caught ? "grayscale(1) brightness(.7)" : shinyCaught ? SHINY_FILTER : "none" }} />
+                <img src={s.portrait} alt={seen ? s.name : "???"} style={{ width: "auto", maxWidth: 122, height: 96, objectFit: "contain", margin: "0 auto 6px", display: "block", filter: !caught ? "grayscale(1) brightness(.7)" : shinyCaught ? SHINY_FILTER : "none" }} />
                 <div style={{ fontWeight: 800 }}>{shinyCaught && "✨ "}{seen ? s.name : "？？？"}</div>
                 <div style={{ fontSize: 11, color: caught ? "#42b86a" : "#8a83a3", fontWeight: 700 }}>
                   {caught ? (shinyCaught ? "已收服 ✨閃光" : "已收服") : seen ? "已遇見" : "未發現"}

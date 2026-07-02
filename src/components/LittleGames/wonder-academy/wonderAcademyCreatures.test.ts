@@ -64,6 +64,7 @@ describe("Wonder Academy creature registry", () => {
         "pearlwhisker-seal",
         "clockbell-tanuki",
         "marshmallow-maestro",
+        "aurora-alpaca",
         "comet-kitsune",
         "pillowmoon-ram",
         "silent-bellheart",
@@ -75,6 +76,19 @@ describe("Wonder Academy creature registry", () => {
     expect(Array.from(new Set(WA_CREATURES.map((species) => species.rarity)))).toEqual(
       expect.arrayContaining(["common", "uncommon", "rare", "warden", "mythling"]),
     );
+  });
+
+  it("uses a dedicated portrait for every built-in species", () => {
+    const portraitToSpecies = new Map<string, string>();
+
+    for (const species of WA_CREATURES) {
+      const previousSpeciesId = portraitToSpecies.get(species.portrait);
+      expect(
+        previousSpeciesId,
+        `${species.speciesId} reuses the portrait from ${previousSpeciesId}`,
+      ).toBeUndefined();
+      portraitToSpecies.set(species.portrait, species.speciesId);
+    }
   });
 
   it("keeps every built-in species inside the four-stage evolution cap", () => {

@@ -4,6 +4,13 @@ import nibiPortrait from "../../../assets/games/wonder-academy/starters/nibi-por
 import picoPortrait from "../../../assets/games/wonder-academy/starters/pico-portrait.png";
 import mossmewPortrait from "../../../assets/games/wonder-academy/wonderlings/mossmew-portrait.png";
 import sparkleafFawnPortrait from "../../../assets/games/wonder-academy/wonderlings/sparkleaf-fawn-portrait.png";
+import pearlwhiskerSealPortrait from "../../../assets/games/wonder-academy/wonderlings/pearlwhisker-seal-portrait.png";
+import clockbellTanukiPortrait from "../../../assets/games/wonder-academy/wonderlings/clockbell-tanuki-portrait.png";
+import marshmallowMaestroPortrait from "../../../assets/games/wonder-academy/wonderlings/marshmallow-maestro-portrait.png";
+import auroraAlpacaPortrait from "../../../assets/games/wonder-academy/wonderlings/aurora-alpaca-portrait.png";
+import cometKitsunePortrait from "../../../assets/games/wonder-academy/wonderlings/comet-kitsune-portrait.png";
+import pillowmoonRamPortrait from "../../../assets/games/wonder-academy/wonderlings/pillowmoon-ram-portrait.png";
+import silentBellheartPortrait from "../../../assets/games/wonder-academy/wonderlings/silent-bellheart-portrait.png";
 import { WONDER_ACADEMY_MOVES } from "../../../data/wonderAcademyMoves";
 import type {
   WonderAcademyElement,
@@ -149,7 +156,7 @@ export const WA_CREATURES: CreatureSpecies[] = [
     moveIds: ["pearl-splash", "tideglass-song", "seal-slide"],
     learnableMoveIds: ["pearl-splash", "tideglass-song", "seal-slide", "moon-drizzle"],
     fieldSkillId: "soft-float",
-    portrait: momoPortrait,
+    portrait: pearlwhiskerSealPortrait,
     wild: true,
   },
   {
@@ -164,7 +171,7 @@ export const WA_CREATURES: CreatureSpecies[] = [
     moveIds: ["clockwork-tap", "bell-chime", "tanuki-twirl"],
     learnableMoveIds: ["clockwork-tap", "bell-chime", "tanuki-twirl", "secret-signal"],
     fieldSkillId: "crystal-push",
-    portrait: nibiPortrait,
+    portrait: clockbellTanukiPortrait,
     wild: true,
   },
   {
@@ -179,7 +186,22 @@ export const WA_CREATURES: CreatureSpecies[] = [
     moveIds: ["sugar-sparkle", "marshmallow-bounce", "maestro-finale"],
     learnableMoveIds: ["sugar-sparkle", "marshmallow-bounce", "maestro-finale", "aurora-parade"],
     fieldSkillId: "soft-float",
-    portrait: picoPortrait,
+    portrait: marshmallowMaestroPortrait,
+    wild: true,
+  },
+  {
+    speciesId: "aurora-alpaca",
+    name: "Aurora Alpaca",
+    category: "極光羊駝",
+    personality: "慢慢走過雪鈴山脊,會用極光圍巾安撫受傷的夥伴。",
+    elements: ["light", "crystal"],
+    rarity: "warden",
+    favoriteSnack: "warm-cocoa-gem",
+    growthStages: ["Aurora Cria", "Aurora Alpaca", "Snowbell Alpaca"],
+    moveIds: ["aurora-parade", "crystal-brace", "cozy-shield"],
+    learnableMoveIds: ["aurora-parade", "crystal-brace", "cozy-shield", "heart-crystal"],
+    fieldSkillId: "crystal-push",
+    portrait: auroraAlpacaPortrait,
     wild: true,
   },
   {
@@ -194,7 +216,7 @@ export const WA_CREATURES: CreatureSpecies[] = [
     moveIds: ["comet-dash", "starrail-echo"],
     learnableMoveIds: ["comet-dash", "starrail-echo", "zip-spark", "wishbloom-spiral"],
     fieldSkillId: "secret-sense",
-    portrait: lumiPortrait,
+    portrait: cometKitsunePortrait,
     wild: true,
   },
   {
@@ -209,7 +231,7 @@ export const WA_CREATURES: CreatureSpecies[] = [
     moveIds: ["pillow-moonbeam", "dream-drift", "stardust-peek"],
     learnableMoveIds: ["pillow-moonbeam", "dream-drift", "stardust-peek", "dreamcloud-haven"],
     fieldSkillId: "soft-float",
-    portrait: mossmewPortrait,
+    portrait: pillowmoonRamPortrait,
     wild: true,
   },
   {
@@ -224,7 +246,7 @@ export const WA_CREATURES: CreatureSpecies[] = [
     moveIds: ["silent-bell", "heart-crystal", "aurora-parade"],
     learnableMoveIds: ["silent-bell", "heart-crystal", "aurora-parade", "hearth-crystal-roar"],
     fieldSkillId: "light-trail",
-    portrait: sparkleafFawnPortrait,
+    portrait: silentBellheartPortrait,
     wild: false,
   },
 ];
