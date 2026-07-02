@@ -35,11 +35,6 @@ export function WordCard({ vocab, colorClass, speak }: WordCardProps) {
           </span>
           <Volume2 className="mt-1 size-4 shrink-0 text-primary" />
         </span>
-        {vocab.phonetic && (
-          <span className="text-xs font-medium text-muted-foreground">
-            [{vocab.phonetic}]
-          </span>
-        )}
       </button>
 
       <p className="text-base font-medium text-base-content/80">{vocab.chinese}</p>

@@ -193,11 +193,6 @@ const SavedWordItem = memo(
         <div className="flex items-center gap-1.5 min-w-0">
           {word.emoji && <span className="text-sm">{word.emoji}</span>}
           <span className="font-semibold text-sm truncate">{word.word}</span>
-          {word.phonetic && (
-            <span className="text-xs text-base-content/40 truncate">
-              {word.phonetic}
-            </span>
-          )}
           {onSpeak && (
             <button
               type="button"

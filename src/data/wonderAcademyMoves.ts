@@ -49,6 +49,21 @@ export const WONDER_ACADEMY_MOVES: Record<string, MoveDef> = {
   // Wild creature moves
   "mossy-tackle": move("mossy-tackle", "苔蘚衝撞", "leaf", 6),
   "spore-puff": move("spore-puff", "孢子噴霧", "leaf", 5),
+  "pearl-splash": move("pearl-splash", "珍珠水花", "tide", 7),
+  "tideglass-song": move("tideglass-song", "潮玻璃小曲", "dream", 6, true),
+  "seal-slide": move("seal-slide", "海豹滑步", "tide", 10),
+  "clockwork-tap": move("clockwork-tap", "鐘錶輕敲", "crystal", 7),
+  "bell-chime": move("bell-chime", "鈴聲迴響", "star", 8),
+  "tanuki-twirl": move("tanuki-twirl", "狸貓轉圈", "dream", 10),
+  "sugar-sparkle": move("sugar-sparkle", "糖霜閃閃", "light", 7),
+  "marshmallow-bounce": move("marshmallow-bounce", "棉花糖彈跳", "dream", 9),
+  "maestro-finale": move("maestro-finale", "甜點謝幕曲", "star", 12),
+  "comet-dash": move("comet-dash", "彗星奔跑", "spark", 10),
+  "starrail-echo": move("starrail-echo", "星軌回聲", "star", 12),
+  "pillow-moonbeam": move("pillow-moonbeam", "枕月光束", "dream", 8, true),
+  "dream-drift": move("dream-drift", "夢雲漂流", "dream", 6, true),
+  "silent-bell": move("silent-bell", "靜默鐘聲", "light", 13),
+  "heart-crystal": move("heart-crystal", "心晶共鳴", "crystal", 14),
 };
 
 export function getMoveById(id: string): MoveDef | null {

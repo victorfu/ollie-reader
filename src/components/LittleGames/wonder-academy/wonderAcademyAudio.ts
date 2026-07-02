@@ -33,6 +33,28 @@ export const wonderAcademyLoopIds = [
 
 export type WonderAcademyLoopId = (typeof wonderAcademyLoopIds)[number];
 
+export type WonderAcademyLoopSelectionInput = {
+  screen: string;
+  isWarden?: boolean;
+};
+
+const REGION_LOOP_SCREENS = new Set(["regions", "nodeMap", "scene"]);
+
+export function selectWonderAcademyLoop({
+  screen,
+  isWarden = false,
+}: WonderAcademyLoopSelectionInput): WonderAcademyLoopId {
+  if (screen === "battle") {
+    return isWarden ? "warden_trial_loop" : "mood_trial_loop";
+  }
+
+  if (REGION_LOOP_SCREENS.has(screen)) {
+    return "region_map_loop";
+  }
+
+  return "hub_loop";
+}
+
 export const wonderAcademySfxUrls: Record<WonderAcademySfxId, string> = {
   ui_select: new URL(
     "../../../assets/games/wonder-academy/audio/ui_select.wav",

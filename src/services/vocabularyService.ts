@@ -56,7 +56,6 @@ const convertToVocabularyWord = (
     id,
     word: data.word,
     userId: data.userId,
-    phonetic: data.phonetic,
     emoji: data.emoji,
     definitions: data.definitions || [],
     examples: data.examples || [],

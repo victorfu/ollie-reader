@@ -98,6 +98,18 @@ describe("playerAttack", () => {
     const s = { ...startBattle([mon()], wildInfo()), outcome: "caught" as const };
     expect(playerAttack(s, "zip-spark")).toBe(s);
   });
+
+  it("is a no-op when the requested move is not equipped", () => {
+    const s = startBattle([mon({ moveIds: ["zip-spark"] })], wildInfo());
+
+    expect(playerAttack(s, "bubble-pat")).toBe(s);
+  });
+
+  it("is a no-op when the requested move is unknown", () => {
+    const s = startBattle([mon({ moveIds: ["zip-spark"] })], wildInfo());
+
+    expect(playerAttack(s, "missing-move")).toBe(s);
+  });
 });
 
 const seq = (values: number[]): Rng => {

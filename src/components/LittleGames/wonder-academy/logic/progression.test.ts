@@ -39,4 +39,12 @@ describe("gainXp", () => {
     expect(capped.level).toBe(MAX_LEVEL);
     expect(capped.xp).toBe(0);
   });
+
+  it("keeps one normal Sparkleaf win visible without jumping levels", () => {
+    const result = gainXp(5, 0, 6 * 4);
+
+    expect(result).toEqual({ level: 5, xp: 24, levelsGained: 0 });
+    expect(result.xp).toBeGreaterThan(0);
+    expect(result.xp).toBeLessThan(xpToNext(5));
+  });
 });

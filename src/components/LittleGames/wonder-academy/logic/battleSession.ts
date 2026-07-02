@@ -95,6 +95,7 @@ export function playerAttack(
   moveId: string,
 ): BattleSession {
   if (session.outcome !== "ongoing") return session;
+  if (!session.active.moveIds.includes(moveId) || !getMoveById(moveId)) return session;
 
   const { defender, damage, effectiveness } = performMove(
     session.active,

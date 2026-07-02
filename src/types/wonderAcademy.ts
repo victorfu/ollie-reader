@@ -1,12 +1,15 @@
-export type WonderAcademyElement =
-  | "spark"
-  | "tide"
-  | "leaf"
-  | "light"
-  | "dream"
-  | "ember"
-  | "crystal"
-  | "star";
+export const WONDER_ACADEMY_ELEMENTS = [
+  "spark",
+  "tide",
+  "leaf",
+  "light",
+  "dream",
+  "ember",
+  "crystal",
+  "star",
+] as const;
+
+export type WonderAcademyElement = typeof WONDER_ACADEMY_ELEMENTS[number];
 
 export type WonderAcademyRole =
   | "striker"

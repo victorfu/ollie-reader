@@ -355,12 +355,6 @@ export const FlashcardMode = ({
             <h2 className="text-5xl sm:text-6xl font-bold text-center mb-2 break-words w-full flex-shrink-0">
               {currentCard?.word}
             </h2>
-            {currentCard?.phonetic && (
-              <p className="text-xl text-muted-foreground font-serif mb-4">
-                {currentCard.phonetic}
-              </p>
-            )}
-
             {/* Play pronunciation button */}
             {!isFlipped && (
               <button

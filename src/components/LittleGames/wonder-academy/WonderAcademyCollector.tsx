@@ -1,11 +1,14 @@
 import academyHubUrl from "../../../assets/games/wonder-academy/backgrounds/academy-hub.png";
-import { ArrowLeft, Compass, Gift, Lock, MapPin, Plus, ShoppingBag, Sparkles, Upload, X } from "lucide-react";
+import { ArrowLeft, Compass, Gift, Hammer, Lock, MapPin, Plus, RotateCcw, ShoppingBag, Sparkles, X } from "lucide-react";
 import { useEffect, useMemo, useReducer, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { Volume2, VolumeX } from "lucide-react";
 import { useAuth } from "../../../hooks/useAuth";
+import type { WonderAcademyAudioSettings } from "../../../types/wonderAcademy";
 import {
   createWonderAcademyAudio,
   defaultWonderAcademyAudioSettings,
+  selectWonderAcademyLoop,
+  wonderAcademyLoopIds,
   type WonderAcademyAudioManager,
 } from "./wonderAcademyAudio";
 import { getMoveById } from "../../../data/wonderAcademyMoves";
@@ -19,34 +22,50 @@ import {
   type BattleSession,
 } from "./logic/battleSession";
 import { gainBond } from "./logic/bond";
+import { effectivenessBadge } from "./logic/battleText";
+import { chooseCatchSnack } from "./logic/catchSnacks";
+import {
+  MATERIAL_DEFS,
+  charmEffects,
+  craftCharm,
+  lootMaterialsForTier,
+  mergeMaterials,
+  toggleActiveCharm,
+  type MaterialId,
+} from "./logic/charms";
 import {
   bumpDaily,
   claimTask,
   DAILY_TASKS,
   rolloverDaily,
-  type DailyProgress,
   type DailyTaskId,
 } from "./logic/dailyTasks";
 import { teamFieldPerks } from "./logic/fieldSkills";
 import { rollEncounter, type EncounterTable } from "./logic/encounter";
 import { canEvolve, evolve } from "./logic/evolution";
 import { rollLoot, type LootTable } from "./logic/loot";
+import { equipMoveForCreature, unequipMoveForCreature } from "./logic/moveLoadout";
+import { nextWonderAcademyObjective } from "./logic/objectives";
+import {
+  awardTrialWin,
+  isPostgameUnlocked,
+  postgameTrialById,
+} from "./logic/postgameTrials";
 import { gainXp } from "./logic/progression";
+import { isKnownSnack, SNACK_NAMES, SNACK_POOL } from "./logic/snacks";
 import { getEffectivenessAgainst } from "./logic/typeChart";
-import { dexCompletion, recordDex, type Wonderdex } from "./logic/wonderdex";
+import { dexCompletion, recordDex } from "./logic/wonderdex";
 import {
   allSpecies,
   catchableSpecies,
-  defaultEquipped,
   ELEMENT_META,
   FIELD_SKILLS,
-  learnablePool,
-  makeCustomCreature,
-  moveUnlockLevel,
   registerCustomCreatures,
   rollShiny,
   SHINY_FILTER,
   speciesById,
+  starterById,
+  starterSnackBundle,
   STARTER_SPECIES,
   toCombatant,
   toWarden,
@@ -61,10 +80,50 @@ import {
   FIRST_REGION,
   isNodeUnlocked,
   isRegionUnlocked,
+  nodeUnlockHint,
   nodeKey,
   REGIONS,
   regionById,
 } from "./wonderAcademyRegions";
+import {
+  checkpointWonderAcademyProgress,
+  loadWonderAcademySave,
+  localOnlyWonderAcademyCloudAdapter,
+  saveWonderAcademyProgress,
+  syncWonderAcademyPendingSave,
+  type WonderAcademyProgressData,
+  type WonderAcademySaveStatus,
+} from "./wonderAcademyPersistence";
+import {
+  getWonderAcademyEntryCopy,
+  shouldConfirmWonderAcademyOverwrite,
+  visibleWonderAcademySaveStatus,
+} from "./wonderAcademySessionGuards";
+import { CreatureBuilder, SkillsScreen, StarterConfirm, TrialsScreen, WorkshopScreen } from "./wonderAcademyScreens";
+import { HpBar, TypeBadge } from "./wonderAcademyPresentation";
+import { saveStatusChip } from "./wonderAcademyPresentationStyles";
+import {
+  actBtn,
+  actBtnSub,
+  authErrorBox,
+  btnGhost,
+  btnOutline,
+  cardBtn,
+  cardStatic,
+  ctaBtn,
+  dailyBtn,
+  dailyFlashBox,
+  dangerBtn,
+  dangerOutlineBtn,
+  effBadge,
+  feedBtn,
+  guestNoticeBox,
+  infoCard,
+  moveBtn,
+  resetConfirmBox,
+  roleBadge,
+  unsyncedNoticeBox,
+} from "./wonderAcademyStyles";
 
 type Screen =
   | "title"
@@ -80,16 +139,11 @@ type Screen =
   | "evolve"
   | "dex"
   | "builder"
+  | "workshop"
+  | "trials"
   | "skills"
   | "shop";
 
-const SNACK_NAMES: Record<string, string> = {
-  "starberry-cookie": "星莓餅乾",
-  "moon-milk-puff": "月乳泡芙",
-  "clover-macaron": "三葉草馬卡龍",
-  "warm-cocoa-gem": "暖可可寶石",
-};
-const SNACK_POOL = Object.keys(SNACK_NAMES);
 const SNACK_PRICE = 12;
 
 type ResultInfo = {
@@ -100,26 +154,7 @@ type ResultInfo = {
 
 type EvolutionInfo = { display: string; after: string; portrait: string };
 
-type Persisted = {
-  playerName: string;
-  team: OwnedCreature[];
-  dex: Wonderdex;
-  stardust: number;
-  snacks: Record<string, number>;
-  customCreatures: CreatureSpecies[];
-  /** Region ids whose warden has been beaten (gates region unlocks). */
-  wardensDefeated: string[];
-  /** "regionId:nodeId" keys for explore nodes that have been entered. */
-  clearedNodes: string[];
-  /** Species ids the player has caught a shiny of. */
-  shinyDex: string[];
-  /** Dex milestone thresholds whose reward has been claimed. */
-  dexRewardsClaimed: number[];
-  /** YYYY-M-D of the last claimed daily reward, or null. */
-  lastDailyReward: string | null;
-  /** Today's daily-quest progress (null until the first event/claim). */
-  daily: DailyProgress | null;
-};
+type Persisted = WonderAcademyProgressData;
 
 /** Wonderdex collection milestones (by number of species caught). */
 const DEX_REWARDS = [
@@ -145,9 +180,6 @@ const CATCH_CONFETTI = Array.from({ length: 16 }, (_, i) => {
   };
 });
 
-/** Shape read back from storage/cloud — any field may be missing. */
-type StoredGame = Partial<Persisted>;
-
 type GameState = Persisted & {
   ready: boolean;
   screen: Screen;
@@ -156,6 +188,7 @@ type GameState = Persisted & {
   sceneActive: boolean;
   activeRegionId: string | null;
   isWarden: boolean;
+  trialId: string | null;
   skillsOwnedId: string | null;
   battle: BattleSession | null;
   result: ResultInfo | null;
@@ -165,6 +198,8 @@ type GameState = Persisted & {
 type Action =
   | { type: "load"; state: Persisted | null }
   | { type: "beginNewGame" }
+  | { type: "resetNewGame" }
+  | { type: "toggleMute" }
   | { type: "setName"; name: string }
   | { type: "arriveNext" }
   | { type: "pickStarter"; speciesId: string }
@@ -188,6 +223,14 @@ type Action =
   | { type: "equipMove"; ownedId: string; moveId: string }
   | { type: "unequipMove"; ownedId: string; moveId: string }
   | { type: "openBuilder" }
+  | { type: "openWorkshop" }
+  | { type: "closeWorkshop" }
+  | { type: "craftCharm"; charmId: string }
+  | { type: "toggleCharm"; charmId: string }
+  | { type: "setAudioVolume"; channel: "musicVolume" | "sfxVolume"; value: number }
+  | { type: "openTrials" }
+  | { type: "closeTrials" }
+  | { type: "startTrial"; trialId: string }
   | { type: "addCustom"; creature: CreatureSpecies }
   | { type: "closeResult" }
   | { type: "finishEvolution" }
@@ -206,6 +249,7 @@ const INITIAL: GameState = {
   sceneActive: false,
   activeRegionId: null,
   isWarden: false,
+  trialId: null,
   skillsOwnedId: null,
   playerName: "",
   team: [],
@@ -217,8 +261,13 @@ const INITIAL: GameState = {
   clearedNodes: [],
   shinyDex: [],
   dexRewardsClaimed: [],
+  materials: {},
+  charms: {},
+  activeCharms: [],
+  trialWins: {},
   lastDailyReward: null,
   daily: null,
+  audioSettings: defaultWonderAcademyAudioSettings,
   battle: null,
   result: null,
   pendingEvolution: null,
@@ -232,10 +281,19 @@ const displayName = (owned: OwnedCreature): string => {
   return sp?.growthStages[owned.stage] ?? sp?.name ?? owned.speciesId;
 };
 
+const teamFieldSkillIds = (team: OwnedCreature[]): string[] => [
+  ...new Set(
+    team
+      .map((owned) => speciesById(owned.speciesId)?.fieldSkillId)
+      .filter((id): id is string => !!id),
+  ),
+];
+
 function resolveOutcome(state: GameState, session: BattleSession): GameState {
   const activeOwnedId = session.active.ownedId;
   const wildSpeciesId = session.wild.speciesId;
   const wildName = speciesById(wildSpeciesId)?.name ?? "野生寵物";
+  const effects = charmEffects(state.activeCharms);
   const lines: string[] = [];
   let team = state.team;
   let dex = state.dex;
@@ -251,9 +309,10 @@ function resolveOutcome(state: GameState, session: BattleSession): GameState {
   };
 
   const awardXp = (amount: number) => {
+    const boostedAmount = Math.max(1, Math.round(amount * effects.xpMultiplier));
     team = team.map((o) => {
       if (o.ownedId !== activeOwnedId) return o;
-      const res = gainXp(o.level, o.xp, amount);
+      const res = gainXp(o.level, o.xp, boostedAmount);
       let owned: OwnedCreature = { ...o, level: res.level, xp: res.xp };
       if (res.levelsGained > 0) {
         lines.push(`${displayName(o)} 升到了 Lv.${res.level}!✨`);
@@ -273,6 +332,51 @@ function resolveOutcome(state: GameState, session: BattleSession): GameState {
       return owned;
     });
   };
+
+  if (state.trialId) {
+    if (session.outcome === "won") {
+      const reward = awardTrialWin({
+        trialId: state.trialId,
+        stardust: state.stardust,
+        materials: state.materials,
+        trialWins: state.trialWins,
+      });
+      const trial = postgameTrialById(state.trialId);
+      lines.push(`🏆 ${trial?.name ?? "試煉"} 完成!`);
+      lines.push(`✨ Stardust ×${reward.stardust - state.stardust}`);
+      awardXp(session.wild.level * 7);
+      return {
+        ...state,
+        team,
+        dex,
+        stardust: reward.stardust,
+        materials: reward.materials,
+        trialWins: reward.trialWins,
+        isWarden: false,
+        trialId: null,
+        battle: null,
+        pendingEvolution,
+        result: { kind: "won", speciesId: wildSpeciesId, lines },
+        screen: "result",
+      };
+    }
+    lines.push(
+      session.outcome === "lost"
+        ? "試煉太難了…調整護符與隊伍再來!"
+        : "你暫時離開了試煉。",
+    );
+    return {
+      ...state,
+      team,
+      dex,
+      isWarden: false,
+      trialId: null,
+      battle: null,
+      pendingEvolution,
+      result: { kind: session.outcome, speciesId: wildSpeciesId, lines },
+      screen: "result",
+    };
+  }
 
   if (state.isWarden) {
     if (session.outcome === "won") {
@@ -398,15 +502,33 @@ function reducer(state: GameState, action: Action): GameState {
     }
     case "beginNewGame":
       return { ...state, screen: "arrival" };
+    case "resetNewGame":
+      return { ...INITIAL, ready: true, screen: "arrival" };
+    case "toggleMute": {
+      const audioSettings: WonderAcademyAudioSettings = {
+        ...state.audioSettings,
+        muted: !state.audioSettings.muted,
+      };
+      return { ...state, audioSettings };
+    }
+    case "setAudioVolume": {
+      const audioSettings: WonderAcademyAudioSettings = {
+        ...state.audioSettings,
+        [action.channel]: Math.min(1, Math.max(0, action.value)),
+      };
+      return { ...state, audioSettings };
+    }
     case "setName":
       return { ...state, playerName: action.name };
     case "arriveNext":
       return { ...state, screen: "select" };
     case "pickStarter":
-      return { ...state, pendingStarterId: action.speciesId, screen: "confirm" };
+      return starterById(action.speciesId)
+        ? { ...state, pendingStarterId: action.speciesId, screen: "confirm" }
+        : state;
     case "confirmStarter": {
       const species = state.pendingStarterId
-        ? speciesById(state.pendingStarterId)
+        ? starterById(state.pendingStarterId)
         : undefined;
       if (!species) return state;
       return {
@@ -423,7 +545,7 @@ function reducer(state: GameState, action: Action): GameState {
           },
         ],
         dex: recordDex(state.dex, species.speciesId, "caught"),
-        snacks: { "clover-macaron": 2, "starberry-cookie": 2 },
+        snacks: starterSnackBundle(species),
         pendingStarterId: null,
         screen: "hub",
       };
@@ -445,7 +567,8 @@ function reducer(state: GameState, action: Action): GameState {
       const region = state.activeRegionId ? regionById(state.activeRegionId) : undefined;
       const node = region?.nodes.find((n) => n.id === action.nodeId);
       if (!region || !node) return state;
-      if (!isNodeUnlocked(node, region.id, state.clearedNodes)) return state;
+      const skillIds = teamFieldSkillIds(state.team);
+      if (!isNodeUnlocked(node, region.id, state.clearedNodes, skillIds)) return state;
       if (node.kind === "warden") {
         if (state.wardensDefeated.includes(region.id)) return state;
         const warden = speciesById(region.wardenSpeciesId);
@@ -468,7 +591,7 @@ function reducer(state: GameState, action: Action): GameState {
       };
     }
     case "claimDaily": {
-      if (state.lastDailyReward === action.today) return state;
+      if (state.lastDailyReward === action.today || !isKnownSnack(action.snackId)) return state;
       return {
         ...state,
         stardust: state.stardust + 20,
@@ -489,6 +612,7 @@ function reducer(state: GameState, action: Action): GameState {
       if (!state.scene || state.team.length === 0) return state;
       const region = state.activeRegionId ? regionById(state.activeRegionId) : undefined;
       if (!region) return state;
+      const effects = charmEffects(state.activeCharms);
       const perks = teamFieldPerks(
         state.team
           .map((o) => speciesById(o.speciesId)?.fieldSkillId)
@@ -505,12 +629,12 @@ function reducer(state: GameState, action: Action): GameState {
         return { ...state, scene: null, sceneActive: false, screen: "nodeMap" };
       }
 
-      if (tile === "G" && random() < Math.min(0.85, 0.4 * perks.encounterMultiplier)) {
+      if (tile === "G" && random() < Math.min(0.85, 0.4 * perks.encounterMultiplier * effects.encounterMultiplier)) {
         const table: EncounterTable = {
           encounterChance: 1,
           entries: catchableSpecies().map((s) => ({
             speciesId: s.speciesId,
-            weight: s.rarity === "common" ? 3 : 1 * perks.rareWeightBonus,
+            weight: s.rarity === "common" ? 3 : 1 * perks.rareWeightBonus * effects.rareWeightBonus,
           })),
           minLevel: region.minLevel,
           maxLevel: region.maxLevel,
@@ -522,7 +646,16 @@ function reducer(state: GameState, action: Action): GameState {
             ...state,
             scene: moved,
             dex: recordDex(state.dex, enc.speciesId, "seen"),
-            battle: startBattle(state.team.map(toCombatant), toWild(species, enc.level, rollShiny(random))),
+            battle: startBattle(
+              state.team.map(toCombatant),
+              toWild(
+                species,
+                enc.level,
+                effects.shinyBonus > 0
+                  ? random() < Math.min(0.18, 1 / 16 + effects.shinyBonus)
+                  : rollShiny(random),
+              ),
+            ),
             result: null,
             screen: "battle",
           };
@@ -532,7 +665,7 @@ function reducer(state: GameState, action: Action): GameState {
 
       if (tile === "C" && !state.scene.opened.includes(cellId)) {
         const chestTable: LootTable = {
-          rolls: 2 + perks.lootRollBonus,
+          rolls: 2 + perks.lootRollBonus + effects.lootRollBonus,
           entries: [
             { itemId: "starberry-cookie", quantity: 1, weight: 2 },
             { itemId: "clover-macaron", quantity: 1, weight: 2 },
@@ -544,6 +677,7 @@ function reducer(state: GameState, action: Action): GameState {
         const loot = rollLoot(chestTable, random);
         let snacks = state.snacks;
         let stardust = state.stardust;
+        let materials = state.materials;
         const parts: string[] = [];
         for (const [item, qty] of Object.entries(loot)) {
           if (item === "stardust") {
@@ -558,15 +692,26 @@ function reducer(state: GameState, action: Action): GameState {
           stardust += perks.chestStardustBonus;
           parts.push(`💎 Stardust ×${perks.chestStardustBonus}`);
         }
+        if (effects.chestStardustBonus > 0) {
+          stardust += effects.chestStardustBonus;
+          parts.push(`🎀 Stardust ×${effects.chestStardustBonus}`);
+        }
         const tierBonus = (region.lootTier - 1) * 8;
         if (tierBonus > 0) {
           stardust += tierBonus;
           parts.push(`✨ Stardust ×${tierBonus}`);
         }
+        const materialLoot = lootMaterialsForTier(region.lootTier);
+        materials = mergeMaterials(materials, materialLoot);
+        for (const [materialId, qty] of Object.entries(materialLoot) as [MaterialId, number][]) {
+          const material = MATERIAL_DEFS[materialId];
+          parts.push(`${material.emoji} ${material.name} ×${qty}`);
+        }
         return {
           ...state,
           snacks,
           stardust,
+          materials,
           daily: bumpDaily(state.daily, "chest", action.today),
           scene: {
             ...moved,
@@ -622,12 +767,13 @@ function reducer(state: GameState, action: Action): GameState {
     case "battleCatch": {
       if (!state.battle) return state;
       const fav = speciesById(state.battle.wild.speciesId)?.favoriteSnack;
-      const hasFav = !!fav && (state.snacks?.[fav] ?? 0) > 0;
-      const snacks =
-        hasFav && fav
-          ? { ...(state.snacks ?? {}), [fav]: (state.snacks?.[fav] ?? 0) - 1 }
-          : (state.snacks ?? {});
-      return afterBattle({ ...state, snacks }, playerCatch(state.battle, 2, hasFav, random), action.today);
+      const choice = chooseCatchSnack(state.snacks, fav, SNACK_POOL);
+      if (!choice) return state;
+      return afterBattle(
+        { ...state, snacks: choice.snacks },
+        playerCatch(state.battle, choice.treatTier, choice.isFavorite, random),
+        action.today,
+      );
     }
     case "battleSwitch":
       return state.battle ? afterBattle(state, playerSwitch(state.battle, action.ownedId), action.today) : state;
@@ -657,25 +803,64 @@ function reducer(state: GameState, action: Action): GameState {
     case "equipMove": {
       const team = state.team.map((o) => {
         if (o.ownedId !== action.ownedId) return o;
-        const sp = speciesById(o.speciesId);
-        const current = o.equippedMoveIds ?? (sp ? defaultEquipped(sp) : []);
-        if (current.includes(action.moveId) || current.length >= 4) return o;
-        return { ...o, equippedMoveIds: [...current, action.moveId] };
+        return equipMoveForCreature(o, speciesById(o.speciesId), action.moveId);
       });
       return { ...state, team };
     }
     case "unequipMove": {
       const team = state.team.map((o) => {
         if (o.ownedId !== action.ownedId) return o;
-        const sp = speciesById(o.speciesId);
-        const current = o.equippedMoveIds ?? (sp ? defaultEquipped(sp) : []);
-        if (current.length <= 1) return o;
-        return { ...o, equippedMoveIds: current.filter((m) => m !== action.moveId) };
+        return unequipMoveForCreature(o, speciesById(o.speciesId), action.moveId);
       });
       return { ...state, team };
     }
     case "openBuilder":
       return { ...state, screen: "builder" };
+    case "openWorkshop":
+      return { ...state, screen: "workshop" };
+    case "closeWorkshop":
+      return { ...state, screen: "hub" };
+    case "craftCharm": {
+      const result = craftCharm({
+        stardust: state.stardust,
+        materials: state.materials,
+        charms: state.charms,
+        charmId: action.charmId,
+      });
+      if (!result.crafted) return state;
+      return {
+        ...state,
+        stardust: result.stardust,
+        materials: result.materials,
+        charms: result.charms,
+      };
+    }
+    case "toggleCharm":
+      return {
+        ...state,
+        activeCharms: toggleActiveCharm(state.activeCharms, state.charms, action.charmId),
+      };
+    case "openTrials":
+      return { ...state, screen: "trials" };
+    case "closeTrials":
+      return { ...state, screen: "hub" };
+    case "startTrial": {
+      if (!isPostgameUnlocked(REGIONS.map((region) => region.id), state.wardensDefeated)) return state;
+      const trial = postgameTrialById(action.trialId);
+      const species = trial ? speciesById(trial.speciesId) : undefined;
+      if (!trial || !species || state.team.length === 0) return state;
+      return {
+        ...state,
+        activeRegionId: null,
+        scene: null,
+        sceneActive: false,
+        isWarden: true,
+        trialId: trial.id,
+        battle: startBattle(state.team.map(toCombatant), toWarden(species, trial.level)),
+        result: null,
+        screen: "battle",
+      };
+    }
     case "addCustom":
       return {
         ...state,
@@ -708,7 +893,7 @@ function reducer(state: GameState, action: Action): GameState {
     case "closeShop":
       return { ...state, screen: "hub" };
     case "buySnack": {
-      if (state.stardust < SNACK_PRICE || !SNACK_NAMES[action.snackId]) return state;
+      if (state.stardust < SNACK_PRICE || !isKnownSnack(action.snackId)) return state;
       return {
         ...state,
         stardust: state.stardust - SNACK_PRICE,
@@ -732,100 +917,27 @@ function reducer(state: GameState, action: Action): GameState {
   }
 }
 
-const storageKey = (uid: string) => `wonder-academy-game-v2-${uid}`;
-
-// Read back a stored payload (local or cloud), filling in any missing fields.
-// No migration: a save from before regions just starts with no warden progress.
-function normalizeStored(parsed: StoredGame | null): Persisted | null {
-  if (!parsed || !Array.isArray(parsed.team)) return null;
-  return {
-    playerName: parsed.playerName ?? "",
-    team: parsed.team,
-    dex: parsed.dex ?? {},
-    stardust: parsed.stardust ?? 0,
-    snacks: parsed.snacks ?? {},
-    customCreatures: parsed.customCreatures ?? [],
-    wardensDefeated: Array.isArray(parsed.wardensDefeated) ? parsed.wardensDefeated : [],
-    clearedNodes: Array.isArray(parsed.clearedNodes) ? parsed.clearedNodes : [],
-    shinyDex: Array.isArray(parsed.shinyDex) ? parsed.shinyDex : [],
-    dexRewardsClaimed: Array.isArray(parsed.dexRewardsClaimed) ? parsed.dexRewardsClaimed : [],
-    lastDailyReward: parsed.lastDailyReward ?? null,
-    daily: parsed.daily ?? null,
-  };
-}
-
-function loadPersisted(uid: string): Persisted | null {
-  try {
-    const raw = window.localStorage.getItem(storageKey(uid));
-    if (!raw) return null;
-    return normalizeStored(JSON.parse(raw) as StoredGame);
-  } catch {
-    return null;
-  }
-}
-
-const CLOUD_DOC = "wonderAcademyCollector";
-
-async function loadCloudGame(uid: string): Promise<Persisted | null> {
-  try {
-    const [{ doc, getDoc }, { db }] = await Promise.all([
-      import("firebase/firestore"),
-      import("../../../utils/firebaseUtil"),
-    ]);
-    const ref = doc(db, "gameProgress", uid, "littleGames", CLOUD_DOC);
-    const snap = await getDoc(ref);
-    if (!snap.exists()) return null;
-    return normalizeStored(snap.data() as StoredGame);
-  } catch {
-    return null;
-  }
-}
-
-async function saveCloudGame(uid: string, data: Persisted): Promise<void> {
-  try {
-    const [{ doc, setDoc }, { db }] = await Promise.all([
-      import("firebase/firestore"),
-      import("../../../utils/firebaseUtil"),
-    ]);
-    const ref = doc(db, "gameProgress", uid, "littleGames", CLOUD_DOC);
-    await setDoc(ref, { ...data, updatedAt: Date.now() });
-  } catch {
-    // ignore — localStorage stays the source of truth
-  }
-}
-
 // ---- small presentational pieces ----
 
-function TypeBadge({ element }: { element: keyof typeof ELEMENT_META }) {
-  const m = ELEMENT_META[element];
-  return (
-    <span
-      style={{
-        fontSize: 11,
-        fontWeight: 700,
-        padding: "2px 8px",
-        borderRadius: 999,
-        color: m.fg,
-        background: m.bg,
-      }}
-    >
-      {m.emoji} {m.label}
-    </span>
-  );
-}
+function saveStatusLabel(status: WonderAcademySaveStatus, isGuest: boolean): string {
+  if (isGuest && (status === "idle" || status === "saved")) return "本機保存";
+  if (isGuest && status === "saving") return "保存中";
 
-function HpBar({ hp, maxHp }: { hp: number; maxHp: number }) {
-  const pct = Math.max(0, Math.round((hp / maxHp) * 100));
-  const color =
-    pct > 50 ? "linear-gradient(90deg,#6fd07f,#42b86a)" : pct > 20 ? "linear-gradient(90deg,#ffcf5b,#f4a93a)" : "linear-gradient(90deg,#ff8a5b,#ef5b6e)";
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-      <div style={{ flex: 1, height: 8, borderRadius: 999, background: "#e7e3ef", overflow: "hidden" }}>
-        <div style={{ width: `${pct}%`, height: "100%", borderRadius: 999, background: color, transition: "width .35s" }} />
-      </div>
-      <span style={{ fontSize: 10, fontWeight: 700, color: "#8a83a3", minWidth: 28, textAlign: "right" }}>{pct}%</span>
-    </div>
-  );
+  switch (status) {
+    case "loading":
+      return "讀取中";
+    case "saving":
+      return "同步中";
+    case "saved":
+      return "已同步";
+    case "pending":
+      return "待同步";
+    case "failed":
+      return "同步失敗";
+    case "idle":
+    default:
+      return "未保存";
+  }
 }
 
 function battleHeadline(session: BattleSession): string {
@@ -857,241 +969,78 @@ function battleHeadline(session: BattleSession): string {
 const PANEL_BG =
   "radial-gradient(120% 90% at 12% 0%, #fff7ec 0%, rgba(255,247,236,0) 55%), radial-gradient(120% 110% at 100% 0%, #efe7ff 0%, rgba(239,231,255,0) 50%), linear-gradient(180deg, #fbf6ff 0%, #f3eefe 60%, #efeafc 100%)";
 
-function SkillsScreen({
-  owned,
-  onEquip,
-  onUnequip,
-  onClose,
-}: {
-  owned: OwnedCreature;
-  onEquip: (moveId: string) => void;
-  onUnequip: (moveId: string) => void;
-  onClose: () => void;
-}) {
-  const sp = speciesById(owned.speciesId);
-  if (!sp) return <div />;
-  const equipped =
-    owned.equippedMoveIds && owned.equippedMoveIds.length > 0
-      ? owned.equippedMoveIds
-      : defaultEquipped(sp);
-  const pool = learnablePool(sp);
-
-  return (
-    <div>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 800, margin: 0 }}>技能</h1>
-        <button onClick={onClose} style={btnGhost}><X size={16} /> 完成</button>
-      </div>
-
-      <div style={{ display: "flex", gap: 14, alignItems: "center", marginBottom: 18 }}>
-        <img src={sp.portrait} alt={sp.name} style={{ width: 72, height: 72, objectFit: "contain" }} />
-        <div>
-          <div style={{ fontWeight: 800, fontSize: 18 }}>{owned.nickname || sp.growthStages[owned.stage] || sp.name}</div>
-          <div style={{ fontSize: 12, color: "#8a83a3" }}>Lv.{owned.level} · 裝備 {equipped.length}/4</div>
-        </div>
-      </div>
-
-      <div style={fieldLabel}>已裝備(點一下卸下)</div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(150px,1fr))", gap: 8, marginBottom: 18 }}>
-        {equipped.map((id) => {
-          const mv = getMoveById(id);
-          if (!mv) return null;
-          const m = ELEMENT_META[mv.element];
-          return (
-            <button key={id} onClick={() => onUnequip(id)} disabled={equipped.length <= 1} style={{ ...moveBtn, opacity: equipped.length <= 1 ? 0.6 : 1 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <span style={{ width: 10, height: 10, borderRadius: "50%", background: m.fg }} />
-                <span style={{ fontWeight: 800, fontSize: 13 }}>{mv.name}</span>
-              </div>
-              <div style={{ fontSize: 10, color: "#8a83a3", fontWeight: 700 }}>{mv.element} · 威力 {mv.power}</div>
-            </button>
-          );
-        })}
-      </div>
-
-      <div style={fieldLabel}>可學招式</div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(150px,1fr))", gap: 8 }}>
-        {pool.map((id, i) => {
-          const mv = getMoveById(id);
-          if (!mv) return null;
-          const m = ELEMENT_META[mv.element];
-          const isEquipped = equipped.includes(id);
-          const unlockLv = moveUnlockLevel(i);
-          const locked = owned.level < unlockLv;
-          const canEquip = !isEquipped && !locked && equipped.length < 4;
-          return (
-            <button key={id} onClick={() => { if (canEquip) onEquip(id); }} disabled={!canEquip} style={{ ...moveBtn, opacity: locked ? 0.45 : isEquipped ? 0.5 : equipped.length >= 4 ? 0.6 : 1, cursor: canEquip ? "pointer" : "default" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <span style={{ width: 10, height: 10, borderRadius: "50%", background: m.fg }} />
-                <span style={{ fontWeight: 800, fontSize: 13 }}>{mv.name}</span>
-              </div>
-              <div style={{ fontSize: 10, color: "#8a83a3", fontWeight: 700 }}>
-                {locked ? `🔒 Lv.${unlockLv} 解鎖` : isEquipped ? "✓ 已裝備" : `${mv.element} · 威力 ${mv.power}`}
-              </div>
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-function StarterConfirm({
-  species,
-  onBack,
-  onConfirm,
-}: {
-  species: CreatureSpecies;
-  onBack: () => void;
-  onConfirm: (nickname: string) => void;
-}) {
-  const [nickname, setNickname] = useState("");
-  return (
-    <div style={{ textAlign: "center", paddingTop: 18 }}>
-      <style>{`@keyframes waRunIn{0%{opacity:0;transform:translateX(-110px) scale(.78)}62%{transform:translateX(9px) scale(1.06)}100%{opacity:1;transform:none}}@keyframes waHeartFloat{0%{opacity:0;transform:translateY(2px) scale(.6)}25%{opacity:1}100%{opacity:0;transform:translateY(-44px) scale(1.1)}}.wa-runin{animation:waRunIn .7s cubic-bezier(.2,.8,.2,1) both}.wa-heart{animation:waHeartFloat 2.2s ease-in-out infinite}@media (prefers-reduced-motion: reduce){.wa-runin{animation:none}.wa-heart{display:none}}`}</style>
-      <div style={{ letterSpacing: ".2em", fontSize: 11, fontWeight: 700, color: "#8a83a3", textTransform: "uppercase", marginBottom: 12 }}>序章 — 命定的夥伴</div>
-      <div style={{ position: "relative", width: 160, margin: "0 auto 8px" }}>
-        <img className="wa-runin" src={species.portrait} alt={species.name} style={{ width: 160, height: 160, objectFit: "contain", filter: "drop-shadow(0 10px 14px rgba(244,169,58,.3))" }} />
-        <div className="wa-heart" style={{ position: "absolute", top: 6, right: 2, fontSize: 22 }}>💛</div>
-        <div className="wa-heart" style={{ position: "absolute", top: 20, left: 2, fontSize: 16, animationDelay: ".7s" }}>💛</div>
-        <div className="wa-heart" style={{ position: "absolute", bottom: 16, left: 10, fontSize: 18, animationDelay: "1.3s" }}>✨</div>
-      </div>
-      <h1 style={{ fontSize: 26, fontWeight: 800, margin: "0 0 6px" }}><span style={{ color: "#f0922a" }}>{species.name}</span> 選擇了你!</h1>
-      <p style={{ color: "#8a83a3", fontSize: 14, maxWidth: 360, margin: "0 auto 14px" }}>牠開心地跑向你 —— 從現在起,你們會一起走完整段冒險。</p>
-      <div style={{ display: "flex", gap: 6, justifyContent: "center", marginBottom: 16 }}>
-        {species.elements.map((e) => <TypeBadge key={e} element={e} />)}
-      </div>
-      <input value={nickname} onChange={(e) => setNickname(e.target.value)} placeholder={`幫牠取個暱稱?(預設 ${species.name})`} style={{ ...fieldInput, maxWidth: 300, margin: "0 auto 18px", textAlign: "center" }} />
-      <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
-        <button onClick={onBack} style={btnGhost}>← 再想想</button>
-        <button onClick={() => onConfirm(nickname)} style={ctaBtn}>和 {nickname.trim() || species.name} 一起出發 →</button>
-      </div>
-    </div>
-  );
-}
-
-function CreatureBuilder({
-  onSave,
-  onCancel,
-}: {
-  onSave: (creature: CreatureSpecies) => void;
-  onCancel: () => void;
-}) {
-  const [name, setName] = useState("");
-  const [portrait, setPortrait] = useState("");
-  const [elements, setElements] = useState<(keyof typeof ELEMENT_META)[]>([]);
-  const [favoriteSnack, setFavoriteSnack] = useState(SNACK_POOL[0]);
-
-  const toggleElement = (e: keyof typeof ELEMENT_META) =>
-    setElements((cur) =>
-      cur.includes(e)
-        ? cur.filter((x) => x !== e)
-        : cur.length < 2
-          ? [...cur, e]
-          : cur,
-    );
-
-  const onFile = (file: File | undefined) => {
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () =>
-      setPortrait(typeof reader.result === "string" ? reader.result : "");
-    reader.readAsDataURL(file);
-  };
-
-  const canSave =
-    name.trim().length > 0 && portrait.length > 0 && elements.length > 0;
-
-  return (
-    <div>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-        <h1 style={{ fontSize: 24, fontWeight: 800, margin: 0 }}>建立寵物</h1>
-        <button onClick={onCancel} style={btnGhost}><X size={16} /> 取消</button>
-      </div>
-      <p style={{ color: "#8a83a3", fontSize: 13, margin: "0 0 18px" }}>上傳一張圖、取名、選屬性 —— 就會多一隻能在森林裡遇到、收服的夥伴!</p>
-
-      <div style={{ display: "grid", gridTemplateColumns: "140px 1fr", gap: 18, alignItems: "start" }}>
-        <label style={{ ...cardStatic, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: 140, cursor: "pointer", textAlign: "center", color: "#8a83a3" }}>
-          {portrait ? (
-            <img src={portrait} alt="預覽" style={{ width: 110, height: 110, objectFit: "contain" }} />
-          ) : (
-            <>
-              <Upload size={22} />
-              <span style={{ fontSize: 12, marginTop: 6 }}>上傳圖片</span>
-            </>
-          )}
-          <input type="file" accept="image/*" onChange={(e) => onFile(e.target.files?.[0])} style={{ display: "none" }} />
-        </label>
-
-        <div>
-          <div style={fieldLabel}>名字</div>
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="例如:咪咪" style={fieldInput} />
-
-          <div style={{ ...fieldLabel, marginTop: 14 }}>屬性(選 1–2 個)</div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-            {(Object.keys(ELEMENT_META) as (keyof typeof ELEMENT_META)[]).map((e) => {
-              const m = ELEMENT_META[e];
-              const on = elements.includes(e);
-              return (
-                <button key={e} onClick={() => toggleElement(e)} style={{ fontSize: 12, fontWeight: 700, padding: "5px 10px", borderRadius: 999, cursor: "pointer", border: on ? `2px solid ${m.fg}` : "1px solid rgba(60,40,90,.15)", background: on ? m.bg : "#fff", color: m.fg }}>
-                  {m.emoji} {m.label}
-                </button>
-              );
-            })}
-          </div>
-
-          <div style={{ ...fieldLabel, marginTop: 14 }}>最愛點心</div>
-          <select value={favoriteSnack} onChange={(e) => setFavoriteSnack(e.target.value)} style={fieldInput}>
-            {SNACK_POOL.map((s) => (
-              <option key={s} value={s}>{SNACK_NAMES[s]}</option>
-            ))}
-          </select>
-        </div>
-      </div>
-
-      <div style={{ marginTop: 22, display: "flex", justifyContent: "flex-end" }}>
-        <button
-          disabled={!canSave}
-          onClick={() => onSave(makeCustomCreature({ name, portrait, elements, favoriteSnack, seed: Math.floor(Date.now()) }))}
-          style={{ ...ctaBtn, opacity: canSave ? 1 : 0.4, pointerEvents: canSave ? "auto" : "none" }}
-        >
-          ✨ 加入森林
-        </button>
-      </div>
-    </div>
-  );
-}
-
 type Props = { onExit?: () => void };
 
+type SaveStatusSnapshot = {
+  uid: string;
+  status: WonderAcademySaveStatus;
+};
+
 export default function WonderAcademyGame({ onExit }: Props) {
-  const { user } = useAuth();
+  const { user, signInWithGoogle, authError } = useAuth();
+  const isGuest = !user?.uid;
   const uid = user?.uid ?? "guest";
   const [state, dispatch] = useReducer(reducer, INITIAL);
+  const [saveSnapshot, setSaveSnapshot] = useState<SaveStatusSnapshot>(() => ({
+    uid,
+    status: "loading",
+  }));
+  const [hasUnsyncedLocalProgress, setHasUnsyncedLocalProgress] = useState(false);
+  const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
+  const loadedUidRef = useRef<string | null>(null);
+  const latestSaveDataRef = useRef<Persisted | null>(null);
+  const saveSeqRef = useRef(0);
 
   useEffect(() => {
-    const local = loadPersisted(uid);
-    dispatch({ type: "load", state: local });
-    // On a device with no local save yet, pull cloud progress (never clobbers
-    // existing local progress).
-    if (local && local.team.length > 0) return;
     let cancelled = false;
-    void loadCloudGame(uid).then((cloud) => {
-      if (!cancelled && cloud && cloud.team.length > 0) {
-        dispatch({ type: "load", state: cloud });
-      }
-    });
+    loadedUidRef.current = null;
+
+    void loadWonderAcademySave({
+      uid,
+      cloud: isGuest ? localOnlyWonderAcademyCloudAdapter : undefined,
+    })
+      .then((result) => {
+        if (cancelled) return;
+        dispatch({ type: "load", state: result.data });
+        loadedUidRef.current = uid;
+        setHasUnsyncedLocalProgress(!isGuest && result.hasUnsyncedLocalProgress);
+        setSaveSnapshot({
+          uid,
+          status: visibleWonderAcademySaveStatus({ isGuest, status: result.status }),
+        });
+      })
+      .catch(() => {
+        if (cancelled) return;
+        dispatch({ type: "load", state: null });
+        loadedUidRef.current = uid;
+        setHasUnsyncedLocalProgress(false);
+        setSaveSnapshot({ uid, status: "failed" });
+      });
+
     return () => {
       cancelled = true;
     };
-  }, [uid]);
+  }, [uid, isGuest]);
 
   // ---- audio ----
   const audioRef = useRef<WonderAcademyAudioManager | null>(null);
-  const [muted, setMuted] = useState(false);
   const [dailyFlash, setDailyFlash] = useState<string | null>(null);
   const sfx = (id: Parameters<WonderAcademyAudioManager["playSfx"]>[0]) =>
     audioRef.current?.playSfx(id);
+  const handleSignIn = () => {
+    void signInWithGoogle().catch(() => {
+      // Auth context exposes the localized error message.
+    });
+  };
+  const startNewGame = () => {
+    sfx("ui_select");
+    dispatch({ type: "beginNewGame" });
+  };
+  const confirmResetNewGame = () => {
+    sfx("ui_confirm");
+    setResetConfirmOpen(false);
+    dispatch({ type: "resetNewGame" });
+  };
 
   useEffect(() => {
     audioRef.current = createWonderAcademyAudio({
@@ -1104,22 +1053,20 @@ export default function WonderAcademyGame({ onExit }: Props) {
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
-    audio.setSettings({ muted });
-    if (muted) {
+    audio.setSettings(state.audioSettings);
+    if (state.audioSettings.muted) {
       audio.stopAll();
       return;
     }
-    const loop =
-      state.screen === "battle"
-        ? state.isWarden
-          ? "warden_trial_loop"
-          : "mood_trial_loop"
-        : "hub_loop";
-    for (const id of ["hub_loop", "mood_trial_loop", "warden_trial_loop"] as const) {
+    const loop = selectWonderAcademyLoop({
+      screen: state.screen,
+      isWarden: state.isWarden,
+    });
+    for (const id of wonderAcademyLoopIds) {
       if (id !== loop) audio.stopLoop(id);
     }
     audio.startLoop(loop);
-  }, [state.screen, state.isWarden, muted]);
+  }, [state.screen, state.isWarden, state.audioSettings]);
 
   useEffect(() => {
     if (!state.result) return;
@@ -1140,7 +1087,7 @@ export default function WonderAcademyGame({ onExit }: Props) {
   }, [state.screen]);
 
   useEffect(() => {
-    if (!state.ready) return;
+    if (!state.ready || loadedUidRef.current !== uid) return;
     const data: Persisted = {
       playerName: state.playerName,
       team: state.team,
@@ -1152,18 +1099,90 @@ export default function WonderAcademyGame({ onExit }: Props) {
       clearedNodes: state.clearedNodes,
       shinyDex: state.shinyDex,
       dexRewardsClaimed: state.dexRewardsClaimed,
+      materials: state.materials,
+      charms: state.charms,
+      activeCharms: state.activeCharms,
+      trialWins: state.trialWins,
       lastDailyReward: state.lastDailyReward,
       daily: state.daily,
+      audioSettings: state.audioSettings,
     };
-    try {
-      window.localStorage.setItem(storageKey(uid), JSON.stringify(data));
-    } catch {
-      // ignore quota / availability errors
-    }
-    // Debounced cloud sync (best-effort; localStorage stays primary).
-    const timer = setTimeout(() => void saveCloudGame(uid, data), 900);
-    return () => clearTimeout(timer);
-  }, [uid, state.ready, state.playerName, state.team, state.dex, state.stardust, state.snacks, state.customCreatures, state.wardensDefeated, state.clearedNodes, state.shinyDex, state.dexRewardsClaimed, state.lastDailyReward, state.daily]);
+    latestSaveDataRef.current = data;
+    const timer = window.setTimeout(() => {
+      const seq = ++saveSeqRef.current;
+      setSaveSnapshot({ uid, status: "saving" });
+      void saveWonderAcademyProgress({
+        uid,
+        data,
+        cloud: isGuest ? localOnlyWonderAcademyCloudAdapter : undefined,
+      })
+        .then((result) => {
+          if (seq !== saveSeqRef.current) return;
+          setHasUnsyncedLocalProgress(!isGuest && result.status === "pending");
+          setSaveSnapshot({ uid, status: isGuest ? "saved" : result.status });
+        })
+        .catch(() => {
+          if (seq !== saveSeqRef.current) return;
+          setHasUnsyncedLocalProgress(!isGuest);
+          setSaveSnapshot({ uid, status: "failed" });
+        });
+    }, 900);
+    return () => window.clearTimeout(timer);
+  }, [uid, isGuest, state.ready, state.playerName, state.team, state.dex, state.stardust, state.snacks, state.customCreatures, state.wardensDefeated, state.clearedNodes, state.shinyDex, state.dexRewardsClaimed, state.materials, state.charms, state.activeCharms, state.trialWins, state.lastDailyReward, state.daily, state.audioSettings]);
+
+  useEffect(() => {
+    if (!state.ready) return;
+    let disposed = false;
+
+    const syncPending = () => {
+      if (isGuest || loadedUidRef.current !== uid) return;
+      const seq = ++saveSeqRef.current;
+      setSaveSnapshot({ uid, status: "saving" });
+      void syncWonderAcademyPendingSave({ uid })
+        .then((result) => {
+          if (disposed || seq !== saveSeqRef.current || result.status === "idle") return;
+          setHasUnsyncedLocalProgress(result.status === "pending");
+          setSaveSnapshot({ uid, status: result.status });
+        })
+        .catch(() => {
+          if (disposed || seq !== saveSeqRef.current) return;
+          setHasUnsyncedLocalProgress(true);
+          setSaveSnapshot({ uid, status: "failed" });
+        });
+    };
+
+    const checkpoint = () => {
+      if (loadedUidRef.current !== uid) return;
+      const data = latestSaveDataRef.current;
+      if (!data) return;
+      checkpointWonderAcademyProgress({
+        uid,
+        data,
+        queuePending: !isGuest,
+      });
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        checkpoint();
+      } else {
+        syncPending();
+      }
+    };
+
+    window.addEventListener("online", syncPending);
+    window.addEventListener("pagehide", checkpoint);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    const retryTimer = window.setTimeout(syncPending, 0);
+
+    return () => {
+      disposed = true;
+      window.clearTimeout(retryTimer);
+      window.removeEventListener("online", syncPending);
+      window.removeEventListener("pagehide", checkpoint);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [uid, isGuest, state.ready]);
 
   // Keep the runtime species registry in sync with the player's custom creatures.
   registerCustomCreatures(state.customCreatures);
@@ -1175,6 +1194,29 @@ export default function WonderAcademyGame({ onExit }: Props) {
   const totalSnacks = useMemo(
     () => Object.values(state.snacks).reduce((a, b) => a + b, 0),
     [state.snacks],
+  );
+  const totalMaterials = useMemo(
+    () => Object.values(state.materials).reduce((a, b) => a + b, 0),
+    [state.materials],
+  );
+  const totalCharms = useMemo(
+    () => Object.values(state.charms).reduce((a, b) => a + b, 0),
+    [state.charms],
+  );
+  const regionIds = useMemo(() => REGIONS.map((region) => region.id), []);
+  const postgameUnlocked = isPostgameUnlocked(regionIds, state.wardensDefeated);
+  const currentObjective = useMemo(
+    () => nextWonderAcademyObjective({
+      teamCount: state.team.length,
+      clearedNodes: state.clearedNodes,
+      wardensDefeated: state.wardensDefeated,
+      regionIds,
+      dexCaught: completion.caught,
+      dexTotal: completion.total,
+      charmCount: totalCharms,
+      trialWins: state.trialWins,
+    }),
+    [state.team.length, state.clearedNodes, state.wardensDefeated, regionIds, completion.caught, completion.total, totalCharms, state.trialWins],
   );
   const today = useMemo(() => {
     const d = new Date();
@@ -1188,6 +1230,11 @@ export default function WonderAcademyGame({ onExit }: Props) {
     setDailyFlash(`✨ Stardust ×20 · 🍪 ${SNACK_NAMES[pick]} ×1`);
     window.setTimeout(() => setDailyFlash(null), 5000);
   };
+  const effectiveSaveStatus: WonderAcademySaveStatus =
+    saveSnapshot.uid === uid ? saveSnapshot.status : "loading";
+  const saveLabel = saveStatusLabel(effectiveSaveStatus, isGuest);
+  const entryCopy = getWonderAcademyEntryCopy({ isGuest });
+  const showUnsyncedLocalNotice = !isGuest && hasUnsyncedLocalProgress;
 
   const frame = (children: ReactNode) => (
     <div style={{ minHeight: "100dvh", background: PANEL_BG, fontFamily: '-apple-system, "PingFang TC", "Noto Sans TC", sans-serif', color: "#33304a" }}>
@@ -1195,9 +1242,10 @@ export default function WonderAcademyGame({ onExit }: Props) {
         <button onClick={onExit} style={btnGhost}><ArrowLeft size={16} /> 離開</button>
         <div style={{ fontSize: 13, fontWeight: 800, letterSpacing: ".04em" }}>✦ Sparkleaf 星葉學院</div>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <button onClick={() => setMuted((m) => !m)} style={{ ...btnGhost, padding: 4 }} title={muted ? "開啟音效" : "靜音"}>
-            {muted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+          <button onClick={() => dispatch({ type: "toggleMute" })} style={{ ...btnGhost, padding: 4 }} title={state.audioSettings.muted ? "開啟音效" : "靜音"}>
+            {state.audioSettings.muted ? <VolumeX size={16} /> : <Volume2 size={16} />}
           </button>
+          <span aria-live="polite" style={saveStatusChip(effectiveSaveStatus)}>{saveLabel}</span>
           <span style={{ fontSize: 12, fontWeight: 700, color: "#8a83a3" }}>✨ {state.stardust}</span>
         </div>
       </header>
@@ -1214,7 +1262,19 @@ export default function WonderAcademyGame({ onExit }: Props) {
         <div style={{ fontSize: 56, marginBottom: 4 }}>✦</div>
         <h1 style={{ fontSize: 34, fontWeight: 800, margin: "0 0 6px" }}>Wonder Academy</h1>
         <p style={{ color: "#8a83a3", fontSize: 15, margin: "0 0 28px" }}>在發光的森林裡,遇見、收服、養大你的夥伴。</p>
-        <button onClick={() => dispatch({ type: "beginNewGame" })} style={ctaBtn}>開始冒險 →</button>
+        {entryCopy.noticeTitle && entryCopy.noticeBody && (
+          <div style={guestNoticeBox}>
+            <div style={{ fontWeight: 900, color: "#5b3d00", marginBottom: 4 }}>{entryCopy.noticeTitle}</div>
+            <div>{entryCopy.noticeBody}</div>
+          </div>
+        )}
+        {authError && <div style={authErrorBox}>{authError}</div>}
+        <div style={{ display: "flex", justifyContent: "center", gap: 10, flexWrap: "wrap" }}>
+          <button onClick={isGuest ? handleSignIn : startNewGame} style={ctaBtn}>{entryCopy.primaryLabel} →</button>
+          {entryCopy.secondaryLabel && (
+            <button onClick={startNewGame} style={btnOutline}>{entryCopy.secondaryLabel}</button>
+          )}
+        </div>
       </div>,
     );
   }
@@ -1273,7 +1333,7 @@ export default function WonderAcademyGame({ onExit }: Props) {
             const finalForm = s.growthStages[s.growthStages.length - 1];
             return (
               <button key={s.speciesId} className="wa-starter" onClick={() => dispatch({ type: "pickStarter", speciesId: s.speciesId })} style={{ ...cardBtn, animationDelay: `${i * 0.08}s` }}>
-                <img src={s.portrait} alt={s.name} style={{ width: 96, height: 96, objectFit: "contain", margin: "0 auto 8px", display: "block", filter: "drop-shadow(0 6px 8px rgba(0,0,0,.12))" }} />
+                <img src={s.portrait} alt={s.name} style={{ width: "auto", maxWidth: 118, height: 102, objectFit: "contain", margin: "0 auto 8px", display: "block", filter: "drop-shadow(0 6px 8px rgba(0,0,0,.12))" }} />
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
                   <span style={{ fontWeight: 800, fontSize: 18 }}>{s.name}</span>
                   {s.role && <span style={roleBadge}>{s.role}</span>}
@@ -1301,6 +1361,7 @@ export default function WonderAcademyGame({ onExit }: Props) {
   if (state.screen === "nodeMap") {
     const region = (state.activeRegionId ? regionById(state.activeRegionId) : FIRST_REGION) ?? FIRST_REGION;
     const wardenDone = state.wardensDefeated.includes(region.id);
+    const skillIds = teamFieldSkillIds(state.team);
     const [br, bg, bb] = region.theme.bg;
     return frame(
       <div>
@@ -1322,10 +1383,11 @@ export default function WonderAcademyGame({ onExit }: Props) {
             )}
           </svg>
           {region.nodes.map((n) => {
-            const unlocked = isNodeUnlocked(n, region.id, state.clearedNodes);
+            const unlocked = isNodeUnlocked(n, region.id, state.clearedNodes, skillIds);
             const cleared = n.kind === "warden" ? wardenDone : state.clearedNodes.includes(nodeKey(region.id, n.id));
             const isWardenNode = n.kind === "warden";
             const live = unlocked && !cleared;
+            const unlockHint = nodeUnlockHint(n, region, state.clearedNodes, skillIds);
             const dotBg = !unlocked ? "#cdc6dd" : isWardenNode ? (cleared ? "#9ac0e0" : "#ef5b6e") : cleared ? "#5fbf7a" : "#7c6cff";
             const glyph = !unlocked ? "🔒" : isWardenNode ? (cleared ? "✨" : "👑") : cleared ? "✓" : "🐾";
             return (
@@ -1338,6 +1400,9 @@ export default function WonderAcademyGame({ onExit }: Props) {
               >
                 <span className={live ? "wa-node-live" : undefined} style={{ width: 38, height: 38, borderRadius: "50%", background: dotBg, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, border: "2px solid #fff", boxShadow: "0 4px 10px rgba(60,40,90,.25)", animation: live ? "waNodePulse 1.8s ease-in-out infinite" : undefined }}>{glyph}</span>
                 <span style={{ fontSize: 11, fontWeight: 800, color: unlocked ? "#33304a" : "#8a83a3", background: "rgba(255,255,255,.82)", borderRadius: 8, padding: "2px 7px", whiteSpace: "nowrap" }}>{n.label}</span>
+                {unlockHint && (
+                  <span style={{ fontSize: 10, fontWeight: 800, color: "#6a6585", background: "rgba(255,255,255,.82)", borderRadius: 8, padding: "2px 6px", whiteSpace: "nowrap", boxShadow: "0 2px 6px rgba(60,40,90,.08)" }}>🔒 {unlockHint}</span>
+                )}
               </button>
             );
           })}
@@ -1367,7 +1432,38 @@ export default function WonderAcademyGame({ onExit }: Props) {
     return frame(
       <div>
         <h1 style={{ fontSize: 24, fontWeight: 800, margin: "8px 0 2px" }}>學院大廳</h1>
-        <p style={{ color: "#8a83a3", fontSize: 14, margin: "0 0 18px" }}>圖鑑進度 {completion.caught}/{completion.total} 已收服 · {completion.seen} 已遇見 · 🍪 點心 ×{totalSnacks}</p>
+        <p style={{ color: "#8a83a3", fontSize: 14, margin: "0 0 18px" }}>圖鑑進度 {completion.caught}/{completion.total} 已收服 · {completion.seen} 已遇見 · 🍪 點心 ×{totalSnacks} · 🔨 材料 ×{totalMaterials}</p>
+        {isGuest && entryCopy.noticeTitle && entryCopy.noticeBody && (
+          <div style={{ ...guestNoticeBox, margin: "0 0 16px", textAlign: "left", maxWidth: "none" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+              <div style={{ flex: "1 1 240px" }}>
+                <div style={{ fontWeight: 900, color: "#5b3d00", marginBottom: 3 }}>{entryCopy.noticeTitle}</div>
+                <div>{entryCopy.noticeBody}</div>
+              </div>
+              <button onClick={handleSignIn} style={{ ...btnOutline, padding: "9px 13px", fontSize: 12 }}>登入同步</button>
+            </div>
+            {authError && <div style={{ ...authErrorBox, margin: "10px 0 0", textAlign: "left" }}>{authError}</div>}
+          </div>
+        )}
+        {showUnsyncedLocalNotice && (
+          <div style={unsyncedNoticeBox}>
+            <div style={{ fontWeight: 900, color: "#5b3d00", marginBottom: 3 }}>
+              此裝置有尚未同步的 Wonder Academy 進度
+            </div>
+            <div>我會自動同步到雲端。同步完成前,請先不要在其他裝置覆蓋這份進度。</div>
+          </div>
+        )}
+
+        <div style={{ ...cardStatic, marginBottom: 16, padding: "12px 14px", borderColor: "rgba(106,82,255,.18)", background: "rgba(255,255,255,.78)" }}>
+          <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: ".08em", color: "#8a83a3", textTransform: "uppercase", marginBottom: 5 }}>目前目標</div>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+            <div style={{ flex: "1 1 260px" }}>
+              <div style={{ fontSize: 15, fontWeight: 900, color: "#33304a" }}>{currentObjective.label}</div>
+              <div style={{ fontSize: 12.5, color: "#6a6585", lineHeight: 1.45 }}>{currentObjective.description}</div>
+            </div>
+            <span style={{ fontSize: 12, fontWeight: 900, color: "#6a52ff", background: "#efeaff", border: "1px solid #cdb6ef", borderRadius: 999, padding: "6px 10px" }}>{currentObjective.actionLabel}</span>
+          </div>
+        </div>
 
         <style>{`@keyframes waBob{0%,100%{transform:translateY(0)}50%{transform:translateY(-9px)}}@media (prefers-reduced-motion: reduce){.wa-bob{animation:none!important}}`}</style>
         <div style={{ position: "relative", height: 152, borderRadius: 16, overflow: "hidden", marginBottom: 20, backgroundImage: `url(${academyHubUrl})`, backgroundSize: "cover", backgroundPosition: "center", boxShadow: "inset 0 -34px 44px rgba(0,0,0,.14), 0 6px 18px rgba(80,50,130,.1)" }}>
@@ -1430,8 +1526,40 @@ export default function WonderAcademyGame({ onExit }: Props) {
           <button onClick={() => dispatch({ type: "openRegions" })} style={ctaBtn}><Compass size={18} /> 出發探索</button>
           <button onClick={() => dispatch({ type: "openDex" })} style={btnOutline}><Sparkles size={16} /> 圖鑑</button>
           <button onClick={() => dispatch({ type: "openShop" })} style={btnOutline}><ShoppingBag size={16} /> 商店</button>
+          <button onClick={() => dispatch({ type: "openWorkshop" })} style={btnOutline}><Hammer size={16} /> 工房</button>
+          <button
+            disabled={!postgameUnlocked}
+            onClick={() => { if (postgameUnlocked) dispatch({ type: "openTrials" }); }}
+            style={{ ...btnOutline, opacity: postgameUnlocked ? 1 : 0.52, cursor: postgameUnlocked ? "pointer" : "default" }}
+          >
+            <Sparkles size={16} /> 試煉
+          </button>
           <button onClick={() => dispatch({ type: "openBuilder" })} style={btnOutline}><Plus size={16} /> 建立寵物</button>
+          <button
+            onClick={() => {
+              if (shouldConfirmWonderAcademyOverwrite(state.team.length)) {
+                setResetConfirmOpen(true);
+              } else {
+                dispatch({ type: "resetNewGame" });
+              }
+            }}
+            style={dangerOutlineBtn}
+          >
+            <RotateCcw size={16} /> 重新開始
+          </button>
         </div>
+        {resetConfirmOpen && (
+          <div role="dialog" aria-labelledby="wa-reset-title" style={resetConfirmBox}>
+            <div id="wa-reset-title" style={{ fontSize: 15, fontWeight: 900, color: "#5f2030", marginBottom: 4 }}>確定要重新開始?</div>
+            <p style={{ fontSize: 13, lineHeight: 1.55, color: "#7a5160", margin: "0 0 12px" }}>
+              目前的隊伍、星塵、圖鑑與地圖進度會被新的存檔覆蓋。這個動作會在下一次保存時同步。
+            </p>
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap" }}>
+              <button onClick={() => setResetConfirmOpen(false)} style={{ ...btnOutline, padding: "9px 13px", fontSize: 12 }}>取消</button>
+              <button onClick={confirmResetNewGame} style={dangerBtn}>清空並重新開始</button>
+            </div>
+          </div>
+        )}
 
         <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: ".1em", color: "#8a83a3", textTransform: "uppercase", marginBottom: 10 }}>你的隊伍</div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(150px,1fr))", gap: 12 }}>
@@ -1440,7 +1568,7 @@ export default function WonderAcademyGame({ onExit }: Props) {
             const hearts = Math.min(5, Math.round(o.bond / 20));
             return (
               <div key={o.ownedId} style={cardStatic}>
-                <img src={sp?.portrait} alt={sp?.name} style={{ width: 64, height: 64, objectFit: "contain", margin: "0 auto 6px", display: "block", filter: o.shiny ? SHINY_FILTER : undefined }} />
+                <img src={sp?.portrait} alt={sp?.name} style={{ width: "auto", maxWidth: 82, height: 66, objectFit: "contain", margin: "0 auto 6px", display: "block", filter: o.shiny ? SHINY_FILTER : undefined }} />
                 <div style={{ fontWeight: 800, textAlign: "center" }}>{o.shiny && "✨ "}{displayName(o)}</div>
                 <div style={{ fontSize: 11, color: "#8a83a3", textAlign: "center", marginBottom: 6 }}>Lv.{o.level} · {sp?.category}</div>
                 <div style={{ display: "flex", gap: 4, justifyContent: "center", marginBottom: 6 }}>
@@ -1483,7 +1611,7 @@ export default function WonderAcademyGame({ onExit }: Props) {
         </div>
         <p style={{ color: "#8a83a3", fontSize: 14, margin: "0 0 14px" }}>打敗一個區域的守關魔王,就能解鎖下一個更深的地方。</p>
         {(() => {
-          const skillIds = [...new Set(state.team.map((o) => speciesById(o.speciesId)?.fieldSkillId).filter((id): id is string => !!id))];
+          const skillIds = teamFieldSkillIds(state.team);
           if (skillIds.length === 0) return null;
           return (
             <div style={{ ...cardStatic, marginBottom: 16, padding: "10px 14px" }}>
@@ -1602,7 +1730,7 @@ export default function WonderAcademyGame({ onExit }: Props) {
             const shinyCaught = state.shinyDex.includes(s.speciesId);
             return (
               <div key={s.speciesId} style={{ ...cardStatic, opacity: seen ? 1 : 0.55, textAlign: "center" }}>
-                <img src={s.portrait} alt={seen ? s.name : "???"} style={{ width: 64, height: 64, objectFit: "contain", margin: "0 auto 6px", display: "block", filter: !caught ? "grayscale(1) brightness(.7)" : shinyCaught ? SHINY_FILTER : "none" }} />
+                <img src={s.portrait} alt={seen ? s.name : "???"} style={{ width: "auto", maxWidth: 122, height: 96, objectFit: "contain", margin: "0 auto 6px", display: "block", filter: !caught ? "grayscale(1) brightness(.7)" : shinyCaught ? SHINY_FILTER : "none" }} />
                 <div style={{ fontWeight: 800 }}>{shinyCaught && "✨ "}{seen ? s.name : "？？？"}</div>
                 <div style={{ fontSize: 11, color: caught ? "#42b86a" : "#8a83a3", fontWeight: 700 }}>
                   {caught ? (shinyCaught ? "已收服 ✨閃光" : "已收服") : seen ? "已遇見" : "未發現"}
@@ -1638,6 +1766,44 @@ export default function WonderAcademyGame({ onExit }: Props) {
           sfx("ui_confirm");
           dispatch({ type: "addCustom", creature });
         }}
+      />,
+    );
+  }
+
+  // ---------- WORKSHOP ----------
+  if (state.screen === "workshop") {
+    return frame(
+      <WorkshopScreen
+        stardust={state.stardust}
+        materials={state.materials}
+        charms={state.charms}
+        activeCharms={state.activeCharms}
+        audioSettings={state.audioSettings}
+        onCraft={(charmId) => {
+          sfx("wonderdex_update");
+          dispatch({ type: "craftCharm", charmId });
+        }}
+        onToggle={(charmId) => {
+          sfx("ui_confirm");
+          dispatch({ type: "toggleCharm", charmId });
+        }}
+        onSetVolume={(channel, value) => dispatch({ type: "setAudioVolume", channel, value })}
+        onClose={() => dispatch({ type: "closeWorkshop" })}
+      />,
+    );
+  }
+
+  // ---------- TRIALS ----------
+  if (state.screen === "trials") {
+    return frame(
+      <TrialsScreen
+        unlocked={postgameUnlocked}
+        trialWins={state.trialWins}
+        onStart={(trialId) => {
+          sfx("ui_confirm");
+          dispatch({ type: "startTrial", trialId });
+        }}
+        onClose={() => dispatch({ type: "closeTrials" })}
       />,
     );
   }
@@ -1719,6 +1885,7 @@ export default function WonderAcademyGame({ onExit }: Props) {
     const favSnack = wildSp?.favoriteSnack;
     const favCount = favSnack ? (state.snacks?.[favSnack] ?? 0) : 0;
     const hasFav = favCount > 0;
+    const hasCatchSnack = SNACK_POOL.some((id) => (state.snacks?.[id] ?? 0) > 0);
     return frame(
       <div>
         <div style={{ borderRadius: 18, overflow: "hidden", boxShadow: "0 10px 30px rgba(80,50,130,.12)" }}>
@@ -1764,11 +1931,15 @@ export default function WonderAcademyGame({ onExit }: Props) {
                 const mv = getMoveById(id);
                 if (!mv) return null;
                 const eff = getEffectivenessAgainst(mv.element, s.wild.elements);
+                const badge = effectivenessBadge(eff);
                 const m = ELEMENT_META[mv.element];
                 return (
                   <button key={id} onClick={() => dispatch({ type: "battleMove", moveId: id, today })} style={moveBtn}>
-                    {eff >= 2 && <span style={effBadge}>剋制 2×</span>}
-                    {eff <= 0.5 && <span style={{ ...effBadge, background: "#9aa0b5" }}>沒效 ½</span>}
+                    {badge && (
+                      <span style={badge.tone === "weak" ? { ...effBadge, background: "#9aa0b5" } : effBadge}>
+                        {badge.label}
+                      </span>
+                    )}
                     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                       <span style={{ width: 10, height: 10, borderRadius: "50%", background: m.fg }} />
                       <span style={{ fontWeight: 800, fontSize: 13 }}>{mv.name}</span>
@@ -1785,11 +1956,19 @@ export default function WonderAcademyGame({ onExit }: Props) {
                   <small style={{ display: "block", fontSize: 9.5, fontWeight: 700, opacity: 0.85, marginTop: 2 }}>打敗牠就好,無法收服</small>
                 </div>
               ) : (
-                <button onClick={() => dispatch({ type: "battleCatch", today })} style={{ ...actBtn, background: "linear-gradient(180deg,#ffd66b,#f7b13a)", color: "#5b3d00", border: "none", boxShadow: "0 6px 16px rgba(247,177,58,.4)", lineHeight: 1.25 }}>
+                <button
+                  disabled={!hasCatchSnack}
+                  onClick={() => { if (hasCatchSnack) dispatch({ type: "battleCatch", today }); }}
+                  style={{ ...actBtn, opacity: hasCatchSnack ? 1 : 0.55, cursor: hasCatchSnack ? "pointer" : "not-allowed", background: "linear-gradient(180deg,#ffd66b,#f7b13a)", color: "#5b3d00", border: "none", boxShadow: hasCatchSnack ? "0 6px 16px rgba(247,177,58,.4)" : "none", lineHeight: 1.25 }}
+                >
                   🍪 遞點心收服
                   {favSnack && (
                     <small style={{ display: "block", fontSize: 9.5, fontWeight: 700, opacity: 0.85, marginTop: 2 }}>
-                      {hasFav ? `最愛 ${SNACK_NAMES[favSnack] ?? favSnack} ×${favCount} · 加成!` : `最愛 ${SNACK_NAMES[favSnack] ?? favSnack}(沒有)`}
+                      {hasFav
+                        ? `最愛 ${SNACK_NAMES[favSnack] ?? favSnack} ×${favCount} · 加成!`
+                        : hasCatchSnack
+                          ? `最愛 ${SNACK_NAMES[favSnack] ?? favSnack}(沒有) · 改用一般點心`
+                          : "沒有可用點心"}
                     </small>
                   )}
                 </button>
@@ -1807,21 +1986,3 @@ export default function WonderAcademyGame({ onExit }: Props) {
 
   return frame(<div style={{ textAlign: "center", padding: 60, color: "#8a83a3" }}>…</div>);
 }
-
-// ---- shared styles ----
-const btnGhost: CSSProperties = { display: "inline-flex", alignItems: "center", gap: 5, fontSize: 13, fontWeight: 600, color: "#6a6585", background: "transparent", border: "none", cursor: "pointer", padding: "6px 8px" };
-const btnOutline: CSSProperties = { display: "inline-flex", alignItems: "center", gap: 6, fontSize: 14, fontWeight: 800, color: "#6a52ff", background: "rgba(255,255,255,.7)", border: "1px solid rgba(106,82,255,.3)", borderRadius: 13, padding: "12px 18px", cursor: "pointer" };
-const ctaBtn: CSSProperties = { display: "inline-flex", alignItems: "center", gap: 8, fontSize: 15, fontWeight: 800, color: "#fff", background: "linear-gradient(180deg,#7c6cff,#6a52ff)", border: "none", padding: "13px 24px", borderRadius: 14, boxShadow: "0 8px 20px rgba(106,82,255,.34)", cursor: "pointer" };
-const dailyBtn: CSSProperties = { display: "inline-flex", alignItems: "center", gap: 8, fontSize: 14, fontWeight: 800, color: "#5b3d00", background: "linear-gradient(180deg,#ffd66b,#f7b13a)", border: "none", padding: "11px 18px", borderRadius: 13, boxShadow: "0 6px 16px rgba(247,177,58,.4)", cursor: "pointer", marginBottom: 14 };
-const dailyFlashBox: CSSProperties = { display: "inline-flex", alignItems: "center", gap: 8, fontSize: 13.5, fontWeight: 800, color: "#5b3d00", background: "#fff4d6", border: "1px solid #f0c869", padding: "10px 16px", borderRadius: 13, marginBottom: 14 };
-const roleBadge: CSSProperties = { fontSize: 10, fontWeight: 800, color: "#6a52ff", background: "#efeaff", border: "1px solid #cdb6ef", borderRadius: 999, padding: "1px 7px" };
-const cardBtn: CSSProperties = { background: "rgba(255,255,255,.66)", backdropFilter: "blur(14px)", border: "1px solid rgba(60,40,90,.1)", borderRadius: 18, padding: "16px 14px", textAlign: "center", cursor: "pointer", boxShadow: "0 6px 18px rgba(80,50,130,.08)", transition: "transform .18s" };
-const cardStatic: CSSProperties = { background: "rgba(255,255,255,.66)", border: "1px solid rgba(60,40,90,.1)", borderRadius: 16, padding: 12, boxShadow: "0 5px 14px rgba(80,50,130,.07)" };
-const infoCard: CSSProperties = { background: "rgba(255,255,255,.85)", backdropFilter: "blur(6px)", border: "1px solid rgba(60,40,90,.1)", borderRadius: 12, padding: "8px 11px", width: 200, boxShadow: "0 5px 12px rgba(60,40,90,.1)" };
-const moveBtn: CSSProperties = { position: "relative", background: "#fff", border: "1px solid rgba(60,40,90,.12)", borderRadius: 12, padding: "10px 11px", cursor: "pointer", textAlign: "left", boxShadow: "0 2px 6px rgba(60,40,90,.06)" };
-const effBadge: CSSProperties = { position: "absolute", top: -8, right: -6, fontSize: 10, fontWeight: 800, color: "#fff", background: "#ef5b6e", padding: "2px 7px", borderRadius: 999, boxShadow: "0 3px 7px rgba(239,91,110,.4)" };
-const actBtn: CSSProperties = { borderRadius: 12, padding: "10px 8px", fontSize: 12.5, fontWeight: 800, textAlign: "center", cursor: "pointer", border: "1px solid rgba(60,40,90,.12)", background: "#fff" };
-const actBtnSub: CSSProperties = { ...actBtn, color: "#6a6585" };
-const feedBtn: CSSProperties = { width: "100%", borderRadius: 10, padding: "7px 8px", fontSize: 12, fontWeight: 800, color: "#c98a12", background: "#fff7e0", border: "1px solid #f0c869" };
-const fieldLabel: CSSProperties = { fontSize: 12, fontWeight: 800, color: "#33304a", marginBottom: 6 };
-const fieldInput: CSSProperties = { width: "100%", fontSize: 14, padding: "9px 11px", borderRadius: 10, border: "1px solid rgba(60,40,90,.18)", background: "rgba(255,255,255,.85)", fontFamily: "inherit", color: "#33304a" };

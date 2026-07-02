@@ -4,10 +4,14 @@ import type {
   TravelTopicGroup,
 } from "../types/travelEnglish";
 import { singaporeGeneralScenes } from "./scenes/singapore-general";
+import { beforeDepartureScene } from "./scenes/journey-before-departure";
 import { taoyuanAirportScene } from "./scenes/journey-taoyuan-airport";
 import { changiArrivalScene } from "./scenes/journey-changi-arrival";
 import { onThePlaneScene } from "./scenes/journey-on-the-plane";
+import { goingHomeScene } from "./scenes/journey-going-home";
 import { singaporeMandaiScenes } from "./scenes/singapore-mandai";
+import { sentosaScenes } from "./scenes/singapore-sentosa";
+import { marinaBayScene, cultureScene } from "./scenes/singapore-city-sights";
 
 /** 從 singapore-general 取出指定場景 */
 function general(id: string): TravelScene {
@@ -45,9 +49,23 @@ function labeledGroup(scene: TravelScene): TravelTopicGroup {
 export const travelTopics: TravelTopic[] = [
   // ───────────────────────── 核心情境 ─────────────────────────
   {
-    id: "airport",
+    id: "before-departure",
     section: "core",
     stage: 1,
+    stageLabel: "行前準備",
+    title: "Before the Trip",
+    titleChinese: "出發前準備",
+    summary: "打包行李、檢查護照與登機證，認識新加坡的天氣，準備出發！",
+    learningGoals: ["說出要打包的物品", "確認護照與重要文件", "聊聊新加坡的天氣"],
+    mission: "和爸媽用英文完成行李檢查：說出 5 樣要帶去新加坡的東西。",
+    reviewPrompt: "練習 Did you pack your...? 和 I'm so excited about our trip!",
+    colorClass: "bg-violet-50",
+    groups: [singleGroup(beforeDepartureScene)],
+  },
+  {
+    id: "airport",
+    section: "core",
+    stage: 2,
     stageLabel: "出發與入境",
     title: "Airport & Immigration",
     titleChinese: "機場與入境",
@@ -62,7 +80,7 @@ export const travelTopics: TravelTopic[] = [
   {
     id: "transport",
     section: "core",
-    stage: 3,
+    stage: 4,
     stageLabel: "移動城市",
     title: "Getting Around",
     titleChinese: "交通出行",
@@ -76,7 +94,7 @@ export const travelTopics: TravelTopic[] = [
   {
     id: "food",
     section: "core",
-    stage: 5,
+    stage: 6,
     stageLabel: "點餐用餐",
     title: "Food & Hawker Centre",
     titleChinese: "美食與小販中心",
@@ -90,7 +108,7 @@ export const travelTopics: TravelTopic[] = [
   {
     id: "hotel",
     section: "core",
-    stage: 4,
+    stage: 5,
     stageLabel: "入住整理",
     title: "Hotel",
     titleChinese: "飯店住宿",
@@ -104,7 +122,7 @@ export const travelTopics: TravelTopic[] = [
   {
     id: "shopping",
     section: "core",
-    stage: 7,
+    stage: 10,
     stageLabel: "購物結帳",
     title: "Shopping",
     titleChinese: "購物",
@@ -118,7 +136,7 @@ export const travelTopics: TravelTopic[] = [
   {
     id: "help",
     section: "core",
-    stage: 9,
+    stage: 11,
     stageLabel: "旅途中求助",
     title: "Help & Emergencies",
     titleChinese: "求助與緊急",
@@ -134,7 +152,7 @@ export const travelTopics: TravelTopic[] = [
   {
     id: "plane",
     section: "more",
-    stage: 2,
+    stage: 3,
     stageLabel: "飛行途中",
     title: "On the Plane",
     titleChinese: "飛機上",
@@ -148,21 +166,41 @@ export const travelTopics: TravelTopic[] = [
   {
     id: "attractions",
     section: "more",
-    stage: 6,
+    stage: 7,
     stageLabel: "景點體驗",
     title: "Attractions & Fun",
     titleChinese: "景點與娛樂",
-    summary: "買門票、問表演時間、排隊、請人拍照，享受新加坡景點。",
-    learningGoals: ["購買門票與詢問折扣", "問表演、排隊與關門時間", "禮貌請別人幫忙拍照"],
-    mission: "在 Merlion 或 Gardens by the Bay 完成請人拍照與問表演時間的任務。",
+    summary: "買門票、看濱海灣燈光秀、和魚尾獅拍照，再逛牛車水與小印度。",
+    learningGoals: ["購買門票與詢問表演時間", "禮貌請別人幫忙拍照", "了解寺廟與清真寺的參觀禮儀"],
+    mission: "在 Gardens by the Bay 問到燈光秀時間，並請人幫全家拍一張照。",
     reviewPrompt: "練習 Could you take a photo for us? 並加上 Thank you so much.",
     colorClass: "bg-purple-50",
-    groups: [singleGroup(general("attractions"))],
+    // 通用景點 + 濱海灣 + 文化街區三個分組
+    groups: [
+      labeledGroup(general("attractions")),
+      labeledGroup(marinaBayScene),
+      labeledGroup(cultureScene),
+    ],
+  },
+  {
+    id: "sentosa",
+    section: "more",
+    stage: 8,
+    stageLabel: "樂園海灘",
+    title: "Sentosa & Universal Studios",
+    titleChinese: "聖淘沙與環球影城",
+    summary: "搭纜車上島、在環球影城玩遊樂設施和看表演，再到海灘玩水。",
+    learningGoals: ["詢問身高限制與排隊時間", "問表演與遊行的時間", "購買纜車與斜坡滑車的票"],
+    mission: "在環球影城完成問身高限制、排隊時間和表演時間三段式任務。",
+    reviewPrompt: "練習 Am I tall enough for this ride? 和 How long is the wait?",
+    colorClass: "bg-cyan-50",
+    // 環球影城 + 聖淘沙島兩個分組
+    groups: sentosaScenes.map(labeledGroup),
   },
   {
     id: "mandai",
     section: "more",
-    stage: 8,
+    stage: 9,
     stageLabel: "野生探索",
     title: "Mandai Wildlife",
     titleChinese: "動物園 Mandai",
@@ -173,6 +211,20 @@ export const travelTopics: TravelTopic[] = [
     colorClass: "bg-emerald-50",
     // 每個園區一個分組（新加坡動物園 / 夜間動物園 / 河川生態園 / 飛禽公園 / 雨林）
     groups: singaporeMandaiScenes.map(labeledGroup),
+  },
+  {
+    id: "going-home",
+    section: "more",
+    stage: 12,
+    stageLabel: "回程道別",
+    title: "Going Home",
+    titleChinese: "回家囉",
+    summary: "在樟宜機場辦退稅、買最後的伴手禮，和新加坡說再見。",
+    learningGoals: ["詢問退稅櫃檯並出示收據", "確認回程登機門與時間", "用英文分享旅行回憶"],
+    mission: "完成一次退稅對話，再用英文說出旅程中最喜歡的三件事。",
+    reviewPrompt: "用 I had a wonderful time! 和 I can't wait to come back! 說再見。",
+    colorClass: "bg-rose-50",
+    groups: [singleGroup(goingHomeScene)],
   },
 ];
 
@@ -241,6 +293,23 @@ const SITUATION_LABELS: Record<string, string> = {
   health: "身體不適",
   "lost items": "遺失物品",
   emergency: "緊急狀況",
+  // 出發前 / 回程
+  packing: "打包行李",
+  planning: "行程規劃",
+  knowledge: "小知識",
+  departure: "準備出發",
+  "tax refund": "退稅",
+  farewell: "道別",
+  // 樂園 / 戶外
+  rides: "遊樂設施",
+  height: "身高限制",
+  "cable car": "搭纜車",
+  beach: "海灘",
+  viewpoint: "觀景拍照",
+  weather: "天氣應對",
+  // 文化街區
+  etiquette: "參觀禮儀",
+  culture: "文化體驗",
   // 動物園
   feeding: "餵食動物",
   tram: "搭遊園車",
