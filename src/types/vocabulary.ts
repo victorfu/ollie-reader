@@ -4,7 +4,6 @@ export interface VocabularyWord {
   userId: string;
 
   // Word details
-  phonetic?: string;
   emoji?: string;
   definitions: Definition[];
   examples: Example[];

@@ -37,8 +37,8 @@ export const formatDefinitionsForDisplay = (
   const { includeChinese = false } = options;
   const lines: string[] = [];
 
-  // Add emoji and phonetic if available
-  const header = [word.emoji, word.phonetic].filter(Boolean).join(" ");
+  // Add emoji if available
+  const header = [word.emoji].filter(Boolean).join(" ");
   if (header) {
     lines.push(header);
   }
@@ -138,7 +138,6 @@ export const useVocabulary = () => {
         > = {
           word: trimmedWord.toLowerCase(),
           userId: user.uid,
-          ...(details?.phonetic && { phonetic: details.phonetic }),
           ...(details?.emoji && { emoji: details.emoji }),
           definitions: details?.definitions || [],
           examples: details?.examples || [],
@@ -252,7 +251,6 @@ export const useVocabulary = () => {
         > = {
           word: trimmedWord.toLowerCase(),
           userId: user.uid,
-          ...(details?.phonetic && { phonetic: details.phonetic }),
           ...(details?.emoji && { emoji: details.emoji }),
           definitions: details?.definitions || [],
           examples: details?.examples || [],
@@ -520,7 +518,6 @@ export const useVocabulary = () => {
         }
 
         const updates: Partial<VocabularyWord> = {
-          ...(details.phonetic && { phonetic: details.phonetic }),
           ...(details.emoji && { emoji: details.emoji }),
           definitions: details.definitions || [],
           examples: details.examples || [],

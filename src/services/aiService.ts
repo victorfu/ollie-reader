@@ -8,7 +8,6 @@ import { isAbortError } from "../utils/errorUtils";
  * Word details structure returned by generateWordDetails
  */
 export interface WordDetails {
-  phonetic?: string;
   emoji?: string;
   definitions: Array<{
     partOfSpeech: string;
@@ -65,7 +64,7 @@ export async function generateWordDetails(
 ): Promise<WordDetails | null> {
   try {
     const prompt = `你是一個給國小到國中學生使用的英英／英中字典助手。請解釋「${word}」這個英文單字，回覆 JSON：
-{"phonetic":"音標","definitions":[{"partOfSpeech":"詞性","definition":"簡單清楚的英文對英文解釋","definitionChinese":"對應的繁體中文解釋"}],"examples":[{"sentence":"例句"}]}
+{"definitions":[{"partOfSpeech":"詞性","definition":"簡單清楚的英文對英文解釋","definitionChinese":"對應的繁體中文解釋"}],"examples":[{"sentence":"例句"}]}
 
 要求：
 - "definition" 必須是 **英文對英文** 的解釋（English-to-English），像兒童英英字典那樣，使用簡單常見的英文單字（避免使用比原單字更難的字），完整的英文句子，10-20 個字內。
@@ -89,9 +88,6 @@ export async function generateWordDetails(
       examples: (wordData.examples as WordDetails["examples"]) || [],
     };
 
-    if (wordData.phonetic) {
-      details.phonetic = wordData.phonetic as string;
-    }
     if (wordData.emoji) {
       details.emoji = wordData.emoji as string;
     }

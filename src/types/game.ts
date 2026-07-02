@@ -47,7 +47,6 @@ export type GameView =
 
 export interface QuizQuestion {
   word: string;
-  phonetic?: string;
   options: string[]; // 4 個選項
   correctIndex: number;
   spiritId?: string; // 這題對應的精靈

@@ -33,7 +33,6 @@ export interface TravelVocab {
   word: string;
   chinese: string;
   emoji: string;
-  phonetic?: string;
   example?: string;
 }
 

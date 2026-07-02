@@ -70,11 +70,6 @@ export const VocabularyRow = ({
             <span className="truncate text-sm font-semibold tracking-tight">
               {word.word}
             </span>
-            {word.phonetic && (
-              <span className="truncate text-xs text-muted-foreground font-serif italic">
-                {word.phonetic}
-              </span>
-            )}
           </span>
           {previewDef && (
             <span className="mt-0.5 block truncate text-xs text-muted-foreground">

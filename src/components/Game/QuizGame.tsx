@@ -208,11 +208,6 @@ export function QuizGame({
               <h2 className="text-3xl font-bold text-primary mb-2">
                 {currentQuestion.word}
               </h2>
-              {currentQuestion.phonetic && (
-                <p className="text-muted-foreground">
-                  {currentQuestion.phonetic}
-                </p>
-              )}
               <p className="text-sm text-muted-foreground mt-2">
                 這個單字是什麼意思？
               </p>
