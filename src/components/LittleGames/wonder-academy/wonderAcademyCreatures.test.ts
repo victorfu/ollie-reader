@@ -69,9 +69,33 @@ describe("Wonder Academy creature registry", () => {
       "lantern-newt",
       "cloverwhirl-snail",
       "prismbell-gryphon",
+      "dewdrop-sprout",
+      "acorn-sprite",
+      "bubblefin-pony",
+      "coralpuff-turtle",
+      "driftpearl-crab",
+      "ticktock-sparrow",
+      "brassbutton-mole",
+      "keyring-ferret",
+      "syrupwing-bat",
+      "gumdrop-goat",
+      "cinnamon-imp",
+      "frostbell-hare",
+      "icicle-pup",
+      "cocoa-yak",
+      "lullaby-jelly",
+      "dreamcap-baku",
+      "blanket-bat",
+      "stardial-tortoise",
+      "meteor-marmoset",
+      "nebula-lynx",
+      "bellvine-serpent",
+      "mirrorpaw-cat",
+      "quartz-koi",
+      "chimewing-swan",
     ];
 
-    expect(WA_CREATURES).toHaveLength(24);
+    expect(WA_CREATURES).toHaveLength(48);
     expect(WA_CREATURES.map((species) => species.speciesId)).toEqual(
       expect.arrayContaining([
         "mossmew",
@@ -91,7 +115,7 @@ describe("Wonder Academy creature registry", () => {
     expect(builtInEncounterSpecies.map((species) => species.speciesId)).toEqual(
       expect.arrayContaining(expandedSpeciesIds),
     );
-    expect(builtInEncounterSpecies.length).toBeGreaterThanOrEqual(19);
+    expect(builtInEncounterSpecies.length).toBeGreaterThanOrEqual(43);
     expect(Array.from(new Set(WA_CREATURES.map((species) => species.rarity)))).toEqual(
       expect.arrayContaining(["common", "uncommon", "rare", "warden", "mythling"]),
     );

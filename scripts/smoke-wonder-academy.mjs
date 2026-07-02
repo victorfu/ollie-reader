@@ -337,7 +337,16 @@ async function smokeExpandedRegions(context) {
   const { page, watch } = await openGuestHub(context, buildWonderAcademyGuestSave());
   await page.getByRole("button", { name: /出發探索/ }).click();
   await page.getByRole("heading", { name: "選擇探索地點" }).waitFor({ timeout: 5000 });
-  for (const regionName of ["星葉森林", "玻璃海岸", "鐘塔宿舍", "糖雲市集"]) {
+  for (const regionName of [
+    "星葉森林",
+    "玻璃海岸",
+    "鐘塔宿舍",
+    "糖雲市集",
+    "雪鈴山脊",
+    "夢雲祭典",
+    "星軌觀測台",
+    "晶鐘核心",
+  ]) {
     await page.getByRole("button", { name: new RegExp(regionName) }).waitFor({ timeout: 5000 });
   }
   await page.close();

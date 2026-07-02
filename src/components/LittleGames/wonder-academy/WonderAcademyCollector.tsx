@@ -57,7 +57,6 @@ import { getEffectivenessAgainst } from "./logic/typeChart";
 import { dexCompletion, recordDex } from "./logic/wonderdex";
 import {
   allSpecies,
-  catchableSpecies,
   ELEMENT_META,
   FIELD_SKILLS,
   registerCustomCreatures,
@@ -630,9 +629,12 @@ function reducer(state: GameState, action: Action): GameState {
       }
 
       if (tile === "G" && random() < Math.min(0.85, 0.4 * perks.encounterMultiplier * effects.encounterMultiplier)) {
+        const encounterSpecies = region.encounterSpeciesIds
+          .map((speciesId) => speciesById(speciesId))
+          .filter((species): species is CreatureSpecies => !!species && species.wild);
         const table: EncounterTable = {
           encounterChance: 1,
-          entries: catchableSpecies().map((s) => ({
+          entries: encounterSpecies.map((s) => ({
             speciesId: s.speciesId,
             weight: s.rarity === "common" ? 3 : 1 * perks.rareWeightBonus * effects.rareWeightBonus,
           })),
