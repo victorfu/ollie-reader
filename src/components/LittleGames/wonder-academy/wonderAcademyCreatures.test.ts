@@ -57,6 +57,21 @@ describe("Wonder Academy creature registry", () => {
   });
 
   it("ships a P1/P2 roster with wild, warden, and mythling coverage", () => {
+    const expandedSpeciesIds = [
+      "glimmerbun",
+      "tideshell-otter",
+      "embercap-salamander",
+      "crystalmoth",
+      "sugarquill-hedgehog",
+      "moonpaper-crane",
+      "gearpaw-cub",
+      "snowdrift-penguin",
+      "lantern-newt",
+      "cloverwhirl-snail",
+      "prismbell-gryphon",
+    ];
+
+    expect(WA_CREATURES).toHaveLength(24);
     expect(WA_CREATURES.map((species) => species.speciesId)).toEqual(
       expect.arrayContaining([
         "mossmew",
@@ -68,11 +83,15 @@ describe("Wonder Academy creature registry", () => {
         "comet-kitsune",
         "pillowmoon-ram",
         "silent-bellheart",
+        ...expandedSpeciesIds,
       ]),
     );
 
     const builtInEncounterSpecies = WA_CREATURES.filter((species) => species.wild);
-    expect(builtInEncounterSpecies.length).toBeGreaterThanOrEqual(6);
+    expect(builtInEncounterSpecies.map((species) => species.speciesId)).toEqual(
+      expect.arrayContaining(expandedSpeciesIds),
+    );
+    expect(builtInEncounterSpecies.length).toBeGreaterThanOrEqual(19);
     expect(Array.from(new Set(WA_CREATURES.map((species) => species.rarity)))).toEqual(
       expect.arrayContaining(["common", "uncommon", "rare", "warden", "mythling"]),
     );
