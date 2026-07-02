@@ -129,9 +129,6 @@ export const WordDetailPanel = ({
               )}
             </button>
           </div>
-          {word.phonetic && (
-            <p className="text-lg text-muted-foreground">{word.phonetic}</p>
-          )}
         </div>
       </div>
 

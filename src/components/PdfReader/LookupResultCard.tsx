@@ -113,11 +113,6 @@ export const LookupResultCard = memo(
             {/* Word lookup with structured definitions */}
             {!isTranslation && item.vocabularyWord && item.vocabularyWord.definitions.length > 0 ? (
               <div className="mt-2 space-y-1.5">
-                {item.vocabularyWord.phonetic && (
-                  <p className="text-sm text-base-content/40 italic">
-                    {item.vocabularyWord.phonetic}
-                  </p>
-                )}
                 {item.vocabularyWord.definitions.map((def, i) => (
                   <div key={i} className="text-base leading-relaxed">
                     {def.partOfSpeech && (
