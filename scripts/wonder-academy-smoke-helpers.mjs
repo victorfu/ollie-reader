@@ -2,28 +2,11 @@ export const WONDER_ACADEMY_GUEST_SAVE_KEY = "wonder-academy-game-v3-guest";
 
 export const WONDER_ACADEMY_SMOKE_CHECKS = Object.freeze([
   "legacy route redirects",
-  "guest title loads",
-  "new game reaches hub",
-  "region map opens",
-  "node map opens",
-  "explore canvas renders",
-  "battle opens from grass",
-  "catch flow reaches result",
-  "chest loot message appears",
-  "Warden battle opens",
-  "reload preserves guest hub",
-  "mobile touch flow opens hub surfaces",
-  "keyboard flow reaches starter selection",
-  "guest hub loads",
-  "malformed skills loadout repairs",
-  "skill equip updates",
-  "Wonderdex opens",
-  "shop opens",
-  "expanded regions are listed",
-  "workshop opens and charm toggles",
-  "postgame trial opens",
-  "audio controls adjust volume",
-  "reduced motion starter flow renders",
+  "signed-out title loads",
+  "guest play is not offered",
+  "existing guest saves do not open the hub",
+  "sign-in is the only start action",
+  "mobile signed-out title has no horizontal overflow",
   "no relevant console or page errors",
 ]);
 
@@ -153,8 +136,11 @@ export function buildWardenReadyGuestSave() {
 
 export function isKnownBenignWonderAcademyConsoleEntry(entry) {
   const text = entry?.text ?? "";
+  const url = entry?.url ?? "";
   return text.includes("content-firebaseappcheck.googleapis.com")
     || text.includes("App Check")
+    || text.includes("/api/version")
+    || url.includes("/api/version")
     || (
       entry?.type === "warning"
       && text.includes("GL Driver Message")

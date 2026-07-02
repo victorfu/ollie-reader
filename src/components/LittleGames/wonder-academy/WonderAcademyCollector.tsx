@@ -1,4 +1,6 @@
 import academyHubUrl from "../../../assets/games/wonder-academy/backgrounds/academy-hub.png";
+import sparkleafArrivalUrl from "../../../assets/games/wonder-academy/backgrounds/sparkleaf-arrival-bg.webp";
+import headmistressVellaUrl from "../../../assets/games/wonder-academy/characters/headmistress-vella.webp";
 import { ArrowLeft, Compass, Gift, Hammer, Lock, MapPin, Plus, RotateCcw, ShoppingBag, Sparkles, X } from "lucide-react";
 import { useEffect, useMemo, useReducer, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { Volume2, VolumeX } from "lucide-react";
@@ -87,17 +89,22 @@ import {
 import {
   checkpointWonderAcademyProgress,
   loadWonderAcademySave,
-  localOnlyWonderAcademyCloudAdapter,
   saveWonderAcademyProgress,
   syncWonderAcademyPendingSave,
   type WonderAcademyProgressData,
   type WonderAcademySaveStatus,
 } from "./wonderAcademyPersistence";
 import {
+  canAccessWonderAcademySave,
   getWonderAcademyEntryCopy,
   shouldConfirmWonderAcademyOverwrite,
   visibleWonderAcademySaveStatus,
 } from "./wonderAcademySessionGuards";
+import {
+  getWonderAcademyArrivalState,
+  wonderAcademyIntroCopy,
+  wonderAcademyIntroVisualAlt,
+} from "./wonderAcademyIntro";
 import { CreatureBuilder, SkillsScreen, StarterConfirm, TrialsScreen, WorkshopScreen } from "./wonderAcademyScreens";
 import { HpBar, TypeBadge } from "./wonderAcademyPresentation";
 import { saveStatusChip } from "./wonderAcademyPresentationStyles";
@@ -922,8 +929,7 @@ function reducer(state: GameState, action: Action): GameState {
 // ---- small presentational pieces ----
 
 function saveStatusLabel(status: WonderAcademySaveStatus, isGuest: boolean): string {
-  if (isGuest && (status === "idle" || status === "saved")) return "本機保存";
-  if (isGuest && status === "saving") return "保存中";
+  if (isGuest) return status === "loading" ? "讀取中" : "請先登入";
 
   switch (status) {
     case "loading":
@@ -971,6 +977,74 @@ function battleHeadline(session: BattleSession): string {
 const PANEL_BG =
   "radial-gradient(120% 90% at 12% 0%, #fff7ec 0%, rgba(255,247,236,0) 55%), radial-gradient(120% 110% at 100% 0%, #efe7ff 0%, rgba(239,231,255,0) 50%), linear-gradient(180deg, #fbf6ff 0%, #f3eefe 60%, #efeafc 100%)";
 
+const INTRO_SCREEN_STYLES = `
+@keyframes waIntroBreathe{0%{transform:scale(1.015) translate3d(0,0,0)}100%{transform:scale(1.055) translate3d(-10px,-5px,0)}}
+@keyframes waPanelRise{0%{opacity:0;transform:translateY(18px)}100%{opacity:1;transform:translateY(0)}}
+@keyframes waPortraitFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
+@keyframes waSparkDrift{0%{opacity:.35;transform:translate3d(0,10px,0) scale(.85)}40%{opacity:1}100%{opacity:.2;transform:translate3d(18px,-38px,0) scale(1.08)}}
+.wa-intro-shell{position:relative;min-height:680px;overflow:hidden;border-radius:28px;border:1px solid rgba(255,255,255,.72);background:#dcd9ff;box-shadow:0 26px 70px rgba(74,58,134,.22),0 2px 0 rgba(255,255,255,.6) inset;isolation:isolate}
+.wa-intro-bg{position:absolute;inset:0;background-size:cover;background-position:center;filter:saturate(1.04);animation:waIntroBreathe 18s ease-in-out infinite alternate;transform-origin:center}
+.wa-intro-bg::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(30,24,74,.06) 0%,rgba(255,255,255,.08) 46%,rgba(255,255,255,.54) 100%),radial-gradient(90% 58% at 16% 18%,rgba(255,243,216,.58),rgba(255,243,216,0) 62%),radial-gradient(60% 62% at 88% 7%,rgba(192,238,246,.35),rgba(192,238,246,0) 65%)}
+.wa-intro-spark{position:absolute;z-index:1;left:74%;top:12%;width:10px;height:10px;border-radius:999px;background:rgba(255,255,255,.86);box-shadow:0 0 16px rgba(255,255,255,.95),0 0 34px rgba(126,111,255,.35);animation:waSparkDrift 4.8s ease-in-out infinite}
+.wa-intro-spark:nth-of-type(2){left:15%;top:18%;animation-delay:.6s}
+.wa-intro-spark:nth-of-type(3){left:48%;top:10%;width:7px;height:7px;animation-delay:1.5s}
+.wa-intro-spark:nth-of-type(4){right:14%;top:24%;animation-delay:.2s}
+.wa-intro-spark:nth-of-type(5){right:24%;bottom:32%;width:8px;height:8px;animation-delay:2s}
+.wa-intro-grid{position:relative;z-index:2;min-height:680px;display:grid;grid-template-columns:minmax(0,1fr) 244px;align-items:end;gap:22px;padding:34px}
+.wa-title-panel,.wa-arrival-dialog{border:1px solid rgba(255,255,255,.76);background:linear-gradient(135deg,rgba(255,255,255,.88),rgba(247,244,255,.68));backdrop-filter:blur(24px) saturate(170%);box-shadow:0 18px 48px rgba(70,52,126,.22),0 1px 0 rgba(255,255,255,.82) inset}
+.wa-title-panel{max-width:640px;border-radius:26px;padding:30px;animation:waPanelRise .56s cubic-bezier(.2,.8,.2,1) both}
+.wa-title-mark{display:inline-flex;align-items:center;gap:8px;min-height:34px;margin-bottom:14px;padding:7px 11px;border-radius:999px;background:rgba(255,255,255,.62);border:1px solid rgba(124,108,255,.2);color:#554489;font-size:13px;font-weight:900;box-shadow:0 8px 22px rgba(72,54,124,.1)}
+.wa-title-panel h1{margin:0 0 8px;color:#27223f;font-size:48px;line-height:1.02;font-weight:900;letter-spacing:0;text-shadow:0 2px 0 rgba(255,255,255,.58)}
+.wa-title-panel p{max-width:490px;margin:0 0 22px;color:#625b82;font-size:16px;line-height:1.62;font-weight:700}
+.wa-title-actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.wa-primary-button,.wa-secondary-button{min-height:48px;display:inline-flex;align-items:center;justify-content:center;gap:8px;border-radius:16px;padding:0 22px;font-family:inherit;font-size:15px;font-weight:900;cursor:pointer;transition:transform .18s ease,opacity .18s ease,box-shadow .18s ease}
+.wa-primary-button{border:0;color:#fff;background:linear-gradient(180deg,#8476ff 0%,#654dff 100%);box-shadow:0 14px 32px rgba(101,77,255,.35),0 1px 0 rgba(255,255,255,.35) inset}
+.wa-secondary-button{border:1px solid rgba(101,77,255,.24);color:#554489;background:rgba(255,255,255,.72);box-shadow:0 8px 20px rgba(72,54,124,.12)}
+.wa-primary-button:hover,.wa-secondary-button:hover{transform:translateY(-1px)}
+.wa-primary-button:active,.wa-secondary-button:active{transform:scale(.98)}
+.wa-primary-button:disabled{cursor:not-allowed;opacity:.52;box-shadow:none;transform:none}
+.wa-title-mentor{align-self:end;border-radius:24px;border:1px solid rgba(255,255,255,.72);background:rgba(255,255,255,.56);backdrop-filter:blur(18px);box-shadow:0 18px 44px rgba(70,52,126,.2);padding:12px;text-align:center;animation:waPanelRise .62s cubic-bezier(.2,.8,.2,1) .08s both}
+.wa-title-mentor img{width:100%;aspect-ratio:1/1;display:block;border-radius:20px;object-fit:cover;object-position:center top;box-shadow:0 14px 30px rgba(103,78,171,.24)}
+.wa-title-mentor strong{display:block;margin-top:10px;color:#352d5b;font-size:14px}
+.wa-title-mentor span{display:block;margin-top:2px;color:#716991;font-size:12px;font-weight:800;line-height:1.35}
+.wa-arrival-stage{position:relative;z-index:2;min-height:680px;display:flex;align-items:flex-end;padding:34px}
+.wa-arrival-stack{width:100%;animation:waPanelRise .54s cubic-bezier(.2,.8,.2,1) both}
+.wa-arrival-kicker{display:inline-flex;align-items:center;min-height:32px;margin:0 0 12px 16px;padding:6px 12px;border-radius:999px;background:rgba(71,56,132,.68);border:1px solid rgba(255,255,255,.42);color:#fff;font-size:12px;font-weight:900;box-shadow:0 10px 28px rgba(57,42,111,.18)}
+.wa-arrival-dialog{display:grid;grid-template-columns:126px minmax(0,1fr);gap:18px;align-items:start;border-radius:28px;padding:20px}
+.wa-arrival-avatar{position:relative;width:126px;aspect-ratio:1/1;border-radius:32px;padding:5px;background:linear-gradient(180deg,rgba(255,255,255,.92),rgba(235,229,255,.82));box-shadow:0 18px 36px rgba(76,56,135,.22),0 1px 0 rgba(255,255,255,.9) inset;animation:waPortraitFloat 4.8s ease-in-out infinite}
+.wa-arrival-avatar::after{content:"";position:absolute;right:10px;bottom:9px;width:24px;height:24px;border-radius:999px;background:linear-gradient(180deg,#ffd976,#f5a83a);box-shadow:0 0 0 4px rgba(255,255,255,.72)}
+.wa-arrival-avatar img{width:100%;height:100%;display:block;border-radius:27px;object-fit:cover;object-position:center top}
+.wa-dialog-name{color:#7258ca;font-size:14px;font-weight:900;margin-bottom:5px}
+.wa-arrival-dialog h1{margin:0 0 8px;color:#292342;font-size:28px;line-height:1.16;font-weight:900;letter-spacing:0}
+.wa-arrival-dialog p{margin:0;color:#47405f;font-size:16px;line-height:1.68;font-weight:650}
+.wa-arrival-personal{margin-top:8px!important;color:#6d5cca!important;font-weight:900!important}
+.wa-arrival-fields{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;margin-top:16px}
+.wa-arrival-fields input{min-height:48px;width:100%;border-radius:16px;border:1px solid rgba(69,55,108,.16);background:rgba(255,255,255,.82);box-shadow:0 1px 0 rgba(255,255,255,.8) inset,0 8px 22px rgba(62,47,103,.08);color:#292342;font-family:inherit;font-size:16px;font-weight:800;padding:0 15px;outline:none}
+.wa-arrival-fields input::placeholder{color:#9b94ad;font-weight:800}
+.wa-arrival-fields input:focus{border-color:rgba(101,77,255,.56);box-shadow:0 0 0 4px rgba(101,77,255,.12),0 8px 22px rgba(62,47,103,.08)}
+@media (max-width:760px){
+  .wa-intro-shell{min-height:calc(100dvh - 86px);border-radius:22px}
+  .wa-intro-grid{min-height:calc(100dvh - 86px);grid-template-columns:1fr;padding:18px;align-items:end}
+  .wa-title-panel{padding:22px;border-radius:22px}
+  .wa-title-panel h1{font-size:38px}
+  .wa-title-panel p{font-size:15px}
+  .wa-title-mentor{display:none}
+  .wa-arrival-stage{min-height:calc(100dvh - 86px);padding:18px}
+  .wa-arrival-kicker{margin-left:4px}
+  .wa-arrival-dialog{grid-template-columns:1fr;gap:12px;padding:16px;border-radius:22px}
+  .wa-arrival-avatar{width:104px;border-radius:28px;margin-top:-64px}
+  .wa-arrival-avatar img{border-radius:23px}
+  .wa-arrival-dialog h1{font-size:24px}
+  .wa-arrival-dialog p{font-size:15px}
+  .wa-arrival-fields{grid-template-columns:1fr}
+  .wa-primary-button,.wa-secondary-button{width:100%}
+}
+@media (prefers-reduced-motion: reduce){
+  .wa-intro-bg,.wa-intro-spark,.wa-title-panel,.wa-title-mentor,.wa-arrival-stack,.wa-arrival-avatar{animation:none}
+  .wa-primary-button,.wa-secondary-button{transition:none}
+}
+`;
+
 type Props = { onExit?: () => void };
 
 type SaveStatusSnapshot = {
@@ -996,10 +1070,22 @@ export default function WonderAcademyGame({ onExit }: Props) {
   useEffect(() => {
     let cancelled = false;
     loadedUidRef.current = null;
+    const canAccessSave = canAccessWonderAcademySave({ isGuest });
+
+    if (!canAccessSave) {
+      queueMicrotask(() => {
+        if (cancelled) return;
+        dispatch({ type: "load", state: null });
+        setHasUnsyncedLocalProgress(false);
+        setSaveSnapshot({ uid, status: "idle" });
+      });
+      return () => {
+        cancelled = true;
+      };
+    }
 
     void loadWonderAcademySave({
       uid,
-      cloud: isGuest ? localOnlyWonderAcademyCloudAdapter : undefined,
     })
       .then((result) => {
         if (cancelled) return;
@@ -1035,6 +1121,10 @@ export default function WonderAcademyGame({ onExit }: Props) {
     });
   };
   const startNewGame = () => {
+    if (isGuest) {
+      handleSignIn();
+      return;
+    }
     sfx("ui_select");
     dispatch({ type: "beginNewGame" });
   };
@@ -1116,7 +1206,6 @@ export default function WonderAcademyGame({ onExit }: Props) {
       void saveWonderAcademyProgress({
         uid,
         data,
-        cloud: isGuest ? localOnlyWonderAcademyCloudAdapter : undefined,
       })
         .then((result) => {
           if (seq !== saveSeqRef.current) return;
@@ -1238,7 +1327,7 @@ export default function WonderAcademyGame({ onExit }: Props) {
   const entryCopy = getWonderAcademyEntryCopy({ isGuest });
   const showUnsyncedLocalNotice = !isGuest && hasUnsyncedLocalProgress;
 
-  const frame = (children: ReactNode) => (
+  const frame = (children: ReactNode, options: { wide?: boolean } = {}) => (
     <div style={{ minHeight: "100dvh", background: PANEL_BG, fontFamily: '-apple-system, "PingFang TC", "Noto Sans TC", sans-serif', color: "#33304a" }}>
       <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px" }}>
         <button onClick={onExit} style={btnGhost}><ArrowLeft size={16} /> 離開</button>
@@ -1251,7 +1340,7 @@ export default function WonderAcademyGame({ onExit }: Props) {
           <span style={{ fontSize: 12, fontWeight: 700, color: "#8a83a3" }}>✨ {state.stardust}</span>
         </div>
       </header>
-      <div style={{ maxWidth: 880, margin: "0 auto", padding: "4px 16px 40px" }}>{children}</div>
+      <div style={{ maxWidth: options.wide ? 1180 : 880, margin: "0 auto", padding: "4px 16px 40px" }}>{children}</div>
     </div>
   );
 
@@ -1260,48 +1349,111 @@ export default function WonderAcademyGame({ onExit }: Props) {
   // ---------- TITLE ----------
   if (state.screen === "title") {
     return frame(
-      <div style={{ textAlign: "center", paddingTop: 70 }}>
-        <div style={{ fontSize: 56, marginBottom: 4 }}>✦</div>
-        <h1 style={{ fontSize: 34, fontWeight: 800, margin: "0 0 6px" }}>Wonder Academy</h1>
-        <p style={{ color: "#8a83a3", fontSize: 15, margin: "0 0 28px" }}>在發光的森林裡,遇見、收服、養大你的夥伴。</p>
-        {entryCopy.noticeTitle && entryCopy.noticeBody && (
-          <div style={guestNoticeBox}>
-            <div style={{ fontWeight: 900, color: "#5b3d00", marginBottom: 4 }}>{entryCopy.noticeTitle}</div>
-            <div>{entryCopy.noticeBody}</div>
-          </div>
-        )}
-        {authError && <div style={authErrorBox}>{authError}</div>}
-        <div style={{ display: "flex", justifyContent: "center", gap: 10, flexWrap: "wrap" }}>
-          <button onClick={isGuest ? handleSignIn : startNewGame} style={ctaBtn}>{entryCopy.primaryLabel} →</button>
-          {entryCopy.secondaryLabel && (
-            <button onClick={startNewGame} style={btnOutline}>{entryCopy.secondaryLabel}</button>
-          )}
+      <div className="wa-intro-shell">
+        <style>{INTRO_SCREEN_STYLES}</style>
+        <div
+          className="wa-intro-bg"
+          aria-label={wonderAcademyIntroVisualAlt.arrivalBackground}
+          role="img"
+          style={{ backgroundImage: `url(${sparkleafArrivalUrl})` }}
+        />
+        <span className="wa-intro-spark" aria-hidden="true" />
+        <span className="wa-intro-spark" aria-hidden="true" />
+        <span className="wa-intro-spark" aria-hidden="true" />
+        <span className="wa-intro-spark" aria-hidden="true" />
+        <span className="wa-intro-spark" aria-hidden="true" />
+        <div className="wa-intro-grid">
+          <section className="wa-title-panel">
+            <div className="wa-title-mark"><Sparkles size={16} aria-hidden="true" /> {wonderAcademyIntroCopy.academyName}</div>
+            <h1>Wonder Academy</h1>
+            <p>{wonderAcademyIntroCopy.titleSubtitle}</p>
+            {entryCopy.noticeTitle && entryCopy.noticeBody && (
+              <div style={{ ...guestNoticeBox, maxWidth: 520, margin: "0 0 18px", background: "rgba(255,247,224,.78)", boxShadow: "0 10px 24px rgba(120,86,30,.1)" }}>
+                <div style={{ fontWeight: 900, color: "#5b3d00", marginBottom: 4 }}>{entryCopy.noticeTitle}</div>
+                <div>{entryCopy.noticeBody}</div>
+              </div>
+            )}
+            {authError && <div style={{ ...authErrorBox, margin: "0 0 16px" }}>{authError}</div>}
+            <div className="wa-title-actions">
+              <button onClick={isGuest ? handleSignIn : startNewGame} className="wa-primary-button">
+                {entryCopy.primaryLabel} →
+              </button>
+              {entryCopy.secondaryLabel && (
+                <button onClick={startNewGame} className="wa-secondary-button">
+                  {entryCopy.secondaryLabel}
+                </button>
+              )}
+            </div>
+          </section>
+          <aside className="wa-title-mentor" aria-label={wonderAcademyIntroVisualAlt.headmistress}>
+            <img src={headmistressVellaUrl} alt={wonderAcademyIntroVisualAlt.headmistress} />
+            <strong>{wonderAcademyIntroCopy.headmistressName}</strong>
+            <span>在校門口等你入學</span>
+          </aside>
         </div>
       </div>,
+      { wide: true },
     );
   }
 
   // ---------- ARRIVAL (院長 welcome + name) ----------
   if (state.screen === "arrival") {
+    const arrivalState = getWonderAcademyArrivalState(state.playerName);
+    const continueArrival = () => {
+      if (!arrivalState.canContinue) return;
+      sfx("ui_confirm");
+      dispatch({ type: "setName", name: arrivalState.trimmedName });
+      dispatch({ type: "arriveNext" });
+    };
     return frame(
-      <div style={{ borderRadius: 18, overflow: "hidden", boxShadow: "0 10px 30px rgba(80,50,130,.12)" }}>
-        <div style={{ height: 196, position: "relative", background: "radial-gradient(70% 60% at 50% 25%, #fff0cf 0%, rgba(255,240,207,0) 60%), linear-gradient(180deg,#ffd9b8 0%, #f6c6d8 40%, #e9d4f3 75%, #dcd2f2 100%)" }}>
-          <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 66, background: "linear-gradient(180deg,#bfe3a8,#a6d493)", borderRadius: "50% 50% 0 0 / 22px" }} />
-          <div style={{ position: "absolute", bottom: 22, left: "50%", transform: "translateX(-50%)", fontSize: 34 }}>🎒</div>
-          <div style={{ position: "absolute", top: 14, left: 14, fontSize: 10, fontWeight: 800, letterSpacing: ".18em", textTransform: "uppercase", color: "#fff", background: "rgba(124,95,192,.55)", padding: "4px 9px", borderRadius: 999 }}>序章 · 抵達學院</div>
-        </div>
-        <div style={{ background: "rgba(255,255,255,.8)", backdropFilter: "blur(14px)", padding: "16px 18px", display: "flex", gap: 14, alignItems: "flex-start" }}>
-          <div style={{ flex: "0 0 auto", width: 60, height: 60, borderRadius: "50%", background: "radial-gradient(circle at 50% 40%,#e7d6ff,#b79be0)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 34, border: "2px solid #fff", boxShadow: "0 6px 14px rgba(120,90,180,.25)" }}>🦉</div>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 13, fontWeight: 800, color: "#7c5fc0", marginBottom: 4 }}>薇拉院長</div>
-            <p style={{ fontSize: 15, lineHeight: 1.6, margin: "0 0 12px" }}>歡迎來到 <b>Sparkleaf 星葉學院</b>!這片發光森林裡,住著好多等著和你做朋友的小傢伙。在我們開始之前——你叫什麼名字?</p>
-            <div style={{ display: "flex", gap: 9, flexWrap: "wrap" }}>
-              <input value={state.playerName} onChange={(e) => dispatch({ type: "setName", name: e.target.value })} placeholder="輸入你的名字" style={{ flex: 1, minWidth: 150, fontSize: 15, padding: "10px 12px", borderRadius: 11, border: "1px solid rgba(60,40,90,.18)", background: "rgba(255,255,255,.85)", fontFamily: "inherit" }} />
-              <button onClick={() => dispatch({ type: "arriveNext" })} style={{ ...ctaBtn, padding: "11px 20px", fontSize: 14 }}>這就是我 →</button>
+      <div className="wa-intro-shell">
+        <style>{INTRO_SCREEN_STYLES}</style>
+        <div
+          className="wa-intro-bg"
+          aria-label={wonderAcademyIntroVisualAlt.arrivalBackground}
+          role="img"
+          style={{ backgroundImage: `url(${sparkleafArrivalUrl})` }}
+        />
+        <span className="wa-intro-spark" aria-hidden="true" />
+        <span className="wa-intro-spark" aria-hidden="true" />
+        <span className="wa-intro-spark" aria-hidden="true" />
+        <span className="wa-intro-spark" aria-hidden="true" />
+        <span className="wa-intro-spark" aria-hidden="true" />
+        <div className="wa-arrival-stage">
+          <div className="wa-arrival-stack">
+            <div className="wa-arrival-kicker">{wonderAcademyIntroCopy.arrivalKicker}</div>
+            <div className="wa-arrival-dialog">
+              <div className="wa-arrival-avatar">
+                <img src={headmistressVellaUrl} alt={wonderAcademyIntroVisualAlt.headmistress} />
+              </div>
+              <div>
+                <div className="wa-dialog-name">{wonderAcademyIntroCopy.headmistressName}</div>
+                <h1>{wonderAcademyIntroCopy.arrivalTitle}</h1>
+                <p>{wonderAcademyIntroCopy.arrivalBody}</p>
+                <p className="wa-arrival-personal">{arrivalState.personalLine}</p>
+                <form
+                  className="wa-arrival-fields"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    continueArrival();
+                  }}
+                >
+                  <input
+                    aria-label="你的名字"
+                    value={state.playerName}
+                    onChange={(e) => dispatch({ type: "setName", name: e.target.value })}
+                    placeholder="輸入你的名字"
+                  />
+                  <button type="submit" className="wa-primary-button" disabled={!arrivalState.canContinue}>
+                    {arrivalState.buttonLabel}
+                  </button>
+                </form>
+              </div>
             </div>
           </div>
         </div>
       </div>,
+      { wide: true },
     );
   }
 

@@ -29,9 +29,9 @@ export function getWonderAcademyEntryCopy({
 
   return {
     primaryLabel: "登入後開始",
-    secondaryLabel: "訪客試玩",
-    noticeTitle: "訪客試玩只會保存在這台裝置",
-    noticeBody: "登入 Google 後,Wonder Academy 進度會同步到雲端;訪客試玩不保證跨裝置保存。",
+    secondaryLabel: null,
+    noticeTitle: null,
+    noticeBody: null,
   };
 }
 
@@ -40,13 +40,18 @@ export function shouldConfirmWonderAcademyOverwrite(teamSize: number): boolean {
 }
 
 export function visibleWonderAcademySaveStatus({
-  isGuest,
   status,
 }: {
   isGuest: boolean;
   status: WonderAcademyVisibleSaveStatus;
 }): WonderAcademyVisibleSaveStatus {
-  if (!isGuest) return status;
-  if (status === "saving" || status === "failed" || status === "loading") return status;
-  return "saved";
+  return status;
+}
+
+export function canAccessWonderAcademySave({
+  isGuest,
+}: {
+  isGuest: boolean;
+}): boolean {
+  return !isGuest;
 }

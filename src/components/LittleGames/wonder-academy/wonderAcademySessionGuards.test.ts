@@ -1,17 +1,18 @@
 import { describe, expect, it } from "vitest";
 import {
+  canAccessWonderAcademySave,
   getWonderAcademyEntryCopy,
   shouldConfirmWonderAcademyOverwrite,
   visibleWonderAcademySaveStatus,
 } from "./wonderAcademySessionGuards";
 
 describe("getWonderAcademyEntryCopy", () => {
-  it("makes sign-in the primary action for guest players", () => {
+  it("requires sign-in without offering guest play", () => {
     expect(getWonderAcademyEntryCopy({ isGuest: true })).toEqual({
       primaryLabel: "登入後開始",
-      secondaryLabel: "訪客試玩",
-      noticeTitle: "訪客試玩只會保存在這台裝置",
-      noticeBody: "登入 Google 後,Wonder Academy 進度會同步到雲端;訪客試玩不保證跨裝置保存。",
+      secondaryLabel: null,
+      noticeTitle: null,
+      noticeBody: null,
     });
   });
 
@@ -34,12 +35,9 @@ describe("shouldConfirmWonderAcademyOverwrite", () => {
 });
 
 describe("visibleWonderAcademySaveStatus", () => {
-  it("maps guest local and pending states to saved", () => {
-    expect(visibleWonderAcademySaveStatus({ isGuest: true, status: "idle" })).toBe("saved");
-    expect(visibleWonderAcademySaveStatus({ isGuest: true, status: "pending" })).toBe("saved");
-  });
-
-  it("keeps guest saving and failed states explicit", () => {
+  it("does not rewrite unauthenticated save states into guest-saved states", () => {
+    expect(visibleWonderAcademySaveStatus({ isGuest: true, status: "idle" })).toBe("idle");
+    expect(visibleWonderAcademySaveStatus({ isGuest: true, status: "pending" })).toBe("pending");
     expect(visibleWonderAcademySaveStatus({ isGuest: true, status: "saving" })).toBe("saving");
     expect(visibleWonderAcademySaveStatus({ isGuest: true, status: "failed" })).toBe("failed");
   });
@@ -47,5 +45,12 @@ describe("visibleWonderAcademySaveStatus", () => {
   it("does not rewrite signed-in save states", () => {
     expect(visibleWonderAcademySaveStatus({ isGuest: false, status: "pending" })).toBe("pending");
     expect(visibleWonderAcademySaveStatus({ isGuest: false, status: "saved" })).toBe("saved");
+  });
+});
+
+describe("canAccessWonderAcademySave", () => {
+  it("requires a signed-in account before loading or saving game progress", () => {
+    expect(canAccessWonderAcademySave({ isGuest: true })).toBe(false);
+    expect(canAccessWonderAcademySave({ isGuest: false })).toBe(true);
   });
 });
