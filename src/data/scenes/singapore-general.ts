@@ -83,6 +83,7 @@ export const singaporeGeneralScenes: TravelScene[] = [
       { emoji: "😄", english: "In Singapore, people use \"lah\" at the end of sentences. \"Can, lah!\" means \"Yes, sure!\"", chinese: "在新加坡，人們會在句尾加「lah」。「Can, lah!」意思是「可以啊！」" },
       { emoji: "🏛️", english: "Hawker centres are like big outdoor food courts. They are so important to Singapore's culture that they were added to UNESCO's list!", chinese: "小販中心就像大型的露天美食廣場。它們對新加坡文化非常重要，已被列入聯合國教科文組織名錄！" },
       { emoji: "☕", english: "\"Teh\" means tea in Hokkien/Malay, \"Kopi\" means coffee. You can order \"teh-O\" (tea without milk) or \"kopi-C\" (coffee with evaporated milk).", chinese: "「Teh」在閩南語/馬來語中是茶，「Kopi」是咖啡。你可以點「teh-O」（無奶茶）或「kopi-C」（淡奶咖啡）。" },
+      { emoji: "🦖", english: "A \"Milo dinosaur\" is iced Milo with a big spoonful of Milo powder on top!", chinese: "「Milo dinosaur」是冰美祿上面再加一大匙美祿粉！" },
     ],
     vocabulary: [
       { word: "hawker centre", chinese: "小販中心", emoji: "🏪", example: "Let's eat at the hawker centre." },
@@ -95,6 +96,9 @@ export const singaporeGeneralScenes: TravelScene[] = [
       { word: "stall", chinese: "攤位", emoji: "🍢", example: "That stall has the best laksa." },
       { word: "tray", chinese: "托盤", emoji: "🍽️", example: "Please return your tray after eating." },
       { word: "takeaway", chinese: "外帶", emoji: "📦", example: "Can I get this for takeaway?" },
+      { word: "kopi", chinese: "南洋咖啡", emoji: "☕", example: "One kopi, please." },
+      { word: "teh", chinese: "南洋奶茶", emoji: "🍵", example: "Teh is tea with milk." },
+      { word: "kaya toast", chinese: "咖椰吐司", emoji: "🍞", example: "Kaya toast is a famous Singapore breakfast." },
     ],
     phrases: [
       { id: "food-p1", english: "Can I have one chicken rice, please?", chinese: "請給我一份雞飯。", situation: "ordering" },
@@ -107,6 +111,9 @@ export const singaporeGeneralScenes: TravelScene[] = [
       { id: "food-p8", english: "What do you recommend?", chinese: "你推薦什麼？", situation: "ordering" },
       { id: "food-p9", english: "Can I have some water?", chinese: "可以給我一些水嗎？", situation: "drinks" },
       { id: "food-p10", english: "Where should I return the tray?", chinese: "托盤要放哪裡？", situation: "after eating" },
+      { id: "food-p11", english: "One kopi and one teh, please.", chinese: "請給我一杯南洋咖啡和一杯奶茶。", situation: "drinks" },
+      { id: "food-p12", english: "What is Milo dinosaur?", chinese: "Milo dinosaur 是什麼？", situation: "drinks" },
+      { id: "food-p13", english: "I'd like kaya toast and soft-boiled eggs.", chinese: "我想要咖椰吐司和半熟蛋。", situation: "ordering" },
     ],
     dialogues: [
       {
@@ -391,6 +398,9 @@ export const singaporeGeneralScenes: TravelScene[] = [
       { id: "help-p8", english: "I'm allergic to peanuts.", chinese: "我對花生過敏。", situation: "health" },
       { id: "help-p9", english: "Please call the police.", chinese: "請幫我報警。", situation: "emergency" },
       { id: "help-p10", english: "Can you show me on the map?", chinese: "你可以在地圖上指給我看嗎？", situation: "directions" },
+      { id: "help-p11", english: "It's raining! Let's find shelter.", chinese: "下雨了！我們找地方躲雨吧。", situation: "weather" },
+      { id: "help-p12", english: "It's so hot. I need some water.", chinese: "好熱，我需要喝點水。", situation: "weather" },
+      { id: "help-p13", english: "Let's go somewhere with air conditioning.", chinese: "我們去有冷氣的地方吧。", situation: "weather" },
     ],
     dialogues: [
       {
