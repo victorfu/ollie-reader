@@ -43,6 +43,36 @@ KOKORO_VOICES_PATH = os.getenv("KOKORO_VOICES_PATH") or str(
 KOKORO_DEFAULT_VOICE = os.getenv("KOKORO_DEFAULT_VOICE", "af_heart")
 KOKORO_DEFAULT_LANG = os.getenv("KOKORO_LANG", "en-us")
 
+def _optional_float(name: str):
+    """Parse an optional float env var; unset/blank/malformed → None (use library default)."""
+    raw = os.getenv(name)
+    if raw is None or raw.strip() == "":
+        return None
+    try:
+        return float(raw)
+    except ValueError:
+        return None
+
+
+# Chatterbox-Turbo (optional, PyTorch-based). No bundled weights — loaded lazily
+# and cached by chatterbox / Hugging Face on first use. All settings are env-only.
+#  - CHATTERBOX_DEVICE: "cuda" | "mps" | "cpu"; unset → auto (cuda > mps > cpu).
+#  - CHATTERBOX_AUDIO_PROMPT_PATH: reference wav for voice cloning (optional).
+#  - CHATTERBOX_DEFAULT_VOICE: default voice/audio-prompt when request omits one.
+CHATTERBOX_DEVICE = os.getenv("CHATTERBOX_DEVICE")
+CHATTERBOX_AUDIO_PROMPT_PATH = os.getenv("CHATTERBOX_AUDIO_PROMPT_PATH")
+CHATTERBOX_DEFAULT_VOICE = os.getenv("CHATTERBOX_DEFAULT_VOICE")
+
+# Generation-QUALITY knobs (all optional; None → chatterbox library default).
+# NOT a speed lever: cfg_weight=0 would skip CFG's doubled T3 batch (~halve
+# compute), but chatterbox-tts 0.1.3's t3 inference loop hardcodes batch=2, so
+# cfg_weight=0 crashes with a tensor shape mismatch, and any cfg_weight>0 still
+# runs batch=2 (no speedup). The wrapper guards cfg_weight<=0. Unsupported knobs
+# are filtered per model signature, so these stay safe across chatterbox variants.
+CHATTERBOX_CFG_WEIGHT = _optional_float("CHATTERBOX_CFG_WEIGHT")
+CHATTERBOX_TEMPERATURE = _optional_float("CHATTERBOX_TEMPERATURE")
+CHATTERBOX_EXAGGERATION = _optional_float("CHATTERBOX_EXAGGERATION")
+
 
 # Web origins allowed to call the local sidecar:
 #  - Vite dev server (localhost:5173)

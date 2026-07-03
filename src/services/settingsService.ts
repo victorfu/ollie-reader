@@ -1,9 +1,18 @@
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "../utils/firebaseUtil";
 import type { UserSettings } from "../types/settings";
-import type { TTSMode, ReadingMode } from "../types/pdf";
+import type { TTSMode, TTSEngine, ReadingMode } from "../types/pdf";
 
 const SETTINGS_COLLECTION = "userSettings";
+
+/**
+ * 僅接受目前支援的引擎；任何其他值（含舊資料如已移除的 "google"）fallback 到 piper。
+ */
+export function normalizeTtsEngine(value: unknown): TTSEngine {
+  return value === "kokoro" || value === "chatterbox" || value === "piper"
+    ? value
+    : "piper";
+}
 
 /**
  * Get user settings from Firestore
@@ -20,8 +29,7 @@ export const getUserSettings = async (
       return {
         userId,
         ttsMode: (data.ttsMode as TTSMode) || "browser",
-        // 僅接受目前支援的引擎；舊資料（如已移除的 "google"）一律 fallback 到 piper
-        ttsEngine: data.ttsEngine === "kokoro" ? "kokoro" : "piper",
+        ttsEngine: normalizeTtsEngine(data.ttsEngine),
         speechRate: (data.speechRate as number) ?? 1,
         readingMode: (data.readingMode as ReadingMode) || "word",
         createdAt: data.createdAt?.toDate(),
@@ -64,7 +72,7 @@ export const saveUserSettings = async (
       await setDoc(docRef, {
         userId,
         ttsMode: settings.ttsMode || "browser",
-        ttsEngine: settings.ttsEngine || "piper",
+        ttsEngine: normalizeTtsEngine(settings.ttsEngine),
         speechRate: settings.speechRate ?? 1,
         readingMode: settings.readingMode || "word",
         createdAt: serverTimestamp(),

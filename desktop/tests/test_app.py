@@ -8,6 +8,7 @@ from server.oikid import OikidError
 from server.pdf_extract import PDFError, PDFExtractResult, PageText
 from server.tts_piper import TTSError, TTSResult
 from server.tts_kokoro import KokoroTTSError, KokoroTTSResult
+from server.tts_chatterbox import ChatterboxTTSError, ChatterboxTTSResult
 
 
 @pytest.fixture
@@ -158,6 +159,27 @@ def test_ktts_success(client, monkeypatch):
         lambda text, speed, voice: KokoroTTSResult(audio_data=b"RIFFfake"),
     )
     resp = client.post("/api/ktts", json={"text": "hi"})
+    assert resp.status_code == 200
+    assert resp.headers["content-type"] == "audio/wav"
+
+
+def test_chatterbox_tts_503_when_unavailable(client, monkeypatch):
+    def boom(text, speed, voice):
+        raise ChatterboxTTSError("no torch", status_code=503)
+
+    monkeypatch.setattr(app_module, "chatterbox_synthesize_speech", boom)
+    resp = client.post("/api/chatterbox-tts", json={"text": "hi"})
+    assert resp.status_code == 503
+    assert resp.json()["detail"] == "no torch"
+
+
+def test_chatterbox_tts_success(client, monkeypatch):
+    monkeypatch.setattr(
+        app_module,
+        "chatterbox_synthesize_speech",
+        lambda text, speed, voice: ChatterboxTTSResult(audio_data=b"RIFFfake"),
+    )
+    resp = client.post("/api/chatterbox-tts", json={"text": "hi"})
     assert resp.status_code == 200
     assert resp.headers["content-type"] == "audio/wav"
 

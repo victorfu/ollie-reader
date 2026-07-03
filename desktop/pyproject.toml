@@ -26,11 +26,30 @@ dev = [
     "pytest",
     "pyinstaller",
 ]
+# Optional, heavy PyTorch-based engine. NOT installed by default `uv sync` (only
+# the `dev` group + main deps are). Opt in with `uv sync --group chatterbox`.
+# chatterbox-tts pulls torch/torchaudio transitively; keeping it out of the
+# default set means Piper/Kokoro installs stay light and can't be broken by a
+# torch version pin. Weights are downloaded/cached at runtime, not bundled.
+chatterbox = [
+    "chatterbox-tts",
+]
 
 # This is a run-from-source app (main.py + server/ + shell/), not an installable
 # distribution, so uv manages only the environment — it does not build the project.
 [tool.uv]
 package = false
+
+# chatterbox-tts pulls pkuseg==0.0.25, which has no arm64/py3.12 wheel and so
+# builds from a 2020-era sdist. That sdist imports numpy in setup.py but never
+# declares it as a build dependency, so PEP 517 build isolation fails with
+# "No module named 'numpy'" during `uv sync --group chatterbox`. Inject numpy
+# into pkuseg's build env to fix it (uv already provides setuptools/wheel and
+# pkuseg declares cython itself). Only affects the chatterbox group's build;
+# the default `uv sync` never touches pkuseg. NOTE: `extra-build-dependencies`
+# is still flagged experimental by uv (a harmless warning on sync/lock).
+[tool.uv.extra-build-dependencies]
+pkuseg = ["numpy"]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]

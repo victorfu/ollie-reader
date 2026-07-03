@@ -16,6 +16,7 @@ from server.fetch_url import FetchError, fetch_url_content_async
 from server.oikid import OikidError, search_booking_records
 from server.models import SpeechRequest
 from server.pdf_extract import PDFError, extract_text_from_pdf
+from server.tts_chatterbox import ChatterboxTTSError, chatterbox_synthesize_speech
 from server.tts_kokoro import KokoroTTSError, kokoro_synthesize_speech
 from server.tts_piper import TTSError, generate_speech
 
@@ -170,6 +171,30 @@ def create_app() -> FastAPI:
         except Exception as e:
             logger.exception("未預期的 Kokoro TTS 失敗")
             raise HTTPException(status_code=500, detail="Kokoro 語音合成失敗") from e
+        return StreamingResponse(
+            io.BytesIO(result.audio_data),
+            media_type=result.content_type,
+            headers={"Content-Disposition": 'attachment; filename="speech.wav"'},
+        )
+
+    @app.post("/api/chatterbox-tts", tags=["tts"])
+    async def chatterbox_tts(request: SpeechRequest):
+        # Chatterbox-Turbo 是可選的重量級引擎；未安裝/不可用時回 503，前端會自動
+        # 降級（chatterbox → kokoro → piper）。
+        try:
+            result = await run_in_threadpool(
+                chatterbox_synthesize_speech,
+                request.text,
+                request.speed,
+                request.voice,
+            )
+        except ChatterboxTTSError as e:
+            raise HTTPException(status_code=e.status_code, detail=e.message) from e
+        except Exception as e:
+            logger.exception("未預期的 Chatterbox Turbo TTS 失敗")
+            raise HTTPException(
+                status_code=500, detail="Chatterbox Turbo 語音合成失敗"
+            ) from e
         return StreamingResponse(
             io.BytesIO(result.audio_data),
             media_type=result.content_type,
