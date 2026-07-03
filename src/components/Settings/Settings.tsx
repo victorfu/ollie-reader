@@ -370,7 +370,7 @@ export const Settings = () => {
                             {
                               id: "chatterbox",
                               name: "Chatterbox Turbo",
-                              desc: "高品質英文 AI 語音；較吃效能，未啟用會自動降級",
+                              desc: "高品質英文 AI 語音；較吃效能，需後端本地啟用，未啟用會失敗",
                             },
                           ] as { id: TTSEngine; name: string; desc: string }[]
                         ).map((eng) => (

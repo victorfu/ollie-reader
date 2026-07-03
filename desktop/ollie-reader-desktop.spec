@@ -38,9 +38,9 @@ if Path("assets").exists():
 # collected here. It's an optional, opt-in engine (`uv sync --group chatterbox`)
 # whose weights are downloaded/cached at runtime. Bundling torch would balloon the
 # .app by hundreds of MB and risk breaking the current lean Piper/Kokoro release,
-# so the frozen build ships without it and the web app falls back to Kokoro/Piper
-# when /api/chatterbox-tts is unavailable. Add it here only if you deliberately
-# want a heavyweight bundle that ships Chatterbox offline.
+# so the frozen build ships without it; /api/chatterbox-tts simply returns 503 when
+# unavailable (the web app does not auto-fall-back to another engine). Add it here
+# only if you deliberately want a heavyweight bundle that ships Chatterbox offline.
 for pkg in (
     "kokoro_onnx",
     "onnxruntime",

@@ -179,8 +179,8 @@ def create_app() -> FastAPI:
 
     @app.post("/api/chatterbox-tts", tags=["tts"])
     async def chatterbox_tts(request: SpeechRequest):
-        # Chatterbox-Turbo 是可選的重量級引擎；未安裝/不可用時回 503，前端會自動
-        # 降級（chatterbox → kokoro → piper）。
+        # Chatterbox-Turbo 是可選的重量級引擎；未安裝/不可用時回 503
+        # （前端不再自動降級，會直接顯示錯誤）。
         try:
             result = await run_in_threadpool(
                 chatterbox_synthesize_speech,

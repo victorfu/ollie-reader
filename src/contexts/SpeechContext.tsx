@@ -19,13 +19,6 @@ interface SpeechProviderProps {
   children: ReactNode;
 }
 
-// 引擎不可用（後端回 503）時的降級鏈：chatterbox → kokoro → piper。
-// piper 沒有 fallback（最終保底），避免無限遞迴。
-const FALLBACK_ENGINE: Partial<Record<TTSEngine, TTSEngine>> = {
-  chatterbox: "kokoro",
-  kokoro: "piper",
-};
-
 /**
  * Fetch TTS audio blob from API or cache
  */
@@ -59,16 +52,8 @@ async function fetchTTSBlob(
       apiFetch,
     );
 
-    // 引擎在本機/雲端可能因缺相依（torch、模型）回 503 → 依 FALLBACK_ENGINE 逐級降級，
-    // 確保有聲音：chatterbox → kokoro → piper。fallback 會用 fallback engine 自己的
-    // cache key（getCacheKey 已含 engine），不會互相污染。
-    if (response.status === 503) {
-      const fallback = FALLBACK_ENGINE[engine];
-      if (fallback) {
-        return fetchTTSBlob(text, speechRate, fallback, signal);
-      }
-    }
-
+    // 不做引擎降級：選定的引擎若不可用（後端回 503）或其他錯誤，直接把錯誤丟出，
+    // 讓使用者知道所選引擎沒生效，而不是安靜地換成別的引擎。
     if (!response.ok) {
       throw new Error(`TTS API 錯誤: ${response.status}`);
     }

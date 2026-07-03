@@ -2,8 +2,8 @@
 
 這是可選的重量級引擎：所有 torch / torchaudio / chatterbox 相依都延遲到
 _import_chatterbox_deps，sidecar 啟動時不會載入。缺相依、模型載入失敗或機器不
-支援時一律回 ChatterboxTTSError(503)，讓前端自動降級（chatterbox → kokoro →
-piper）。模型權重不打包進 bundle，由 chatterbox / Hugging Face 自行 cache。
+支援時一律回 ChatterboxTTSError(503)（前端不做引擎降級，會直接顯示錯誤）。
+模型權重不打包進 bundle，由 chatterbox / Hugging Face 自行 cache。
 
 設計刻意對齊 tts_kokoro.py：dataclass 結果、狀態碼式例外、thread-safe singleton。
 """
@@ -223,8 +223,7 @@ class ChatterboxTurboTTSService:
       except ChatterboxTTSError:
         raise
       except Exception as e:
-        # 模型載入失敗（下載失敗、記憶體不足、裝置不支援…）一律當作「不可用」→ 503，
-        # 讓前端降級到 Kokoro/Piper。
+        # 模型載入失敗（下載失敗、記憶體不足、裝置不支援…）一律當作「不可用」→ 503。
         raise ChatterboxTTSError(
           f"Chatterbox Turbo 初始化失敗: {type(e).__name__}: {e}",
           status_code=503,

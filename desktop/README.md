@@ -49,8 +49,8 @@ Kokoro 還有 `kokoro-v1.0.onnx`（fp32, 310MB）與 `kokoro-v1.0.int8.onnx`（8
 Chatterbox-Turbo 是**可選**的重量級 PyTorch-based TTS，英文品質比 Kokoro / Piper
 更好，但也更吃算力（CPU/GPU、記憶體、首次載入時間）。它**不會**被預設的
 `uv sync` 安裝，也**不會**打包進 release bundle——權重由 chatterbox / Hugging Face
-在首次使用時自行下載並快取。沒安裝或機器不支援時，前端會自動降級
-（**chatterbox → kokoro → piper**），所以開啟這個引擎不會讓朗讀「壞掉」。
+在首次使用時自行下載並快取。沒安裝或機器不支援時後端回 **503**——前端**不會**自動改用
+其他引擎（已無 fallback），會直接顯示錯誤，請確認已啟用對應引擎。
 
 ### 安裝（開發／本機）
 
@@ -106,8 +106,8 @@ uv run python main.py --serve     # sidecar，含 /api/chatterbox-tts endpoint
 - 首次使用會有**模型載入 / 下載 / 快取**成本，之後才會快。
 - 目前 Chatterbox-Turbo 沒有原生語速參數，`speed` 會被接收但忽略（避免 time-stretch
   劣化音質）；語速調整仍可用 Piper / Kokoro。
-- 若不可用（未安裝、載入失敗、裝置不支援），`/api/chatterbox-tts` 回 **503**，前端
-  依序降級到 Kokoro、Piper。
+- 若不可用（未安裝、載入失敗、裝置不支援），`/api/chatterbox-tts` 回 **503**；前端
+  不會自動改用其他引擎，會直接顯示錯誤。
 
 ## 發佈 dmg（簽章 + 公證 + GitHub Release）
 
