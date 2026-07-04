@@ -15,6 +15,7 @@ import { useTheme } from "../../hooks/useTheme";
 import { resetGameProgress } from "../../services/gameProgressService";
 import { ConfirmModal } from "../common/ConfirmModal";
 import { GlassCard } from "../common/GlassCard";
+import { Toast } from "../common/Toast";
 import type { TTSMode, TTSEngine, ReadingMode, TextParsingMode, ComputeMode } from "../../types/pdf";
 import { getComputeStatusSync, refreshComputeBase, type ComputeStatus } from "../../services/localBackend";
 
@@ -69,7 +70,6 @@ export const Settings = () => {
     try {
       await updateTtsMode(mode);
       setSaveSuccess(true);
-      setTimeout(() => setSaveSuccess(false), 3000);
     } catch (err) {
       console.error("Failed to save settings:", err);
     } finally {
@@ -84,7 +84,6 @@ export const Settings = () => {
     try {
       await updateTtsEngine(engine);
       setSaveSuccess(true);
-      setTimeout(() => setSaveSuccess(false), 3000);
     } catch (err) {
       console.error("Failed to save settings:", err);
     } finally {
@@ -99,7 +98,6 @@ export const Settings = () => {
     try {
       await updateSpeechRate(rate);
       setSaveSuccess(true);
-      setTimeout(() => setSaveSuccess(false), 3000);
     } catch (err) {
       console.error("Failed to save settings:", err);
     } finally {
@@ -114,7 +112,6 @@ export const Settings = () => {
     try {
       await updateReadingMode(mode);
       setSaveSuccess(true);
-      setTimeout(() => setSaveSuccess(false), 3000);
     } catch (err) {
       console.error("Failed to save settings:", err);
     } finally {
@@ -129,7 +126,6 @@ export const Settings = () => {
     try {
       await updateTextParsingMode(mode);
       setSaveSuccess(true);
-      setTimeout(() => setSaveSuccess(false), 3000);
     } catch (err) {
       console.error("Failed to save settings:", err);
     } finally {
@@ -164,7 +160,6 @@ export const Settings = () => {
       await resetGameProgress(user.uid);
       setShowResetModal(false);
       setResetSuccess(true);
-      setTimeout(() => setResetSuccess(false), 3000);
     } catch (err) {
       console.error("Failed to reset game progress:", err);
     } finally {
@@ -257,18 +252,6 @@ export const Settings = () => {
               {error && (
                 <div className="alert alert-error mb-4">
                   <span>{error}</span>
-                </div>
-              )}
-
-              {saveSuccess && (
-                <div className="alert alert-success mb-4">
-                  <span>✓ 設定已儲存</span>
-                </div>
-              )}
-
-              {resetSuccess && (
-                <div className="alert alert-success mb-4">
-                  <span>遊戲進度已重置</span>
                 </div>
               )}
 
@@ -615,17 +598,28 @@ export const Settings = () => {
                   </div>
                 </div>
               )}
-
-              {saving && (
-                <div className="mt-4 flex items-center gap-2 text-sm text-base-content/70">
-                  <span className="loading loading-spinner loading-sm" />
-                  <span>儲存中...</span>
-                </div>
-              )}
             </div>
           </GlassCard>
         </div>
       </div>
+
+      {/* Save feedback as fixed overlay so it never shifts the page layout */}
+      {saving ? (
+        <div
+          role="status"
+          aria-live="polite"
+          className="toast toast-top toast-center z-50 pointer-events-none"
+        >
+          <div className="flex items-center gap-3 rounded-xl border border-border-hairline bg-background/80 px-4 py-3 shadow-floating backdrop-blur-md">
+            <span className="loading loading-spinner loading-sm" />
+            <span className="text-sm font-medium">儲存中...</span>
+          </div>
+        </div>
+      ) : saveSuccess ? (
+        <Toast message="✓ 設定已儲存" onClose={() => setSaveSuccess(false)} />
+      ) : resetSuccess ? (
+        <Toast message="遊戲進度已重置" onClose={() => setResetSuccess(false)} />
+      ) : null}
 
       <ConfirmModal
         isOpen={showResetModal}

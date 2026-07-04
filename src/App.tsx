@@ -498,6 +498,19 @@ function AppContent() {
 
           <div className="flex items-center gap-1">
             <ThemeToggle />
+            <Link
+              to="/settings"
+              aria-label="設定"
+              title="設定"
+              aria-current={location.pathname === "/settings" ? "page" : undefined}
+              className={`inline-flex h-9 w-9 items-center justify-center rounded-lg transition-colors duration-200 hover:bg-accent-tint hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent active:scale-[0.97] ${
+                location.pathname === "/settings"
+                  ? "bg-accent-tint text-accent"
+                  : "text-base-content/70"
+              }`}
+            >
+              <SettingsIcon className="h-5 w-5" strokeWidth={1.75} aria-hidden="true" />
+            </Link>
           </div>
         </header>
 
