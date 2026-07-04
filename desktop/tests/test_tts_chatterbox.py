@@ -55,11 +55,17 @@ def _fake_deps(model_cls=_FakeTurboTTS):
     return lambda: (np, sf, _FakeTorch, model_cls)
 
 
+def _reset_service_state():
+    ChatterboxTurboTTSService._model = None
+    ChatterboxTurboTTSService._device = None
+    ChatterboxTurboTTSService._builtin_conds = None
+    ChatterboxTurboTTSService._prepared_prompt = None
+
+
 @pytest.fixture(autouse=True)
 def _reset(monkeypatch):
     # 每個 test 前後重置 singleton，避免上個 test 快取的 model 影響 init/failure 測試。
-    ChatterboxTurboTTSService._model = None
-    ChatterboxTurboTTSService._device = None
+    _reset_service_state()
     # 隔離 env：預設不套用任何 device / 預設音色 / audio prompt / 生成參數。
     monkeypatch.setattr(config, "CHATTERBOX_DEVICE", None, raising=False)
     monkeypatch.setattr(config, "CHATTERBOX_AUDIO_PROMPT_PATH", None, raising=False)
@@ -68,8 +74,7 @@ def _reset(monkeypatch):
     monkeypatch.setattr(config, "CHATTERBOX_TEMPERATURE", None, raising=False)
     monkeypatch.setattr(config, "CHATTERBOX_EXAGGERATION", None, raising=False)
     yield
-    ChatterboxTurboTTSService._model = None
-    ChatterboxTurboTTSService._device = None
+    _reset_service_state()
 
 
 def test_unavailable_when_deps_missing(monkeypatch):
@@ -284,6 +289,114 @@ def test_unsupported_generate_kwargs_are_dropped(monkeypatch):
 
     assert captured["called"] is True
     assert result.audio_data[:4] == b"RIFF"
+
+
+class _CondModel:
+    """支援 prepare_conditionals 的 fake（對齊 chatterbox 0.1.3 的 conds 語義）。"""
+
+    sr = 24000
+
+    def __init__(self):
+        self.conds = "builtin"
+        self.prepare_calls = []
+        self.generate_prompts = []
+
+    def prepare_conditionals(self, wav_fpath, exaggeration=0.5):
+        self.prepare_calls.append(wav_fpath)
+        self.conds = f"conds:{wav_fpath}"
+
+    def generate(self, text, audio_prompt_path=None):
+        self.generate_prompts.append(audio_prompt_path)
+        return np.ones(100, dtype=np.float32)
+
+
+class _CondTTS:
+    instance = None
+
+    @classmethod
+    def from_pretrained(cls, device="cpu"):
+        cls.instance = _CondModel()
+        return cls.instance
+
+
+def _write_voice(tmp_path, name="voice.wav"):
+    voice_file = tmp_path / name
+    sf.write(str(voice_file), np.zeros(1200, dtype=np.float32), 24000, format="WAV")
+    return voice_file
+
+
+def test_conditionals_prepared_once_per_prompt(monkeypatch, tmp_path):
+    # 同一個 voice prompt 連續合成兩次：prepare_conditionals 只跑一次，
+    # 且 generate 不帶 audio_prompt_path（帶了會讓 0.1.3 每次重算 conds）。
+    voice_file = _write_voice(tmp_path)
+    monkeypatch.setattr(tts_chatterbox, "_import_chatterbox_deps", _fake_deps(_CondTTS))
+
+    chatterbox_synthesize_speech("one", voice=str(voice_file))
+    chatterbox_synthesize_speech("two", voice=str(voice_file))
+
+    model = _CondTTS.instance
+    assert model.prepare_calls == [str(voice_file)]
+    assert model.generate_prompts == [None, None]
+
+
+def test_conditionals_recomputed_on_prompt_change(monkeypatch, tmp_path):
+    voice_a = _write_voice(tmp_path, "a.wav")
+    voice_b = _write_voice(tmp_path, "b.wav")
+    monkeypatch.setattr(tts_chatterbox, "_import_chatterbox_deps", _fake_deps(_CondTTS))
+
+    chatterbox_synthesize_speech("one", voice=str(voice_a))
+    chatterbox_synthesize_speech("two", voice=str(voice_b))
+    chatterbox_synthesize_speech("three", voice=str(voice_b))
+
+    assert _CondTTS.instance.prepare_calls == [str(voice_a), str(voice_b)]
+
+
+def test_conditionals_recomputed_when_prompt_file_changes(monkeypatch, tmp_path):
+    # 同路徑但檔案內容更新（mtime 變了）→ 要重算，不能沿用舊音色。
+    voice_file = _write_voice(tmp_path)
+    monkeypatch.setattr(tts_chatterbox, "_import_chatterbox_deps", _fake_deps(_CondTTS))
+
+    chatterbox_synthesize_speech("one", voice=str(voice_file))
+    import os
+
+    stat = voice_file.stat()
+    os.utime(voice_file, ns=(stat.st_atime_ns, stat.st_mtime_ns + 1_000_000))
+    chatterbox_synthesize_speech("two", voice=str(voice_file))
+
+    assert _CondTTS.instance.prepare_calls == [str(voice_file), str(voice_file)]
+
+
+def test_builtin_conds_restored_when_voice_removed(monkeypatch, tmp_path):
+    # 用過 voice clone 後切回無 voice：要還原模型載入時的內建 conds，
+    # 不能殘留上一個 prompt 的音色。
+    voice_file = _write_voice(tmp_path)
+    monkeypatch.setattr(tts_chatterbox, "_import_chatterbox_deps", _fake_deps(_CondTTS))
+
+    chatterbox_synthesize_speech("one", voice=str(voice_file))
+    assert _CondTTS.instance.conds == f"conds:{voice_file}"
+
+    chatterbox_synthesize_speech("two")
+
+    model = _CondTTS.instance
+    assert model.conds == "builtin"
+    assert model.prepare_calls == [str(voice_file)]
+
+    # 再切回同一個 voice → 內建 conds 已被覆蓋，必須重算。
+    chatterbox_synthesize_speech("three", voice=str(voice_file))
+    assert model.prepare_calls == [str(voice_file), str(voice_file)]
+
+
+def test_model_without_prepare_conditionals_falls_back(monkeypatch, tmp_path):
+    # 沒有 prepare_conditionals 的模型變體 → 退回舊行為：
+    # audio_prompt_path 直接交給 generate()。
+    voice_file = _write_voice(tmp_path)
+    monkeypatch.setattr(tts_chatterbox, "_import_chatterbox_deps", _fake_deps())
+
+    chatterbox_synthesize_speech("hi", voice=str(voice_file))
+    # _FakeTurboTTS 每次 from_pretrained 都回新 instance；synthesize 用 singleton，
+    # 所以從 service 拿目前的 model 檢查。
+    model = ChatterboxTurboTTSService._model
+    assert model.calls[-1]["audio_prompt_path"] == str(voice_file)
 
 
 def test_import_resolves_a_real_model_class_when_installed():

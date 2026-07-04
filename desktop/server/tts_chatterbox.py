@@ -187,6 +187,12 @@ class ChatterboxTurboTTSService:
   _model: Any = None
   _device: Optional[str] = None
   _lock: Lock = Lock()
+  # Voice-prompt conditionals 快取。chatterbox 0.1.3 的 generate() 只要帶
+  # audio_prompt_path 就「每次」重跑 prepare_conditionals（librosa 載檔、s3gen
+  # embed、voice encoder 全部重算）。改由本 service 自己 prepare 一次並記住目前
+  # 生效的 prompt（路徑 + mtime），generate() 不再帶 audio_prompt_path。
+  _builtin_conds: Any = None  # 模型載入時內建 conds 的 snapshot，切回無 voice 用
+  _prepared_prompt: Optional[tuple] = None  # (path, mtime_ns)；None = 內建音色
 
   def __new__(cls) -> "ChatterboxTurboTTSService":
     if cls._instance is None:
@@ -219,6 +225,8 @@ class ChatterboxTurboTTSService:
         logger.info("正在載入 Chatterbox Turbo 模型（device=%s）", device)
         cls._model = ChatterboxTurboTTS.from_pretrained(device=device)
         cls._device = device
+        cls._builtin_conds = getattr(cls._model, "conds", None)
+        cls._prepared_prompt = None
         logger.info("Chatterbox Turbo 模型載入成功（device=%s）", device)
       except ChatterboxTTSError:
         raise
@@ -236,6 +244,32 @@ class ChatterboxTurboTTSService:
       return cls._model
     with cls._lock:
       return cls._get_model_locked()
+
+  @classmethod
+  def _ensure_conditionals(cls, model: Any, audio_prompt_path: Optional[str]) -> None:
+    """讓 model 的 conditionals 對應指定的 voice prompt，只在 prompt 變動時重算。
+
+    以（路徑, mtime）當快取 key：同路徑但檔案被換過也會重算。prompt 為 None 時
+    還原模型載入時 snapshot 的內建 conds（用過 voice clone 後 model.conds 已被
+    覆蓋，不還原會殘留上一個音色）。
+    """
+    if audio_prompt_path is None:
+      with cls._lock:
+        if cls._prepared_prompt is not None:
+          model.conds = cls._builtin_conds
+          cls._prepared_prompt = None
+      return
+
+    try:
+      mtime_ns = Path(audio_prompt_path).stat().st_mtime_ns
+    except OSError:
+      mtime_ns = None
+    key = (audio_prompt_path, mtime_ns)
+    with cls._lock:
+      if cls._prepared_prompt != key:
+        logger.info("正在計算 voice prompt conditionals: %s", audio_prompt_path)
+        model.prepare_conditionals(audio_prompt_path)
+        cls._prepared_prompt = key
 
   @classmethod
   def synthesize(
@@ -260,7 +294,10 @@ class ChatterboxTurboTTSService:
       model = cls._get_model()
 
       gen_kwargs = _generation_kwargs()
-      if audio_prompt_path:
+      if hasattr(model, "prepare_conditionals"):
+        cls._ensure_conditionals(model, audio_prompt_path)
+      elif audio_prompt_path:
+        # 模型變體沒有 prepare_conditionals → 退回舊行為（每次重算，但至少可用）。
         gen_kwargs["audio_prompt_path"] = audio_prompt_path
       gen_kwargs = _filter_supported_kwargs(model.generate, gen_kwargs)
       wav = model.generate(text, **gen_kwargs)
