@@ -1019,12 +1019,12 @@ export const ELEMENT_META: Record<
   WonderAcademyElement,
   { label: string; emoji: string; fg: string; bg: string }
 > = {
-  spark: { label: "spark", emoji: "⚡", fg: "#c98a12", bg: "#fff4d6" },
-  tide: { label: "tide", emoji: "🌊", fg: "#3f7fb8", bg: "#e3f1ff" },
-  leaf: { label: "leaf", emoji: "🍀", fg: "#3a9e63", bg: "#e2f7e9" },
-  light: { label: "light", emoji: "☀️", fg: "#c98a12", bg: "#fff4d6" },
-  dream: { label: "dream", emoji: "🌙", fg: "#6a5bd0", bg: "#ece9ff" },
-  ember: { label: "ember", emoji: "🔥", fg: "#d4622f", bg: "#ffe6dd" },
-  crystal: { label: "crystal", emoji: "💎", fg: "#5a8bb0", bg: "#e6f0f7" },
-  star: { label: "star", emoji: "⭐", fg: "#caa11a", bg: "#fff6d4" },
+  spark: { label: "雷電", emoji: "⚡", fg: "#c98a12", bg: "#fff4d6" },
+  tide: { label: "潮汐", emoji: "🌊", fg: "#3f7fb8", bg: "#e3f1ff" },
+  leaf: { label: "草葉", emoji: "🍀", fg: "#3a9e63", bg: "#e2f7e9" },
+  light: { label: "光芒", emoji: "☀️", fg: "#c98a12", bg: "#fff4d6" },
+  dream: { label: "夢境", emoji: "🌙", fg: "#6a5bd0", bg: "#ece9ff" },
+  ember: { label: "火焰", emoji: "🔥", fg: "#d4622f", bg: "#ffe6dd" },
+  crystal: { label: "水晶", emoji: "💎", fg: "#5a8bb0", bg: "#e6f0f7" },
+  star: { label: "星光", emoji: "⭐", fg: "#caa11a", bg: "#fff6d4" },
 };

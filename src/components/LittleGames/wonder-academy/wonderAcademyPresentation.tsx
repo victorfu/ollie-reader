@@ -9,6 +9,7 @@ export function TypeBadge({ element }: { element: keyof typeof ELEMENT_META }) {
         fontWeight: 700,
         padding: "2px 8px",
         borderRadius: 999,
+        whiteSpace: "nowrap",
         color: m.fg,
         background: m.bg,
       }}
