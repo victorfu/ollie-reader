@@ -13,7 +13,7 @@ import {
   searchUserVocabulary,
   getUserVocabularyCount,
 } from "../services/vocabularyService";
-import { generateWordDetails } from "../services/aiService";
+import { generateWordDetails, type WordDetails } from "../services/aiService";
 import { isAbortError } from "../utils/errorUtils";
 import type {
   VocabularyWord,
@@ -56,6 +56,20 @@ export const formatDefinitionsForDisplay = (
 
   return lines.join("\n");
 };
+
+const AI_DETAILS_UNAVAILABLE_MESSAGE = "無法取得 AI 生成的內容";
+
+const hasUsableWordDetails = (
+  details: WordDetails | null,
+): details is WordDetails =>
+  Boolean(
+    details?.definitions?.some((definition) =>
+      Boolean(
+        definition.definition?.trim() ||
+          definition.definitionChinese?.trim(),
+      ),
+    ),
+  );
 
 export const useVocabulary = () => {
   const { user } = useAuth();
@@ -129,6 +143,10 @@ export const useVocabulary = () => {
         // Check if aborted
         if (controller.signal.aborted) {
           return { success: false, message: "Request cancelled" };
+        }
+
+        if (!hasUsableWordDetails(details)) {
+          return { success: false, message: AI_DETAILS_UNAVAILABLE_MESSAGE };
         }
 
         // Create vocabulary word (ensure no undefined values)
@@ -242,6 +260,14 @@ export const useVocabulary = () => {
         // Check if aborted
         if (effectiveSignal.aborted) {
           return { success: false, isNew: false, message: "Request cancelled" };
+        }
+
+        if (!hasUsableWordDetails(details)) {
+          return {
+            success: false,
+            isNew: false,
+            message: AI_DETAILS_UNAVAILABLE_MESSAGE,
+          };
         }
 
         // Create vocabulary word
@@ -508,8 +534,8 @@ export const useVocabulary = () => {
         // Fetch new word details from AI service
         const details = await generateWordDetails(word, signal);
 
-        if (!details) {
-          return { success: false, message: "無法取得 AI 生成的內容" };
+        if (!hasUsableWordDetails(details)) {
+          return { success: false, message: AI_DETAILS_UNAVAILABLE_MESSAGE };
         }
 
         // 檢查是否已被取消
