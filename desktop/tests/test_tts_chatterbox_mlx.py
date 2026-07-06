@@ -50,17 +50,29 @@ class _FakeTurboModel(_FakeMlxModel):
         self._conds = f"conds:{ref_audio}"
 
 
+class _FakeMx:
+    """記錄 seed 呼叫的最小 mlx.core stub。"""
+
+    seeds: list = []
+
+    class random:
+        @staticmethod
+        def seed(value):
+            _FakeMx.seeds.append(value)
+
+
 def _fake_mlx_deps(model):
     def load_model(repo):
         return model
 
-    return lambda: (np, sf, load_model)
+    return lambda: (np, sf, _FakeMx, load_model)
 
 
 def _reset_service_state():
     ChatterboxMlxTTSService._model = None
     ChatterboxMlxTTSService._builtin_conds = None
     ChatterboxMlxTTSService._prepared_prompt = None
+    _FakeMx.seeds = []
 
 
 @pytest.fixture(autouse=True)
@@ -203,7 +215,7 @@ def test_model_load_failure_returns_503(monkeypatch):
         raise RuntimeError("download failed")
 
     monkeypatch.setattr(
-        tts_mlx, "_import_mlx_deps", lambda: (np, sf, load_model)
+        tts_mlx, "_import_mlx_deps", lambda: (np, sf, _FakeMx, load_model)
     )
 
     with pytest.raises(ChatterboxTTSError) as exc:
@@ -222,6 +234,32 @@ def test_generate_failure_returns_500(monkeypatch):
     with pytest.raises(ChatterboxTTSError) as exc:
         chatterbox_synthesize_speech("hi")
     assert exc.value.status_code == 500
+
+
+def test_same_text_seeds_rng_identically(monkeypatch):
+    # 發音一致性的機制：同一段文字 → 同一個 RNG 種子 → 任何機器上同一條
+    # 取樣路徑。種子值本身也要跨版本穩定（純內容 hash，不含時間/隨機成分）。
+    model = _FakeMlxModel()
+    monkeypatch.setattr(tts_mlx, "_import_mlx_deps", _fake_mlx_deps(model))
+
+    chatterbox_synthesize_speech("comb")
+    chatterbox_synthesize_speech("comb")
+
+    assert len(_FakeMx.seeds) == 2
+    assert _FakeMx.seeds[0] == _FakeMx.seeds[1]
+    assert _FakeMx.seeds[0] == tts_mlx._stable_seed("comb", "")
+
+
+def test_different_text_or_voice_gets_different_seed(monkeypatch, tmp_path):
+    voice_file = _write_voice(tmp_path)
+    model = _FakeTurboModel()
+    monkeypatch.setattr(tts_mlx, "_import_mlx_deps", _fake_mlx_deps(model))
+
+    chatterbox_synthesize_speech("comb")
+    chatterbox_synthesize_speech("tomb")
+    chatterbox_synthesize_speech("comb", voice=str(voice_file))
+
+    assert len(set(_FakeMx.seeds)) == 3
 
 
 # ---------- 後端分派 ----------

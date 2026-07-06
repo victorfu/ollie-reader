@@ -116,6 +116,11 @@ uv run python main.py --serve     # sidecar，含 /api/chatterbox-tts endpoint
 > voice / audio-prompt 指到不存在的檔案時，sidecar 會回 **400**（而非安靜地退回
 > 預設音色），避免你以為套用了 voice clone 但其實沒有。
 
+> **發音一致性（MLX 後端）**：Chatterbox 是隨機取樣的生成模型，不固定種子的話
+> 同一個字在不同機器可能唸法不同（例如 *comb*）。MLX 後端以（文字, voice
+> prompt）的 hash 當 RNG 種子——同樣輸入在任何機器、任何時間都輸出**完全相同**
+> 的語音。想要更保守的取樣可另設 `CHATTERBOX_TEMPERATURE`（如 `0.5`）。
+
 ### 注意
 
 - 首次使用會有**模型載入 / 下載 / 快取**成本，之後才會快。
