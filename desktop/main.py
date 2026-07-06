@@ -30,6 +30,7 @@ def main():
             instance.write_pid_file(port)
         except OSError as exc:
             print(f"無法寫入 sidecar PID 檔（{exc}），照常啟動。")
+        instance.install_signal_cleanup(port)
         try:
             uvicorn.run(
                 "server.app:app",
@@ -38,7 +39,9 @@ def main():
                 log_level="info",
             )
         finally:
-            # uvicorn 對 SIGTERM/SIGINT 都會優雅收尾後 return，finally 足以清檔。
+            # finally 涵蓋正常 return 與例外；signal 路徑（SIGTERM/SIGINT）則由
+            # install_signal_cleanup 的 handler 處理 —— uvicorn 優雅關閉後會還原
+            # 預設 handler 並重放訊號，所以清檔動作要搶在重放之前完成。
             instance.remove_pid_file(port)
     else:
         try:

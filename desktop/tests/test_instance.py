@@ -90,3 +90,29 @@ def test_sidecar_alive_false_on_connection_error(monkeypatch):
 
     monkeypatch.setattr("server.instance.urllib.request.urlopen", boom)
     assert instance.sidecar_alive(8765) is False
+
+
+def test_install_signal_cleanup_removes_pid_file_and_reraises(tmp_path, monkeypatch):
+    import signal as signal_mod
+
+    monkeypatch.setattr("server.instance.tempfile.gettempdir", lambda: str(tmp_path))
+    instance.write_pid_file(8765)
+
+    installed = {}
+    monkeypatch.setattr(
+        "server.instance.signal.signal",
+        lambda sig, handler: installed.__setitem__(sig, handler),
+    )
+    kills = []
+    monkeypatch.setattr(
+        "server.instance.os.kill", lambda pid, sig: kills.append((pid, sig))
+    )
+
+    instance.install_signal_cleanup(8765)
+    assert set(installed) == {signal_mod.SIGTERM, signal_mod.SIGINT}
+
+    installed[signal_mod.SIGTERM](signal_mod.SIGTERM, None)
+
+    assert instance.read_pid(8765) is None  # PID 檔已清
+    assert installed[signal_mod.SIGTERM] is signal_mod.SIG_DFL  # 還原預設 handler
+    assert kills == [(os.getpid(), signal_mod.SIGTERM)]  # 重送訊號

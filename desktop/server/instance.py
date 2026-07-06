@@ -2,6 +2,7 @@
 
 import json
 import os
+import signal
 import tempfile
 import urllib.error
 import urllib.request
@@ -62,3 +63,20 @@ def sidecar_alive(port: int, timeout: float = 1.0) -> bool:
     except (urllib.error.URLError, OSError, ValueError):
         return False
     return isinstance(data, dict) and bool(data.get("version"))
+
+
+def install_signal_cleanup(port: int) -> None:
+    """安裝 SIGTERM/SIGINT handler：先清 PID 檔，再還原預設行為並重送訊號。
+
+    uvicorn 優雅關閉後會「還原原本的 handler 並重放訊號」，預設 handler 直接終止
+    行程，try/finally 不會執行 —— 所以 PID 檔要在這裡清，清完再以預設行為結束，
+    保留「因 signal 結束」的行程語意。
+    """
+
+    def _cleanup(signum, frame):
+        remove_pid_file(port)
+        signal.signal(signum, signal.SIG_DFL)
+        os.kill(os.getpid(), signum)
+
+    for sig in (signal.SIGTERM, signal.SIGINT):
+        signal.signal(sig, _cleanup)

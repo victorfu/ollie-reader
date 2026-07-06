@@ -56,7 +56,8 @@ shell 已有 import `server.config` 的先例,兩邊共用無循環依賴。
   「sidecar 已在執行」→ **exit 0**。LaunchAgent `KeepAlive=False`,正常退出不會
   被誤判 crash 或重啟。
 - 通過檢查後寫 PID 檔 `<tempdir>/ollie-reader-sidecar-<port>.pid`,結束時清除
-  (try/finally;uvicorn 對 SIGTERM/SIGINT 會優雅收尾後返回,不需 atexit)。
+  (try/finally;uvicorn 優雅關閉後會重放訊號、預設 handler 終止行程,故以
+  `install_signal_cleanup` 在 signal 路徑清檔,try/finally 涵蓋正常 return 與例外)。
   寫入失敗不致命,log 後照常服務。
 - port 綁定本身仍是最後防線:極端 race 下第二個 uvicorn 綁不到 port 自行退出。
 
