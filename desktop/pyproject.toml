@@ -1,6 +1,6 @@
 [project]
 name = "ollie-reader-desktop"
-version = "0.2.0"
+version = "0.3.0"
 description = "Ollie Reader desktop shell: PySide6 tray + local FastAPI sidecar (Piper/Kokoro TTS, PDF extraction)"
 requires-python = ">=3.10"
 dependencies = [
