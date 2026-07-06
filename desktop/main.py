@@ -1,7 +1,7 @@
 """ollie-reader desktop 進入點。
 
-無旗標 → 啟動 PySide6 殼（Task 13 之前殼尚未實作，會提示）。
---serve  → 啟動本機 API sidecar（uvicorn）。
+無旗標 → 啟動 PySide6 殼。
+--serve  → 啟動本機 API sidecar（uvicorn）；若 port 上已有活的 sidecar 則直接退出。
 """
 
 import argparse
@@ -16,14 +16,30 @@ def main():
     if args.serve:
         import uvicorn
 
+        from server import instance
         from server.config import DEFAULT_PORT, HOST
 
-        uvicorn.run(
-            "server.app:app",
-            host=HOST,
-            port=args.port or DEFAULT_PORT,
-            log_level="info",
-        )
+        port = args.port or DEFAULT_PORT
+        if instance.sidecar_alive(port):
+            # 已有活的 sidecar（開機自啟或另一個殼開的）→ 正常退出（exit 0），
+            # 不搶 port。LaunchAgent KeepAlive=False，不會被誤判 crash。
+            print(f"ollie-reader sidecar 已在 port {port} 執行，不重複啟動。")
+            return
+
+        try:
+            instance.write_pid_file(port)
+        except OSError as exc:
+            print(f"無法寫入 sidecar PID 檔（{exc}），照常啟動。")
+        try:
+            uvicorn.run(
+                "server.app:app",
+                host=HOST,
+                port=port,
+                log_level="info",
+            )
+        finally:
+            # uvicorn 對 SIGTERM/SIGINT 都會優雅收尾後 return，finally 足以清檔。
+            instance.remove_pid_file(port)
     else:
         try:
             from shell.app import run_shell
