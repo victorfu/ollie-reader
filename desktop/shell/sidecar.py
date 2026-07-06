@@ -90,6 +90,8 @@ class SidecarManager:
         self._adopted = False
         self._adopted_pid = None
         if pid is None:
+            # 收養時拿不到 PID（舊版 sidecar）→ 無從停止，只能放棄追蹤。
+            print("無法停止收養的 sidecar（無 PID 檔），已清除收養狀態。")
             return
         try:
             os.kill(pid, signal.SIGTERM)

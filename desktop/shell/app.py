@@ -114,7 +114,7 @@ class SettingsDialog(QDialog):
     self._refresh()
 
   def _refresh(self) -> None:
-    # 本機子行程存活檢查（poll()），零網路；不再每 2 秒打 /api/version。
+    # 本機存活檢查零網路（自家子行程 poll()/收養後 os.kill）；僅「收養但無 PID」的舊版過渡情境會退回 HTTP 探測。
     ok = self.manager.is_running()
     self.status_label.setText("● 運行中" if ok else "○ 已停止")
 
@@ -206,7 +206,7 @@ class TrayApp:
     self._refresh()
 
   def _refresh(self) -> None:
-    # 本機子行程存活檢查（poll()），零網路；不再每 3 秒打 /api/version。
+    # 本機存活檢查零網路（自家子行程 poll()/收養後 os.kill）；僅「收養但無 PID」的舊版過渡情境會退回 HTTP 探測。
     ok = self.manager.is_running()
     self.status_action.setText("狀態：● 運行中" if ok else "狀態：○ 已停止")
 

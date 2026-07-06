@@ -29,7 +29,18 @@ def read_pid(port: int) -> Optional[int]:
 
 
 def remove_pid_file(port: int) -> None:
-    """移除 PID 檔；檔案不存在 → 靜默。"""
+    """移除 PID 檔，但僅在檔案內容是「自己」時才動手。
+
+    擁有權防護：兩個 --serve 行程幾乎同時啟動時（例如 LaunchAgent 開機自啟
+    又疊到手動/shell 啟動），都會通過 sidecar_alive 檢查後各自寫入 PID 檔，
+    第二次寫入會覆蓋第一次；bind port 失敗的那個之後清理時，若不檢查擁有權，
+    就會刪掉 bind 成功、真正在跑的那個行程的 PID 檔。因此：檔案不存在 →
+    靜默；內容無法解析或 PID 不是自己 → 保留原檔不動；只有內容等於
+    os.getpid() 才真的刪除。並行啟動時，輸掉 bind 的那方不可刪掉贏家的
+    PID 檔。
+    """
+    if read_pid(port) != os.getpid():
+        return
     try:
         os.unlink(pid_file_path(port))
     except OSError:

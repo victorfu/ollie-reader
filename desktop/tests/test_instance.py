@@ -45,6 +45,27 @@ def test_remove_pid_file_missing_is_silent(tmp_path, monkeypatch):
     instance.remove_pid_file(8765)  # 不應丟例外
 
 
+def test_remove_pid_file_keeps_foreign_pid(tmp_path, monkeypatch):
+    monkeypatch.setattr("server.instance.tempfile.gettempdir", lambda: str(tmp_path))
+    foreign_pid = os.getpid() + 1
+    with open(instance.pid_file_path(8765), "w", encoding="utf-8") as f:
+        f.write(str(foreign_pid))
+
+    instance.remove_pid_file(8765)
+
+    assert instance.read_pid(8765) == foreign_pid
+
+
+def test_remove_pid_file_keeps_garbage_file(tmp_path, monkeypatch):
+    monkeypatch.setattr("server.instance.tempfile.gettempdir", lambda: str(tmp_path))
+    with open(instance.pid_file_path(8765), "w", encoding="utf-8") as f:
+        f.write("not-a-pid")
+
+    instance.remove_pid_file(8765)
+
+    assert os.path.exists(instance.pid_file_path(8765))
+
+
 def test_pid_alive_self_is_true():
     assert instance.pid_alive(os.getpid()) is True
 

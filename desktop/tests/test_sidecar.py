@@ -222,7 +222,7 @@ def test_adopted_stop_escalates_to_sigkill(monkeypatch):
     assert kills[-1] == (4242, signal.SIGKILL)
 
 
-def test_adopted_without_pid_file(monkeypatch):
+def test_adopted_without_pid_file(monkeypatch, capsys):
     """舊版 sidecar 還在跑（沒有 PID 檔）：可收養、is_running 退回 HTTP、stop 只清狀態。"""
     _forbid_spawn(monkeypatch)
     monkeypatch.setattr(
@@ -240,6 +240,8 @@ def test_adopted_without_pid_file(monkeypatch):
 
     mgr.stop()  # 不應丟例外
     assert mgr.is_running() is False
+
+    assert "無 PID 檔" in capsys.readouterr().out
 
 
 def test_start_respawns_after_adopted_died(monkeypatch):

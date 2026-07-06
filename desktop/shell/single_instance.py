@@ -43,7 +43,9 @@ class SingleInstance:
         QLocalServer.removeServer(self._server_name)
         self._server = QLocalServer()
         self._server.newConnection.connect(self._handle_connection)
-        self._server.listen(self._server_name)
+        if not self._server.listen(self._server_name):
+            # 喚醒通道開不起來只影響「第二個實例喊醒舊實例」的 UX，鎖本身仍有效。
+            print(f"single-instance 喚醒通道監聽失敗：{self._server.errorString()}")
         return True
 
     def notify_existing(self, timeout_ms: int = 500) -> bool:
