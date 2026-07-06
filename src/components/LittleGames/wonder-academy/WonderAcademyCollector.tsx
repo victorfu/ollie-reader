@@ -1328,39 +1328,56 @@ export default function WonderAcademyGame({ onExit }: Props) {
   const entryCopy = getWonderAcademyEntryCopy({ isGuest });
   const showUnsyncedLocalNotice = !isGuest && hasUnsyncedLocalProgress;
 
-  const frame = (children: ReactNode, options: { wide?: boolean } = {}) => (
+  const frame = (children: ReactNode, options: { wide?: boolean; dense?: boolean } = {}) => (
     <div style={{ minHeight: "100dvh", background: PANEL_BG, fontFamily: '-apple-system, "PingFang TC", "Noto Sans TC", sans-serif', color: "#33304a" }}>
-      <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px" }}>
+      <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 14px" }}>
         <button onClick={() => setExitConfirmOpen(true)} style={btnGhost}><ArrowLeft size={16} /> 離開</button>
         <div style={{ fontSize: 13, fontWeight: 800, letterSpacing: ".04em" }}>✦ Sparkleaf 星葉學院</div>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span title="星塵" style={{ fontSize: 12, fontWeight: 700, color: "#8a83a3", whiteSpace: "nowrap" }}>✨ {state.stardust}</span>
+          <span aria-live="polite" style={saveStatusChip(effectiveSaveStatus)}>{saveLabel}</span>
           <button
             onClick={() => dispatch({ type: "toggleMute" })}
             aria-pressed={!state.audioSettings.muted}
+            aria-label={state.audioSettings.muted ? "開啟音效" : "關閉音效"}
             title={state.audioSettings.muted ? "開啟音效" : "關閉音效"}
             style={{
               display: "inline-flex",
               alignItems: "center",
-              gap: 5,
-              fontSize: 12,
-              fontWeight: 800,
-              padding: "5px 11px",
+              justifyContent: "center",
+              width: 30,
+              height: 30,
+              flexShrink: 0,
+              padding: 0,
+              boxSizing: "border-box",
               borderRadius: 999,
               cursor: "pointer",
-              whiteSpace: "nowrap",
               color: state.audioSettings.muted ? "#8a83a3" : "#6a52ff",
               background: state.audioSettings.muted ? "rgba(255,255,255,.6)" : "#efeaff",
               border: state.audioSettings.muted ? "1px solid rgba(60,40,90,.16)" : "1px solid #cdb6ef",
             }}
           >
-            {state.audioSettings.muted ? <VolumeX size={14} /> : <Volume2 size={14} />}
-            {state.audioSettings.muted ? "音效 關" : "音效 開"}
+            {state.audioSettings.muted ? <VolumeX size={15} /> : <Volume2 size={15} />}
           </button>
-          <span aria-live="polite" style={saveStatusChip(effectiveSaveStatus)}>{saveLabel}</span>
-          <span style={{ fontSize: 12, fontWeight: 700, color: "#8a83a3" }}>✨ {state.stardust}</span>
+          {state.screen === "hub" && (
+            <button
+              onClick={() => {
+                if (shouldConfirmWonderAcademyOverwrite(state.team.length)) {
+                  setResetConfirmOpen(true);
+                } else {
+                  dispatch({ type: "resetNewGame" });
+                }
+              }}
+              title="重新開始"
+              aria-label="重新開始"
+              style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 30, height: 30, flexShrink: 0, borderRadius: 999, color: "#b64255", background: "rgba(255,255,255,.72)", border: "1px solid rgba(182,66,85,.24)", cursor: "pointer" }}
+            >
+              <RotateCcw size={14} />
+            </button>
+          )}
         </div>
       </header>
-      <div style={{ maxWidth: options.wide ? 1180 : 880, margin: "0 auto", padding: "4px 16px 40px" }}>{children}</div>
+      <div style={{ maxWidth: options.wide ? 1180 : 880, margin: "0 auto", padding: options.dense ? "2px 14px 14px" : "4px 16px 40px" }}>{children}</div>
       {exitConfirmOpen && (
         <div
           onClick={() => setExitConfirmOpen(false)}
@@ -1633,167 +1650,167 @@ export default function WonderAcademyGame({ onExit }: Props) {
     };
     return frame(
       <div>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
-          <h1 style={{ fontSize: 24, fontWeight: 800, margin: "8px 0 2px" }}>學院大廳</h1>
-          <button
-            onClick={() => {
-              if (shouldConfirmWonderAcademyOverwrite(state.team.length)) {
-                setResetConfirmOpen(true);
-              } else {
-                dispatch({ type: "resetNewGame" });
-              }
-            }}
-            title="重新開始"
-            aria-label="重新開始"
-            style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 34, height: 34, flexShrink: 0, borderRadius: 999, color: "#b64255", background: "rgba(255,255,255,.72)", border: "1px solid rgba(182,66,85,.24)", cursor: "pointer" }}
-          >
-            <RotateCcw size={15} />
-          </button>
-        </div>
-        <p style={{ color: "#8a83a3", fontSize: 14, margin: "0 0 18px" }}>圖鑑進度 {completion.caught}/{completion.total} 已收服 · {completion.seen} 已遇見 · 🍪 點心 ×{totalSnacks} · 🔨 材料 ×{totalMaterials}</p>
+        <style>{`@keyframes waBob{0%,100%{transform:translateY(0)}50%{transform:translateY(-9px)}}@media (prefers-reduced-motion: reduce){.wa-bob{animation:none!important}}.wa-hub-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:12px;align-items:start}@media (min-width:860px){.wa-hub-grid{grid-template-columns:minmax(0,1.08fr) minmax(0,1fr)}}`}</style>
         {isGuest && entryCopy.noticeTitle && entryCopy.noticeBody && (
-          <div style={{ ...guestNoticeBox, margin: "0 0 16px", textAlign: "left", maxWidth: "none" }}>
+          <div style={{ ...guestNoticeBox, margin: "0 0 10px", textAlign: "left", maxWidth: "none", padding: "8px 12px" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
               <div style={{ flex: "1 1 240px" }}>
-                <div style={{ fontWeight: 900, color: "#5b3d00", marginBottom: 3 }}>{entryCopy.noticeTitle}</div>
-                <div>{entryCopy.noticeBody}</div>
+                <b style={{ color: "#5b3d00" }}>{entryCopy.noticeTitle}</b> — {entryCopy.noticeBody}
               </div>
-              <button onClick={handleSignIn} style={{ ...btnOutline, padding: "9px 13px", fontSize: 12 }}>登入同步</button>
+              <button onClick={handleSignIn} style={{ ...btnOutline, padding: "7px 12px", fontSize: 12 }}>登入同步</button>
             </div>
-            {authError && <div style={{ ...authErrorBox, margin: "10px 0 0", textAlign: "left" }}>{authError}</div>}
+            {authError && <div style={{ ...authErrorBox, margin: "8px 0 0", textAlign: "left" }}>{authError}</div>}
           </div>
         )}
         {showUnsyncedLocalNotice && (
-          <div style={unsyncedNoticeBox}>
-            <div style={{ fontWeight: 900, color: "#5b3d00", marginBottom: 3 }}>
-              此裝置有尚未同步的 Wonder Academy 進度
-            </div>
-            <div>我會自動同步到雲端。同步完成前,請先不要在其他裝置覆蓋這份進度。</div>
+          <div style={{ ...unsyncedNoticeBox, margin: "0 0 10px", padding: "8px 12px" }}>
+            <b style={{ color: "#5b3d00" }}>此裝置有尚未同步的 Wonder Academy 進度</b>——我會自動同步到雲端,同步完成前請先不要在其他裝置覆蓋這份進度。
           </div>
         )}
-
-        <div style={{ ...cardStatic, marginBottom: 16, padding: "12px 14px", borderColor: "rgba(106,82,255,.18)", background: "rgba(255,255,255,.78)" }}>
-          <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: ".08em", color: "#8a83a3", textTransform: "uppercase", marginBottom: 5 }}>目前目標</div>
-          <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-            <div style={{ flex: "1 1 260px" }}>
-              <div style={{ fontSize: 15, fontWeight: 900, color: "#33304a" }}>{currentObjective.label}</div>
-              <div style={{ fontSize: 12.5, color: "#6a6585", lineHeight: 1.45 }}>{currentObjective.description}</div>
-            </div>
-            <button onClick={onObjectiveAction} style={{ ...ctaBtn, fontSize: 13, padding: "10px 16px", borderRadius: 12 }}>
-              {currentObjective.actionLabel} →
-            </button>
-          </div>
-        </div>
-
-        <style>{`@keyframes waBob{0%,100%{transform:translateY(0)}50%{transform:translateY(-9px)}}@media (prefers-reduced-motion: reduce){.wa-bob{animation:none!important}}`}</style>
-        <div style={{ position: "relative", height: 152, borderRadius: 16, overflow: "hidden", marginBottom: 20, backgroundImage: `url(${academyHubUrl})`, backgroundSize: "cover", backgroundPosition: "center", boxShadow: "inset 0 -34px 44px rgba(0,0,0,.14), 0 6px 18px rgba(80,50,130,.1)" }}>
-          {state.team.map((o, i) => {
-            const sp = speciesById(o.speciesId);
-            return (
-              <img key={o.ownedId} className="wa-bob" src={sp?.portrait} alt={sp?.name} title={displayName(o)}
-                style={{ position: "absolute", bottom: 8, left: `${8 + (i % 5) * 18}%`, width: 78, height: 78, objectFit: "contain", filter: "drop-shadow(0 6px 6px rgba(0,0,0,.28))", animation: "waBob 2.8s ease-in-out infinite", animationDelay: `${(i % 5) * 0.4}s` }} />
-            );
-          })}
-        </div>
-
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(104px,1fr))", gap: 10, marginBottom: 20 }}>
-          <button onClick={() => dispatch({ type: "openRegions" })} style={{ ...ctaBtn, gridColumn: "1 / -1", justifyContent: "center" }}><Compass size={18} /> 出發探索</button>
-          <button onClick={() => dispatch({ type: "openDex" })} style={{ ...btnOutline, justifyContent: "center", padding: "12px 10px" }}><Sparkles size={16} /> 圖鑑</button>
-          <button onClick={() => dispatch({ type: "openShop" })} style={{ ...btnOutline, justifyContent: "center", padding: "12px 10px" }}><ShoppingBag size={16} /> 商店</button>
-          <button onClick={() => dispatch({ type: "openWorkshop" })} style={{ ...btnOutline, justifyContent: "center", padding: "12px 10px" }}><Hammer size={16} /> 工房</button>
-          <button
-            disabled={!postgameUnlocked}
-            title={postgameUnlocked ? undefined : "打敗所有守關魔王後解鎖"}
-            onClick={() => { if (postgameUnlocked) dispatch({ type: "openTrials" }); }}
-            style={{ ...btnOutline, justifyContent: "center", padding: "12px 10px", opacity: postgameUnlocked ? 1 : 0.52, cursor: postgameUnlocked ? "pointer" : "default" }}
-          >
-            {postgameUnlocked ? <Sparkles size={16} /> : <Lock size={16} />} 試煉
-          </button>
-          <button onClick={() => dispatch({ type: "openBuilder" })} style={{ ...btnOutline, justifyContent: "center", padding: "12px 10px" }}><Plus size={16} /> 建立寵物</button>
-        </div>
-
-        <div style={{ ...cardStatic, marginBottom: 20, padding: "12px 14px" }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
-            <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: ".08em", color: "#8a83a3", textTransform: "uppercase" }}>📋 今日任務</div>
-            {dailyClaimable ? (
-              <button onClick={onClaimDaily} style={{ ...dailyBtn, marginBottom: 0, padding: "8px 14px", fontSize: 13 }}>
-                <Gift size={15} /> 領取每日獎勵 <span style={{ fontSize: 11, fontWeight: 700, opacity: 0.85 }}>✨20 · 🍪×1</span>
-              </button>
-            ) : dailyFlash ? (
-              <div style={{ ...dailyFlashBox, marginBottom: 0, padding: "7px 12px", fontSize: 12.5 }}>
-                <Gift size={14} /> 領到了!{dailyFlash}
-              </div>
-            ) : (
-              <div style={{ fontSize: 12, color: "#8a83a3", display: "flex", alignItems: "center", gap: 5 }}>
-                <Gift size={13} /> 今日獎勵已領取,明天再來!
-              </div>
-            )}
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 11 }}>
-            {DAILY_TASKS.map((t) => {
-              const count = Math.min(daily.counts[t.id], t.goal);
-              const done = count >= t.goal;
-              const claimed = daily.claimed.includes(t.id);
-              const pct = Math.round((count / t.goal) * 100);
-              return (
-                <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, fontWeight: 700, marginBottom: 4 }}>
-                      <span style={{ color: claimed ? "#8a83a3" : "#33304a" }}>{claimed ? "✓ " : ""}{t.label}</span>
-                      <span style={{ color: "#8a83a3", fontSize: 11, fontWeight: 700 }}>{count}/{t.goal}</span>
-                    </div>
-                    <div style={{ height: 7, borderRadius: 999, background: "#ece8f4", overflow: "hidden" }}>
-                      <div style={{ width: `${pct}%`, height: "100%", borderRadius: 999, background: done ? "linear-gradient(90deg,#6fd07f,#42b86a)" : "linear-gradient(90deg,#7c6cff,#6a52ff)", transition: "width .35s" }} />
-                    </div>
+        <div className="wa-hub-grid">
+          <div style={{ display: "flex", flexDirection: "column", gap: 12, minWidth: 0 }}>
+            <div style={{ position: "relative", height: 170, borderRadius: 16, overflow: "hidden", backgroundImage: `url(${academyHubUrl})`, backgroundSize: "cover", backgroundPosition: "center", boxShadow: "inset 0 -34px 44px rgba(0,0,0,.14), 0 6px 18px rgba(80,50,130,.1)" }}>
+              <div style={{ position: "absolute", top: 0, left: 0, right: 0, display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10, padding: "10px 12px 20px", background: "linear-gradient(180deg,rgba(22,14,46,.44),rgba(22,14,46,0))" }}>
+                <div style={{ minWidth: 0 }}>
+                  <h1 style={{ fontSize: 19, fontWeight: 900, margin: 0, color: "#fff", textShadow: "0 2px 8px rgba(20,12,44,.55)" }}>學院大廳</h1>
+                  <div style={{ fontSize: 12, fontWeight: 800, color: "rgba(255,255,255,.94)", textShadow: "0 1px 6px rgba(20,12,44,.6)" }}>
+                    圖鑑 {completion.caught}/{completion.total} 已收服 · {completion.seen} 已遇見 · 🍪 ×{totalSnacks} · 🔨 ×{totalMaterials}
                   </div>
-                  <button
-                    disabled={!done || claimed}
-                    onClick={() => { if (done && !claimed) { sfx("wonderdex_update"); dispatch({ type: "claimDailyTask", id: t.id, today }); } }}
-                    style={{ fontSize: 12, fontWeight: 800, padding: "7px 12px", borderRadius: 11, border: "1px solid", whiteSpace: "nowrap", cursor: done && !claimed ? "pointer" : "default", borderColor: claimed ? "#bfe3a3" : done ? "#f0c869" : "rgba(60,40,90,.15)", background: claimed ? "#eefbe9" : done ? "linear-gradient(180deg,#ffd66b,#f7b13a)" : "#fff", color: claimed ? "#42b86a" : done ? "#5b3d00" : "#8a83a3" }}
-                  >
-                    {claimed ? "✓ 已領" : done ? `🎁 ✨${t.stardust}` : `✨${t.stardust}`}
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: ".1em", color: "#8a83a3", textTransform: "uppercase", marginBottom: 10 }}>你的隊伍</div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(150px,1fr))", gap: 12 }}>
-          {state.team.map((o) => {
-            const sp = speciesById(o.speciesId);
-            const hearts = Math.min(5, Math.round(o.bond / 20));
-            return (
-              <div key={o.ownedId} style={cardStatic}>
-                <img src={sp?.portrait} alt={sp?.name} style={{ width: "auto", maxWidth: 82, height: 66, objectFit: "contain", margin: "0 auto 6px", display: "block", filter: o.shiny ? SHINY_FILTER : undefined }} />
-                <div style={{ fontWeight: 800, textAlign: "center" }}>{o.shiny && "✨ "}{displayName(o)}</div>
-                <div style={{ fontSize: 11, color: "#8a83a3", textAlign: "center", marginBottom: 6 }}>Lv.{o.level} · {sp?.category}</div>
-                <div style={{ display: "flex", gap: 4, justifyContent: "center", marginBottom: 6 }}>
-                  {sp?.elements.map((e) => <TypeBadge key={e} element={e} />)}
-                </div>
-                <div style={{ textAlign: "center", fontSize: 12, marginBottom: 8 }} title={`羈絆 ${o.bond}/100`}>
-                  {"💛".repeat(hearts)}
-                  <span style={{ opacity: 0.3 }}>{"🤍".repeat(5 - hearts)}</span>
-                </div>
-                <div style={{ display: "flex", gap: 6 }}>
-                  <button
-                    onClick={() => { sfx("snack_use"); dispatch({ type: "feed", ownedId: o.ownedId }); }}
-                    disabled={totalSnacks === 0}
-                    style={{ ...feedBtn, flex: 1, opacity: totalSnacks === 0 ? 0.4 : 1, cursor: totalSnacks === 0 ? "default" : "pointer" }}
-                  >
-                    🍪 餵
-                  </button>
-                  <button
-                    onClick={() => dispatch({ type: "openSkills", ownedId: o.ownedId })}
-                    style={{ ...feedBtn, flex: 1, color: "#6a52ff", background: "#efeaff", border: "1px solid #cdb6ef" }}
-                  >
-                    ✨ 技能
-                  </button>
                 </div>
               </div>
-            );
-          })}
+              {state.team.map((o, i) => {
+                const sp = speciesById(o.speciesId);
+                return (
+                  <img key={o.ownedId} className="wa-bob" src={sp?.portrait} alt={sp?.name} title={displayName(o)}
+                    style={{ position: "absolute", bottom: 6, left: `${8 + (i % 5) * 18}%`, width: 68, height: 68, objectFit: "contain", filter: "drop-shadow(0 6px 6px rgba(0,0,0,.28))", animation: "waBob 2.8s ease-in-out infinite", animationDelay: `${(i % 5) * 0.4}s` }} />
+                );
+              })}
+            </div>
+
+            <div style={{ ...cardStatic, padding: "10px 12px", borderColor: "rgba(106,82,255,.18)", background: "rgba(255,255,255,.78)" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+                <div style={{ flex: "1 1 220px", minWidth: 0 }}>
+                  <div style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: ".08em", color: "#8a83a3", textTransform: "uppercase", marginBottom: 2 }}>目前目標</div>
+                  <div style={{ fontSize: 14, fontWeight: 900, color: "#33304a" }}>{currentObjective.label}</div>
+                  <div style={{ fontSize: 12, color: "#6a6585", lineHeight: 1.4 }}>{currentObjective.description}</div>
+                </div>
+                <button onClick={onObjectiveAction} style={{ ...ctaBtn, fontSize: 12.5, padding: "9px 14px", borderRadius: 11 }}>
+                  {currentObjective.actionLabel} →
+                </button>
+              </div>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(96px,1fr))", gap: 8 }}>
+              <button onClick={() => dispatch({ type: "openRegions" })} style={{ ...ctaBtn, gridColumn: "1 / -1", justifyContent: "center", padding: "11px 18px", fontSize: 14 }}><Compass size={17} /> 出發探索</button>
+              <button onClick={() => dispatch({ type: "openDex" })} style={{ ...btnOutline, justifyContent: "center", padding: "10px 8px", fontSize: 13 }}><Sparkles size={15} /> 圖鑑</button>
+              <button onClick={() => dispatch({ type: "openShop" })} style={{ ...btnOutline, justifyContent: "center", padding: "10px 8px", fontSize: 13 }}><ShoppingBag size={15} /> 商店</button>
+              <button onClick={() => dispatch({ type: "openWorkshop" })} style={{ ...btnOutline, justifyContent: "center", padding: "10px 8px", fontSize: 13 }}><Hammer size={15} /> 工房</button>
+              <button
+                disabled={!postgameUnlocked}
+                title={postgameUnlocked ? undefined : "打敗所有守關魔王後解鎖"}
+                onClick={() => { if (postgameUnlocked) dispatch({ type: "openTrials" }); }}
+                style={{ ...btnOutline, justifyContent: "center", padding: "10px 8px", fontSize: 13, opacity: postgameUnlocked ? 1 : 0.52, cursor: postgameUnlocked ? "pointer" : "default" }}
+              >
+                {postgameUnlocked ? <Sparkles size={15} /> : <Lock size={15} />} 試煉
+              </button>
+              <button onClick={() => dispatch({ type: "openBuilder" })} style={{ ...btnOutline, justifyContent: "center", padding: "10px 8px", fontSize: 13 }}><Plus size={15} /> 建立寵物</button>
+            </div>
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 12, minWidth: 0 }}>
+            <div style={{ ...cardStatic, padding: "10px 12px" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", marginBottom: 8 }}>
+                <div style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: ".08em", color: "#8a83a3", textTransform: "uppercase" }}>📋 今日任務</div>
+                {dailyClaimable ? (
+                  <button onClick={onClaimDaily} style={{ ...dailyBtn, marginBottom: 0, padding: "6px 11px", fontSize: 12 }}>
+                    <Gift size={13} /> 每日獎勵 <span style={{ fontSize: 10.5, fontWeight: 700, opacity: 0.85 }}>✨20 · 🍪×1</span>
+                  </button>
+                ) : dailyFlash ? (
+                  <div style={{ ...dailyFlashBox, marginBottom: 0, padding: "5px 10px", fontSize: 11.5 }}>
+                    <Gift size={12} /> 領到了!{dailyFlash}
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 11.5, color: "#8a83a3", display: "flex", alignItems: "center", gap: 4 }}>
+                    <Gift size={12} /> 今日獎勵已領取,明天再來!
+                  </div>
+                )}
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {DAILY_TASKS.map((t) => {
+                  const count = Math.min(daily.counts[t.id], t.goal);
+                  const done = count >= t.goal;
+                  const claimed = daily.claimed.includes(t.id);
+                  const pct = Math.round((count / t.goal) * 100);
+                  return (
+                    <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, fontWeight: 700, marginBottom: 3 }}>
+                          <span style={{ color: claimed ? "#8a83a3" : "#33304a" }}>{claimed ? "✓ " : ""}{t.label}</span>
+                          <span style={{ color: "#8a83a3", fontSize: 10.5, fontWeight: 700 }}>{count}/{t.goal}</span>
+                        </div>
+                        <div style={{ height: 6, borderRadius: 999, background: "#ece8f4", overflow: "hidden" }}>
+                          <div style={{ width: `${pct}%`, height: "100%", borderRadius: 999, background: done ? "linear-gradient(90deg,#6fd07f,#42b86a)" : "linear-gradient(90deg,#7c6cff,#6a52ff)", transition: "width .35s" }} />
+                        </div>
+                      </div>
+                      <button
+                        disabled={!done || claimed}
+                        onClick={() => { if (done && !claimed) { sfx("wonderdex_update"); dispatch({ type: "claimDailyTask", id: t.id, today }); } }}
+                        style={{ fontSize: 11.5, fontWeight: 800, padding: "5px 10px", borderRadius: 10, border: "1px solid", whiteSpace: "nowrap", cursor: done && !claimed ? "pointer" : "default", borderColor: claimed ? "#bfe3a3" : done ? "#f0c869" : "rgba(60,40,90,.15)", background: claimed ? "#eefbe9" : done ? "linear-gradient(180deg,#ffd66b,#f7b13a)" : "#fff", color: claimed ? "#42b86a" : done ? "#5b3d00" : "#8a83a3" }}
+                      >
+                        {claimed ? "✓ 已領" : done ? `🎁 ✨${t.stardust}` : `✨${t.stardust}`}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div style={{ ...cardStatic, padding: "10px 12px" }}>
+              <div style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: ".08em", color: "#8a83a3", textTransform: "uppercase", marginBottom: 8 }}>🐾 你的隊伍</div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(200px,1fr))", gap: 8 }}>
+                {state.team.map((o) => {
+                  const sp = speciesById(o.speciesId);
+                  const hearts = Math.min(5, Math.round(o.bond / 20));
+                  return (
+                    <div key={o.ownedId} title={`Lv.${o.level}${sp?.category ? ` · ${sp.category}` : ""} · 羈絆 ${o.bond}/100`} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 8px", borderRadius: 12, background: "rgba(255,255,255,.8)", border: "1px solid rgba(60,40,90,.08)" }}>
+                      <img src={sp?.portrait} alt={sp?.name} style={{ width: 44, height: 44, objectFit: "contain", flexShrink: 0, filter: o.shiny ? SHINY_FILTER : undefined }} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 12.5, fontWeight: 800, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                          {o.shiny && "✨ "}{displayName(o)} <span style={{ color: "#8a83a3", fontWeight: 700 }}>Lv.{o.level}</span>
+                        </div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 2, flexWrap: "wrap" }}>
+                          {sp?.elements.map((e) => <TypeBadge key={e} element={e} />)}
+                          <span style={{ fontSize: 10.5 }} aria-label={`羈絆 ${o.bond}/100`}>
+                            {"💛".repeat(hearts)}
+                            <span style={{ opacity: 0.3 }}>{"🤍".repeat(5 - hearts)}</span>
+                          </span>
+                        </div>
+                      </div>
+                      <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+                        <button
+                          onClick={() => { sfx("snack_use"); dispatch({ type: "feed", ownedId: o.ownedId }); }}
+                          disabled={totalSnacks === 0}
+                          title="餵點心"
+                          aria-label={`餵 ${displayName(o)} 點心`}
+                          style={{ ...feedBtn, width: "auto", padding: "6px 8px", fontSize: 12, borderRadius: 9, opacity: totalSnacks === 0 ? 0.4 : 1, cursor: totalSnacks === 0 ? "default" : "pointer" }}
+                        >
+                          🍪
+                        </button>
+                        <button
+                          onClick={() => dispatch({ type: "openSkills", ownedId: o.ownedId })}
+                          title="技能"
+                          aria-label={`${displayName(o)} 的技能`}
+                          style={{ ...feedBtn, width: "auto", padding: "6px 8px", fontSize: 12, borderRadius: 9, color: "#6a52ff", background: "#efeaff", border: "1px solid #cdb6ef" }}
+                        >
+                          ✨
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
         </div>
 
         {resetConfirmOpen && (
@@ -1820,6 +1837,7 @@ export default function WonderAcademyGame({ onExit }: Props) {
           </div>
         )}
       </div>,
+      { wide: true, dense: true },
     );
   }
 
