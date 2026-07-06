@@ -19,7 +19,7 @@ from PySide6.QtWidgets import (
   QSystemTrayIcon,
 )
 
-from server.config import DEFAULT_PORT
+from server.config import DEFAULT_PORT, VERSION
 from server.oikid_secrets import (
   clear_oikid_credentials,
   get_oikid_credentials,
@@ -160,6 +160,10 @@ class TrayApp:
     self.tray = QSystemTrayIcon(self.tray_icon, self.app)
     self.menu = QMenu()
 
+    self.version_action = QAction(f"Ollie Reader v{VERSION}", self.menu)
+    self.version_action.setEnabled(False)
+    self.menu.addAction(self.version_action)
+
     self.status_action = QAction("狀態：啟動中…", self.menu)
     self.status_action.setEnabled(False)
     self.menu.addAction(self.status_action)
@@ -187,7 +191,7 @@ class TrayApp:
     self.menu.addAction(self.quit_action)
 
     self.tray.setContextMenu(self.menu)
-    self.tray.setToolTip("ollie-reader desktop")
+    self.tray.setToolTip(f"ollie-reader desktop v{VERSION}")
 
     self._timer = QTimer(self.app)
     self._timer.timeout.connect(self._refresh)
