@@ -1,8 +1,14 @@
-"""Chatterbox-Turbo TTS（PyTorch-based，高品質英文 AI 語音）。
+"""Chatterbox-Turbo TTS（PyTorch 後端 + 後端分派）。
 
-這是可選的重量級引擎：所有 torch / torchaudio / chatterbox 相依都延遲到
-_import_chatterbox_deps，sidecar 啟動時不會載入。缺相依、模型載入失敗或機器不
-支援時一律回 ChatterboxTTSError(503)（前端不做引擎降級，會直接顯示錯誤）。
+/api/chatterbox-tts 有兩個可互換的後端，由本模組的 chatterbox_synthesize_speech
+分派：CHATTERBOX_BACKEND=mlx|torch 強制指定，未設定則自動偵測（裝了 mlx-audio
+就走 MLX，見 tts_chatterbox_mlx.py，Apple Silicon 上較快；否則走本模組的
+PyTorch 實作）。兩個後端在 uv 裡是互斥的 dependency group（chatterbox /
+chatterbox-mlx），一個 venv 只會裝其中一個。
+
+PyTorch 後端是可選的重量級引擎：所有 torch / torchaudio / chatterbox 相依都延遲
+到 _import_chatterbox_deps，sidecar 啟動時不會載入。缺相依、模型載入失敗或機器
+不支援時一律回 ChatterboxTTSError(503)（前端不做引擎降級，會直接顯示錯誤）。
 模型權重不打包進 bundle，由 chatterbox / Hugging Face 自行 cache。
 
 設計刻意對齊 tts_kokoro.py：dataclass 結果、狀態碼式例外、thread-safe singleton。
@@ -323,9 +329,29 @@ class ChatterboxTurboTTSService:
       ) from e
 
 
+def _resolve_backend() -> str:
+  """CHATTERBOX_BACKEND 優先（"mlx"/"torch"）；未設定 → 裝了 mlx-audio 就用 mlx。"""
+  from server.config import CHATTERBOX_BACKEND
+
+  if CHATTERBOX_BACKEND in ("mlx", "torch"):
+    return CHATTERBOX_BACKEND
+  if CHATTERBOX_BACKEND:
+    logger.warning(
+      "未知的 CHATTERBOX_BACKEND=%s（支援 mlx / torch），改用自動偵測",
+      CHATTERBOX_BACKEND,
+    )
+  from server.tts_chatterbox_mlx import ChatterboxMlxTTSService
+
+  return "mlx" if ChatterboxMlxTTSService.is_available() else "torch"
+
+
 def chatterbox_synthesize_speech(
   text: str,
   speed: float = 1.0,
   voice: Optional[str] = None,
 ) -> ChatterboxTTSResult:
+  if _resolve_backend() == "mlx":
+    from server.tts_chatterbox_mlx import ChatterboxMlxTTSService
+
+    return ChatterboxMlxTTSService.synthesize(text=text, speed=speed, voice=voice)
   return ChatterboxTurboTTSService.synthesize(text=text, speed=speed, voice=voice)

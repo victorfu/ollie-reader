@@ -34,11 +34,34 @@ dev = [
 chatterbox = [
     "chatterbox-tts",
 ]
+# Optional MLX backend for Chatterbox (Apple Silicon native, faster than the
+# PyTorch/MPS path and much lighter to install — no torch). Opt in with
+# `uv sync --group chatterbox-mlx`. Weights (CHATTERBOX_MLX_MODEL, default
+# mlx-community/chatterbox-turbo-fp16) are downloaded/cached at runtime, not
+# bundled. Pinned because mlx-audio is pre-1.0 and its model API still churns.
+# Mutually exclusive with the `chatterbox` group (see [tool.uv].conflicts):
+# chatterbox-tts pins old transformers versions that mlx-audio can't use.
+chatterbox-mlx = [
+    "mlx-audio>=0.4.4,<0.5",
+    # mlx-lm 0.31.3 (latest) crashes on import with transformers 5.13
+    # (AutoTokenizer.register no longer accepts string keys). Drop this cap
+    # once mlx-lm ships a fix.
+    "transformers<5.13",
+]
 
 # This is a run-from-source app (main.py + server/ + shell/), not an installable
 # distribution, so uv manages only the environment — it does not build the project.
 [tool.uv]
 package = false
+# The two Chatterbox backends can't share a venv (incompatible transformers
+# pins), and you only ever need one. Install either --group chatterbox (torch)
+# or --group chatterbox-mlx (Apple Silicon MLX).
+conflicts = [
+    [
+        { group = "chatterbox" },
+        { group = "chatterbox-mlx" },
+    ],
+]
 
 # chatterbox-tts pulls pkuseg==0.0.25, which has no arm64/py3.12 wheel and so
 # builds from a 2020-era sdist. That sdist imports numpy in setup.py but never

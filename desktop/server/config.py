@@ -54,11 +54,24 @@ def _optional_float(name: str):
         return None
 
 
-# Chatterbox-Turbo (optional, PyTorch-based). No bundled weights — loaded lazily
-# and cached by chatterbox / Hugging Face on first use. All settings are env-only.
-#  - CHATTERBOX_DEVICE: "cuda" | "mps" | "cpu"; unset → auto (cuda > mps > cpu).
+# Chatterbox (optional). Two interchangeable backends behind the same endpoint;
+# no bundled weights — loaded lazily and cached by Hugging Face on first use.
+# All settings are env-only.
+#  - CHATTERBOX_BACKEND: "mlx" | "torch"; unset → auto (mlx if mlx-audio is
+#    installed, else torch). Install exactly one of the uv groups
+#    `chatterbox-mlx` (Apple Silicon, faster) or `chatterbox` (PyTorch).
+#  - CHATTERBOX_MLX_MODEL: HF repo for the MLX weights. Default is the
+#    English-only Chatterbox-Turbo (ships conds.safetensors = built-in voice,
+#    no cloning needed). Do NOT use mlx-community/chatterbox-fp16 for English:
+#    that's the 23-language multilingual model and its English sounds worse.
+#  - CHATTERBOX_DEVICE: torch backend only: "cuda" | "mps" | "cpu"; unset →
+#    auto (cuda > mps > cpu).
 #  - CHATTERBOX_AUDIO_PROMPT_PATH: reference wav for voice cloning (optional).
 #  - CHATTERBOX_DEFAULT_VOICE: default voice/audio-prompt when request omits one.
+CHATTERBOX_BACKEND = os.getenv("CHATTERBOX_BACKEND")
+CHATTERBOX_MLX_MODEL = os.getenv(
+    "CHATTERBOX_MLX_MODEL", "mlx-community/chatterbox-turbo-fp16"
+)
 CHATTERBOX_DEVICE = os.getenv("CHATTERBOX_DEVICE")
 CHATTERBOX_AUDIO_PROMPT_PATH = os.getenv("CHATTERBOX_AUDIO_PROMPT_PATH")
 CHATTERBOX_DEFAULT_VOICE = os.getenv("CHATTERBOX_DEFAULT_VOICE")

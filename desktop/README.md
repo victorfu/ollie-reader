@@ -46,20 +46,31 @@ Kokoro 還有 `kokoro-v1.0.onnx`（fp32, 310MB）與 `kokoro-v1.0.int8.onnx`（8
 
 ## Chatterbox-Turbo（可選的高品質英文 AI 語音）
 
-Chatterbox-Turbo 是**可選**的重量級 PyTorch-based TTS，英文品質比 Kokoro / Piper
-更好，但也更吃算力（CPU/GPU、記憶體、首次載入時間）。它**不會**被預設的
-`uv sync` 安裝，也**不會**打包進 release bundle——權重由 chatterbox / Hugging Face
-在首次使用時自行下載並快取。沒安裝或機器不支援時後端回 **503**——前端**不會**自動改用
-其他引擎（已無 fallback），會直接顯示錯誤，請確認已啟用對應引擎。
+Chatterbox 是**可選**的重量級 TTS，英文品質比 Kokoro / Piper 更好，但也更吃算力
+（記憶體、首次載入時間）。它**不會**被預設的 `uv sync` 安裝，也**不會**打包進
+release bundle——權重由 Hugging Face 在首次使用時自行下載並快取。沒安裝或機器
+不支援時後端回 **503**——前端**不會**自動改用其他引擎（已無 fallback），會直接
+顯示錯誤，請確認已啟用對應引擎。
+
+同一個 `/api/chatterbox-tts` endpoint 底下有**兩個可互換的後端**（uv group 互斥，
+一個 venv 只能裝一個；未設定 `CHATTERBOX_BACKEND` 時自動偵測——裝了哪個用哪個）：
+
+| 後端 | uv group | 說明 |
+|------|----------|------|
+| **MLX**（Apple Silicon 建議） | `chatterbox-mlx` | mlx-audio，Metal 原生、安裝輕量（不拉 torch）、可換量化權重 |
+| PyTorch | `chatterbox` | chatterbox-tts + torch/torchaudio（MPS/CUDA/CPU） |
 
 ### 安裝（開發／本機）
 
 ```bash
 cd desktop
-uv sync --group chatterbox        # 額外安裝 chatterbox-tts（會拉 torch/torchaudio）
+uv sync --group chatterbox-mlx    # MLX 後端（Apple Silicon 建議）
+# 或
+uv sync --group chatterbox        # PyTorch 後端（會拉 torch/torchaudio）
 ```
 
-預設 `uv sync`（不帶 `--group chatterbox`）不會安裝它，Piper/Kokoro 不受影響。
+預設 `uv sync`（不帶 group）兩者都不裝，Piper/Kokoro 不受影響。兩個 group 已在
+`pyproject.toml` 宣告互斥（transformers 版本相依不相容），同時指定會被 uv 拒絕。
 
 > **關於 `pkuseg` 的 build 相依**：`chatterbox-tts` 會拉一個老套件 `pkuseg==0.0.25`，
 > 它在 arm64 / Python 3.12 沒有預編 wheel，必須從 sdist 編譯；而它的 `setup.py`
@@ -82,21 +93,24 @@ uv run python main.py --serve     # sidecar，含 /api/chatterbox-tts endpoint
 
 | env | 說明 |
 |-----|------|
-| `CHATTERBOX_DEVICE` | `mps`（Apple Silicon）/ `cuda`（NVIDIA）/ `cpu`；未設定時自動偵測（cuda > mps > cpu） |
+| `CHATTERBOX_BACKEND` | `mlx` / `torch`；未設定＝自動（裝了 mlx-audio 就用 MLX，否則 PyTorch） |
+| `CHATTERBOX_MLX_MODEL` | MLX 後端的 HF 權重 repo（預設 `mlx-community/chatterbox-turbo-fp16`，英文專用 Turbo）。可換量化版加速，如 `chatterbox-turbo-4bit` / `chatterbox-turbo-8bit`（都含內建音色）。⚠️ 英文引擎**不要**用 `chatterbox-fp16`——那是 23 語 multilingual 權重，英文發音明顯較差 |
+| `CHATTERBOX_DEVICE` | **torch 後端限定**：`mps` / `cuda` / `cpu`；未設定時自動偵測（cuda > mps > cpu） |
 | `CHATTERBOX_AUDIO_PROMPT_PATH` | 參考音檔（.wav）路徑，用來做 voice cloning；未設定則用模型內建音色 |
 | `CHATTERBOX_DEFAULT_VOICE` | 請求未帶 voice 時的預設 voice / audio-prompt |
 | `CHATTERBOX_CFG_WEIGHT` | classifier-free guidance 權重（**品質/語氣**旋鈕；未設定＝預設 `0.5`）。⚠️ `0` 在 chatterbox 0.1.3 會 crash（上游 bug），已被 wrapper 擋掉並改用預設 |
 | `CHATTERBOX_TEMPERATURE` | 取樣溫度（未設定＝library 預設 `0.8`） |
 | `CHATTERBOX_EXAGGERATION` | 情緒強度（未設定＝library 預設 `0.5`） |
 
-> **關於速度（重要）**：Chatterbox 在 Mac 只能用 MPS（無 CUDA），已是硬體上限。原本設想
-> 用 `cfg_weight=0` 跳過 CFG 的雙倍 T3 計算來加速，但**實測 chatterbox-tts 0.1.3 的 t3
-> inference 迴圈寫死 batch=2**：`cfg_weight=0` 會 `RuntimeError: Sizes of tensors must
-> match...`，而 `cfg_weight>0` 的任何值仍是 batch=2、**不會變快**。所以這個版本**沒有可用
-> 的軟體加速槓桿**；上表參數只是品質/語氣旋鈕，wrapper 已把 `cfg_weight<=0` 擋掉避免
-> crash（不支援的參數也會依 signature 自動略過）。實務建議：日常朗讀用 Kokoro（即時），需
-> 要最佳音質再切 Chatterbox；前端也會 cache 每個（text、語速、engine）的音訊，重複的字第
-> 二次起即時。
+> **關於速度**：Mac 上的軟體加速槓桿是 **MLX 後端**（Metal 原生、fp16，還可經
+> `CHATTERBOX_MLX_MODEL` 換 4/8-bit 量化權重進一步減少記憶體頻寬）。torch 後端在
+> Mac 只能用 MPS 且 fp32，**沒有**可用的軟體加速槓桿：原本設想用 `cfg_weight=0` 跳過
+> CFG 的雙倍 T3 計算，但實測 chatterbox-tts 0.1.3 的 t3 inference 迴圈寫死 batch=2，
+> `cfg_weight=0` 會 crash（上游 bug），`cfg_weight>0` 任何值也不會變快；上表參數只是
+> 品質/語氣旋鈕，wrapper 已把 `cfg_weight<=0` 擋掉。兩個後端都有 voice-prompt
+> conditionals 快取（同一參考音檔只算一次）。實務建議：日常朗讀用 Kokoro（即時），需
+> 要最佳音質再切 Chatterbox；前端也會 cache 每個（text、語速、engine）的音訊，重複的
+> 字第二次起即時。
 
 > voice / audio-prompt 指到不存在的檔案時，sidecar 會回 **400**（而非安靜地退回
 > 預設音色），避免你以為套用了 voice clone 但其實沒有。

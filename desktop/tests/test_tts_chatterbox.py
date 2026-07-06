@@ -67,6 +67,9 @@ def _reset(monkeypatch):
     # 每個 test 前後重置 singleton，避免上個 test 快取的 model 影響 init/failure 測試。
     _reset_service_state()
     # 隔離 env：預設不套用任何 device / 預設音色 / audio prompt / 生成參數。
+    # backend 鎖定 torch——本檔測的是 PyTorch 路徑，不能因為測試環境裝了
+    # mlx-audio 就被 auto 分派到 MLX 後端。
+    monkeypatch.setattr(config, "CHATTERBOX_BACKEND", "torch", raising=False)
     monkeypatch.setattr(config, "CHATTERBOX_DEVICE", None, raising=False)
     monkeypatch.setattr(config, "CHATTERBOX_AUDIO_PROMPT_PATH", None, raising=False)
     monkeypatch.setattr(config, "CHATTERBOX_DEFAULT_VOICE", None, raising=False)
