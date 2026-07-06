@@ -21,6 +21,16 @@ uv run pytest -v
 
 也可以從 repo 根目錄用 Makefile：`make desktop-setup`、`make desktop-serve`、`make desktop-run`、`make desktop-test`、`make desktop-package`。
 
+## Single instance
+
+- 重複啟動 app 時，第二個實例會喚醒既有實例（打開設定視窗）後直接退出
+  （`QLockFile` + `QLocalServer`，鎖檔在暫存目錄 `ollie-reader-shell.lock`）。
+- `--serve` 啟動時若 port 上已有活的 sidecar（`/api/version` 驗證），會直接
+  exit 0 不搶 port；sidecar 會在暫存目錄寫 `ollie-reader-sidecar-<port>.pid`
+  （結束時清除，含 SIGTERM/SIGINT 路徑）。
+- 殼啟動時若發現已有 sidecar 在跑（例如開機自啟的），會「收養」它：狀態
+  顯示運行中，「停止本機服務」會對該行程送 SIGTERM。
+
 ## 打包（PyInstaller）
 
 ```bash
