@@ -120,13 +120,11 @@ import {
   dailyBtn,
   dailyFlashBox,
   dangerBtn,
-  dangerOutlineBtn,
   effBadge,
   feedBtn,
   guestNoticeBox,
   infoCard,
   moveBtn,
-  resetConfirmBox,
   roleBadge,
   unsyncedNoticeBox,
 } from "./wonderAcademyStyles";
@@ -1065,6 +1063,7 @@ export default function WonderAcademyGame({ onExit }: Props) {
   }));
   const [hasUnsyncedLocalProgress, setHasUnsyncedLocalProgress] = useState(false);
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
+  const [exitConfirmOpen, setExitConfirmOpen] = useState(false);
   const loadedUidRef = useRef<string | null>(null);
   const latestSaveDataRef = useRef<Persisted | null>(null);
   const saveSeqRef = useRef(0);
@@ -1332,7 +1331,7 @@ export default function WonderAcademyGame({ onExit }: Props) {
   const frame = (children: ReactNode, options: { wide?: boolean } = {}) => (
     <div style={{ minHeight: "100dvh", background: PANEL_BG, fontFamily: '-apple-system, "PingFang TC", "Noto Sans TC", sans-serif', color: "#33304a" }}>
       <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px" }}>
-        <button onClick={onExit} style={btnGhost}><ArrowLeft size={16} /> 離開</button>
+        <button onClick={() => setExitConfirmOpen(true)} style={btnGhost}><ArrowLeft size={16} /> 離開</button>
         <div style={{ fontSize: 13, fontWeight: 800, letterSpacing: ".04em" }}>✦ Sparkleaf 星葉學院</div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <button
@@ -1362,6 +1361,27 @@ export default function WonderAcademyGame({ onExit }: Props) {
         </div>
       </header>
       <div style={{ maxWidth: options.wide ? 1180 : 880, margin: "0 auto", padding: "4px 16px 40px" }}>{children}</div>
+      {exitConfirmOpen && (
+        <div
+          onClick={() => setExitConfirmOpen(false)}
+          style={{ position: "fixed", inset: 0, zIndex: 80, display: "flex", alignItems: "center", justifyContent: "center", padding: 20, background: "rgba(41,35,66,.4)", backdropFilter: "blur(4px)" }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="wa-exit-title"
+            onClick={(e) => e.stopPropagation()}
+            style={{ width: "100%", maxWidth: 360, borderRadius: 22, padding: "22px 20px", background: "linear-gradient(135deg,rgba(255,255,255,.96),rgba(247,244,255,.92))", border: "1px solid rgba(255,255,255,.76)", boxShadow: "0 18px 48px rgba(70,52,126,.28)" }}
+          >
+            <div id="wa-exit-title" style={{ fontSize: 17, fontWeight: 900, color: "#33304a", marginBottom: 6 }}>確定要離開學院嗎?</div>
+            <p style={{ fontSize: 13.5, lineHeight: 1.6, color: "#6a6585", margin: "0 0 16px" }}>冒險進度會自動保存,下次回來可以接著繼續喔!</p>
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap" }}>
+              <button onClick={() => { setExitConfirmOpen(false); onExit?.(); }} style={{ ...btnOutline, padding: "10px 16px", fontSize: 13 }}>離開學院</button>
+              <button onClick={() => setExitConfirmOpen(false)} style={{ ...ctaBtn, padding: "10px 18px", fontSize: 13.5 }}>留下來</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 
@@ -1613,7 +1633,23 @@ export default function WonderAcademyGame({ onExit }: Props) {
     };
     return frame(
       <div>
-        <h1 style={{ fontSize: 24, fontWeight: 800, margin: "8px 0 2px" }}>學院大廳</h1>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+          <h1 style={{ fontSize: 24, fontWeight: 800, margin: "8px 0 2px" }}>學院大廳</h1>
+          <button
+            onClick={() => {
+              if (shouldConfirmWonderAcademyOverwrite(state.team.length)) {
+                setResetConfirmOpen(true);
+              } else {
+                dispatch({ type: "resetNewGame" });
+              }
+            }}
+            title="重新開始"
+            aria-label="重新開始"
+            style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 34, height: 34, flexShrink: 0, borderRadius: 999, color: "#b64255", background: "rgba(255,255,255,.72)", border: "1px solid rgba(182,66,85,.24)", cursor: "pointer" }}
+          >
+            <RotateCcw size={15} />
+          </button>
+        </div>
         <p style={{ color: "#8a83a3", fontSize: 14, margin: "0 0 18px" }}>圖鑑進度 {completion.caught}/{completion.total} 已收服 · {completion.seen} 已遇見 · 🍪 點心 ×{totalSnacks} · 🔨 材料 ×{totalMaterials}</p>
         {isGuest && entryCopy.noticeTitle && entryCopy.noticeBody && (
           <div style={{ ...guestNoticeBox, margin: "0 0 16px", textAlign: "left", maxWidth: "none" }}>
@@ -1760,29 +1796,26 @@ export default function WonderAcademyGame({ onExit }: Props) {
           })}
         </div>
 
-        <div style={{ marginTop: 30, paddingTop: 16, borderTop: "1px solid rgba(60,40,90,.1)", display: "flex", justifyContent: "flex-end" }}>
-          <button
-            onClick={() => {
-              if (shouldConfirmWonderAcademyOverwrite(state.team.length)) {
-                setResetConfirmOpen(true);
-              } else {
-                dispatch({ type: "resetNewGame" });
-              }
-            }}
-            style={{ ...dangerOutlineBtn, fontSize: 12.5, padding: "9px 14px" }}
-          >
-            <RotateCcw size={14} /> 重新開始
-          </button>
-        </div>
         {resetConfirmOpen && (
-          <div role="dialog" aria-labelledby="wa-reset-title" style={{ ...resetConfirmBox, margin: "12px 0 0" }}>
-            <div id="wa-reset-title" style={{ fontSize: 15, fontWeight: 900, color: "#5f2030", marginBottom: 4 }}>確定要重新開始?</div>
-            <p style={{ fontSize: 13, lineHeight: 1.55, color: "#7a5160", margin: "0 0 12px" }}>
-              目前的隊伍、星塵、圖鑑與地圖進度會被新的存檔覆蓋。這個動作會在下一次保存時同步。
-            </p>
-            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap" }}>
-              <button onClick={() => setResetConfirmOpen(false)} style={{ ...btnOutline, padding: "9px 13px", fontSize: 12 }}>取消</button>
-              <button onClick={confirmResetNewGame} style={dangerBtn}>清空並重新開始</button>
+          <div
+            onClick={() => setResetConfirmOpen(false)}
+            style={{ position: "fixed", inset: 0, zIndex: 80, display: "flex", alignItems: "center", justifyContent: "center", padding: 20, background: "rgba(41,35,66,.4)", backdropFilter: "blur(4px)" }}
+          >
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="wa-reset-title"
+              onClick={(e) => e.stopPropagation()}
+              style={{ width: "100%", maxWidth: 360, borderRadius: 22, padding: "22px 20px", background: "linear-gradient(135deg,rgba(255,255,255,.96),rgba(255,244,246,.92))", border: "1px solid rgba(255,255,255,.76)", boxShadow: "0 18px 48px rgba(126,52,70,.28)" }}
+            >
+              <div id="wa-reset-title" style={{ fontSize: 17, fontWeight: 900, color: "#5f2030", marginBottom: 6 }}>確定要重新開始?</div>
+              <p style={{ fontSize: 13.5, lineHeight: 1.6, color: "#7a5160", margin: "0 0 16px" }}>
+                目前的隊伍、星塵、圖鑑與地圖進度會被新的存檔覆蓋。這個動作會在下一次保存時同步。
+              </p>
+              <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap" }}>
+                <button onClick={() => setResetConfirmOpen(false)} style={{ ...btnOutline, padding: "10px 16px", fontSize: 13 }}>取消</button>
+                <button onClick={confirmResetNewGame} style={dangerBtn}>清空並重新開始</button>
+              </div>
             </div>
           </div>
         )}
