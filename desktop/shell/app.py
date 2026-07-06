@@ -27,6 +27,7 @@ from server.oikid_secrets import (
 )
 from shell import autostart
 from shell.sidecar import SidecarManager
+from shell.single_instance import SingleInstance
 
 DEV_WEB_APP_URL = "http://localhost:5173"
 PROD_WEB_APP_URL = "https://ollie-reader.web.app"
@@ -233,10 +234,21 @@ class TrayApp:
 
 
 def run_shell() -> None:
-  app = QApplication(sys.argv)
+  # 測試會預先建立 QApplication；正常執行時這裡是第一次建立。
+  app = QApplication.instance() or QApplication(sys.argv)
   app.setWindowIcon(_tray_icon())
   app.setQuitOnLastWindowClosed(False)
+
+  # single-instance：搶不到鎖代表已有實例在跑 → 喊醒它（打開設定視窗）後退出。
+  guard = SingleInstance()
+  if not guard.acquire():
+    guard.notify_existing()
+    print("Ollie Reader desktop 已在執行，改為喚醒既有實例。")
+    return
+
   tray = TrayApp(app)
+  guard.on_activate = tray._open_settings
+  app.aboutToQuit.connect(guard.release)
   tray.start()
 
   # Qt 的 C++ event loop 會吞掉 SIGINT，導致終端機按 Ctrl+C 關不掉。

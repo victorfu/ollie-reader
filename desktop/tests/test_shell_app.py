@@ -93,3 +93,63 @@ def test_clear_oikid_credentials_calls_clear(settings_dialog, monkeypatch):
     )
     settings_dialog._clear_oikid_credentials()
     assert called["n"] == 1
+
+
+class _StubGuard:
+    def __init__(self, acquired):
+        self._acquired = acquired
+        self.notified = False
+        self.released = False
+        self.on_activate = None
+
+    def acquire(self):
+        return self._acquired
+
+    def notify_existing(self, timeout_ms=500):
+        self.notified = True
+        return True
+
+    def release(self):
+        self.released = True
+
+
+def test_run_shell_second_instance_notifies_and_exits(qapp, monkeypatch):
+    guard = _StubGuard(acquired=False)
+    monkeypatch.setattr(app_module, "SingleInstance", lambda: guard)
+
+    def boom(*a, **k):
+        raise AssertionError("TrayApp 不應被建立")
+
+    monkeypatch.setattr(app_module, "TrayApp", boom)
+
+    app_module.run_shell()  # 應直接 return，不進入 event loop
+
+    assert guard.notified is True
+
+
+def test_run_shell_first_instance_wires_activate_to_settings(qapp, monkeypatch):
+    guard = _StubGuard(acquired=True)
+    monkeypatch.setattr(app_module, "SingleInstance", lambda: guard)
+
+    created = {}
+
+    class _StubTray:
+        def __init__(self, app):
+            created["tray"] = self
+            self.opened = 0
+
+        def _open_settings(self, _checked=False):
+            self.opened += 1
+
+        def start(self):
+            pass
+
+    monkeypatch.setattr(app_module, "TrayApp", _StubTray)
+    monkeypatch.setattr(type(qapp), "exec", lambda self: 0)
+
+    with pytest.raises(SystemExit):
+        app_module.run_shell()
+
+    assert guard.on_activate is not None
+    guard.on_activate()
+    assert created["tray"].opened == 1
