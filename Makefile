@@ -60,9 +60,11 @@ desktop-icon: ## Generate assets/AppIcon.icns from tray-icon.png
 	bash $(DESKTOP)/release/make_icon.sh
 
 desktop-package: ## Build the frozen binary with PyInstaller (incremental -> desktop/dist/)
+	$(UV) sync --directory $(DESKTOP) --group chatterbox-mlx
 	$(UV) run --directory $(DESKTOP) pyinstaller ollie-reader-desktop.spec --noconfirm
 
 desktop-package-clean: ## Clean build of the frozen binary (drops PyInstaller cache)
+	$(UV) sync --directory $(DESKTOP) --group chatterbox-mlx
 	$(UV) run --directory $(DESKTOP) pyinstaller ollie-reader-desktop.spec --noconfirm --clean
 
 desktop-clean: ## Remove PyInstaller build/dist artifacts

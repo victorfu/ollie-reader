@@ -46,11 +46,12 @@ Kokoro 還有 `kokoro-v1.0.onnx`（fp32, 310MB）與 `kokoro-v1.0.int8.onnx`（8
 
 ## Chatterbox-Turbo（可選的高品質英文 AI 語音）
 
-Chatterbox 是**可選**的重量級 TTS，英文品質比 Kokoro / Piper 更好，但也更吃算力
-（記憶體、首次載入時間）。它**不會**被預設的 `uv sync` 安裝，也**不會**打包進
-release bundle——權重由 Hugging Face 在首次使用時自行下載並快取。沒安裝或機器
-不支援時後端回 **503**——前端**不會**自動改用其他引擎（已無 fallback），會直接
-顯示錯誤，請確認已啟用對應引擎。
+Chatterbox 是重量級 TTS，英文品質比 Kokoro / Piper 更好，但也更吃算力
+（記憶體、首次載入時間）。開發環境它**不會**被預設的 `uv sync` 安裝（要帶
+group，見下）；release bundle 自 **v0.2.0** 起**內建 MLX 後端**（torch 後端
+仍不打包）。權重一律由 Hugging Face 在首次使用時自行下載並快取，不進 bundle。
+沒安裝或機器不支援時後端回 **503**——前端**不會**自動改用其他引擎（已無
+fallback），會直接顯示錯誤，請確認已啟用對應引擎。
 
 同一個 `/api/chatterbox-tts` endpoint 底下有**兩個可互換的後端**（uv group 互斥，
 一個 venv 只能裝一個；未設定 `CHATTERBOX_BACKEND` 時自動偵測——裝了哪個用哪個）：

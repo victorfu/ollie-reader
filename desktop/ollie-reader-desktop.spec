@@ -28,19 +28,28 @@ hiddenimports = [
 hiddenimports += collect_submodules("server")
 hiddenimports += collect_submodules("shell")
 
-if Path("models").exists():
-    datas.append(("models", "models"))
+# Bundle only the model files the sidecar actually loads (see server/config.py
+# and server/model_download.py). No wholesale models/ copy: the dev models dir
+# may hold extra variants (fp32/int8 Kokoro, experiments) that would silently
+# bloat the release.
+_BUNDLED_MODELS = (
+    "en_US-lessac-medium.onnx",       # Piper
+    "en_US-lessac-medium.onnx.json",  # Piper voice config
+    "kokoro-v1.0.fp16.onnx",          # Kokoro (the variant config.py points at)
+    "voices-v1.0.bin",                # Kokoro voices
+)
+for _name in _BUNDLED_MODELS:
+    _f = Path("models") / _name
+    if _f.exists():
+        datas.append((str(_f), "models"))
 
 if Path("assets").exists():
     datas.append(("assets", "assets"))
 
-# NOTE: Chatterbox-Turbo (chatterbox / torch / torchaudio) is intentionally NOT
-# collected here. It's an optional, opt-in engine (`uv sync --group chatterbox`)
-# whose weights are downloaded/cached at runtime. Bundling torch would balloon the
-# .app by hundreds of MB and risk breaking the current lean Piper/Kokoro release,
-# so the frozen build ships without it; /api/chatterbox-tts simply returns 503 when
-# unavailable (the web app does not auto-fall-back to another engine). Add it here
-# only if you deliberately want a heavyweight bundle that ships Chatterbox offline.
+# NOTE: the PyTorch Chatterbox backend (chatterbox-tts / torch / torchaudio) is
+# intentionally NOT collected here — bundling torch would balloon the .app by
+# hundreds of MB. Since v0.2.0 the frozen build ships the MLX backend instead
+# (see below); /api/chatterbox-tts auto-selects it at runtime.
 for pkg in (
     "kokoro_onnx",
     "onnxruntime",
@@ -50,6 +59,30 @@ for pkg in (
     "numpy",
     "language_tags",
     "espeakng_loader",
+):
+    d, b, h = collect_all(pkg)
+    datas += d
+    binaries += b
+    hiddenimports += h
+
+# Chatterbox MLX backend (uv group `chatterbox-mlx`; the desktop-package target
+# syncs it before building). Weights are still downloaded/cached at runtime by
+# Hugging Face — only code ships in the bundle. collect_all is required, not
+# just tracing:
+#  - mlx ships its Metal kernels (mlx.metallib) as package data
+#  - mlx_audio / mlx_lm resolve model classes dynamically via importlib from
+#    config.json's model_type, which static analysis can't see
+#  - transformers / tokenizers rely on lazy imports + bundled data files
+for pkg in (
+    "mlx",
+    "mlx_audio",
+    "mlx_lm",
+    "transformers",
+    "tokenizers",
+    "safetensors",
+    "huggingface_hub",
+    "sounddevice",
+    "miniaudio",
 ):
     d, b, h = collect_all(pkg)
     datas += d
