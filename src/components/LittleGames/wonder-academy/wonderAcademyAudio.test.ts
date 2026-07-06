@@ -34,6 +34,10 @@ const requiredLoopIds = [
 ] satisfies WonderAcademyLoopId[];
 
 describe("Wonder Academy audio settings", () => {
+  it("starts muted by default", () => {
+    expect(defaultWonderAcademyAudioSettings.muted).toBe(true);
+  });
+
   it("defaults missing settings conservatively", () => {
     expect(normalizeAudioSettings()).toEqual(defaultWonderAcademyAudioSettings);
     expect(normalizeAudioSettings({})).toEqual(defaultWonderAcademyAudioSettings);

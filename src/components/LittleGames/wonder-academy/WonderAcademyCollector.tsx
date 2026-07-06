@@ -502,6 +502,8 @@ function reducer(state: GameState, action: Action): GameState {
       return {
         ...INITIAL,
         ...action.state,
+        // Every session starts silent; the on-screen 音效 button opts back in.
+        audioSettings: { ...action.state.audioSettings, muted: true },
         ready: true,
         screen: action.state.team.length > 0 ? "hub" : "title",
       };
@@ -1332,9 +1334,28 @@ export default function WonderAcademyGame({ onExit }: Props) {
       <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px" }}>
         <button onClick={onExit} style={btnGhost}><ArrowLeft size={16} /> 離開</button>
         <div style={{ fontSize: 13, fontWeight: 800, letterSpacing: ".04em" }}>✦ Sparkleaf 星葉學院</div>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <button onClick={() => dispatch({ type: "toggleMute" })} style={{ ...btnGhost, padding: 4 }} title={state.audioSettings.muted ? "開啟音效" : "靜音"}>
-            {state.audioSettings.muted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <button
+            onClick={() => dispatch({ type: "toggleMute" })}
+            aria-pressed={!state.audioSettings.muted}
+            title={state.audioSettings.muted ? "開啟音效" : "關閉音效"}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 5,
+              fontSize: 12,
+              fontWeight: 800,
+              padding: "5px 11px",
+              borderRadius: 999,
+              cursor: "pointer",
+              whiteSpace: "nowrap",
+              color: state.audioSettings.muted ? "#8a83a3" : "#6a52ff",
+              background: state.audioSettings.muted ? "rgba(255,255,255,.6)" : "#efeaff",
+              border: state.audioSettings.muted ? "1px solid rgba(60,40,90,.16)" : "1px solid #cdb6ef",
+            }}
+          >
+            {state.audioSettings.muted ? <VolumeX size={14} /> : <Volume2 size={14} />}
+            {state.audioSettings.muted ? "音效 關" : "音效 開"}
           </button>
           <span aria-live="polite" style={saveStatusChip(effectiveSaveStatus)}>{saveLabel}</span>
           <span style={{ fontSize: 12, fontWeight: 700, color: "#8a83a3" }}>✨ {state.stardust}</span>
@@ -1583,6 +1604,13 @@ export default function WonderAcademyGame({ onExit }: Props) {
   // ---------- HUB ----------
   if (state.screen === "hub") {
     const daily = rolloverDaily(state.daily, today);
+    const onObjectiveAction = () => {
+      sfx("ui_select");
+      if (currentObjective.id === "craft-first-charm") dispatch({ type: "openWorkshop" });
+      else if (currentObjective.id === "fill-wonderdex") dispatch({ type: "openDex" });
+      else if (currentObjective.id === "postgame-trial") dispatch({ type: "openTrials" });
+      else dispatch({ type: "openRegions" });
+    };
     return frame(
       <div>
         <h1 style={{ fontSize: 24, fontWeight: 800, margin: "8px 0 2px" }}>學院大廳</h1>
@@ -1615,7 +1643,9 @@ export default function WonderAcademyGame({ onExit }: Props) {
               <div style={{ fontSize: 15, fontWeight: 900, color: "#33304a" }}>{currentObjective.label}</div>
               <div style={{ fontSize: 12.5, color: "#6a6585", lineHeight: 1.45 }}>{currentObjective.description}</div>
             </div>
-            <span style={{ fontSize: 12, fontWeight: 900, color: "#6a52ff", background: "#efeaff", border: "1px solid #cdb6ef", borderRadius: 999, padding: "6px 10px" }}>{currentObjective.actionLabel}</span>
+            <button onClick={onObjectiveAction} style={{ ...ctaBtn, fontSize: 13, padding: "10px 16px", borderRadius: 12 }}>
+              {currentObjective.actionLabel} →
+            </button>
           </div>
         </div>
 
@@ -1630,22 +1660,39 @@ export default function WonderAcademyGame({ onExit }: Props) {
           })}
         </div>
 
-        {dailyClaimable ? (
-          <button onClick={onClaimDaily} style={dailyBtn}>
-            <Gift size={18} /> 領取每日獎勵 <span style={{ fontSize: 12, fontWeight: 700, opacity: 0.85 }}>✨20 · 🍪×1</span>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(104px,1fr))", gap: 10, marginBottom: 20 }}>
+          <button onClick={() => dispatch({ type: "openRegions" })} style={{ ...ctaBtn, gridColumn: "1 / -1", justifyContent: "center" }}><Compass size={18} /> 出發探索</button>
+          <button onClick={() => dispatch({ type: "openDex" })} style={{ ...btnOutline, justifyContent: "center", padding: "12px 10px" }}><Sparkles size={16} /> 圖鑑</button>
+          <button onClick={() => dispatch({ type: "openShop" })} style={{ ...btnOutline, justifyContent: "center", padding: "12px 10px" }}><ShoppingBag size={16} /> 商店</button>
+          <button onClick={() => dispatch({ type: "openWorkshop" })} style={{ ...btnOutline, justifyContent: "center", padding: "12px 10px" }}><Hammer size={16} /> 工房</button>
+          <button
+            disabled={!postgameUnlocked}
+            title={postgameUnlocked ? undefined : "打敗所有守關魔王後解鎖"}
+            onClick={() => { if (postgameUnlocked) dispatch({ type: "openTrials" }); }}
+            style={{ ...btnOutline, justifyContent: "center", padding: "12px 10px", opacity: postgameUnlocked ? 1 : 0.52, cursor: postgameUnlocked ? "pointer" : "default" }}
+          >
+            {postgameUnlocked ? <Sparkles size={16} /> : <Lock size={16} />} 試煉
           </button>
-        ) : dailyFlash ? (
-          <div style={dailyFlashBox}>
-            <Gift size={16} /> 領到了!{dailyFlash}
-          </div>
-        ) : (
-          <div style={{ fontSize: 12.5, color: "#8a83a3", marginBottom: 14, display: "flex", alignItems: "center", gap: 6 }}>
-            <Gift size={14} /> 今日獎勵已領取,明天再來!
-          </div>
-        )}
+          <button onClick={() => dispatch({ type: "openBuilder" })} style={{ ...btnOutline, justifyContent: "center", padding: "12px 10px" }}><Plus size={16} /> 建立寵物</button>
+        </div>
 
         <div style={{ ...cardStatic, marginBottom: 20, padding: "12px 14px" }}>
-          <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: ".08em", color: "#8a83a3", textTransform: "uppercase", marginBottom: 10 }}>📋 今日任務</div>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
+            <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: ".08em", color: "#8a83a3", textTransform: "uppercase" }}>📋 今日任務</div>
+            {dailyClaimable ? (
+              <button onClick={onClaimDaily} style={{ ...dailyBtn, marginBottom: 0, padding: "8px 14px", fontSize: 13 }}>
+                <Gift size={15} /> 領取每日獎勵 <span style={{ fontSize: 11, fontWeight: 700, opacity: 0.85 }}>✨20 · 🍪×1</span>
+              </button>
+            ) : dailyFlash ? (
+              <div style={{ ...dailyFlashBox, marginBottom: 0, padding: "7px 12px", fontSize: 12.5 }}>
+                <Gift size={14} /> 領到了!{dailyFlash}
+              </div>
+            ) : (
+              <div style={{ fontSize: 12, color: "#8a83a3", display: "flex", alignItems: "center", gap: 5 }}>
+                <Gift size={13} /> 今日獎勵已領取,明天再來!
+              </div>
+            )}
+          </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 11 }}>
             {DAILY_TASKS.map((t) => {
               const count = Math.min(daily.counts[t.id], t.goal);
@@ -1675,45 +1722,6 @@ export default function WonderAcademyGame({ onExit }: Props) {
             })}
           </div>
         </div>
-
-        <div style={{ display: "flex", gap: 12, marginBottom: 22, flexWrap: "wrap" }}>
-          <button onClick={() => dispatch({ type: "openRegions" })} style={ctaBtn}><Compass size={18} /> 出發探索</button>
-          <button onClick={() => dispatch({ type: "openDex" })} style={btnOutline}><Sparkles size={16} /> 圖鑑</button>
-          <button onClick={() => dispatch({ type: "openShop" })} style={btnOutline}><ShoppingBag size={16} /> 商店</button>
-          <button onClick={() => dispatch({ type: "openWorkshop" })} style={btnOutline}><Hammer size={16} /> 工房</button>
-          <button
-            disabled={!postgameUnlocked}
-            onClick={() => { if (postgameUnlocked) dispatch({ type: "openTrials" }); }}
-            style={{ ...btnOutline, opacity: postgameUnlocked ? 1 : 0.52, cursor: postgameUnlocked ? "pointer" : "default" }}
-          >
-            <Sparkles size={16} /> 試煉
-          </button>
-          <button onClick={() => dispatch({ type: "openBuilder" })} style={btnOutline}><Plus size={16} /> 建立寵物</button>
-          <button
-            onClick={() => {
-              if (shouldConfirmWonderAcademyOverwrite(state.team.length)) {
-                setResetConfirmOpen(true);
-              } else {
-                dispatch({ type: "resetNewGame" });
-              }
-            }}
-            style={dangerOutlineBtn}
-          >
-            <RotateCcw size={16} /> 重新開始
-          </button>
-        </div>
-        {resetConfirmOpen && (
-          <div role="dialog" aria-labelledby="wa-reset-title" style={resetConfirmBox}>
-            <div id="wa-reset-title" style={{ fontSize: 15, fontWeight: 900, color: "#5f2030", marginBottom: 4 }}>確定要重新開始?</div>
-            <p style={{ fontSize: 13, lineHeight: 1.55, color: "#7a5160", margin: "0 0 12px" }}>
-              目前的隊伍、星塵、圖鑑與地圖進度會被新的存檔覆蓋。這個動作會在下一次保存時同步。
-            </p>
-            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap" }}>
-              <button onClick={() => setResetConfirmOpen(false)} style={{ ...btnOutline, padding: "9px 13px", fontSize: 12 }}>取消</button>
-              <button onClick={confirmResetNewGame} style={dangerBtn}>清空並重新開始</button>
-            </div>
-          </div>
-        )}
 
         <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: ".1em", color: "#8a83a3", textTransform: "uppercase", marginBottom: 10 }}>你的隊伍</div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(150px,1fr))", gap: 12 }}>
@@ -1751,6 +1759,33 @@ export default function WonderAcademyGame({ onExit }: Props) {
             );
           })}
         </div>
+
+        <div style={{ marginTop: 30, paddingTop: 16, borderTop: "1px solid rgba(60,40,90,.1)", display: "flex", justifyContent: "flex-end" }}>
+          <button
+            onClick={() => {
+              if (shouldConfirmWonderAcademyOverwrite(state.team.length)) {
+                setResetConfirmOpen(true);
+              } else {
+                dispatch({ type: "resetNewGame" });
+              }
+            }}
+            style={{ ...dangerOutlineBtn, fontSize: 12.5, padding: "9px 14px" }}
+          >
+            <RotateCcw size={14} /> 重新開始
+          </button>
+        </div>
+        {resetConfirmOpen && (
+          <div role="dialog" aria-labelledby="wa-reset-title" style={{ ...resetConfirmBox, margin: "12px 0 0" }}>
+            <div id="wa-reset-title" style={{ fontSize: 15, fontWeight: 900, color: "#5f2030", marginBottom: 4 }}>確定要重新開始?</div>
+            <p style={{ fontSize: 13, lineHeight: 1.55, color: "#7a5160", margin: "0 0 12px" }}>
+              目前的隊伍、星塵、圖鑑與地圖進度會被新的存檔覆蓋。這個動作會在下一次保存時同步。
+            </p>
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap" }}>
+              <button onClick={() => setResetConfirmOpen(false)} style={{ ...btnOutline, padding: "9px 13px", fontSize: 12 }}>取消</button>
+              <button onClick={confirmResetNewGame} style={dangerBtn}>清空並重新開始</button>
+            </div>
+          </div>
+        )}
       </div>,
     );
   }

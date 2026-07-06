@@ -1,9 +1,10 @@
 import type { WonderAcademyAudioSettings } from "../../../types/wonderAcademy";
 
+// Sound starts muted; players opt in via the on-screen toggle.
 export const defaultWonderAcademyAudioSettings: WonderAcademyAudioSettings = {
   musicVolume: 0.45,
   sfxVolume: 0.65,
-  muted: false,
+  muted: true,
 };
 
 export const wonderAcademySfxIds = [
