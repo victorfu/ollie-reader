@@ -3,10 +3,13 @@ import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import confetti from "canvas-confetti";
 import { ArrowRight, Check, Flag, X } from "lucide-react";
 import type { ExamPaper, ExamQuizSession } from "../../types/exam";
-import { FULL_SCOPE_ID } from "../../types/exam";
+import { FULL_SCOPE_ID, isTextQuestion } from "../../types/exam";
 import { playSound } from "../../services/gameService";
+import { useSpeechState } from "../../hooks/useSpeechState";
+import { SpeakerButton } from "../TravelEnglish/SpeakerButton";
 import { ExamRichText } from "./ExamRichText";
 import { ExamQuestionImage } from "./ExamQuestionImage";
+import { ExamTypedAnswerPanel } from "./ExamTypedAnswerPanel";
 import { isEndOfSection, isLastQuestion, optionCountOf } from "./examSession";
 import { CIRCLED_NUMBERS, questionLabel } from "./examUi";
 
@@ -16,7 +19,8 @@ interface ExamQuizViewProps {
   paper: ExamPaper;
   session: ExamQuizSession;
   onAutoAdvanceOnCorrectChange: (enabled: boolean) => void;
-  onSubmitAnswer: (optionIndex: number) => void;
+  /** 選擇題傳選項索引;打字題傳輸入字串。 */
+  onSubmitAnswer: (answer: number | string) => void;
   onNext: () => void;
   onExit: () => void;
 }
@@ -51,11 +55,19 @@ export function ExamQuizView({
   onExit,
 }: ExamQuizViewProps) {
   const shouldReduceMotion = useReducedMotion();
+  const { speak, speechSupported } = useSpeechState();
   const questionCardRef = useRef<HTMLDivElement>(null);
   const autoAdvanceTimerRef = useRef<number | null>(null);
   const question = session.questions[session.currentIndex];
+  const textQuestion = isTextQuestion(question) ? question : null;
+  const choiceQuestion = isTextQuestion(question) ? null : question;
   const optionCount = optionCountOf(question);
   const chosen = session.answers[session.currentIndex];
+  /** dictation 的語音由作答面板控制,其餘題型在題幹旁提供喇叭。 */
+  const stemAudioText =
+    question.audioText && textQuestion?.form !== "dictation"
+      ? question.audioText
+      : null;
   const atLastQuestion = isLastQuestion(session);
   const showsSectionResultNext =
     session.scopeId === FULL_SCOPE_ID && isEndOfSection(session);
@@ -122,8 +134,10 @@ export function ExamQuizView({
   }, [handleKeyDown]);
 
   useEffect(() => {
+    // 打字題由作答面板聚焦輸入框,避免互相搶焦點
+    if (textQuestion) return;
     questionCardRef.current?.focus({ preventScroll: true });
-  }, [session.currentIndex]);
+  }, [session.currentIndex, textQuestion]);
 
   // 保留短暫正確回饋；手動前進、取消勾選或元件卸載都會清掉 timer。
   useEffect(() => {
@@ -205,9 +219,19 @@ export function ExamQuizView({
           原卷 {questionLabel(paper, question)}
         </div>
 
-        <p className="text-lg leading-relaxed sm:text-xl">
-          <ExamRichText text={question.text} />
-        </p>
+        <div className="flex items-start justify-between gap-2">
+          <p className="flex-1 text-lg leading-relaxed sm:text-xl">
+            <ExamRichText text={question.text} />
+          </p>
+          {stemAudioText && speechSupported && (
+            <SpeakerButton
+              text={stemAudioText}
+              speak={speak}
+              label="播放題目語音"
+              className="shrink-0"
+            />
+          )}
+        </div>
 
         {question.image && (
           <ExamQuestionImage
@@ -218,21 +242,35 @@ export function ExamQuizView({
           />
         )}
 
+        {/* 打字作答(英文句子練習) */}
+        {textQuestion && (
+          <ExamTypedAnswerPanel
+            key={textQuestion.id}
+            question={textQuestion}
+            isAnswered={session.isAnswered}
+            speechSupported={speechSupported}
+            onSubmit={onSubmitAnswer}
+            onNext={handleNext}
+            speak={speak}
+          />
+        )}
+
         {/* 選項 */}
+        {choiceQuestion && (
         <div
           className={
-            question.imageContainsOptions
+            choiceQuestion.imageContainsOptions
               ? "grid grid-cols-2 gap-3 sm:grid-cols-4"
               : "grid grid-cols-1 gap-3"
           }
         >
           {Array.from({ length: optionCount }).map((_, index) => {
-            const optionText = question.options?.[index];
-            const isCorrect = index === question.answerIndex;
+            const optionText = choiceQuestion.options?.[index];
+            const isCorrect = index === choiceQuestion.answerIndex;
             const isChosen = chosen === index;
             const optionLabel =
               optionText ??
-              question.imageOptionLabels?.[index] ??
+              choiceQuestion.imageOptionLabels?.[index] ??
               `圖片中的選項 ${CIRCLED_NUMBERS[index]}`;
             const answerState = session.isAnswered
               ? isCorrect
@@ -256,7 +294,7 @@ export function ExamQuizView({
                   "btn btn-ghost h-auto min-h-[44px] w-full justify-start rounded-xl px-4 py-3 text-left font-normal opacity-50";
               }
             }
-            if (question.imageContainsOptions) {
+            if (choiceQuestion.imageContainsOptions) {
               buttonClass = buttonClass.replace("justify-start", "justify-center");
             }
 
@@ -271,7 +309,7 @@ export function ExamQuizView({
                 aria-label={`${CIRCLED_NUMBERS[index]} ${optionLabel}${answerState}`}
                 className={buttonClass}
               >
-                {question.imageContainsOptions ? (
+                {choiceQuestion.imageContainsOptions ? (
                   <span className="text-xl font-semibold">
                     {CIRCLED_NUMBERS[index]}
                   </span>
@@ -292,6 +330,7 @@ export function ExamQuizView({
             );
           })}
         </div>
+        )}
 
         {/* 即時回饋 + 解析 */}
         <AnimatePresence>
@@ -313,8 +352,21 @@ export function ExamQuizView({
               >
                 {session.lastAnswerCorrect
                   ? "🎉 答對了！"
-                  : `😅 答錯了，正確答案是 ${CIRCLED_NUMBERS[question.answerIndex]}`}
+                  : textQuestion
+                    ? "😅 答錯了"
+                    : `😅 答錯了，正確答案是 ${CIRCLED_NUMBERS[choiceQuestion?.answerIndex ?? 0]}`}
               </p>
+              {textQuestion && (
+                <div className="mt-2 flex flex-col gap-1 border-t border-border-hairline pt-2 text-sm leading-relaxed">
+                  {!session.lastAnswerCorrect && typeof chosen === "string" && (
+                    <p className="text-error">你的答案：{chosen}</p>
+                  )}
+                  <p className="text-foreground/80">
+                    <span className="font-semibold">標準答案：</span>
+                    {textQuestion.acceptedAnswers[0]}
+                  </p>
+                </div>
+              )}
               {question.explanation && (
                 <p className="mt-2 border-t border-border-hairline pt-2 text-sm leading-relaxed text-foreground/80">
                   <span className="font-semibold">解析：</span>
@@ -357,7 +409,9 @@ export function ExamQuizView({
       </motion.div>
 
       <p className="text-center text-xs text-muted-foreground">
-        可使用數字鍵 1-{optionCount} 作答，Enter 前往下一題
+        {textQuestion
+          ? "輸入答案後按 Enter 或「送出」作答，作答後按 Enter 前往下一題"
+          : `可使用數字鍵 1-${optionCount} 作答，Enter 前往下一題`}
       </p>
     </div>
   );

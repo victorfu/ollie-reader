@@ -38,7 +38,8 @@ export interface UseExamQuizReturn {
   result: ExamQuizResult | null;
   sectionResult: ExamSectionResult | null;
   startSession: (scopeId: ExamScopeId, mode?: ExamSessionMode) => void;
-  submitAnswer: (optionIndex: number) => void;
+  /** 選擇題傳選項索引;打字題傳輸入字串。 */
+  submitAnswer: (answer: number | string) => void;
   nextQuestion: () => void;
   continueAfterSection: () => void;
   retryWrong: () => void;
@@ -104,7 +105,7 @@ export function useExamQuiz(subject: ExamSubject): UseExamQuizReturn {
   );
 
   const submitAnswer = useCallback(
-    (optionIndex: number) => {
+    (answer: number | string) => {
       setState((previous) => {
         if (
           previous.subject !== subject ||
@@ -113,7 +114,7 @@ export function useExamQuiz(subject: ExamSubject): UseExamQuizReturn {
         ) {
           return previous;
         }
-        const nextSession = answerCurrent(previous.session, optionIndex);
+        const nextSession = answerCurrent(previous.session, answer);
         return nextSession === previous.session
           ? previous
           : { ...previous, session: nextSession };

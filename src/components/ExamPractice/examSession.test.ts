@@ -1,9 +1,14 @@
 import { describe, expect, it } from "vitest";
-import type { ExamQuestion } from "../../types/exam";
+import type {
+  ExamChoiceQuestion,
+  ExamQuestion,
+  ExamTextQuestion,
+} from "../../types/exam";
 import {
   advance,
   answerCurrent,
   createSession,
+  isCorrectAnswer,
   isEndOfSection,
   isLastQuestion,
   optionCountOf,
@@ -12,13 +17,30 @@ import {
   wrongAnswersOf,
 } from "./examSession";
 
-function makeQuestion(overrides: Partial<ExamQuestion> & { id: string }): ExamQuestion {
+function makeQuestion(
+  overrides: Partial<ExamChoiceQuestion> & { id: string },
+): ExamChoiceQuestion {
   return {
     number: 1,
     sectionId: "math-p1",
     text: "測試題",
     options: ["甲", "乙", "丙", "丁"],
     answerIndex: 1,
+    ...overrides,
+  };
+}
+
+function makeTextQuestion(
+  overrides: Partial<ExamTextQuestion> & { id: string },
+): ExamTextQuestion {
+  return {
+    kind: "text",
+    form: "qa",
+    number: 1,
+    sectionId: "eng-s4",
+    text: "How old are you?",
+    hint: "8",
+    acceptedAnswers: ["I'm eight years old.", "I'm eight."],
     ...overrides,
   };
 }
@@ -165,5 +187,92 @@ describe("scoreOf / wrongAnswersOf", () => {
     const session = answerCurrent(startSession(), 1);
     expect(scoreOf(session)).toBe(1);
     expect(wrongAnswersOf(session)).toEqual([]);
+  });
+});
+
+describe("typed (text) questions", () => {
+  const textQuestions: readonly ExamQuestion[] = [
+    makeTextQuestion({ id: "eng-076", number: 76 }),
+    makeTextQuestion({
+      id: "eng-086",
+      number: 86,
+      form: "unscramble",
+      text: "把下面的單字排成正確的句子。",
+      hint: "down / sit / please",
+      acceptedAnswers: ["Sit down, please."],
+    }),
+  ];
+
+  function startTextSession(questions = textQuestions) {
+    return createSession({
+      subject: "english",
+      scopeId: "eng-s4",
+      scopeLabel: "四、句子練習",
+      mode: "normal",
+      questions,
+    });
+  }
+
+  it("has zero option count (digit shortcuts disabled)", () => {
+    expect(optionCountOf(textQuestions[0])).toBe(0);
+  });
+
+  it("accepts a lenient variant and stores the raw trimmed input", () => {
+    const session = answerCurrent(startTextSession(), "  i am 8  ");
+    expect(session.isAnswered).toBe(true);
+    expect(session.lastAnswerCorrect).toBe(true);
+    expect(session.answers[0]).toBe("i am 8");
+  });
+
+  it("marks wrong content as incorrect but still records it", () => {
+    const session = answerCurrent(startTextSession(), "I am ten");
+    expect(session.lastAnswerCorrect).toBe(false);
+    expect(session.answers[0]).toBe("I am ten");
+  });
+
+  it("rejects empty, whitespace-only, and non-string answers", () => {
+    const session = startTextSession();
+    expect(answerCurrent(session, "")).toBe(session);
+    expect(answerCurrent(session, "   ")).toBe(session);
+    expect(answerCurrent(session, 1)).toBe(session);
+  });
+
+  it("rejects string answers on choice questions", () => {
+    const session = startSession();
+    expect(answerCurrent(session, "乙")).toBe(session);
+  });
+
+  it("keeps the double-answer guard for typed input", () => {
+    const first = answerCurrent(startTextSession(), "wrong answer");
+    const second = answerCurrent(first, "I'm eight");
+    expect(second).toBe(first);
+    expect(second.answers[0]).toBe("wrong answer");
+  });
+
+  it("scores mixed choice + text sessions via isCorrectAnswer", () => {
+    const mixed: readonly ExamQuestion[] = [
+      makeQuestion({ id: "eng-001", number: 1, sectionId: "eng-s1", answerIndex: 0 }),
+      ...textQuestions,
+    ];
+    let session = createSession({
+      subject: "english",
+      scopeId: "full",
+      scopeLabel: "完整測驗",
+      mode: "normal",
+      questions: mixed,
+    });
+    session = advance(answerCurrent(session, 0)); // choice 對
+    session = advance(answerCurrent(session, "im eight years old")); // text 對
+    session = answerCurrent(session, "please sit down"); // unscramble 錯序 → 錯
+
+    expect(scoreOf(session)).toBe(2);
+    const wrong = wrongAnswersOf(session);
+    expect(wrong.map((w) => w.question.id)).toEqual(["eng-086"]);
+    expect(wrong.map((w) => w.chosen)).toEqual(["please sit down"]);
+  });
+
+  it("isCorrectAnswer treats null as wrong for both kinds", () => {
+    expect(isCorrectAnswer(textQuestions[0], null)).toBe(false);
+    expect(isCorrectAnswer(makeQuestion({ id: "x" }), null)).toBe(false);
   });
 });

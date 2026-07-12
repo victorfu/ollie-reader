@@ -8,10 +8,12 @@ import type {
 import { FULL_SCOPE_ID } from "../../types/exam";
 import { chinesePaper } from "./chinese";
 import { mathPaper } from "./math";
+import { englishPaper } from "./english";
 
 export const EXAM_PAPERS: Record<ExamSubject, ExamPaper> = {
   chinese: chinesePaper,
   math: mathPaper,
+  english: englishPaper,
 };
 
 export function getExamPaper(subject: ExamSubject): ExamPaper {

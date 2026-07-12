@@ -1,8 +1,8 @@
 import { act, useEffect } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { ExamSubject } from "../types/exam";
-import { FULL_SCOPE_ID } from "../types/exam";
+import type { ExamQuestion, ExamSubject } from "../types/exam";
+import { FULL_SCOPE_ID, isTextQuestion } from "../types/exam";
 import { optionCountOf } from "../components/ExamPractice/examSession";
 import { useExamQuiz, type UseExamQuizReturn } from "./useExamQuiz";
 
@@ -27,10 +27,17 @@ function quiz(): UseExamQuizReturn {
   return latestQuiz;
 }
 
+function asChoice(question: ExamQuestion) {
+  if (isTextQuestion(question)) {
+    throw new Error("test harness expects a choice question");
+  }
+  return question;
+}
+
 function answerCurrentWrong(): void {
   const current = quiz().session;
   if (!current) throw new Error("no active session");
-  const question = current.questions[current.currentIndex];
+  const question = asChoice(current.questions[current.currentIndex]);
   const wrongAnswer = (question.answerIndex + 1) % optionCountOf(question);
   act(() => quiz().submitAnswer(wrongAnswer));
 }
@@ -38,7 +45,7 @@ function answerCurrentWrong(): void {
 function answerCurrentCorrect(): void {
   const current = quiz().session;
   if (!current) throw new Error("no active session");
-  const question = current.questions[current.currentIndex];
+  const question = asChoice(current.questions[current.currentIndex]);
   act(() => quiz().submitAnswer(question.answerIndex));
 }
 

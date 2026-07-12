@@ -18,6 +18,7 @@ import {
 const SUBJECTS: { id: ExamSubject; label: string }[] = [
   { id: "chinese", label: "國語" },
   { id: "math", label: "數學" },
+  { id: "english", label: "英文" },
 ];
 
 interface ExamHubProps {
@@ -65,7 +66,7 @@ export function ExamHub({ paper, subject, onSelectSubject, onStart }: ExamHubPro
                 key={item.id}
                 aria-pressed={isActive}
                 onClick={() => onSelectSubject(item.id)}
-                className={`min-h-[44px] rounded-full px-8 text-sm font-semibold transition-all active:scale-[0.98] ${
+                className={`min-h-[44px] rounded-full px-6 text-sm font-semibold transition-all active:scale-[0.98] sm:px-8 ${
                   isActive
                     ? "bg-accent text-white shadow-sm"
                     : "text-muted-foreground hover:bg-accent/10"
@@ -82,24 +83,28 @@ export function ExamHub({ paper, subject, onSelectSubject, onStart }: ExamHubPro
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-xl font-semibold tracking-tight">{paper.title}</h2>
         <div className="flex items-center gap-1">
-          <a
-            href={encodeURI(paper.questionPdf)}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="btn btn-ghost btn-sm gap-1.5 rounded-full"
-          >
-            <FileText size={16} strokeWidth={1.75} />
-            題目卷
-          </a>
-          <a
-            href={encodeURI(paper.answerPdf)}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="btn btn-ghost btn-sm gap-1.5 rounded-full"
-          >
-            <NotebookPen size={16} strokeWidth={1.75} />
-            {paper.answerPdfLabel}
-          </a>
+          {paper.questionPdf && (
+            <a
+              href={encodeURI(paper.questionPdf)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn btn-ghost btn-sm gap-1.5 rounded-full"
+            >
+              <FileText size={16} strokeWidth={1.75} />
+              {paper.questionPdfLabel ?? "題目卷"}
+            </a>
+          )}
+          {paper.answerPdf && paper.answerPdfLabel && (
+            <a
+              href={encodeURI(paper.answerPdf)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn btn-ghost btn-sm gap-1.5 rounded-full"
+            >
+              <NotebookPen size={16} strokeWidth={1.75} />
+              {paper.answerPdfLabel}
+            </a>
+          )}
           <button
             type="button"
             onClick={() => setIsResetConfirmOpen(true)}
@@ -171,14 +176,14 @@ export function ExamHub({ paper, subject, onSelectSubject, onStart }: ExamHubPro
       </div>
 
       <p className="text-center text-xs text-muted-foreground">
-        答完每一題會立即顯示對錯{paper.subject === "chinese" ? "與解析" : ""}
+        答完每一題會立即顯示對錯{paper.subject === "math" ? "" : "與解析"}
         ，可以重複練習到全對為止！
       </p>
 
       <ConfirmModal
         isOpen={isResetConfirmOpen}
         title={`重設${paper.title}進度？`}
-        message={`將清除${paper.title}所有區段與完整測驗的最佳成績、最近成績及錯題紀錄；另一科不受影響，且無法復原。`}
+        message={`將清除${paper.title}所有區段與完整測驗的最佳成績、最近成績及錯題紀錄；其他科目不受影響，且無法復原。`}
         confirmText="重設進度"
         cancelText="取消"
         confirmVariant="error"

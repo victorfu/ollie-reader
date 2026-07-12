@@ -5,11 +5,29 @@ import type {
   ExamSessionMode,
   ExamSubject,
 } from "../../types/exam";
+import { isTextQuestion } from "../../types/exam";
+import { isAcceptedAnswer } from "./examAnswerMatching";
 
-/** 有效選項數:一般題 = options 長度;圖含選項題 = optionCount(預設 4)。 */
+/**
+ * 有效選項數:一般題 = options 長度;圖含選項題 = optionCount(預設 4);
+ * 打字題 = 0(自然關閉數字快捷鍵與選項索引檢查)。
+ */
 export function optionCountOf(question: ExamQuestion): number {
+  if (isTextQuestion(question)) return 0;
   if (question.imageContainsOptions) return question.optionCount ?? 4;
   return question.options?.length ?? 4;
+}
+
+/** 單一正確性來源:選擇題比對索引;打字題走寬鬆批改。 */
+export function isCorrectAnswer(
+  question: ExamQuestion,
+  given: number | string | null,
+): boolean {
+  if (given === null) return false;
+  if (isTextQuestion(question)) {
+    return typeof given === "string" && isAcceptedAnswer(question.acceptedAnswers, given);
+  }
+  return given === question.answerIndex;
 }
 
 export function createSession(input: {
@@ -33,26 +51,37 @@ export function createSession(input: {
 }
 
 /**
- * 對目前題目作答。已作答(回饋顯示中)或選項索引無效時原樣返回——
+ * 對目前題目作答(選擇題傳選項索引;打字題傳輸入字串)。
+ * 已作答(回饋顯示中)或作答內容無效時原樣返回——
  * 防止連點/鍵盤重複送出的核心防線。
  */
 export function answerCurrent(
   session: ExamQuizSession,
-  optionIndex: number,
+  answer: number | string,
 ): ExamQuizSession {
   if (session.isAnswered) return session;
   const question = session.questions[session.currentIndex];
   if (!question) return session;
-  if (!Number.isInteger(optionIndex)) return session;
-  if (optionIndex < 0 || optionIndex >= optionCountOf(question)) return session;
+
+  let recorded: number | string;
+  if (isTextQuestion(question)) {
+    if (typeof answer !== "string") return session;
+    const trimmed = answer.trim();
+    if (!trimmed) return session;
+    recorded = trimmed; // 保留原始輸入(成績頁顯示用),批改時才 normalize
+  } else {
+    if (typeof answer !== "number" || !Number.isInteger(answer)) return session;
+    if (answer < 0 || answer >= optionCountOf(question)) return session;
+    recorded = answer;
+  }
 
   const answers = session.answers.slice();
-  answers[session.currentIndex] = optionIndex;
+  answers[session.currentIndex] = recorded;
   return {
     ...session,
     answers,
     isAnswered: true,
-    lastAnswerCorrect: optionIndex === question.answerIndex,
+    lastAnswerCorrect: isCorrectAnswer(question, recorded),
   };
 }
 
@@ -102,7 +131,8 @@ export function sectionStatsAtCurrent(
 
   let score = 0;
   for (let index = start; index <= end; index += 1) {
-    if (session.answers[index] === session.questions[index]?.answerIndex) {
+    const question = session.questions[index];
+    if (question && isCorrectAnswer(question, session.answers[index] ?? null)) {
       score += 1;
     }
   }
@@ -128,22 +158,23 @@ export function advance(session: ExamQuizSession): ExamQuizSession {
 export function scoreOf(session: ExamQuizSession): number {
   return session.questions.reduce(
     (total, question, index) =>
-      total + (session.answers[index] === question.answerIndex ? 1 : 0),
+      total + (isCorrectAnswer(question, session.answers[index] ?? null) ? 1 : 0),
     0,
   );
 }
 
 export interface ExamWrongAnswer {
   question: ExamQuestion;
-  chosen: number;
+  /** 當時的作答:選擇題 = 選項索引;打字題 = 輸入字串。 */
+  chosen: number | string;
 }
 
-/** 答錯的題目(依原卷順序)與當時所選選項。 */
+/** 答錯的題目(依原卷順序)與當時的作答。 */
 export function wrongAnswersOf(session: ExamQuizSession): ExamWrongAnswer[] {
   const wrong: ExamWrongAnswer[] = [];
   session.questions.forEach((question, index) => {
     const chosen = session.answers[index];
-    if (chosen !== null && chosen !== question.answerIndex) {
+    if (chosen !== null && !isCorrectAnswer(question, chosen)) {
       wrong.push({ question, chosen });
     }
   });

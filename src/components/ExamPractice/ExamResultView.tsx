@@ -3,6 +3,7 @@ import { motion, useReducedMotion } from "framer-motion";
 import confetti from "canvas-confetti";
 import { Home, RotateCcw, Trophy } from "lucide-react";
 import type { ExamPaper, ExamQuizResult } from "../../types/exam";
+import { isTextQuestion } from "../../types/exam";
 import { ExamRichText } from "./ExamRichText";
 import { ExamQuestionImage } from "./ExamQuestionImage";
 import { CIRCLED_NUMBERS, questionLabel } from "./examUi";
@@ -139,40 +140,53 @@ export function ExamResultView({
                     alt={question.imageAlt}
                   />
                 )}
-                <div className="flex flex-col gap-1 text-sm">
-                  <p className="text-error">
-                    你的答案：{CIRCLED_NUMBERS[chosen]}
-                    {(question.options?.[chosen] ??
-                      question.imageOptionLabels?.[chosen]) && (
-                      <>
-                        {" "}
-                        <ExamRichText
-                          text={
-                            question.options?.[chosen] ??
-                            question.imageOptionLabels?.[chosen] ??
-                            ""
-                          }
-                        />
-                      </>
-                    )}
-                  </p>
-                  <p className="text-success">
-                    正確答案：{CIRCLED_NUMBERS[question.answerIndex]}
-                    {(question.options?.[question.answerIndex] ??
-                      question.imageOptionLabels?.[question.answerIndex]) && (
-                      <>
-                        {" "}
-                        <ExamRichText
-                          text={
-                            question.options?.[question.answerIndex] ??
-                            question.imageOptionLabels?.[question.answerIndex] ??
-                            ""
-                          }
-                        />
-                      </>
-                    )}
-                  </p>
-                </div>
+                {isTextQuestion(question) ? (
+                  <div className="flex flex-col gap-1 text-sm">
+                    <p className="text-error">
+                      你的答案：{typeof chosen === "string" ? chosen : ""}
+                    </p>
+                    <p className="text-success">
+                      正確答案：{question.acceptedAnswers[0]}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-1 text-sm">
+                    <p className="text-error">
+                      你的答案：
+                      {typeof chosen === "number" ? CIRCLED_NUMBERS[chosen] : ""}
+                      {typeof chosen === "number" &&
+                        (question.options?.[chosen] ??
+                          question.imageOptionLabels?.[chosen]) && (
+                          <>
+                            {" "}
+                            <ExamRichText
+                              text={
+                                question.options?.[chosen] ??
+                                question.imageOptionLabels?.[chosen] ??
+                                ""
+                              }
+                            />
+                          </>
+                        )}
+                    </p>
+                    <p className="text-success">
+                      正確答案：{CIRCLED_NUMBERS[question.answerIndex]}
+                      {(question.options?.[question.answerIndex] ??
+                        question.imageOptionLabels?.[question.answerIndex]) && (
+                        <>
+                          {" "}
+                          <ExamRichText
+                            text={
+                              question.options?.[question.answerIndex] ??
+                              question.imageOptionLabels?.[question.answerIndex] ??
+                              ""
+                            }
+                          />
+                        </>
+                      )}
+                    </p>
+                  </div>
+                )}
                 {question.explanation && (
                   <p className="border-t border-border-hairline pt-2 text-sm leading-relaxed text-muted-foreground">
                     <span className="font-semibold">解析：</span>

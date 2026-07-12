@@ -13,10 +13,13 @@ describe("exam subject query params", () => {
     expect(isExamSubject("science")).toBe(false);
   });
 
-  it("keeps both valid subjects explicit in the canonical URL", () => {
+  it("keeps all valid subjects explicit in the canonical URL", () => {
     expect(paramsForSubject("chinese")).toEqual({ subject: "chinese" });
     expect(paramsForSubject("math")).toEqual({ subject: "math" });
+    expect(paramsForSubject("english")).toEqual({ subject: "english" });
     expect(examSubjectFromParam("chinese")).toBe("chinese");
     expect(examSubjectFromParam("math")).toBe("math");
+    expect(examSubjectFromParam("english")).toBe("english");
+    expect(isExamSubject("english")).toBe(true);
   });
 });

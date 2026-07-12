@@ -1,7 +1,7 @@
 import type { ExamSubject } from "../../types/exam";
 
 export function isExamSubject(value: string | null): value is ExamSubject {
-  return value === "chinese" || value === "math";
+  return value === "chinese" || value === "math" || value === "english";
 }
 
 export function examSubjectFromParam(value: string | null): ExamSubject {
