@@ -4,18 +4,19 @@ import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import type {
   ExamScopeId,
   ExamSessionMode,
-  ExamSubject,
+  ExamTab,
 } from "../../types/exam";
 import { useExamQuiz } from "../../hooks/useExamQuiz";
 import { ConfirmModal } from "../common/ConfirmModal";
 import { ExamHub } from "./ExamHub";
 import { ExamQuizView } from "./ExamQuizView";
+import { ExamRandomHub } from "./ExamRandomHub";
 import { ExamResultView } from "./ExamResultView";
 import { ExamSectionResultView } from "./ExamSectionResultView";
 import {
-  examSubjectFromParam,
-  isExamSubject,
-  paramsForSubject,
+  examTabFromParam,
+  isExamTab,
+  paramsForTab,
 } from "./examSubjectParams";
 
 const pageVariants = {
@@ -34,8 +35,8 @@ export default function ExamPracticePage() {
   const shouldReduceMotion = useReducedMotion();
   const [searchParams, setSearchParams] = useSearchParams();
   const rawSubject = searchParams.get("subject");
-  const urlSubject = examSubjectFromParam(rawSubject);
-  const [lockedSubject, setLockedSubject] = useState<ExamSubject | null>(null);
+  const urlSubject = examTabFromParam(rawSubject);
+  const [lockedSubject, setLockedSubject] = useState<ExamTab | null>(null);
   const [autoAdvanceOnCorrect, setAutoAdvanceOnCorrect] = useState(false);
   const subject = lockedSubject ?? urlSubject;
   const quiz = useExamQuiz(subject);
@@ -49,6 +50,7 @@ export default function ExamPracticePage() {
     sectionResult,
     session,
     startSession: beginSession,
+    startRandomSession,
   } = quiz;
   const [pendingExit, setPendingExit] = useState<(() => void) | null>(null);
   const transition = {
@@ -71,8 +73,8 @@ export default function ExamPracticePage() {
 
   // 裸 /exams 與無效參數都正規化為明確的國語 URL。
   useEffect(() => {
-    if (!isExamSubject(rawSubject)) {
-      setSearchParams(paramsForSubject("chinese"), { replace: true });
+    if (!isExamTab(rawSubject)) {
+      setSearchParams(paramsForTab("chinese"), { replace: true });
     }
   }, [rawSubject, setSearchParams]);
 
@@ -99,6 +101,14 @@ export default function ExamPracticePage() {
       beginSession(scopeId, mode);
     },
     [beginSession, subject],
+  );
+
+  const handleStartRandom = useCallback(
+    (count: number) => {
+      setLockedSubject(subject);
+      startRandomSession(count);
+    },
+    [startRandomSession, subject],
   );
 
   const handleNext = useCallback(() => {
@@ -134,7 +144,7 @@ export default function ExamPracticePage() {
 
     queueMicrotask(() => {
       // push 回目前科別會保留剛才返回的 entry；取消後再按上一頁仍可重試。
-      setSearchParams(paramsForSubject(subject));
+      setSearchParams(paramsForTab(subject));
       setPendingExit(() => () => {
         handleExitToHub();
         window.history.back();
@@ -153,11 +163,11 @@ export default function ExamPracticePage() {
   }, [phase]);
 
   const selectSubject = useCallback(
-    (next: ExamSubject) => {
+    (next: ExamTab) => {
       if (next === subject) return;
       requestExit(() => {
         handleExitToHub();
-        setSearchParams(paramsForSubject(next));
+        setSearchParams(paramsForTab(next));
       });
     },
     [handleExitToHub, subject, requestExit, setSearchParams],
@@ -175,12 +185,22 @@ export default function ExamPracticePage() {
             exit="exit"
             transition={transition}
           >
-            <ExamHub
-              paper={quiz.paper}
-              subject={subject}
-              onSelectSubject={selectSubject}
-              onStart={handleStartSession}
-            />
+            {subject === "mixed" ? (
+              <ExamRandomHub
+                tab={subject}
+                onSelectSubject={selectSubject}
+                onGenerate={handleStartRandom}
+              />
+            ) : (
+              quiz.paper && (
+                <ExamHub
+                  paper={quiz.paper}
+                  subject={subject}
+                  onSelectSubject={selectSubject}
+                  onStart={handleStartSession}
+                />
+              )
+            )}
           </motion.div>
         )}
 
@@ -201,7 +221,7 @@ export default function ExamPracticePage() {
           </motion.div>
         )}
 
-        {quiz.phase === "active" && quiz.session && !sectionResult && (
+        {quiz.phase === "active" && quiz.session && quiz.paper && !sectionResult && (
           <motion.div
             key="quiz"
             variants={pageVariants}
@@ -226,6 +246,7 @@ export default function ExamPracticePage() {
         {quiz.phase === "finished" &&
           quiz.result &&
           quiz.session &&
+          quiz.paper &&
           !sectionResult && (
             <motion.div
               key="result"

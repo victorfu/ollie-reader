@@ -1,8 +1,9 @@
 import { act, useEffect } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { ExamQuestion, ExamSubject } from "../types/exam";
+import type { ExamQuestion, ExamTab } from "../types/exam";
 import { FULL_SCOPE_ID, isTextQuestion } from "../types/exam";
+import { MIXED_SCOPE_ID } from "../data/exams/mixed";
 import { optionCountOf } from "../components/ExamPractice/examSession";
 import { useExamQuiz, type UseExamQuizReturn } from "./useExamQuiz";
 
@@ -14,7 +15,7 @@ function captureQuiz(nextQuiz: UseExamQuizReturn): void {
   latestQuiz = nextQuiz;
 }
 
-function Harness({ subject }: { subject: ExamSubject }) {
+function Harness({ subject }: { subject: ExamTab }) {
   const nextQuiz = useExamQuiz(subject);
   useEffect(() => {
     captureQuiz(nextQuiz);
@@ -47,6 +48,17 @@ function answerCurrentCorrect(): void {
   if (!current) throw new Error("no active session");
   const question = asChoice(current.questions[current.currentIndex]);
   act(() => quiz().submitAnswer(question.answerIndex));
+}
+
+/** 綜合卷可能抽到英文打字題,依題型送一個必錯的作答。 */
+function answerCurrentWrongAnyKind(): void {
+  const current = quiz().session;
+  if (!current) throw new Error("no active session");
+  const question = current.questions[current.currentIndex];
+  const wrongAnswer = isTextQuestion(question)
+    ? "___wrong___"
+    : (question.answerIndex + 1) % optionCountOf(question);
+  act(() => quiz().submitAnswer(wrongAnswer));
 }
 
 beforeEach(() => {
@@ -167,5 +179,67 @@ describe("useExamQuiz", () => {
     expect(quiz().phase).toBe("finished");
     expect(quiz().result).toMatchObject({ score: 100, total: 100 });
     expect(setItem).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("useExamQuiz mixed random paper", () => {
+  beforeEach(() => {
+    act(() => root.render(<Harness subject="mixed" />));
+  });
+
+  it("has no paper until one is generated", () => {
+    expect(quiz().paper).toBeNull();
+    expect(quiz().phase).toBe("idle");
+  });
+
+  it("finishes a random paper without ever touching localStorage", () => {
+    const setItem = vi.spyOn(Storage.prototype, "setItem");
+    act(() => quiz().startRandomSession(10));
+
+    expect(quiz().phase).toBe("active");
+    expect(quiz().paper?.subject).toBe("mixed");
+    expect(quiz().session?.scopeId).toBe(MIXED_SCOPE_ID);
+    expect(quiz().session?.questions).toHaveLength(10);
+
+    for (let index = 0; index < 10; index += 1) {
+      answerCurrentWrongAnyKind();
+      act(() => quiz().nextQuestion());
+    }
+
+    expect(quiz().phase).toBe("finished");
+    expect(quiz().sectionResult).toBeNull();
+    expect(quiz().result?.wrong).toHaveLength(10);
+    expect(quiz().result?.isNewBest).toBe(false);
+    expect(setItem).not.toHaveBeenCalled();
+
+    // 當次錯題重練(in-memory)照常可用
+    act(() => quiz().retryWrong());
+    expect(quiz().phase).toBe("active");
+    expect(quiz().session?.mode).toBe("retry");
+    expect(quiz().session?.questions).toHaveLength(10);
+  });
+
+  it("restarts with the exact same generated paper", () => {
+    act(() => quiz().startRandomSession(10));
+    const firstIds = quiz().session?.questions.map((question) => question.id);
+    expect(firstIds).toHaveLength(10);
+
+    for (let index = 0; index < 10; index += 1) {
+      answerCurrentWrongAnyKind();
+      act(() => quiz().nextQuestion());
+    }
+    expect(quiz().phase).toBe("finished");
+
+    act(() => quiz().restart());
+    expect(quiz().phase).toBe("active");
+    expect(quiz().session?.mode).toBe("normal");
+    expect(quiz().session?.questions.map((question) => question.id)).toEqual(
+      firstIds,
+    );
+
+    // 回列表丟棄這張卷,下次要重新產生
+    act(() => quiz().exitToHub());
+    expect(quiz().phase).toBe("idle");
+    expect(quiz().paper).toBeNull();
   });
 });

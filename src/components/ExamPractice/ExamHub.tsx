@@ -7,24 +7,20 @@ import type {
   ExamScopeProgress,
   ExamSessionMode,
   ExamSubject,
+  ExamTab,
 } from "../../types/exam";
 import { findQuestionsByIds, listScopes } from "../../data/exams";
 import { ConfirmModal } from "../common/ConfirmModal";
+import { ExamSubjectSwitcher } from "./ExamSubjectSwitcher";
 import {
   clearSubjectProgress,
   readScopeProgress,
 } from "./examProgressStorage";
 
-const SUBJECTS: { id: ExamSubject; label: string }[] = [
-  { id: "chinese", label: "國語" },
-  { id: "math", label: "數學" },
-  { id: "english", label: "英文" },
-];
-
 interface ExamHubProps {
   paper: ExamPaper;
   subject: ExamSubject;
-  onSelectSubject: (subject: ExamSubject) => void;
+  onSelectSubject: (tab: ExamTab) => void;
   onStart: (scopeId: ExamScopeId, mode?: ExamSessionMode) => void;
 }
 
@@ -53,31 +49,7 @@ export function ExamHub({ paper, subject, onSelectSubject, onStart }: ExamHubPro
   return (
     <div className="flex flex-col gap-5">
       {/* 科別切換 */}
-      <div className="flex justify-center">
-        <div
-          role="group"
-          aria-label="選擇考科"
-          className="inline-flex rounded-full border border-border-hairline bg-card p-1 shadow-soft"
-        >
-          {SUBJECTS.map((item) => {
-            const isActive = item.id === subject;
-            return (
-              <button
-                key={item.id}
-                aria-pressed={isActive}
-                onClick={() => onSelectSubject(item.id)}
-                className={`min-h-[44px] rounded-full px-6 text-sm font-semibold transition-all active:scale-[0.98] sm:px-8 ${
-                  isActive
-                    ? "bg-accent text-white shadow-sm"
-                    : "text-muted-foreground hover:bg-accent/10"
-                }`}
-              >
-                {item.label}
-              </button>
-            );
-          })}
-        </div>
-      </div>
+      <ExamSubjectSwitcher value={subject} onSelect={onSelectSubject} />
 
       {/* 卷名 + 紙本連結 */}
       <div className="flex flex-wrap items-center justify-between gap-2">

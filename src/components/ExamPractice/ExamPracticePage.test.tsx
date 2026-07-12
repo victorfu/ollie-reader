@@ -1,12 +1,71 @@
-import { act, useEffect } from "react";
+import { act, useEffect, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { MemoryRouter, useLocation } from "react-router-dom";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+// AnimatePresence mode="wait" 的退場動畫在 jsdom 沒有 rAF 驅動,
+// 舊視圖永遠退不了場;把 framer-motion 換成同步 passthrough。
+vi.mock("framer-motion", async () => {
+  const { createElement, forwardRef, Fragment } = await import("react");
+  const MOTION_ONLY_PROPS = new Set([
+    "initial",
+    "animate",
+    "exit",
+    "variants",
+    "transition",
+    "whileTap",
+    "layout",
+  ]);
+  const motion = new Proxy({} as Record<string | symbol, unknown>, {
+    get: (_target, tag) =>
+      forwardRef(function MotionStub(
+        props: Record<string, unknown>,
+        ref: unknown,
+      ) {
+        const domProps: Record<string, unknown> = { ref };
+        for (const [key, value] of Object.entries(props)) {
+          if (!MOTION_ONLY_PROPS.has(key) && key !== "children") {
+            domProps[key] = value;
+          }
+        }
+        return createElement(
+          String(tag),
+          domProps,
+          props.children as ReactNode,
+        );
+      }),
+  });
+  return {
+    motion,
+    AnimatePresence: (props: { children?: ReactNode }) =>
+      createElement(Fragment, null, props.children),
+    useReducedMotion: () => true,
+  };
+});
+
+import {
+  SpeechContext,
+  type SpeechContextType,
+} from "../../contexts/SpeechContextType";
 import ExamPracticePage from "./ExamPracticePage";
 
 let container: HTMLDivElement;
 let root: Root;
 let currentSearch = "";
+
+/** 綜合卷測試會進入 ExamQuizView(依賴 SpeechContext),以 stub 提供。 */
+const FAKE_SPEECH: SpeechContextType = {
+  speechRate: 1,
+  isSpeaking: false,
+  ttsMode: "browser",
+  ttsEngine: "piper",
+  setTtsMode: vi.fn(),
+  isLoadingAudio: false,
+  speechSupported: true,
+  speak: vi.fn(),
+  speakAsync: vi.fn().mockResolvedValue(undefined),
+  stopSpeaking: vi.fn(),
+};
 
 function LocationProbe() {
   const location = useLocation();
@@ -20,7 +79,9 @@ async function renderAt(entry: string): Promise<void> {
   await act(async () => {
     root.render(
       <MemoryRouter initialEntries={[entry]}>
-        <LocationProbe />
+        <SpeechContext.Provider value={FAKE_SPEECH}>
+          <LocationProbe />
+        </SpeechContext.Provider>
       </MemoryRouter>,
     );
   });
@@ -55,6 +116,8 @@ beforeEach(() => {
   });
   window.localStorage.clear();
   currentSearch = "";
+  // jsdom 未實作;綜合卷流程會觸發視圖捲動
+  window.scrollTo = vi.fn() as unknown as typeof window.scrollTo;
   container = document.createElement("div");
   document.body.appendChild(container);
   root = createRoot(container);
@@ -83,5 +146,48 @@ describe("ExamPracticePage subject query", () => {
     });
 
     expect(currentSearch).toBe("?subject=chinese");
+  });
+
+  it("switches to the mixed tab from a fixed subject", async () => {
+    await renderAt("/exams?subject=chinese");
+
+    await act(async () => {
+      subjectButton("綜合").click();
+    });
+
+    expect(currentSearch).toBe("?subject=mixed");
+    expect(container.textContent).toContain("隨機綜合卷");
+    expect(container.textContent).toContain("產生考卷並開始");
+  });
+});
+
+describe("ExamPracticePage mixed random paper", () => {
+  it("generates a paper with the selected count and starts immediately", async () => {
+    await renderAt("/exams?subject=mixed");
+    expect(container.textContent).toContain("隨機綜合卷");
+
+    const select = container.querySelector("select");
+    expect(select).toBeInstanceOf(HTMLSelectElement);
+    await act(async () => {
+      const setter = Object.getOwnPropertyDescriptor(
+        window.HTMLSelectElement.prototype,
+        "value",
+      )?.set;
+      setter?.call(select, "20");
+      select?.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+
+    const generate = [...container.querySelectorAll("button")].find((button) =>
+      button.textContent?.includes("產生考卷並開始"),
+    );
+    expect(generate).toBeTruthy();
+    await act(async () => {
+      generate?.click();
+    });
+
+    // 直接進入作答:頂部列顯示範圍名稱與 1 / 20 進度
+    expect(container.textContent).toContain("1 / 20");
+    expect(container.textContent).toContain("隨機綜合卷");
+    expect(container.textContent).toContain("原卷 國語");
   });
 });

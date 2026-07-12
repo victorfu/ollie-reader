@@ -1,5 +1,12 @@
 export type ExamSubject = "chinese" | "math" | "english";
 
+/**
+ * 頁面 tab / URL 層級的科別:三個固定科目 + 隨機綜合卷。
+ * 資料層(EXAM_PAPERS、localStorage)僅使用 ExamSubject —
+ * 綜合卷動態產生、不落地。
+ */
+export type ExamTab = ExamSubject | "mixed";
+
 /** 打字題形式:看問句打答句 / 重組句子 / 聽打(聽寫)。 */
 export type ExamTextForm = "qa" | "unscramble" | "dictation";
 
@@ -77,7 +84,7 @@ export interface ExamSection {
 }
 
 export interface ExamPaper {
-  subject: ExamSubject;
+  subject: ExamTab;
   title: string;
   /** 題目卷檔案路徑(public/ 下,PDF 或 JPG,未編碼;渲染時 encodeURI)。 */
   questionPdf?: string;
@@ -116,7 +123,7 @@ export interface ExamSectionResult {
 }
 
 export interface ExamQuizSession {
-  subject: ExamSubject;
+  subject: ExamTab;
   scopeId: ExamScopeId;
   scopeLabel: string;
   mode: ExamSessionMode;

@@ -1,15 +1,19 @@
-import type { ExamSubject } from "../../types/exam";
+import type { ExamTab } from "../../types/exam";
 
-export function isExamSubject(value: string | null): value is ExamSubject {
-  return value === "chinese" || value === "math" || value === "english";
+/** ?subject= 的合法值:三個固定科目 + 隨機綜合卷。 */
+export function isExamTab(value: string | null): value is ExamTab {
+  return (
+    value === "chinese" ||
+    value === "math" ||
+    value === "english" ||
+    value === "mixed"
+  );
 }
 
-export function examSubjectFromParam(value: string | null): ExamSubject {
-  return isExamSubject(value) ? value : "chinese";
+export function examTabFromParam(value: string | null): ExamTab {
+  return isExamTab(value) ? value : "chinese";
 }
 
-export function paramsForSubject(
-  subject: ExamSubject,
-): Record<string, string> {
-  return { subject };
+export function paramsForTab(tab: ExamTab): Record<string, string> {
+  return { subject: tab };
 }

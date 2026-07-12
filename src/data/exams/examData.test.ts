@@ -68,22 +68,23 @@ function choiceOptionCount(question: ExamChoiceQuestion): number {
   return question.options?.length ?? 0;
 }
 
-describe.each(Object.values(EXAM_PAPERS))(
-  "exam data integrity: $subject",
-  (paper: ExamPaper) => {
+describe.each(Object.entries(EXAM_PAPERS) as [ExamSubject, ExamPaper][])(
+  "exam data integrity: %s",
+  (subject, paper) => {
     const questions = getAllQuestions(paper);
-    const answerKey = ANSWER_KEYS[paper.subject];
+    const answerKey = ANSWER_KEYS[subject];
 
     it("has the exact per-section question counts", () => {
+      expect(paper.subject).toBe(subject);
       expect(paper.sections.map((s) => s.questions.length)).toEqual(
-        EXPECTED_SECTION_COUNTS[paper.subject],
+        EXPECTED_SECTION_COUNTS[subject],
       );
       expect(questions.length).toBe(paper.totalQuestions);
       expect(paper.totalQuestions).toBe(100);
     });
 
     it("has unique, contiguous, well-formed ids matching paper order", () => {
-      const prefix = ID_PREFIXES[paper.subject];
+      const prefix = ID_PREFIXES[subject];
       const ids = questions.map((q) => q.id);
       expect(new Set(ids).size).toBe(ids.length);
       questions.forEach((question, index) => {
@@ -93,7 +94,7 @@ describe.each(Object.values(EXAM_PAPERS))(
 
     it("has printed numbers contiguous from 1 within each numbering block", () => {
       // 國語卷每個大題題號重新起算;數學卷、英文卷全卷連續編號。
-      if (paper.subject === "chinese") {
+      if (subject === "chinese") {
         for (const section of paper.sections) {
           section.questions.forEach((question, index) => {
             expect(question.number).toBe(index + 1);
@@ -127,7 +128,7 @@ describe.each(Object.values(EXAM_PAPERS))(
     );
 
     it("keeps text questions only in the designated text sections", () => {
-      const textSections = new Set(TEXT_SECTION_IDS[paper.subject] ?? []);
+      const textSections = new Set(TEXT_SECTION_IDS[subject] ?? []);
       for (const section of paper.sections) {
         for (const question of section.questions) {
           expect(

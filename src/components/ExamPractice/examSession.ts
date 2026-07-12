@@ -3,7 +3,7 @@ import type {
   ExamQuizSession,
   ExamScopeId,
   ExamSessionMode,
-  ExamSubject,
+  ExamTab,
 } from "../../types/exam";
 import { isTextQuestion } from "../../types/exam";
 import { isAcceptedAnswer } from "./examAnswerMatching";
@@ -31,7 +31,7 @@ export function isCorrectAnswer(
 }
 
 export function createSession(input: {
-  subject: ExamSubject;
+  subject: ExamTab;
   scopeId: ExamScopeId;
   scopeLabel: string;
   mode: ExamSessionMode;

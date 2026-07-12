@@ -1,25 +1,27 @@
 import { describe, expect, it } from "vitest";
 import {
-  examSubjectFromParam,
-  isExamSubject,
-  paramsForSubject,
+  examTabFromParam,
+  isExamTab,
+  paramsForTab,
 } from "./examSubjectParams";
 
-describe("exam subject query params", () => {
+describe("exam tab query params", () => {
   it("uses chinese for a bare or invalid /exams URL", () => {
-    expect(examSubjectFromParam(null)).toBe("chinese");
-    expect(examSubjectFromParam("science")).toBe("chinese");
-    expect(isExamSubject(null)).toBe(false);
-    expect(isExamSubject("science")).toBe(false);
+    expect(examTabFromParam(null)).toBe("chinese");
+    expect(examTabFromParam("science")).toBe("chinese");
+    expect(isExamTab(null)).toBe(false);
+    expect(isExamTab("science")).toBe(false);
   });
 
-  it("keeps all valid subjects explicit in the canonical URL", () => {
-    expect(paramsForSubject("chinese")).toEqual({ subject: "chinese" });
-    expect(paramsForSubject("math")).toEqual({ subject: "math" });
-    expect(paramsForSubject("english")).toEqual({ subject: "english" });
-    expect(examSubjectFromParam("chinese")).toBe("chinese");
-    expect(examSubjectFromParam("math")).toBe("math");
-    expect(examSubjectFromParam("english")).toBe("english");
-    expect(isExamSubject("english")).toBe(true);
+  it("keeps all valid tabs explicit in the canonical URL", () => {
+    expect(paramsForTab("chinese")).toEqual({ subject: "chinese" });
+    expect(paramsForTab("math")).toEqual({ subject: "math" });
+    expect(paramsForTab("english")).toEqual({ subject: "english" });
+    expect(paramsForTab("mixed")).toEqual({ subject: "mixed" });
+    expect(examTabFromParam("chinese")).toBe("chinese");
+    expect(examTabFromParam("math")).toBe("math");
+    expect(examTabFromParam("english")).toBe("english");
+    expect(examTabFromParam("mixed")).toBe("mixed");
+    expect(isExamTab("mixed")).toBe(true);
   });
 });

@@ -486,3 +486,13 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* Chrome 135+ customizable select(DaisyUI 5.5 對 .select 自動 opt-in):
+   DaisyUI 的 ::picker(select) 用 background-color: inherit,
+   玻璃(半透明)觸發器會讓整個彈出清單跟著透明。
+   彈出層一律實色,不受觸發器背景影響。 */
+@supports (appearance: base-select) {
+  select::picker(select) {
+    background-color: var(--color-base-100);
+  }
+}

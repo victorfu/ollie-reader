@@ -7,7 +7,7 @@ import type {
   ExamScopeId,
   ExamSectionResult,
   ExamSessionMode,
-  ExamSubject,
+  ExamTab,
 } from "../types/exam";
 import { FULL_SCOPE_ID } from "../types/exam";
 import {
@@ -16,6 +16,7 @@ import {
   getScopeLabel,
   getScopeQuestions,
 } from "../data/exams";
+import { MIXED_SCOPE_ID, buildMixedPaper } from "../data/exams/mixed";
 import {
   advance,
   answerCurrent,
@@ -32,12 +33,15 @@ import {
 } from "../components/ExamPractice/examProgressStorage";
 
 export interface UseExamQuizReturn {
-  paper: ExamPaper;
+  /** 固定科目恆為靜態卷;綜合 tab 在產生前為 null。 */
+  paper: ExamPaper | null;
   phase: ExamQuizPhase;
   session: ExamQuizSession | null;
   result: ExamQuizResult | null;
   sectionResult: ExamSectionResult | null;
   startSession: (scopeId: ExamScopeId, mode?: ExamSessionMode) => void;
+  /** 綜合 tab:隨機組一張 count 題的卷並直接開始作答。 */
+  startRandomSession: (count: number) => void;
   /** 選擇題傳選項索引;打字題傳輸入字串。 */
   submitAnswer: (answer: number | string) => void;
   nextQuestion: () => void;
@@ -48,26 +52,28 @@ export interface UseExamQuizReturn {
 }
 
 interface ExamQuizState {
-  subject: ExamSubject;
+  subject: ExamTab;
   phase: ExamQuizPhase;
   session: ExamQuizSession | null;
   result: ExamQuizResult | null;
   sectionResult: ExamSectionResult | null;
+  /** 綜合 tab 動態產生的卷;切 tab、回列表都會重置(每次重新產生)。 */
+  generatedPaper: ExamPaper | null;
 }
 
-function idleState(subject: ExamSubject): ExamQuizState {
+function idleState(subject: ExamTab): ExamQuizState {
   return {
     subject,
     phase: "idle",
     session: null,
     result: null,
     sectionResult: null,
+    generatedPaper: null,
   };
 }
 
 /** 考卷練習狀態機:idle(列表)→ active(作答)→ finished(成績)。 */
-export function useExamQuiz(subject: ExamSubject): UseExamQuizReturn {
-  const paper = getExamPaper(subject);
+export function useExamQuiz(subject: ExamTab): UseExamQuizReturn {
   const [state, setState] = useState<ExamQuizState>(() => idleState(subject));
   const finishingRef = useRef<ExamQuizSession | null>(null);
 
@@ -75,19 +81,25 @@ export function useExamQuiz(subject: ExamSubject): UseExamQuizReturn {
   // 並在下一次開始練習時以新 subject 覆蓋，不需要 effect 同步 state。
   const currentState = state.subject === subject ? state : idleState(subject);
   const { phase, session, result, sectionResult } = currentState;
+  const paper =
+    subject === "mixed" ? currentState.generatedPaper : getExamPaper(subject);
 
   const startSession = useCallback(
     (scopeId: ExamScopeId, mode: ExamSessionMode = "normal") => {
+      if (!paper) return;
+      // 綜合卷不落地,重練入口只有成績頁的 retryWrong(in-memory)。
       const questions =
         mode === "retry"
-          ? findQuestionsByIds(
-              paper,
-              readScopeProgress(subject, scopeId)?.lastWrongIds ?? [],
-            )
+          ? subject === "mixed"
+            ? []
+            : findQuestionsByIds(
+                paper,
+                readScopeProgress(subject, scopeId)?.lastWrongIds ?? [],
+              )
           : getScopeQuestions(paper, scopeId);
       if (!questions || questions.length === 0) return;
       finishingRef.current = null;
-      setState({
+      setState((previous) => ({
         subject,
         phase: "active",
         session: createSession({
@@ -99,9 +111,37 @@ export function useExamQuiz(subject: ExamSubject): UseExamQuizReturn {
         }),
         result: null,
         sectionResult: null,
-      });
+        // 綜合卷「再練一次」沿用同一張產生的卷
+        generatedPaper:
+          previous.subject === subject ? previous.generatedPaper : null,
+      }));
     },
     [paper, subject],
+  );
+
+  const startRandomSession = useCallback(
+    (count: number) => {
+      if (subject !== "mixed") return;
+      const generated = buildMixedPaper(count);
+      const questions = getScopeQuestions(generated, MIXED_SCOPE_ID);
+      if (!questions || questions.length === 0) return;
+      finishingRef.current = null;
+      setState({
+        subject,
+        phase: "active",
+        session: createSession({
+          subject,
+          scopeId: MIXED_SCOPE_ID,
+          scopeLabel: getScopeLabel(generated, MIXED_SCOPE_ID),
+          mode: "normal",
+          questions,
+        }),
+        result: null,
+        sectionResult: null,
+        generatedPaper: generated,
+      });
+    },
+    [subject],
   );
 
   const submitAnswer = useCallback(
@@ -132,14 +172,18 @@ export function useExamQuiz(subject: ExamSubject): UseExamQuizReturn {
       finishingRef.current = completedSession;
       const score = scoreOf(completedSession);
       const wrong = wrongAnswersOf(completedSession);
-      const { isNewBest } = recordSessionResult({
-        subject,
-        scopeId: completedSession.scopeId,
-        mode: completedSession.mode,
-        score,
-        total: completedSession.questions.length,
-        wrongIds: wrong.map((item) => item.question.id),
-      });
+      // 綜合卷每張內容都不同,不寫 localStorage、無最佳成績。
+      const { isNewBest } =
+        subject === "mixed"
+          ? { isNewBest: false }
+          : recordSessionResult({
+              subject,
+              scopeId: completedSession.scopeId,
+              mode: completedSession.mode,
+              score,
+              total: completedSession.questions.length,
+              wrongIds: wrong.map((item) => item.question.id),
+            });
       const nextResult: ExamQuizResult = {
         score,
         total: completedSession.questions.length,
@@ -148,19 +192,21 @@ export function useExamQuiz(subject: ExamSubject): UseExamQuizReturn {
         mode: completedSession.mode,
         isNewBest,
       };
-      setState({
+      setState((previous) => ({
         subject,
         phase: "finished",
         session: completedSession,
         result: nextResult,
         sectionResult: finalSectionResult,
-      });
+        generatedPaper:
+          previous.subject === subject ? previous.generatedPaper : null,
+      }));
     },
     [subject],
   );
 
   const nextQuestion = useCallback(() => {
-    if (phase !== "active" || !session || !session.isAnswered) return;
+    if (phase !== "active" || !session || !session.isAnswered || !paper) return;
 
     if (session.scopeId === FULL_SCOPE_ID && isEndOfSection(session)) {
       const stats = sectionStatsAtCurrent(session);
@@ -231,7 +277,7 @@ export function useExamQuiz(subject: ExamSubject): UseExamQuizReturn {
     }
     // 直接沿用畫面上的錯題，localStorage 被封鎖或寫入失敗時仍可重練。
     finishingRef.current = null;
-    setState({
+    setState((previous) => ({
       subject,
       phase: "active",
       session: createSession({
@@ -243,7 +289,9 @@ export function useExamQuiz(subject: ExamSubject): UseExamQuizReturn {
       }),
       result: null,
       sectionResult: null,
-    });
+      generatedPaper:
+        previous.subject === subject ? previous.generatedPaper : null,
+    }));
   }, [phase, result, session, subject]);
 
   const restart = useCallback(() => {
@@ -263,6 +311,7 @@ export function useExamQuiz(subject: ExamSubject): UseExamQuizReturn {
     result,
     sectionResult,
     startSession,
+    startRandomSession,
     submitAnswer,
     nextQuestion,
     continueAfterSection,
