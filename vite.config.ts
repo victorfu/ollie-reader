@@ -35,7 +35,24 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff,woff2}"],
+        globIgnores: ["**/exams/images/**"],
         runtimeCaching: [
+          {
+            urlPattern: /\/exams\/images\/.*\.png$/,
+            // Filenames are stable across corrected crops: serve cached immediately,
+            // then refresh in the background so a deployment cannot stay stale for a year.
+            handler: "StaleWhileRevalidate",
+            options: {
+              cacheName: "exam-image-cache",
+              expiration: {
+                maxEntries: 40,
+                maxAgeSeconds: 60 * 60 * 24 * 365, // 1 year
+              },
+              cacheableResponse: {
+                statuses: [0, 200],
+              },
+            },
+          },
           {
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
             handler: "CacheFirst",

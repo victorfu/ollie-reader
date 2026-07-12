@@ -12,7 +12,7 @@ NPM     := npm
 .DEFAULT_GOAL := help
 
 .PHONY: help setup install desktop-setup \
-        dev build lint preview \
+        dev build lint preview web-test exam-images \
         desktop-serve desktop-run desktop-test desktop-models desktop-icon desktop-package desktop-package-clean desktop-clean \
         desktop-verify desktop-dmg desktop-release \
         test clean
@@ -40,8 +40,14 @@ build: ## Type-check + production build of the web app
 lint: ## ESLint the web app
 	$(NPM) run lint
 
+web-test: ## Run frontend unit and data-integrity tests
+	$(NPM) test
+
 preview: ## Preview the production web build
 	$(NPM) run preview
+
+exam-images: ## Crop exam figures from the source PDF into public/exams/images
+	$(UV) run --directory $(DESKTOP) python ../scripts/crop_exam_images.py
 
 # ── Desktop (PySide6 + sidecar) ───────────────────────────────────────────
 desktop-serve: ## Run the local API sidecar only (http://127.0.0.1:8765)
@@ -80,5 +86,5 @@ desktop-release: desktop-dmg ## Publish the dmg to GitHub Releases as desktop-v<
 	bash $(DESKTOP)/release/release_github.sh
 
 # ── Aggregate ─────────────────────────────────────────────────────────────
-test: desktop-test ## Run all test suites
+test: web-test desktop-test ## Run all test suites
 clean: desktop-clean ## Remove build artifacts
