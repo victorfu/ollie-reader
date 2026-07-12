@@ -3,15 +3,19 @@ import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import confetti from "canvas-confetti";
 import { ArrowRight, Check, Flag, X } from "lucide-react";
 import type { ExamPaper, ExamQuizSession } from "../../types/exam";
+import { FULL_SCOPE_ID } from "../../types/exam";
 import { playSound } from "../../services/gameService";
 import { ExamRichText } from "./ExamRichText";
 import { ExamQuestionImage } from "./ExamQuestionImage";
-import { isLastQuestion, optionCountOf } from "./examSession";
+import { isEndOfSection, isLastQuestion, optionCountOf } from "./examSession";
 import { CIRCLED_NUMBERS, questionLabel } from "./examUi";
 
 interface ExamQuizViewProps {
+  autoAdvanceOnCorrect: boolean;
+  isAutoAdvancePaused: boolean;
   paper: ExamPaper;
   session: ExamQuizSession;
+  onAutoAdvanceOnCorrectChange: (enabled: boolean) => void;
   onSubmitAnswer: (optionIndex: number) => void;
   onNext: () => void;
   onExit: () => void;
@@ -19,6 +23,7 @@ interface ExamQuizViewProps {
 
 const INTERACTIVE_TARGETS =
   "button, a, input, textarea, select, [contenteditable='true'], [role='dialog']";
+const AUTO_ADVANCE_DELAY_MS = 900;
 
 function shouldIgnoreShortcut(event: KeyboardEvent): boolean {
   if (
@@ -36,20 +41,42 @@ function shouldIgnoreShortcut(event: KeyboardEvent): boolean {
 }
 
 export function ExamQuizView({
+  autoAdvanceOnCorrect,
+  isAutoAdvancePaused,
   paper,
   session,
+  onAutoAdvanceOnCorrectChange,
   onSubmitAnswer,
   onNext,
   onExit,
 }: ExamQuizViewProps) {
   const shouldReduceMotion = useReducedMotion();
   const questionCardRef = useRef<HTMLDivElement>(null);
+  const autoAdvanceTimerRef = useRef<number | null>(null);
   const question = session.questions[session.currentIndex];
   const optionCount = optionCountOf(question);
   const chosen = session.answers[session.currentIndex];
   const atLastQuestion = isLastQuestion(session);
+  const showsSectionResultNext =
+    session.scopeId === FULL_SCOPE_ID && isEndOfSection(session);
   const progressPercentage =
     ((session.currentIndex + 1) / session.questions.length) * 100;
+
+  const cancelAutoAdvance = useCallback(() => {
+    if (autoAdvanceTimerRef.current === null) return;
+    window.clearTimeout(autoAdvanceTimerRef.current);
+    autoAdvanceTimerRef.current = null;
+  }, []);
+
+  const handleNext = useCallback(() => {
+    cancelAutoAdvance();
+    onNext();
+  }, [cancelAutoAdvance, onNext]);
+
+  const handleExit = useCallback(() => {
+    cancelAutoAdvance();
+    onExit();
+  }, [cancelAutoAdvance, onExit]);
 
   // 答對放小煙火+音效;答錯播提示音(advance 會把 lastAnswerCorrect 重設為 null,每題都會觸發)
   useEffect(() => {
@@ -75,7 +102,7 @@ export function ExamQuizView({
       if (event.key === "Enter") {
         if (session.isAnswered) {
           event.preventDefault();
-          onNext();
+          handleNext();
         }
         return;
       }
@@ -86,7 +113,7 @@ export function ExamQuizView({
         onSubmitAnswer(index);
       }
     },
-    [session.isAnswered, optionCount, onSubmitAnswer, onNext],
+    [session.isAnswered, optionCount, onSubmitAnswer, handleNext],
   );
 
   useEffect(() => {
@@ -98,12 +125,38 @@ export function ExamQuizView({
     questionCardRef.current?.focus({ preventScroll: true });
   }, [session.currentIndex]);
 
+  // 保留短暫正確回饋；手動前進、取消勾選或元件卸載都會清掉 timer。
+  useEffect(() => {
+    cancelAutoAdvance();
+    if (
+      !autoAdvanceOnCorrect ||
+      isAutoAdvancePaused ||
+      !session.isAnswered ||
+      session.lastAnswerCorrect !== true
+    ) {
+      return;
+    }
+    autoAdvanceTimerRef.current = window.setTimeout(() => {
+      autoAdvanceTimerRef.current = null;
+      onNext();
+    }, AUTO_ADVANCE_DELAY_MS);
+    return cancelAutoAdvance;
+  }, [
+    autoAdvanceOnCorrect,
+    cancelAutoAdvance,
+    isAutoAdvancePaused,
+    onNext,
+    session.currentIndex,
+    session.isAnswered,
+    session.lastAnswerCorrect,
+  ]);
+
   return (
     <div className="flex flex-col gap-4">
       {/* 頂部列 */}
       <div className="flex items-center justify-between gap-2">
         <button
-          onClick={onExit}
+          onClick={handleExit}
           className="btn btn-ghost btn-sm gap-1 rounded-full text-muted-foreground"
         >
           <X size={16} strokeWidth={2} />
@@ -272,16 +325,35 @@ export function ExamQuizView({
           )}
         </AnimatePresence>
 
-        {/* 下一題 */}
-        {session.isAnswered && (
-          <button
-            onClick={onNext}
-            className="btn btn-primary min-h-[48px] w-full gap-1.5 rounded-xl"
-          >
-            {atLastQuestion ? "完成練習" : "下一題"}
-            <ArrowRight size={18} strokeWidth={2} />
-          </button>
-        )}
+        {/* 自動前進 + 下一題 */}
+        <div className="flex flex-col gap-2">
+          <label className="flex min-h-[44px] cursor-pointer items-center justify-end gap-2 rounded-lg px-2 text-sm text-muted-foreground transition-colors hover:bg-black/5 dark:hover:bg-white/10">
+            <input
+              type="checkbox"
+              checked={autoAdvanceOnCorrect}
+              onChange={(event) => {
+                if (!event.target.checked) cancelAutoAdvance();
+                onAutoAdvanceOnCorrectChange(event.target.checked);
+              }}
+              className="checkbox checkbox-primary checkbox-sm"
+            />
+            <span>答對時自動下一題</span>
+          </label>
+
+          {session.isAnswered && (
+            <button
+              onClick={handleNext}
+              className="btn btn-primary min-h-[48px] w-full gap-1.5 rounded-xl"
+            >
+              {showsSectionResultNext
+                ? "查看區段統計"
+                : atLastQuestion
+                  ? "完成練習"
+                  : "下一題"}
+              <ArrowRight size={18} strokeWidth={2} />
+            </button>
+          )}
+        </div>
       </motion.div>
 
       <p className="text-center text-xs text-muted-foreground">

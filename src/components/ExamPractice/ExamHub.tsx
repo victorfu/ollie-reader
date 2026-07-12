@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useState } from "react";
 import { FileText, NotebookPen, Play, RotateCcw } from "lucide-react";
 import type {
   ExamPaper,
@@ -9,7 +9,11 @@ import type {
   ExamSubject,
 } from "../../types/exam";
 import { findQuestionsByIds, listScopes } from "../../data/exams";
-import { readScopeProgress } from "./examProgressStorage";
+import { ConfirmModal } from "../common/ConfirmModal";
+import {
+  clearSubjectProgress,
+  readScopeProgress,
+} from "./examProgressStorage";
 
 const SUBJECTS: { id: ExamSubject; label: string }[] = [
   { id: "chinese", label: "國語" },
@@ -30,17 +34,20 @@ interface ScopeEntry {
 }
 
 export function ExamHub({ paper, subject, onSelectSubject, onStart }: ExamHubProps) {
-  const entries: ScopeEntry[] = useMemo(
-    () =>
-      listScopes(paper).map((scope) => {
-        const progress = readScopeProgress(subject, scope.id);
-        const retryCount = progress
-          ? findQuestionsByIds(paper, progress.lastWrongIds).length
-          : 0;
-        return { scope, progress, retryCount };
-      }),
-    [paper, subject],
-  );
+  const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
+  const entries: ScopeEntry[] = listScopes(paper).map((scope) => {
+    const progress = readScopeProgress(subject, scope.id);
+    const retryCount = progress
+      ? findQuestionsByIds(paper, progress.lastWrongIds).length
+      : 0;
+    return { scope, progress, retryCount };
+  });
+  const hasProgress = entries.some(({ progress }) => progress !== null);
+
+  const handleResetProgress = () => {
+    clearSubjectProgress(subject);
+    setIsResetConfirmOpen(false);
+  };
 
   return (
     <div className="flex flex-col gap-5">
@@ -93,6 +100,15 @@ export function ExamHub({ paper, subject, onSelectSubject, onStart }: ExamHubPro
             <NotebookPen size={16} strokeWidth={1.75} />
             {paper.answerPdfLabel}
           </a>
+          <button
+            type="button"
+            onClick={() => setIsResetConfirmOpen(true)}
+            disabled={!hasProgress}
+            className="btn btn-error btn-outline btn-sm gap-1.5 rounded-full"
+          >
+            <RotateCcw size={16} strokeWidth={1.75} />
+            重設進度
+          </button>
         </div>
       </div>
 
@@ -158,6 +174,17 @@ export function ExamHub({ paper, subject, onSelectSubject, onStart }: ExamHubPro
         答完每一題會立即顯示對錯{paper.subject === "chinese" ? "與解析" : ""}
         ，可以重複練習到全對為止！
       </p>
+
+      <ConfirmModal
+        isOpen={isResetConfirmOpen}
+        title={`重設${paper.title}進度？`}
+        message={`將清除${paper.title}所有區段與完整測驗的最佳成績、最近成績及錯題紀錄；另一科不受影響，且無法復原。`}
+        confirmText="重設進度"
+        cancelText="取消"
+        confirmVariant="error"
+        onConfirm={handleResetProgress}
+        onCancel={() => setIsResetConfirmOpen(false)}
+      />
     </div>
   );
 }

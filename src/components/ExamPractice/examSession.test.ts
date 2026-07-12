@@ -4,8 +4,10 @@ import {
   advance,
   answerCurrent,
   createSession,
+  isEndOfSection,
   isLastQuestion,
   optionCountOf,
+  sectionStatsAtCurrent,
   scoreOf,
   wrongAnswersOf,
 } from "./examSession";
@@ -116,6 +118,33 @@ describe("advance", () => {
     session = answerCurrent(session, 3);
     expect(isLastQuestion(session)).toBe(true);
     expect(advance(session)).toBe(session);
+  });
+});
+
+describe("section boundaries", () => {
+  const SECTIONED_QUESTIONS: readonly ExamQuestion[] = [
+    makeQuestion({ id: "math-001", sectionId: "math-p1", answerIndex: 1 }),
+    makeQuestion({ id: "math-002", sectionId: "math-p1", answerIndex: 0 }),
+    makeQuestion({ id: "math-026", sectionId: "math-p2", answerIndex: 3 }),
+  ];
+
+  it("detects a section boundary before the next section", () => {
+    let session = startSession(SECTIONED_QUESTIONS);
+    expect(isEndOfSection(session)).toBe(false);
+    session = advance(answerCurrent(session, 1));
+    expect(isEndOfSection(session)).toBe(true);
+  });
+
+  it("calculates the current contiguous section accuracy", () => {
+    let session = startSession(SECTIONED_QUESTIONS);
+    session = advance(answerCurrent(session, 1));
+    session = answerCurrent(session, 2);
+
+    expect(sectionStatsAtCurrent(session)).toEqual({
+      sectionId: "math-p1",
+      score: 1,
+      total: 2,
+    });
   });
 });
 

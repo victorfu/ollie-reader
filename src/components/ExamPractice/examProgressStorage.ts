@@ -67,6 +67,32 @@ export function readScopeProgress(
   }
 }
 
+/** 清除指定科目的所有區段與整卷進度；其他科目及非考卷資料不受影響。 */
+export function clearSubjectProgress(
+  subject: ExamSubject,
+  storage: Storage | null = defaultStorage(),
+): number {
+  if (!storage) return 0;
+  const subjectPrefix = `${EXAM_PROGRESS_PREFIX}:${subject}:`;
+  const keys: string[] = [];
+  let removed = 0;
+
+  try {
+    for (let index = 0; index < storage.length; index += 1) {
+      const key = storage.key(index);
+      if (key?.startsWith(subjectPrefix)) keys.push(key);
+    }
+    for (const key of keys) {
+      storage.removeItem(key);
+      removed += 1;
+    }
+  } catch {
+    // 儲存空間不可用或刪除失敗時不影響頁面操作。
+  }
+
+  return removed;
+}
+
 export interface ExamSessionResultInput {
   subject: ExamSubject;
   scopeId: ExamScopeId;

@@ -11,18 +11,18 @@ import { ConfirmModal } from "../common/ConfirmModal";
 import { ExamHub } from "./ExamHub";
 import { ExamQuizView } from "./ExamQuizView";
 import { ExamResultView } from "./ExamResultView";
+import { ExamSectionResultView } from "./ExamSectionResultView";
+import {
+  examSubjectFromParam,
+  isExamSubject,
+  paramsForSubject,
+} from "./examSubjectParams";
 
 const pageVariants = {
   enter: { x: 30, opacity: 0 },
   center: { x: 0, opacity: 1 },
   exit: { x: -30, opacity: 0 },
 };
-
-const VALID_SUBJECTS: ReadonlySet<string> = new Set(["chinese", "math"]);
-
-function paramsForSubject(subject: ExamSubject): Record<string, string> {
-  return subject === "math" ? { subject: "math" } : {};
-}
 
 /**
  * 考卷練習頁(/exams):國語、數學同一頁,以 ?subject= 切換科別。
@@ -34,16 +34,19 @@ export default function ExamPracticePage() {
   const shouldReduceMotion = useReducedMotion();
   const [searchParams, setSearchParams] = useSearchParams();
   const rawSubject = searchParams.get("subject");
-  const urlSubject: ExamSubject = rawSubject === "math" ? "math" : "chinese";
+  const urlSubject = examSubjectFromParam(rawSubject);
   const [lockedSubject, setLockedSubject] = useState<ExamSubject | null>(null);
+  const [autoAdvanceOnCorrect, setAutoAdvanceOnCorrect] = useState(false);
   const subject = lockedSubject ?? urlSubject;
   const quiz = useExamQuiz(subject);
   const {
+    continueAfterSection,
     exitToHub,
     nextQuestion,
     phase,
     restart,
     retryWrong,
+    sectionResult,
     session,
     startSession: beginSession,
   } = quiz;
@@ -53,10 +56,10 @@ export default function ExamPracticePage() {
     ease: "easeOut",
   } as const;
 
-  // 清掉無效的 ?subject= 參數
+  // 裸 /exams 與無效參數都正規化為明確的國語 URL。
   useEffect(() => {
-    if (rawSubject !== null && !VALID_SUBJECTS.has(rawSubject)) {
-      setSearchParams({}, { replace: true });
+    if (!isExamSubject(rawSubject)) {
+      setSearchParams(paramsForSubject("chinese"), { replace: true });
     }
   }, [rawSubject, setSearchParams]);
 
@@ -168,7 +171,24 @@ export default function ExamPracticePage() {
           </motion.div>
         )}
 
-        {quiz.phase === "active" && quiz.session && (
+        {sectionResult && quiz.session && (
+          <motion.div
+            key={`section-result-${sectionResult.sectionId}`}
+            variants={pageVariants}
+            initial="enter"
+            animate="center"
+            exit="exit"
+            transition={transition}
+          >
+            <ExamSectionResultView
+              result={sectionResult}
+              onContinue={continueAfterSection}
+              onExit={() => requestExit(handleExitToHub)}
+            />
+          </motion.div>
+        )}
+
+        {quiz.phase === "active" && quiz.session && !sectionResult && (
           <motion.div
             key="quiz"
             variants={pageVariants}
@@ -178,8 +198,11 @@ export default function ExamPracticePage() {
             transition={transition}
           >
             <ExamQuizView
+              autoAdvanceOnCorrect={autoAdvanceOnCorrect}
+              isAutoAdvancePaused={pendingExit !== null}
               paper={quiz.paper}
               session={quiz.session}
+              onAutoAdvanceOnCorrectChange={setAutoAdvanceOnCorrect}
               onSubmitAnswer={quiz.submitAnswer}
               onNext={handleNext}
               onExit={() => requestExit(handleExitToHub)}
@@ -187,25 +210,28 @@ export default function ExamPracticePage() {
           </motion.div>
         )}
 
-        {quiz.phase === "finished" && quiz.result && quiz.session && (
-          <motion.div
-            key="result"
-            variants={pageVariants}
-            initial="enter"
-            animate="center"
-            exit="exit"
-            transition={transition}
-          >
-            <ExamResultView
-              paper={quiz.paper}
-              result={quiz.result}
-              scopeLabel={quiz.session.scopeLabel}
-              onRetryWrong={handleRetryWrong}
-              onRestart={handleRestart}
-              onExit={handleExitToHub}
-            />
-          </motion.div>
-        )}
+        {quiz.phase === "finished" &&
+          quiz.result &&
+          quiz.session &&
+          !sectionResult && (
+            <motion.div
+              key="result"
+              variants={pageVariants}
+              initial="enter"
+              animate="center"
+              exit="exit"
+              transition={transition}
+            >
+              <ExamResultView
+                paper={quiz.paper}
+                result={quiz.result}
+                scopeLabel={quiz.session.scopeLabel}
+                onRetryWrong={handleRetryWrong}
+                onRestart={handleRestart}
+                onExit={handleExitToHub}
+              />
+            </motion.div>
+          )}
       </AnimatePresence>
 
       <ConfirmModal
@@ -214,7 +240,7 @@ export default function ExamPracticePage() {
         message="這次的作答進度不會保存喔。"
         confirmText="離開"
         cancelText="繼續作答"
-        confirmVariant="warning"
+        confirmVariant="error"
         onConfirm={() => {
           pendingExit?.();
           setPendingExit(null);

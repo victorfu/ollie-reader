@@ -2,6 +2,7 @@ import { act, useEffect } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ExamSubject } from "../types/exam";
+import { FULL_SCOPE_ID } from "../types/exam";
 import { optionCountOf } from "../components/ExamPractice/examSession";
 import { useExamQuiz, type UseExamQuizReturn } from "./useExamQuiz";
 
@@ -34,6 +35,13 @@ function answerCurrentWrong(): void {
   act(() => quiz().submitAnswer(wrongAnswer));
 }
 
+function answerCurrentCorrect(): void {
+  const current = quiz().session;
+  if (!current) throw new Error("no active session");
+  const question = current.questions[current.currentIndex];
+  act(() => quiz().submitAnswer(question.answerIndex));
+}
+
 beforeEach(() => {
   (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean })
     .IS_REACT_ACT_ENVIRONMENT = true;
@@ -64,6 +72,7 @@ describe("useExamQuiz", () => {
 
     expect(quiz().phase).toBe("finished");
     expect(quiz().result?.wrong).toHaveLength(total);
+    expect(quiz().sectionResult).toBeNull();
 
     window.localStorage.clear();
     act(() => quiz().retryWrong());
@@ -90,6 +99,66 @@ describe("useExamQuiz", () => {
     });
 
     expect(quiz().phase).toBe("finished");
+    expect(setItem).toHaveBeenCalledTimes(1);
+  });
+
+  it("pauses after each full-exam section and reports that section accuracy", () => {
+    act(() => quiz().startSession(FULL_SCOPE_ID));
+
+    for (let index = 0; index < 8; index += 1) {
+      if (index < 5) {
+        answerCurrentCorrect();
+      } else {
+        answerCurrentWrong();
+      }
+      act(() => quiz().nextQuestion());
+    }
+
+    expect(quiz().phase).toBe("active");
+    expect(quiz().session?.currentIndex).toBe(7);
+    expect(quiz().sectionResult).toEqual({
+      sectionId: "chi-s1",
+      sectionLabel: "一、選擇題",
+      score: 5,
+      total: 8,
+      isFinalSection: false,
+    });
+
+    act(() => quiz().continueAfterSection());
+
+    expect(quiz().session?.currentIndex).toBe(8);
+    expect(quiz().sectionResult).toBeNull();
+  });
+
+  it("persists the overall result before showing the final section stats", () => {
+    const setItem = vi.spyOn(Storage.prototype, "setItem");
+    act(() => quiz().startSession(FULL_SCOPE_ID));
+    const total = quiz().session?.questions.length ?? 0;
+
+    for (let index = 0; index < total; index += 1) {
+      answerCurrentCorrect();
+      act(() => quiz().nextQuestion());
+      if (quiz().sectionResult && !quiz().sectionResult?.isFinalSection) {
+        act(() => quiz().continueAfterSection());
+      }
+    }
+
+    expect(quiz().phase).toBe("finished");
+    expect(quiz().sectionResult).toMatchObject({
+      sectionId: "chi-s5",
+      score: 11,
+      total: 11,
+      isFinalSection: true,
+    });
+    expect(setItem).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      quiz().continueAfterSection();
+      quiz().continueAfterSection();
+    });
+
+    expect(quiz().phase).toBe("finished");
+    expect(quiz().result).toMatchObject({ score: 100, total: 100 });
     expect(setItem).toHaveBeenCalledTimes(1);
   });
 });

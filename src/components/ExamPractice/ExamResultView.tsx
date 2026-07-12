@@ -66,10 +66,10 @@ export function ExamResultView({
           className="mt-2 text-6xl font-semibold tracking-tight"
         >
           {percent}
-          <span className="ml-1 text-2xl text-muted-foreground">分</span>
+          <span className="ml-1 text-2xl text-muted-foreground">%</span>
         </h2>
         <p className="mt-2 text-sm text-muted-foreground">
-          答對 {result.score} / {result.total} 題
+          正確率・答對 {result.score} / {result.total} 題
         </p>
         <div className="mt-3 flex justify-center gap-2">
           {isPerfect && (
@@ -78,7 +78,7 @@ export function ExamResultView({
             </span>
           )}
           {result.isNewBest && (
-            <span className="badge badge-warning gap-1">
+            <span className="badge badge-success gap-1">
               <Trophy size={13} strokeWidth={2} />
               新紀錄！
             </span>

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  clearSubjectProgress,
   EXAM_PROGRESS_PREFIX,
   examProgressKey,
   readScopeProgress,
@@ -80,6 +81,45 @@ describe("readScopeProgress", () => {
       lastTotal: 25,
       lastWrongIds: ["math-003", "math-007"],
     });
+  });
+});
+
+describe("clearSubjectProgress", () => {
+  it("removes every scope for one subject and preserves other data", () => {
+    const mathSection = examProgressKey("math", "math-p1");
+    const mathFull = examProgressKey("math", "full");
+    const chineseSection = examProgressKey("chinese", "chi-s1");
+    const storage = createMemoryStorage({
+      [mathSection]: "section",
+      [mathFull]: "full",
+      [chineseSection]: "chinese",
+      "unrelated-key": "keep",
+    });
+
+    expect(clearSubjectProgress("math", storage)).toBe(2);
+    expect(storage.getItem(mathSection)).toBeNull();
+    expect(storage.getItem(mathFull)).toBeNull();
+    expect(storage.getItem(chineseSection)).toBe("chinese");
+    expect(storage.getItem("unrelated-key")).toBe("keep");
+  });
+
+  it("is safe when storage is unavailable", () => {
+    expect(clearSubjectProgress("chinese", null)).toBe(0);
+  });
+
+  it("does not throw when storage access is blocked", () => {
+    const blockedStorage = {
+      get length(): number {
+        throw new Error("blocked");
+      },
+      clear: () => undefined,
+      getItem: () => null,
+      key: () => null,
+      removeItem: () => undefined,
+      setItem: () => undefined,
+    } satisfies Storage;
+
+    expect(clearSubjectProgress("math", blockedStorage)).toBe(0);
   });
 });
 

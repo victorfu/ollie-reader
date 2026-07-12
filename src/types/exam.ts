@@ -69,6 +69,15 @@ export type ExamSessionMode = "normal" | "retry";
 
 export type ExamQuizPhase = "idle" | "active" | "finished";
 
+/** 完整測驗跨越一個區段時顯示的本次統計。 */
+export interface ExamSectionResult {
+  sectionId: string;
+  sectionLabel: string;
+  score: number;
+  total: number;
+  isFinalSection: boolean;
+}
+
 export interface ExamQuizSession {
   subject: ExamSubject;
   scopeId: ExamScopeId;
