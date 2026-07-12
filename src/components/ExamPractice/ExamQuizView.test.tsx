@@ -14,7 +14,12 @@ import {
   type SpeechContextType,
 } from "../../contexts/SpeechContextType";
 import { ExamQuizView } from "./ExamQuizView";
-import { answerCurrent, createSession, optionCountOf } from "./examSession";
+import {
+  advance,
+  answerCurrent,
+  createSession,
+  optionCountOf,
+} from "./examSession";
 
 const PAPER = getExamPaper("chinese");
 const QUESTIONS = PAPER.sections[0].questions.slice(0, 2);
@@ -37,6 +42,9 @@ const FAKE_SPEECH: SpeechContextType = {
 
 let container: HTMLDivElement;
 let root: Root;
+/** jsdom 沒有 scrollIntoView/scrollTo 實作;以 spy 驗證捲動管理。 */
+let scrollIntoViewMock: ReturnType<typeof vi.fn>;
+let scrollToMock: ReturnType<typeof vi.fn>;
 
 function choiceAnswerOf(question: ExamQuestion, isCorrect: boolean): number {
   if (isTextQuestion(question)) {
@@ -94,6 +102,11 @@ beforeEach(() => {
   (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean })
     .IS_REACT_ACT_ENVIRONMENT = true;
   vi.useFakeTimers();
+  scrollIntoViewMock = vi.fn();
+  Element.prototype.scrollIntoView =
+    scrollIntoViewMock as unknown as typeof Element.prototype.scrollIntoView;
+  scrollToMock = vi.fn();
+  window.scrollTo = scrollToMock as unknown as typeof window.scrollTo;
   container = document.createElement("div");
   document.body.appendChild(container);
   root = createRoot(container);
@@ -328,7 +341,7 @@ describe("ExamQuizView typed questions (english)", () => {
     expect(onSubmitAnswer).toHaveBeenCalledExactlyOnceWith("yes i can");
   });
 
-  it("disables input after answering and shows the canonical answer", () => {
+  it("freezes the input after answering and shows the canonical answer", () => {
     if (!qaQuestion || !isTextQuestion(qaQuestion)) throw new Error("fixture");
     const answered = answerCurrent(typedSession(), "wrong stuff");
     renderQuiz({
@@ -336,25 +349,89 @@ describe("ExamQuizView typed questions (english)", () => {
       autoAdvanceOnCorrect: false,
       onNext: vi.fn(),
     });
-    expect(answerInput().disabled).toBe(true);
+    // 不 disabled:焦點要留在輸入框上,iOS 螢幕鍵盤才不會收合
+    expect(answerInput().disabled).toBe(false);
+    expect(answerInput().getAttribute("aria-readonly")).toBe("true");
+    setInputValue("more typing");
+    expect(answerInput().value).toBe("");
     expect(submitButton().disabled).toBe(true);
     expect(container.textContent).toContain("標準答案");
     expect(container.textContent).toContain(qaQuestion.acceptedAnswers[0]);
     expect(container.textContent).toContain("你的答案：wrong stuff");
   });
 
-  it("renders unscramble hint words as chips", () => {
-    if (!unscrambleQuestion || !isTextQuestion(unscrambleQuestion)) {
-      throw new Error("fixture");
-    }
+  it("advances with Enter from the frozen input after answering", () => {
+    const onNext = vi.fn();
+    renderQuiz({
+      session: answerCurrent(typedSession(), "whatever"),
+      autoAdvanceOnCorrect: false,
+      onNext,
+    });
+    act(() => {
+      answerInput().dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
+      );
+    });
+    expect(onNext).toHaveBeenCalledOnce();
+  });
+
+  it("focuses the input for qa questions but not for unscramble", () => {
+    renderQuiz({
+      session: typedSession(),
+      autoAdvanceOnCorrect: false,
+      onNext: vi.fn(),
+    });
+    expect(document.activeElement).toBe(answerInput());
+
+    if (!unscrambleQuestion) throw new Error("fixture");
     renderQuiz({
       session: typedSession(unscrambleQuestion),
       autoAdvanceOnCorrect: false,
       onNext: vi.fn(),
     });
-    for (const word of unscrambleQuestion.hint?.split("/") ?? []) {
-      expect(container.textContent).toContain(word.trim());
+    expect(document.activeElement).not.toBe(answerInput());
+  });
+
+  it("composes the unscramble answer by tapping word chips", () => {
+    if (!unscrambleQuestion || !isTextQuestion(unscrambleQuestion)) {
+      throw new Error("fixture");
     }
+    const onSubmitAnswer = vi.fn();
+    renderQuiz({
+      session: typedSession(unscrambleQuestion),
+      autoAdvanceOnCorrect: false,
+      onNext: vi.fn(),
+      onSubmitAnswer,
+    });
+    const words = (unscrambleQuestion.hint ?? "")
+      .split("/")
+      .map((word) => word.trim());
+    const chip = (word: string): HTMLButtonElement => {
+      const button = container.querySelector<HTMLButtonElement>(
+        `button[aria-label="加入單字 ${word}"]`,
+      );
+      if (!button) throw new Error(`chip not found: ${word}`);
+      return button;
+    };
+
+    act(() => chip(words[0]).click());
+    act(() => chip(words[1]).click());
+    expect(answerInput().value).toBe(`${words[0]} ${words[1]}`);
+    expect(chip(words[0]).disabled).toBe(true);
+
+    const clearButton = [...container.querySelectorAll("button")].find(
+      (button) => button.textContent?.includes("清除重來"),
+    );
+    expect(clearButton).toBeTruthy();
+    act(() => clearButton?.click());
+    expect(answerInput().value).toBe("");
+    expect(chip(words[0]).disabled).toBe(false);
+
+    for (const word of words) {
+      act(() => chip(word).click());
+    }
+    act(() => submitButton().click());
+    expect(onSubmitAnswer).toHaveBeenCalledExactlyOnceWith(words.join(" "));
   });
 
   it("keeps the dictation sentence hidden and replays audio on demand", () => {
@@ -386,5 +463,111 @@ describe("ExamQuizView typed questions (english)", () => {
     });
     act(() => vi.advanceTimersByTime(900));
     expect(onNext).toHaveBeenCalledOnce();
+  });
+});
+
+describe("ExamQuizView scroll management", () => {
+  function freshSession(): ExamQuizSession {
+    return createSession({
+      subject: "chinese",
+      scopeId: "chi-s1",
+      scopeLabel: "一、選擇題",
+      mode: "normal",
+      questions: QUESTIONS,
+    });
+  }
+
+  it("scrolls the feedback into view after answering, not before", () => {
+    const session = freshSession();
+    renderQuiz({ session, autoAdvanceOnCorrect: false, onNext: vi.fn() });
+    expect(scrollIntoViewMock).not.toHaveBeenCalled();
+
+    renderQuiz({
+      session: answerCurrent(
+        session,
+        choiceAnswerOf(session.questions[0], false),
+      ),
+      autoAdvanceOnCorrect: false,
+      onNext: vi.fn(),
+    });
+    expect(scrollIntoViewMock).toHaveBeenCalled();
+  });
+
+  it("returns to the top when the question changes, but not on mount", () => {
+    const session = freshSession();
+    renderQuiz({ session, autoAdvanceOnCorrect: false, onNext: vi.fn() });
+    expect(scrollToMock).not.toHaveBeenCalled();
+
+    const advanced = advance(
+      answerCurrent(session, choiceAnswerOf(session.questions[0], false)),
+    );
+    renderQuiz({
+      session: advanced,
+      autoAdvanceOnCorrect: false,
+      onNext: vi.fn(),
+    });
+    expect(advanced.currentIndex).toBe(1);
+    expect(scrollToMock).toHaveBeenCalledWith(
+      expect.objectContaining({ top: 0 }),
+    );
+  });
+});
+
+describe("ExamQuizView touch layout", () => {
+  function choiceSession(options: [string, string, string, string]): ExamQuizSession {
+    const question: ExamQuestion = {
+      id: "layout-1",
+      number: 1,
+      sectionId: "chi-s1",
+      text: "測試題",
+      options,
+      answerIndex: 0,
+    };
+    return createSession({
+      subject: "chinese",
+      scopeId: "chi-s1",
+      scopeLabel: "一、選擇題",
+      mode: "normal",
+      questions: [question],
+    });
+  }
+
+  it("uses a two-column grid on sm+ when every option is short", () => {
+    renderQuiz({
+      session: choiceSession(["yellow", "monkey", "juice", "desk"]),
+      autoAdvanceOnCorrect: false,
+      onNext: vi.fn(),
+    });
+    const grid = container.querySelector(".grid");
+    expect(grid?.className).toContain("sm:grid-cols-2");
+  });
+
+  it("keeps a single column when any option is long", () => {
+    renderQuiz({
+      session: choiceSession([
+        "yellow",
+        "monkey",
+        "juice",
+        "這是一個超過十四個字的超級無敵長選項文字",
+      ]),
+      autoAdvanceOnCorrect: false,
+      onNext: vi.fn(),
+    });
+    const grid = container.querySelector(".grid");
+    expect(grid?.className).not.toContain("sm:grid-cols-2");
+  });
+
+  it("marks the keyboard shortcut hint as fine-pointer-only", () => {
+    renderQuiz({
+      session: choiceSession(["a", "b", "c", "d"]),
+      autoAdvanceOnCorrect: false,
+      onNext: vi.fn(),
+    });
+    const hint = [...container.querySelectorAll("p")].find((paragraph) =>
+      paragraph.textContent?.includes("數字鍵"),
+    );
+    expect(hint).toBeTruthy();
+    expect(hint?.className).toContain("hidden");
+    expect(hint?.className).toContain("pointer-fine:block");
   });
 });

@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { X, ZoomIn } from "lucide-react";
 
 interface ExamQuestionImageProps {
   /** /exams/images/ 下的檔名,如 "math-q25.png"。 */
@@ -12,7 +13,11 @@ interface ExamQuestionImageProps {
   className?: string;
 }
 
-/** 考卷裁圖。永遠白底(原卷即白紙),深色模式下以邊框收束;載入失敗時顯示對照提示。 */
+/**
+ * 考卷裁圖。永遠白底(原卷即白紙),深色模式下以邊框收束;載入失敗時顯示對照提示。
+ * 內嵌顯示最高 384px,點圖開原生 dialog lightbox 放大
+ * (比照 ConfirmModal 模式;dialog[open] 同時讓測驗快捷鍵自動停用)。
+ */
 export function ExamQuestionImage({
   image,
   number,
@@ -21,7 +26,20 @@ export function ExamQuestionImage({
   className = "",
 }: ExamQuestionImageProps) {
   const [failedImage, setFailedImage] = useState<string | null>(null);
+  const [isZoomOpen, setIsZoomOpen] = useState(false);
+  const dialogRef = useRef<HTMLDialogElement>(null);
   const failed = failedImage === image;
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+    if (isZoomOpen) {
+      // 對已開啟的 dialog 重呼叫 showModal 會丟 InvalidStateError(StrictMode/重掛載)
+      if (!dialog.open) dialog.showModal();
+    } else if (dialog.open) {
+      dialog.close();
+    }
+  }, [isZoomOpen]);
 
   if (failed) {
     return (
@@ -44,15 +62,53 @@ export function ExamQuestionImage({
     );
   }
 
+  const src = `/exams/images/${image}`;
+
   return (
-    <div className={`rounded-lg border border-border-hairline bg-white p-2 ${className}`}>
-      <img
-        src={`/exams/images/${image}`}
-        alt={alt}
-        loading="lazy"
-        onError={() => setFailedImage(image)}
-        className="mx-auto h-auto max-h-96 w-auto max-w-full"
-      />
-    </div>
+    <>
+      <button
+        type="button"
+        onClick={() => setIsZoomOpen(true)}
+        aria-label={`放大附圖：${alt}`}
+        className={`relative block w-full cursor-zoom-in rounded-lg border border-border-hairline bg-white p-2 transition-all active:scale-[0.99] ${className}`}
+      >
+        <img
+          src={src}
+          alt={alt}
+          loading="lazy"
+          onError={() => setFailedImage(image)}
+          className="mx-auto h-auto max-h-96 w-auto max-w-full"
+        />
+        <span
+          aria-hidden="true"
+          className="absolute bottom-2 right-2 flex size-7 items-center justify-center rounded-full bg-black/45 text-white"
+        >
+          <ZoomIn size={14} strokeWidth={2} />
+        </span>
+      </button>
+
+      <dialog
+        ref={dialogRef}
+        className="modal"
+        onClose={() => setIsZoomOpen(false)}
+      >
+        <div className="modal-box relative w-fit max-w-[95vw] rounded-2xl bg-white p-3">
+          <img src={src} alt={alt} className="max-h-[80vh] w-auto max-w-full" />
+          <button
+            type="button"
+            onClick={() => setIsZoomOpen(false)}
+            aria-label="關閉放大檢視"
+            className="btn btn-circle btn-sm absolute right-2 top-2 border-none bg-black/45 text-white hover:bg-black/60"
+          >
+            <X size={16} strokeWidth={2} />
+          </button>
+        </div>
+        <form method="dialog" className="modal-backdrop">
+          <button type="button" onClick={() => setIsZoomOpen(false)}>
+            close
+          </button>
+        </form>
+      </dialog>
+    </>
   );
 }

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import type {
@@ -55,6 +55,19 @@ export default function ExamPracticePage() {
     duration: shouldReduceMotion ? 0 : 0.25,
     ease: "easeOut",
   } as const;
+
+  // 視圖切換(列表↔作答↔區段統計↔成績)時捲回頂部,
+  // 避免新視圖從上一個視圖的捲動位置中段開始;跳過首次掛載。
+  const viewKey = sectionResult ? "section-result" : phase;
+  const prevViewKeyRef = useRef(viewKey);
+  useEffect(() => {
+    if (prevViewKeyRef.current === viewKey) return;
+    prevViewKeyRef.current = viewKey;
+    window.scrollTo({
+      top: 0,
+      behavior: shouldReduceMotion ? "auto" : "smooth",
+    });
+  }, [viewKey, shouldReduceMotion]);
 
   // 裸 /exams 與無效參數都正規化為明確的國語 URL。
   useEffect(() => {

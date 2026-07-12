@@ -88,7 +88,7 @@ export function ExamHub({ paper, subject, onSelectSubject, onStart }: ExamHubPro
               href={encodeURI(paper.questionPdf)}
               target="_blank"
               rel="noopener noreferrer"
-              className="btn btn-ghost btn-sm gap-1.5 rounded-full"
+              className="btn btn-ghost btn-sm min-h-[44px] gap-1.5 rounded-full"
             >
               <FileText size={16} strokeWidth={1.75} />
               {paper.questionPdfLabel ?? "題目卷"}
@@ -99,7 +99,7 @@ export function ExamHub({ paper, subject, onSelectSubject, onStart }: ExamHubPro
               href={encodeURI(paper.answerPdf)}
               target="_blank"
               rel="noopener noreferrer"
-              className="btn btn-ghost btn-sm gap-1.5 rounded-full"
+              className="btn btn-ghost btn-sm min-h-[44px] gap-1.5 rounded-full"
             >
               <NotebookPen size={16} strokeWidth={1.75} />
               {paper.answerPdfLabel}
@@ -109,7 +109,7 @@ export function ExamHub({ paper, subject, onSelectSubject, onStart }: ExamHubPro
             type="button"
             onClick={() => setIsResetConfirmOpen(true)}
             disabled={!hasProgress}
-            className="btn btn-error btn-outline btn-sm gap-1.5 rounded-full"
+            className="btn btn-error btn-outline btn-sm min-h-[44px] gap-1.5 rounded-full"
           >
             <RotateCcw size={16} strokeWidth={1.75} />
             重設進度

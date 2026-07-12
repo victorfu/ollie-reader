@@ -29,7 +29,7 @@ export function ExamSectionResultView({
         <button
           type="button"
           onClick={onExit}
-          className="btn btn-ghost btn-sm gap-1 rounded-full text-muted-foreground"
+          className="btn btn-ghost btn-sm min-h-[44px] gap-1 rounded-full text-muted-foreground"
         >
           <X size={16} strokeWidth={2} />
           離開

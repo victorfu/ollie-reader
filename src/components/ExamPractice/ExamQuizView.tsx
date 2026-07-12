@@ -57,11 +57,19 @@ export function ExamQuizView({
   const shouldReduceMotion = useReducedMotion();
   const { speak, speechSupported } = useSpeechState();
   const questionCardRef = useRef<HTMLDivElement>(null);
+  const actionsRef = useRef<HTMLDivElement>(null);
   const autoAdvanceTimerRef = useRef<number | null>(null);
+  const prevIndexRef = useRef(session.currentIndex);
   const question = session.questions[session.currentIndex];
   const textQuestion = isTextQuestion(question) ? question : null;
   const choiceQuestion = isTextQuestion(question) ? null : question;
+  const isTypedQuestion = textQuestion !== null;
   const optionCount = optionCountOf(question);
+  /** 全部選項都夠短時,sm 以上排兩欄(iPad 上單欄會整排拉滿)。 */
+  const hasCompactOptions =
+    choiceQuestion !== null &&
+    !choiceQuestion.imageContainsOptions &&
+    (choiceQuestion.options?.every((option) => option.length <= 14) ?? false);
   const chosen = session.answers[session.currentIndex];
   /** dictation 的語音由作答面板控制,其餘題型在題幹旁提供喇叭。 */
   const stemAudioText =
@@ -139,6 +147,34 @@ export function ExamQuizView({
     questionCardRef.current?.focus({ preventScroll: true });
   }, [session.currentIndex, textQuestion]);
 
+  // 換題把視窗捲回頂部,讓進度條與新題幹完整可見(跳過首次掛載;
+  // 上一題若滑到底,不處理會從畫面中間開始看新題)。
+  useEffect(() => {
+    if (prevIndexRef.current === session.currentIndex) return;
+    prevIndexRef.current = session.currentIndex;
+    window.scrollTo({
+      top: 0,
+      behavior: shouldReduceMotion ? "auto" : "smooth",
+    });
+  }, [session.currentIndex, shouldReduceMotion]);
+
+  // 作答後把回饋與下一題按鈕帶進可視範圍;打字題用 center,
+  // 把內容抬到 iPad 螢幕鍵盤上方。scrollIntoView 守衛是給 jsdom 的。
+  useEffect(() => {
+    if (!session.isAnswered) return;
+    const target = actionsRef.current;
+    if (!target || typeof target.scrollIntoView !== "function") return;
+    target.scrollIntoView({
+      behavior: shouldReduceMotion ? "auto" : "smooth",
+      block: isTypedQuestion ? "center" : "nearest",
+    });
+  }, [
+    session.isAnswered,
+    session.currentIndex,
+    isTypedQuestion,
+    shouldReduceMotion,
+  ]);
+
   // 保留短暫正確回饋；手動前進、取消勾選或元件卸載都會清掉 timer。
   useEffect(() => {
     cancelAutoAdvance();
@@ -171,17 +207,21 @@ export function ExamQuizView({
       <div className="flex items-center justify-between gap-2">
         <button
           onClick={handleExit}
-          className="btn btn-ghost btn-sm gap-1 rounded-full text-muted-foreground"
+          className="btn btn-ghost btn-sm min-h-[44px] shrink-0 gap-1 rounded-full text-muted-foreground"
         >
           <X size={16} strokeWidth={2} />
           離開
         </button>
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <span className="font-medium text-foreground">{session.scopeLabel}</span>
+        <div className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground">
+          <span className="truncate font-medium text-foreground">
+            {session.scopeLabel}
+          </span>
           {session.mode === "retry" && (
-            <span className="badge badge-warning badge-sm">錯題重練</span>
+            <span className="badge badge-warning badge-sm shrink-0">
+              錯題重練
+            </span>
           )}
-          <span>
+          <span className="shrink-0">
             {session.currentIndex + 1} / {session.questions.length}
           </span>
         </div>
@@ -243,9 +283,9 @@ export function ExamQuizView({
         )}
 
         {/* 打字作答(英文句子練習) */}
+        {/* 面板跨題持續掛載(不以 key remount),iOS 螢幕鍵盤才能跨題保持開啟 */}
         {textQuestion && (
           <ExamTypedAnswerPanel
-            key={textQuestion.id}
             question={textQuestion}
             isAnswered={session.isAnswered}
             speechSupported={speechSupported}
@@ -261,7 +301,9 @@ export function ExamQuizView({
           className={
             choiceQuestion.imageContainsOptions
               ? "grid grid-cols-2 gap-3 sm:grid-cols-4"
-              : "grid grid-cols-1 gap-3"
+              : hasCompactOptions
+                ? "grid grid-cols-1 gap-3 sm:grid-cols-2"
+                : "grid grid-cols-1 gap-3"
           }
         >
           {Array.from({ length: optionCount }).map((_, index) => {
@@ -377,8 +419,8 @@ export function ExamQuizView({
           )}
         </AnimatePresence>
 
-        {/* 自動前進 + 下一題 */}
-        <div className="flex flex-col gap-2">
+        {/* 自動前進 + 下一題(作答後的捲動錨點) */}
+        <div ref={actionsRef} className="flex flex-col gap-2">
           <label className="flex min-h-[44px] cursor-pointer items-center justify-end gap-2 rounded-lg px-2 text-sm text-muted-foreground transition-colors hover:bg-black/5 dark:hover:bg-white/10">
             <input
               type="checkbox"
@@ -408,7 +450,8 @@ export function ExamQuizView({
         </div>
       </motion.div>
 
-      <p className="text-center text-xs text-muted-foreground">
+      {/* 鍵盤快捷提示只對「主要指標是滑鼠/觸控板」的裝置顯示,觸控裝置上是噪音 */}
+      <p className="hidden text-center text-xs text-muted-foreground pointer-fine:block">
         {textQuestion
           ? "輸入答案後按 Enter 或「送出」作答，作答後按 Enter 前往下一題"
           : `可使用數字鍵 1-${optionCount} 作答，Enter 前往下一題`}
