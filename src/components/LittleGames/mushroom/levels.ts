@@ -1,6 +1,7 @@
 import { clamp } from "../lib/game-utils";
 import type { MushroomSettings } from "../lib/types";
 import { EXTRA_SECTION_BASE, EXTRA_SECTION_STEP, HEIGHT } from "./constants";
+import { THEMES } from "./themes";
 import type {
   Coin,
   Enemy,
@@ -15,7 +16,7 @@ import type {
 // 區段：A 移動 → B 跳躍 → C 上平台 → D 踩蘑菇（門）→ E 金幣 → F 道具 → G 旗子
 export const TUTORIAL_LEVEL: Level = {
   tutorial: true,
-  sky: { top: "#c8f7e1", bottom: "#e8f3ff" },
+  theme: THEMES.grassland,
   platforms: [
     { x: 0, y: HEIGHT - 40, w: 2400, h: 40 },
     { x: 620, y: HEIGHT - 100, w: 120, h: 60 }, // B 小台階
@@ -365,7 +366,7 @@ export function extendLevel(
 
 export const BASE_LEVELS: Level[] = [
   {
-    sky: { top: "#c8f7e1", bottom: "#e8f3ff" },
+    theme: THEMES.grassland,
     platforms: [
       { x: 0, y: HEIGHT - 40, w: 2400, h: 40 },
       { x: 200, y: HEIGHT - 140, w: 120, h: 16 },
@@ -413,7 +414,7 @@ export const BASE_LEVELS: Level[] = [
     flag: { x: 950, y: HEIGHT - 180, h: 180 },
   },
   {
-    sky: { top: "#d9f0ff", bottom: "#eef6ff" },
+    theme: THEMES.forest,
     platforms: [
       { x: 0, y: HEIGHT - 40, w: 2600, h: 40 },
       { x: 240, y: HEIGHT - 170, w: 140, h: 16 },
@@ -484,7 +485,7 @@ export const BASE_LEVELS: Level[] = [
     flag: { x: 1280, y: HEIGHT - 180, h: 180 },
   },
   {
-    sky: { top: "#f7e9ff", bottom: "#f2f9ff" },
+    theme: THEMES.lake,
     platforms: [
       { x: 0, y: HEIGHT - 40, w: 2600, h: 40 },
       { x: 300, y: HEIGHT - 160, w: 120, h: 16 },
@@ -574,7 +575,7 @@ export const BASE_LEVELS: Level[] = [
     flag: { x: 1520, y: HEIGHT - 180, h: 180 },
   },
   {
-    sky: { top: "#e4f7e7", bottom: "#f5fff2" },
+    theme: THEMES.cave,
     platforms: [
       { x: 0, y: HEIGHT - 40, w: 2800, h: 40 },
       { x: 260, y: HEIGHT - 200, w: 140, h: 16 },
@@ -666,7 +667,7 @@ export const BASE_LEVELS: Level[] = [
     flag: { x: 1760, y: HEIGHT - 180, h: 180 },
   },
   {
-    sky: { top: "#d9f0ff", bottom: "#eef6ff" },
+    theme: THEMES.desert,
     platforms: [
       { x: 0, y: HEIGHT - 40, w: 3000, h: 40 },
       { x: 280, y: HEIGHT - 160, w: 160, h: 16 },
@@ -789,7 +790,7 @@ export const BASE_LEVELS: Level[] = [
     flag: { x: 2160, y: HEIGHT - 180, h: 180 },
   },
   {
-    sky: { top: "#f7e9ff", bottom: "#f2f9ff" },
+    theme: THEMES.clouds,
     platforms: [
       { x: 0, y: HEIGHT - 40, w: 3200, h: 40 },
       { x: 260, y: HEIGHT - 120, w: 160, h: 16 },
@@ -925,7 +926,7 @@ export const BASE_LEVELS: Level[] = [
     flag: { x: 2520, y: HEIGHT - 180, h: 180 },
   },
   {
-    sky: { top: "#e4f7e7", bottom: "#f5fff2" },
+    theme: THEMES.snow,
     platforms: [
       { x: 0, y: HEIGHT - 40, w: 3400, h: 40 },
       { x: 320, y: HEIGHT - 200, w: 160, h: 16 },
@@ -1070,7 +1071,7 @@ export const BASE_LEVELS: Level[] = [
     flag: { x: 2720, y: HEIGHT - 180, h: 180 },
   },
   {
-    sky: { top: "#d9f0ff", bottom: "#eef6ff" },
+    theme: THEMES.dusk,
     platforms: [
       { x: 0, y: HEIGHT - 40, w: 3600, h: 40 },
       { x: 360, y: HEIGHT - 160, w: 160, h: 16 },
@@ -1217,7 +1218,7 @@ export const BASE_LEVELS: Level[] = [
     flag: { x: 2800, y: HEIGHT - 180, h: 180 },
   },
   {
-    sky: { top: "#f7e9ff", bottom: "#f2f9ff" },
+    theme: THEMES.night,
     platforms: [
       { x: 0, y: HEIGHT - 40, w: 3800, h: 40 },
       { x: 380, y: HEIGHT - 140, w: 160, h: 16 },
@@ -1373,7 +1374,7 @@ export const BASE_LEVELS: Level[] = [
     flag: { x: 3220, y: HEIGHT - 180, h: 180 },
   },
   {
-    sky: { top: "#e4f7e7", bottom: "#f5fff2" },
+    theme: THEMES.starry,
     platforms: [
       { x: 0, y: HEIGHT - 40, w: 4000, h: 40 },
       { x: 420, y: HEIGHT - 190, w: 160, h: 16 },

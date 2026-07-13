@@ -71,13 +71,32 @@ export type TutorialGate = {
   hint: string;
   until: "enemiesCleared" | "coinsCollected";
 };
+export type AmbientKind =
+  | "none"
+  | "leaves"
+  | "snow"
+  | "fireflies"
+  | "stars"
+  | "sparkles";
+export type LevelTheme = {
+  id: string;
+  name: string; // zh-TW 主題名（HUD 顯示）
+  sky: { top: string; bottom: string };
+  cloud: string;
+  hillFar: string;
+  hillNear: string;
+  ground: string;
+  platform: string;
+  platformEdge: string;
+  ambient: AmbientKind;
+};
 export type Level = {
   platforms: Platform[];
   enemies: Enemy[];
   coins: Coin[];
   powerups: Powerup[];
   flag: Flag;
-  sky: { top: string; bottom: string };
+  theme: LevelTheme;
   tutorial?: boolean; // 教學關：不扣生命、旗子改為完成教學
   triggers?: TutorialTrigger[];
   gates?: TutorialGate[];

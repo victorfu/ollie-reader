@@ -29,6 +29,7 @@ import {
   roundRect,
 } from "./sprites";
 import type {
+  AmbientKind,
   FloatingText,
   GameState,
   Level,
@@ -73,6 +74,68 @@ const loadProgress = (): MushroomProgress => {
 
 const saveProgress = (progress: MushroomProgress) => {
   localStorage.setItem(MUSHROOM_CONFIG.PROGRESS_KEY, JSON.stringify(progress));
+};
+
+// 主題環境粒子（螢幕座標）：雪花、落葉、螢火蟲、星星、洞穴微光
+const spawnAmbient = (kind: AmbientKind): Particle => {
+  switch (kind) {
+    case "snow":
+      return {
+        x: Math.random() * WIDTH,
+        y: -10,
+        vx: (Math.random() - 0.5) * 30,
+        vy: 40 + Math.random() * 40,
+        life: 12,
+        maxLife: 12,
+        color: "#ffffff",
+        size: 2 + Math.random() * 2.5,
+      };
+    case "leaves":
+      return {
+        x: Math.random() * (WIDTH + 200),
+        y: -10,
+        vx: -20 - Math.random() * 25,
+        vy: 35 + Math.random() * 30,
+        life: 12,
+        maxLife: 12,
+        color: Math.random() > 0.5 ? "#84cc16" : "#ca8a04",
+        size: 3 + Math.random() * 2.5,
+      };
+    case "fireflies":
+      return {
+        x: Math.random() * WIDTH,
+        y: 120 + Math.random() * 330,
+        vx: (Math.random() - 0.5) * 40,
+        vy: (Math.random() - 0.5) * 25,
+        life: 3 + Math.random() * 2,
+        maxLife: 5,
+        color: "#fde047",
+        size: 2 + Math.random() * 1.5,
+      };
+    case "stars":
+      return {
+        x: Math.random() * WIDTH,
+        y: Math.random() * 280,
+        vx: 0,
+        vy: 0,
+        life: 2 + Math.random() * 2,
+        maxLife: 4,
+        color: "#ffffff",
+        size: 1 + Math.random() * 1.6,
+      };
+    default:
+      // sparkles（洞穴微光）
+      return {
+        x: Math.random() * WIDTH,
+        y: 160 + Math.random() * 320,
+        vx: (Math.random() - 0.5) * 15,
+        vy: -12 - Math.random() * 18,
+        life: 2.5 + Math.random(),
+        maxLife: 3.5,
+        color: "#fbbf24",
+        size: 1.5 + Math.random() * 1.8,
+      };
+  }
 };
 
 
@@ -134,6 +197,8 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
     // 移動平台：關卡內累計時間 + 玩家腳下的平台索引（載運用）
     time: 0,
     groundPlatformIndex: -1,
+    // 主題環境粒子（螢幕座標）
+    ambient: [] as Particle[],
   });
 
   useEffect(() => {
@@ -292,6 +357,7 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
       // 重置平台時間與載運
       time: 0,
       groundPlatformIndex: -1,
+      ambient: [],
     };
     setLevelIndex(index);
   };
@@ -863,6 +929,25 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
       }
     }
 
+    // 主題環境粒子：生成與推進
+    const ambientKind = lvl.theme.ambient;
+    if (ambientKind !== "none" && settings.enableParticles) {
+      if (s.ambient.length < 40 && Math.random() < 0.35) {
+        s.ambient.push(spawnAmbient(ambientKind));
+      }
+      for (let i = s.ambient.length - 1; i >= 0; i--) {
+        const a = s.ambient[i];
+        a.x += a.vx * dt;
+        a.y += a.vy * dt;
+        a.life -= dt;
+        if (a.life <= 0 || a.y > HEIGHT + 20 || a.x < -20 || a.x > WIDTH + 220) {
+          s.ambient.splice(i, 1);
+        }
+      }
+    } else if (s.ambient.length) {
+      s.ambient.length = 0;
+    }
+
     // 更新螢幕震動
     if (s.screenShake.duration > 0) {
       s.screenShake.duration -= dt;
@@ -928,14 +1013,14 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
     ctx.clearRect(-10, -10, WIDTH + 20, HEIGHT + 20);
 
     const sky = ctx.createLinearGradient(0, 0, 0, HEIGHT);
-    sky.addColorStop(0, lvl.sky.top);
-    sky.addColorStop(1, lvl.sky.bottom);
+    sky.addColorStop(0, lvl.theme.sky.top);
+    sky.addColorStop(1, lvl.theme.sky.bottom);
     ctx.fillStyle = sky;
     ctx.fillRect(0, 0, WIDTH, HEIGHT);
 
     // clouds - 視差滾動 (0.2 速率)
     ctx.save();
-    ctx.fillStyle = "rgba(255,255,255,0.8)";
+    ctx.fillStyle = lvl.theme.cloud;
     const cloudParallax = s.cameraX * 0.2;
     drawCloud(ctx, 120 - (cloudParallax % 300), 90 - (s.levelIndex % 3) * 10);
     drawCloud(ctx, 380 - (cloudParallax % 400), 60 + (s.levelIndex % 2) * 12);
@@ -949,7 +1034,7 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
     // hills - 視差滾動 (0.4 速率，創造層次感)
     ctx.save();
     const hillParallax = s.cameraX * 0.4;
-    ctx.fillStyle = "rgba(82, 160, 120, 0.25)";
+    ctx.fillStyle = lvl.theme.hillFar;
     ctx.beginPath();
     ctx.ellipse(
       260 + hillParallax * 0.6,
@@ -982,14 +1067,14 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
     ctx.restore();
 
     // 前景山丘
-    ctx.fillStyle = "rgba(82, 160, 120, 0.35)";
+    ctx.fillStyle = lvl.theme.hillNear;
     ctx.beginPath();
     ctx.ellipse(260, HEIGHT - 20, 180, 90, 0, 0, Math.PI * 2);
     ctx.ellipse(740, HEIGHT - 10, 220, 100, 0, 0, Math.PI * 2);
     ctx.fill();
 
     // ground stripe
-    ctx.fillStyle = "#b6e3a8";
+    ctx.fillStyle = lvl.theme.ground;
     ctx.fillRect(-200, HEIGHT - 40, s.flag.x + 400, 80);
 
     // platforms
@@ -998,9 +1083,9 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
         drawSpring(ctx, p);
         return;
       }
-      ctx.fillStyle = "#8bd17a";
+      ctx.fillStyle = lvl.theme.platform;
       roundRect(ctx, p.x, p.y, p.w, p.h, 6);
-      ctx.fillStyle = "#6ab05f";
+      ctx.fillStyle = lvl.theme.platformEdge;
       roundRect(ctx, p.x, p.y, p.w, 8, 6);
       if (p.kind === "moving") {
         // 移動平台：底部兩顆鉚釘 + 描邊做視覺區隔
@@ -1104,6 +1189,18 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
     });
 
     ctx.restore();
+
+    // 主題環境粒子（螢幕座標，世界之上、HUD 之下）
+    s.ambient.forEach((a) => {
+      ctx.save();
+      const t = a.life / a.maxLife;
+      ctx.globalAlpha = Math.min(1, t * 2) * 0.9;
+      ctx.fillStyle = a.color;
+      ctx.beginPath();
+      ctx.arc(a.x, a.y, a.size, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    });
 
     // HUD
     ctx.fillStyle = "rgba(255,255,255,0.92)";
