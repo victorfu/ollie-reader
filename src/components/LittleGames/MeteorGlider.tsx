@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
-type GameState = "menu" | "playing" | "paused" | "gameover";
+type GameState = "menu" | "playing" | "paused" | "gameover" | "tutorialdone";
 type InputState = {
   left: boolean;
   right: boolean;
@@ -16,6 +16,20 @@ type Meteor = {
   spin: number;
   angle: number;
   heat: number;
+  counted?: boolean; // 教學：已計入閃避數
+  hit?: boolean; // 教學：撞到玩家，待移除（不致命）
+};
+
+// 教學關腳本狀態：移動 → 閃避 → 補燃料 → 衝刺
+type TutorialState = {
+  step: number;
+  stepTimer: number;
+  spawnTimer: number;
+  movedLeft: boolean;
+  movedRight: boolean;
+  dodgedCount: number;
+  collectedFuel: boolean;
+  dashedCount: number;
 };
 
 type FuelCell = {
@@ -63,7 +77,16 @@ type GameData = {
   stars: Star[];
   input: InputState;
   lastTime: number;
+  tutorial?: TutorialState;
 };
+
+const TUTORIAL_STEPS = 4;
+const TUTORIAL_TEXT = [
+  "用 ← → 或 A D 鍵左右移動滑翔機！",
+  "流星來了！左右移動閃開它 ☄️",
+  "去吃綠色的燃料電池，補滿能量 💎",
+  "按空白鍵（或 Shift）衝刺一下！",
+];
 
 const WIDTH = 480;
 const HEIGHT = 720;
@@ -77,6 +100,7 @@ const DASH_DURATION = 0.24;
 const DASH_SPEED = 480;
 const FUEL_MAX = 100;
 const BEST_KEY = "meteor-glider-best";
+const TUTORIAL_KEY = "meteor-glider-tutorial-done";
 
 type MeteorGliderProps = {
   onExit?: () => void;
@@ -95,6 +119,9 @@ export default function MeteorGlider({ onExit, onPlayBunny }: MeteorGliderProps)
   const [bestScore, setBestScore] = useState(0);
   const [dashFuelUI, setDashFuelUI] = useState(FUEL_MAX);
   const [dashCooldownUI, setDashCooldownUI] = useState(0);
+  const [tutorialDone, setTutorialDone] = useState(false);
+  const [isTutorial, setIsTutorial] = useState(false);
+  const [tutorialStepUI, setTutorialStepUI] = useState(0);
 
   useEffect(() => {
     const stored = localStorage.getItem(BEST_KEY);
@@ -103,6 +130,7 @@ export default function MeteorGlider({ onExit, onPlayBunny }: MeteorGliderProps)
       // eslint-disable-next-line react-hooks/set-state-in-effect
       if (!Number.isNaN(parsed)) setBestScore(parsed);
     }
+    if (localStorage.getItem(TUTORIAL_KEY) === "1") setTutorialDone(true);
   }, []);
 
   // 全螢幕遊戲頁：鎖住頁面捲動（防 macOS 橡皮筋效應）
@@ -314,6 +342,35 @@ export default function MeteorGlider({ onExit, onPlayBunny }: MeteorGliderProps)
     ctx.restore();
 
     ctx.restore();
+
+    // 教學提示橫幅（固定在畫面上方，不受震動影響）
+    const tut = data.tutorial;
+    if (tut && tut.step < TUTORIAL_STEPS) {
+      const text = TUTORIAL_TEXT[tut.step];
+      ctx.save();
+      ctx.font = "bold 18px system-ui";
+      ctx.textAlign = "center";
+      const bw = Math.min(WIDTH - 32, ctx.measureText(text).width + 44);
+      const bx = WIDTH / 2;
+      const by = 88;
+      pathRoundRect(ctx, bx - bw / 2, by - 26, bw, 44, 14);
+      ctx.fillStyle = "rgba(12, 18, 38, 0.85)";
+      ctx.fill();
+      ctx.strokeStyle = "rgba(255,255,255,0.2)";
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      ctx.fillStyle = "#ffffff";
+      ctx.fillText(text, bx, by + 3);
+      // 步驟進度點
+      for (let i = 0; i < TUTORIAL_STEPS; i++) {
+        ctx.beginPath();
+        ctx.fillStyle =
+          i <= tut.step ? "#8af9d0" : "rgba(255,255,255,0.25)";
+        ctx.arc(bx - (TUTORIAL_STEPS - 1) * 8 + i * 16, by + 32, 3.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
   };
 
   const endGame = () => {
@@ -329,18 +386,90 @@ export default function MeteorGlider({ onExit, onPlayBunny }: MeteorGliderProps)
     setGameState("gameover");
   };
 
+  const completeTutorial = () => {
+    if (localStorage.getItem(TUTORIAL_KEY) !== "1") {
+      localStorage.setItem(TUTORIAL_KEY, "1");
+      setTutorialDone(true);
+    }
+    setIsTutorial(false);
+    setGameState("tutorialdone");
+  };
+
+  // 教學腳本：移動 → 閃避 → 補燃料 → 衝刺。每一步達成才前進，全程不致命、不計分
+  const runTutorial = (data: GameData, delta: number) => {
+    const t = data.tutorial;
+    if (!t) return;
+    t.stepTimer += delta;
+
+    // 通過玩家高度的流星計為成功閃避
+    for (const m of data.meteors) {
+      if (!m.counted && m.y > PLAYER_Y + 40) {
+        m.counted = true;
+        t.dodgedCount += 1;
+      }
+    }
+
+    const advance = () => {
+      t.step += 1;
+      t.stepTimer = 0;
+      data.meteors = [];
+      setTutorialStepUI(t.step);
+      if (t.step >= TUTORIAL_STEPS) completeTutorial();
+    };
+
+    if (t.step === 0) {
+      if (t.movedLeft && t.movedRight) advance();
+    } else if (t.step === 1) {
+      t.spawnTimer -= delta;
+      if (t.dodgedCount < 3 && t.spawnTimer <= 0 && data.meteors.length < 2) {
+        t.spawnTimer = 1.4;
+        data.meteors.push({
+          x: 70 + Math.random() * (WIDTH - 140),
+          y: -40,
+          radius: 20,
+          speed: 105,
+          spin: (Math.random() - 0.5) * 1.5,
+          angle: Math.random() * Math.PI,
+          heat: 0,
+        });
+      }
+      if (t.dodgedCount >= 3) advance();
+    } else if (t.step === 2) {
+      if (!t.collectedFuel && data.fuels.length === 0) {
+        data.fuels.push({
+          x: WIDTH / 2 + (Math.random() - 0.5) * 160,
+          y: -20,
+          size: 13,
+          value: 40,
+          pulse: 0,
+        });
+      }
+      if (t.collectedFuel) advance();
+    } else if (t.step === 3) {
+      data.dashFuel = FUEL_MAX; // 保證衝刺可用
+      if (t.dashedCount >= 1) advance();
+    }
+  };
+
   const updateGame = (data: GameData, delta: number) => {
+    const tut = data.tutorial;
     data.timeAlive += delta;
     data.spawnTimer -= delta;
     data.fuelTimer -= delta;
     data.windTimer -= delta;
-    if (data.windTimer <= 0) {
+    if (!tut && data.windTimer <= 0) {
       data.wind = (Math.random() - 0.5) * 140;
       data.windTimer = 3 + Math.random() * 2.5;
     }
 
     const inputDir = (data.input.left ? -1 : 0) + (data.input.right ? 1 : 0) + data.input.touchDir;
     const clampedInput = Math.max(-1, Math.min(1, inputDir));
+
+    // 教學第一步：偵測左右移動
+    if (tut && tut.step === 0) {
+      if (data.input.left || data.input.touchDir < 0) tut.movedLeft = true;
+      if (data.input.right || data.input.touchDir > 0) tut.movedRight = true;
+    }
     const targetVx = clampedInput * MOVE_SPEED + data.wind * 0.25;
     data.vx = data.vx * FRICTION + (targetVx - data.vx) * 0.12;
 
@@ -360,6 +489,7 @@ export default function MeteorGlider({ onExit, onPlayBunny }: MeteorGliderProps)
       data.dashFuel = Math.max(0, data.dashFuel - DASH_COST);
       data.shake = 8;
       data.input.dashQueued = false;
+      if (tut) tut.dashedCount += 1;
       spawnBurst(data, data.playerX, PLAYER_Y + 8, "rgba(160,200,255,ALPHA)", 8, 90);
     }
     data.input.dashQueued = false;
@@ -368,7 +498,7 @@ export default function MeteorGlider({ onExit, onPlayBunny }: MeteorGliderProps)
     data.playerX = Math.max(30, Math.min(WIDTH - 30, data.playerX));
 
     const meteorSpeedBoost = Math.min(200, data.timeAlive * 12);
-    if (data.spawnTimer <= 0) {
+    if (!tut && data.spawnTimer <= 0) {
       data.spawnTimer = Math.max(0.35, 0.8 - data.timeAlive * 0.02);
       data.meteors.push({
         x: Math.random() * WIDTH,
@@ -381,7 +511,7 @@ export default function MeteorGlider({ onExit, onPlayBunny }: MeteorGliderProps)
       });
     }
 
-    if (data.fuelTimer <= 0) {
+    if (!tut && data.fuelTimer <= 0) {
       data.fuelTimer = 3.5 - Math.min(2.2, data.timeAlive * 0.08);
       data.fuels.push({
         x: Math.random() * (WIDTH - 80) + 40,
@@ -412,7 +542,7 @@ export default function MeteorGlider({ onExit, onPlayBunny }: MeteorGliderProps)
     });
     data.particles = data.particles.filter((p) => p.life > 0);
 
-    data.score += delta * 10;
+    if (!tut) data.score += delta * 10;
 
     // Collisions
     for (const m of data.meteors) {
@@ -422,17 +552,25 @@ export default function MeteorGlider({ onExit, onPlayBunny }: MeteorGliderProps)
       const hitRadius = (m.radius + PLAYER_RADIUS) ** 2;
       const nearRadius = (m.radius + PLAYER_RADIUS + 24) ** 2;
       if (distSq <= hitRadius) {
+        if (tut) {
+          // 教學不致命：撞到就把流星彈開、輕震動
+          m.hit = true;
+          data.shake = 10;
+          spawnBurst(data, m.x, m.y, "rgba(255,180,120,ALPHA)", 12, 140);
+          continue;
+        }
         data.shake = 18;
         spawnBurst(data, m.x, m.y, "rgba(255,120,120,ALPHA)", 24, 220);
         endGame();
         return;
       }
-      if (distSq < nearRadius && m.heat < 0.5) {
+      if (!tut && distSq < nearRadius && m.heat < 0.5) {
         m.heat = 1;
         data.shake = Math.max(data.shake, 6);
         data.score += 4;
       }
     }
+    if (tut) data.meteors = data.meteors.filter((m) => !m.hit);
 
     for (let i = data.fuels.length - 1; i >= 0; i--) {
       const f = data.fuels[i];
@@ -442,10 +580,13 @@ export default function MeteorGlider({ onExit, onPlayBunny }: MeteorGliderProps)
       if (dx * dx + dy * dy <= hitR) {
         data.fuels.splice(i, 1);
         data.dashFuel = Math.min(FUEL_MAX, data.dashFuel + f.value);
-        data.score += 15;
+        if (tut) tut.collectedFuel = true;
+        else data.score += 15;
         spawnBurst(data, f.x, f.y, "rgba(140,255,210,ALPHA)", 14, 160);
       }
     }
+
+    if (tut) runTutorial(data, delta);
   };
 
   // 保持重繪 closure 為最新，供縮放時補畫最後一幀（renderGame 已宣告）
@@ -529,31 +670,55 @@ export default function MeteorGlider({ onExit, onPlayBunny }: MeteorGliderProps)
     return stars;
   };
 
+  const makeGameData = (tutorial?: TutorialState): GameData => ({
+    playerX: WIDTH / 2,
+    vx: 0,
+    dashFuel: FUEL_MAX,
+    dashCooldown: 0,
+    dashActive: 0,
+    score: 0,
+    timeAlive: 0,
+    spawnTimer: 0.6,
+    fuelTimer: 2.5,
+    shake: 0,
+    wind: 0,
+    windTimer: 2,
+    meteors: [],
+    fuels: [],
+    particles: [],
+    stars: initStars(),
+    input: { left: false, right: false, dashQueued: false, touchDir: 0 },
+    lastTime: performance.now(),
+    tutorial,
+  });
+
   const startGame = () => {
-    gameDataRef.current = {
-      playerX: WIDTH / 2,
-      vx: 0,
-      dashFuel: FUEL_MAX,
-      dashCooldown: 0,
-      dashActive: 0,
-      score: 0,
-      timeAlive: 0,
-      spawnTimer: 0.6,
-      fuelTimer: 2.5,
-      shake: 0,
-      wind: 0,
-      windTimer: 2,
-      meteors: [],
-      fuels: [],
-      particles: [],
-      stars: initStars(),
-      input: { left: false, right: false, dashQueued: false, touchDir: 0 },
-      lastTime: performance.now(),
-    };
+    gameDataRef.current = makeGameData();
     renderedScoreRef.current = 0;
     setScore(0);
     setDashFuelUI(FUEL_MAX);
     setDashCooldownUI(0);
+    setIsTutorial(false);
+    setGameState("playing");
+  };
+
+  const startTutorial = () => {
+    gameDataRef.current = makeGameData({
+      step: 0,
+      stepTimer: 0,
+      spawnTimer: 0.8,
+      movedLeft: false,
+      movedRight: false,
+      dodgedCount: 0,
+      collectedFuel: false,
+      dashedCount: 0,
+    });
+    renderedScoreRef.current = 0;
+    setScore(0);
+    setDashFuelUI(FUEL_MAX);
+    setDashCooldownUI(0);
+    setIsTutorial(true);
+    setTutorialStepUI(0);
     setGameState("playing");
   };
 
@@ -623,12 +788,37 @@ export default function MeteorGlider({ onExit, onPlayBunny }: MeteorGliderProps)
                 </div>
               )}
               <div className="mt-5 flex flex-col gap-3">
-                <button
-                  onClick={startGame}
-                  className="rounded-full bg-amber-400 text-slate-900 font-semibold py-3 shadow-lg transition hover:-translate-y-0.5 hover:shadow-xl"
-                >
-                  {gameState === "menu" ? "Start run" : "Play again"}
-                </button>
+                {gameState === "menu" && !tutorialDone ? (
+                  <>
+                    <button
+                      onClick={startTutorial}
+                      className="rounded-full bg-amber-400 text-slate-900 font-semibold py-3 shadow-lg transition hover:-translate-y-0.5 hover:shadow-xl"
+                    >
+                      🎓 先玩教學
+                    </button>
+                    <button
+                      onClick={startGame}
+                      className="rounded-full border border-white/30 text-white font-semibold py-3 transition hover:-translate-y-0.5 hover:bg-white/10"
+                    >
+                      直接開始
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    onClick={startGame}
+                    className="rounded-full bg-amber-400 text-slate-900 font-semibold py-3 shadow-lg transition hover:-translate-y-0.5 hover:shadow-xl"
+                  >
+                    {gameState === "menu" ? "Start run" : "Play again"}
+                  </button>
+                )}
+                {gameState === "menu" && tutorialDone && (
+                  <button
+                    onClick={startTutorial}
+                    className="rounded-full border border-white/30 text-white font-semibold py-3 transition hover:-translate-y-0.5 hover:bg-white/10"
+                  >
+                    🎓 教學
+                  </button>
+                )}
                 {onPlayBunny && (
                   <button
                     onClick={onPlayBunny}
@@ -642,6 +832,32 @@ export default function MeteorGlider({ onExit, onPlayBunny }: MeteorGliderProps)
                 Controls: ←/→ or A/D to steer, Space/Shift to dash. Tap left/right
                 halves on mobile; tap Dash to burst through.
               </p>
+            </div>
+          </div>
+        )}
+
+        {gameState === "tutorialdone" && (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="w-[90%] max-w-[360px] rounded-3xl border border-white/15 bg-white/10 p-8 backdrop-blur-xl shadow-2xl text-white text-center">
+              <div className="text-5xl">🎉</div>
+              <h1 className="mt-2 text-3xl font-bold">教學完成！</h1>
+              <p className="mt-3 text-slate-200">
+                你學會了移動、閃避流星、補充燃料和衝刺，出發挑戰吧！
+              </p>
+              <div className="mt-5 flex flex-col gap-3">
+                <button
+                  onClick={startGame}
+                  className="rounded-full bg-amber-400 text-slate-900 font-semibold py-3 shadow-lg transition hover:-translate-y-0.5 hover:shadow-xl"
+                >
+                  開始遊戲
+                </button>
+                <button
+                  onClick={() => setGameState("menu")}
+                  className="rounded-full border border-white/30 text-white font-semibold py-3 transition hover:-translate-y-0.5 hover:bg-white/10"
+                >
+                  回主選單
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -675,11 +891,27 @@ export default function MeteorGlider({ onExit, onPlayBunny }: MeteorGliderProps)
           <div className="pointer-events-none absolute inset-0 p-4 text-white">
             <div className="flex items-center justify-between">
               <div className="flex flex-col gap-1">
-                <span className="text-xs uppercase tracking-[0.2em] text-slate-200">
-                  Score
-                </span>
-                <span className="text-3xl font-bold">{score}</span>
-                <span className="text-[11px] text-slate-200">Best {bestScore}</span>
+                {isTutorial ? (
+                  <>
+                    <span className="text-xs uppercase tracking-[0.2em] text-amber-200">
+                      教學
+                    </span>
+                    <span className="text-2xl font-bold">
+                      步驟 {Math.min(tutorialStepUI + 1, TUTORIAL_STEPS)}/
+                      {TUTORIAL_STEPS}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-xs uppercase tracking-[0.2em] text-slate-200">
+                      Score
+                    </span>
+                    <span className="text-3xl font-bold">{score}</span>
+                    <span className="text-[11px] text-slate-200">
+                      Best {bestScore}
+                    </span>
+                  </>
+                )}
               </div>
               <div className="flex items-center gap-3">
                 <div className="pointer-events-auto">
@@ -824,4 +1056,21 @@ function drawCinnamoroll(ctx: CanvasRenderingContext2D, x: number, y: number, vx
   ctx.stroke();
 
   ctx.restore();
+}
+
+function pathRoundRect(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  r: number,
+) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
 }
