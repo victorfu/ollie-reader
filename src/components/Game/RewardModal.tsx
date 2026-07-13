@@ -38,6 +38,19 @@ export function RewardModal({ reward, onClaim }: RewardModalProps) {
       }, 500);
     }
 
+    // 精靈進化：慶祝一波
+    if (reward.evolvedSpirit) {
+      playSound("levelup");
+      setTimeout(() => {
+        confetti({
+          particleCount: 120,
+          spread: 90,
+          origin: { y: 0.5 },
+          colors: ["#c4b5fd", "#f0abfc", "#fbcfe8", "#ffd700"],
+        });
+      }, 300);
+    }
+
     // 如果升級，放煙火雨並播放升級音效
     if (reward.newLevel) {
       playSound("levelup");
@@ -65,6 +78,12 @@ export function RewardModal({ reward, onClaim }: RewardModalProps) {
 
   const SpiritComponent = reward.newSpirit
     ? SPIRIT_COMPONENTS[reward.newSpirit.id]
+    : null;
+  const EvolveFromComp = reward.evolvedSpirit
+    ? SPIRIT_COMPONENTS[reward.evolvedSpirit.from.id]
+    : null;
+  const EvolveToComp = reward.evolvedSpirit
+    ? SPIRIT_COMPONENTS[reward.evolvedSpirit.to.id]
     : null;
 
   return (
@@ -193,6 +212,35 @@ export function RewardModal({ reward, onClaim }: RewardModalProps) {
               <p className="text-sm text-muted-foreground mt-3">
                 {reward.newSpirit.description}
               </p>
+            </motion.div>
+          )}
+
+          {/* 精靈進化 */}
+          {reward.evolvedSpirit && EvolveToComp && (
+            <motion.div
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              transition={{ delay: 0.9, type: "spring" }}
+              className="mt-4 p-6 bg-gradient-to-r from-accent/20 to-secondary/10 rounded-xl w-full"
+            >
+              <span className="text-xl">🌟 精靈進化了！</span>
+              <div className="my-4 flex items-center justify-center gap-3">
+                {EvolveFromComp && (
+                  <div className="opacity-60">
+                    <EvolveFromComp size={64} animate={false} />
+                  </div>
+                )}
+                <span className="text-3xl text-accent">→</span>
+                <motion.div
+                  animate={{ y: [-5, 5, -5] }}
+                  transition={{ duration: 2, repeat: Infinity }}
+                >
+                  <EvolveToComp size={96} animate />
+                </motion.div>
+              </div>
+              <h3 className="text-lg font-bold text-accent">
+                {reward.evolvedSpirit.from.name} → {reward.evolvedSpirit.to.name}
+              </h3>
             </motion.div>
           )}
 

@@ -4,11 +4,13 @@ import {
   getOrCreateProgress,
   saveProgress,
   unlockSpirit,
+  evolveSpirit,
   calculateLevelUp,
   STAGES,
   isStageCompleted,
   isStagePlayable,
 } from "../services/gameProgressService";
+import { checkPendingEvolution } from "../services/spiritEvolution";
 import { prepareGamePool, type GameWord } from "../services/gameService";
 import {
   buildQuizQuestions,
@@ -99,6 +101,8 @@ export function useAdventure(): UseAdventureReturn {
 
   // 本輪快問快答累積的金幣（每題答對即累加，關卡結束一次寫入）
   const coinsEarnedRef = useRef<number>(0);
+  // 本輪答對題數（用於元素訓練 → 進化）
+  const correctCountRef = useRef<number>(0);
 
   // 每日獎勵（登入時計算，可領時由 UI 顯示）
   const [pendingDailyBonus, setPendingDailyBonus] =
@@ -189,6 +193,7 @@ export function useAdventure(): UseAdventureReturn {
         const wordPool = await prepareGamePool(vocabularyWords);
         wordPoolRef.current = wordPool;
         coinsEarnedRef.current = 0; // 重置本輪金幣
+        correctCountRef.current = 0; // 重置本輪答對數
 
         // 依關卡題型組合建題
         const questions = buildQuizQuestions(wordPool, stage, {
@@ -268,6 +273,30 @@ export function useAdventure(): UseAdventureReturn {
         const coinsGained = coinsEarnedRef.current;
         const newCoins = currentProgress.coins + coinsGained;
 
+        // 元素訓練：本關獎勵精靈的元素 += 本輪答對數
+        const stageElement = stage.rewardSpiritId
+          ? getSpiritById(stage.rewardSpiritId)?.element
+          : undefined;
+        const newElementProgress = { ...currentProgress.elementProgress };
+        if (stageElement && correctCountRef.current > 0) {
+          newElementProgress[stageElement] =
+            (newElementProgress[stageElement] ?? 0) + correctCountRef.current;
+        }
+
+        // 進化檢查（含本關剛解鎖的精靈）
+        const ownedAfterUnlock = newSpirit
+          ? [...currentProgress.unlockedSpiritIds, stage.rewardSpiritId!]
+          : currentProgress.unlockedSpiritIds;
+        const evolution = checkPendingEvolution({
+          unlockedSpiritIds: ownedAfterUnlock,
+          evolvedSpiritIds: currentProgress.evolvedSpiritIds,
+          elementProgress: newElementProgress,
+          level: newLevel,
+        });
+        if (evolution) {
+          await evolveSpirit(user.uid, evolution.from.id, evolution.to.id);
+        }
+
         await saveProgress(user.uid, {
           level: newLevel,
           exp: newExp,
@@ -276,26 +305,38 @@ export function useAdventure(): UseAdventureReturn {
           totalQuizCompleted: currentProgress.totalQuizCompleted + 1,
           highestCombo: newHighestCombo,
           coins: newCoins,
+          elementProgress: newElementProgress,
         });
 
         // 更新本地狀態
-        setProgress((prev) =>
-          prev
-            ? {
-                ...prev,
-                level: newLevel,
-                exp: newExp,
-                expToNextLevel,
-                currentStageIndex: newStageIndex,
-                totalQuizCompleted: prev.totalQuizCompleted + 1,
-                highestCombo: newHighestCombo,
-                coins: newCoins,
-                unlockedSpiritIds: newSpirit
-                  ? [...prev.unlockedSpiritIds, stage.rewardSpiritId!]
-                  : prev.unlockedSpiritIds,
-              }
-            : prev,
-        );
+        setProgress((prev) => {
+          if (!prev) return prev;
+          let unlockedSpiritIds = newSpirit
+            ? [...prev.unlockedSpiritIds, stage.rewardSpiritId!]
+            : prev.unlockedSpiritIds;
+          let evolvedSpiritIds = prev.evolvedSpiritIds;
+          if (evolution) {
+            if (!evolvedSpiritIds.includes(evolution.from.id)) {
+              evolvedSpiritIds = [...evolvedSpiritIds, evolution.from.id];
+            }
+            if (!unlockedSpiritIds.includes(evolution.to.id)) {
+              unlockedSpiritIds = [...unlockedSpiritIds, evolution.to.id];
+            }
+          }
+          return {
+            ...prev,
+            level: newLevel,
+            exp: newExp,
+            expToNextLevel,
+            currentStageIndex: newStageIndex,
+            totalQuizCompleted: prev.totalQuizCompleted + 1,
+            highestCombo: newHighestCombo,
+            coins: newCoins,
+            elementProgress: newElementProgress,
+            unlockedSpiritIds,
+            evolvedSpiritIds,
+          };
+        });
 
         // 設定獎勵
         setPendingReward({
@@ -304,23 +345,38 @@ export function useAdventure(): UseAdventureReturn {
           newSpirit,
           isNewHighScore: maxCombo > currentProgress.highestCombo,
           coinsGained,
+          evolvedSpirit: evolution
+            ? { from: evolution.from, to: evolution.to }
+            : undefined,
         });
 
         setGameView("reward");
       } else {
-        // 失敗：仍保留本輪答題賺到的金幣（不懲罰），再回地圖
+        // 失敗：仍保留本輪金幣與元素訓練進度（不懲罰），再回地圖
         const coinsGained = coinsEarnedRef.current;
-        if (coinsGained > 0) {
-          const newCoins = currentProgress.coins + coinsGained;
-          await saveProgress(user.uid, { coins: newCoins });
-          setProgress((prev) =>
-            prev ? { ...prev, coins: newCoins } : prev,
-          );
+        const stageElement = stage.rewardSpiritId
+          ? getSpiritById(stage.rewardSpiritId)?.element
+          : undefined;
+        const newElementProgress = { ...currentProgress.elementProgress };
+        if (stageElement && correctCountRef.current > 0) {
+          newElementProgress[stageElement] =
+            (newElementProgress[stageElement] ?? 0) + correctCountRef.current;
         }
+        const newCoins = currentProgress.coins + coinsGained;
+        await saveProgress(user.uid, {
+          coins: newCoins,
+          elementProgress: newElementProgress,
+        });
+        setProgress((prev) =>
+          prev
+            ? { ...prev, coins: newCoins, elementProgress: newElementProgress }
+            : prev,
+        );
         setGameView("map");
       }
 
       coinsEarnedRef.current = 0;
+      correctCountRef.current = 0;
       setQuizState(null);
     },
     [user],
@@ -334,9 +390,10 @@ export function useAdventure(): UseAdventureReturn {
       const currentQuestion = quizState.questions[quizState.currentIndex];
       const isCorrect = isQuestionCorrect(currentQuestion, answer);
 
-      // 答對即累積金幣（連擊越高越多）— 在 updater 外累加，避免 StrictMode 重複
+      // 答對即累積金幣與答對數 — 在 updater 外累加，避免 StrictMode 重複
       if (isCorrect) {
         coinsEarnedRef.current += coinsForAnswer(quizState.combo + 1);
+        correctCountRef.current += 1;
       }
 
       setQuizState((prev) => {

@@ -306,6 +306,27 @@ export async function unlockSpirit(
 }
 
 /**
+ * 精靈進化：把原始精靈記入 evolvedSpiritIds、進化後精靈加入 unlockedSpiritIds
+ */
+export async function evolveSpirit(
+  uid: string,
+  baseId: string,
+  evolvedId: string,
+): Promise<void> {
+  try {
+    const docRef = doc(db, GAME_PROGRESS_PATH, uid);
+    await updateDoc(docRef, {
+      evolvedSpiritIds: arrayUnion(baseId),
+      unlockedSpiritIds: arrayUnion(evolvedId),
+      updatedAt: serverTimestamp(),
+    });
+  } catch (error) {
+    console.error("Error evolving spirit:", error);
+    throw error;
+  }
+}
+
+/**
  * 重設遊戲進度
  */
 export async function resetGameProgress(uid: string): Promise<void> {

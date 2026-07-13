@@ -144,6 +144,15 @@ export function SpiritCollection({ progress, onBack }: SpiritCollectionProps) {
                 >
                   {isUnlocked ? spirit.name : "???"}
                 </h3>
+
+                {/* 可進化提示 */}
+                {isUnlocked &&
+                  spirit.evolvesToId &&
+                  !progress.evolvedSpiritIds.includes(spirit.id) && (
+                    <span className="mt-1 badge badge-xs badge-accent gap-1">
+                      ✨ 可進化
+                    </span>
+                  )}
               </div>
 
               {/* 精靈描述 */}
