@@ -28,9 +28,14 @@ export function Shop({ coins, onDraw, onBack }: ShopProps) {
   const handleDraw = async () => {
     if (drawing || !canAfford) return;
     setDrawing(true);
-    const r = await onDraw();
-    setDrawing(false);
-    if (r) setResult(r);
+    try {
+      const r = await onDraw();
+      if (r) setResult(r);
+    } catch (err) {
+      console.error("扭蛋失敗:", err);
+    } finally {
+      setDrawing(false); // 即使失敗也解除鎖定，按鈕不會卡住
+    }
   };
 
   return (

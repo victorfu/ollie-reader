@@ -113,6 +113,10 @@ export function useAdventure(): UseAdventureReturn {
   const coinsEarnedRef = useRef<number>(0);
   // 本輪答對題數（用於元素訓練 → 進化）
   const correctCountRef = useRef<number>(0);
+  // 結算冪等旗標：避免 StrictMode 重複呼叫 / 競態造成雙重寫入與金幣灌水
+  const quizEndedRef = useRef<boolean>(false);
+  // 扭蛋進行中旗標：避免連點造成一次扣款卻抽兩隻
+  const gachaInFlightRef = useRef<boolean>(false);
 
   // 每日獎勵（登入時計算，可領時由 UI 顯示）
   const [pendingDailyBonus, setPendingDailyBonus] =
@@ -212,6 +216,7 @@ export function useAdventure(): UseAdventureReturn {
         wordPoolRef.current = wordPool;
         coinsEarnedRef.current = 0; // 重置本輪金幣
         correctCountRef.current = 0; // 重置本輪答對數
+        quizEndedRef.current = false; // 重置結算旗標
 
         // 魔王關題數 = bossHp + buffer，確保一次失誤不會變不可過
         const bossHp = stage.bossHp ?? 5;
@@ -269,6 +274,10 @@ export function useAdventure(): UseAdventureReturn {
       const stage = STAGES[stageIdx];
       if (!stage) return;
 
+      // 冪等：一輪只結算一次（擋掉 StrictMode 雙呼叫與計時器/點擊競態）
+      if (quizEndedRef.current) return;
+      quizEndedRef.current = true;
+
       if (isVictory) {
         // 計算經驗值獎勵
         const expGained = stage.rewardExp;
@@ -286,7 +295,11 @@ export function useAdventure(): UseAdventureReturn {
           !currentProgress.unlockedSpiritIds.includes(stage.rewardSpiritId)
         ) {
           newSpirit = getSpiritById(stage.rewardSpiritId);
-          await unlockSpirit(user.uid, stage.rewardSpiritId);
+          try {
+            await unlockSpirit(user.uid, stage.rewardSpiritId);
+          } catch (e) {
+            console.error("解鎖精靈寫入失敗:", e);
+          }
         }
 
         // 更新進度
@@ -330,21 +343,25 @@ export function useAdventure(): UseAdventureReturn {
           elementProgress: newElementProgress,
           level: newLevel,
         });
-        if (evolution) {
-          await evolveSpirit(user.uid, evolution.from.id, evolution.to.id);
+        try {
+          if (evolution) {
+            await evolveSpirit(user.uid, evolution.from.id, evolution.to.id);
+          }
+          await saveProgress(user.uid, {
+            level: newLevel,
+            exp: newExp,
+            expToNextLevel,
+            currentStageIndex: newStageIndex,
+            totalQuizCompleted: currentProgress.totalQuizCompleted + 1,
+            highestCombo: newHighestCombo,
+            coins: newCoins,
+            elementProgress: newElementProgress,
+            totalBossDefeated: newTotalBossDefeated,
+          });
+        } catch (e) {
+          // 雲端寫入失敗不阻斷畫面：本地已樂觀更新，玩家不會卡關
+          console.error("進度寫入失敗:", e);
         }
-
-        await saveProgress(user.uid, {
-          level: newLevel,
-          exp: newExp,
-          expToNextLevel,
-          currentStageIndex: newStageIndex,
-          totalQuizCompleted: currentProgress.totalQuizCompleted + 1,
-          highestCombo: newHighestCombo,
-          coins: newCoins,
-          elementProgress: newElementProgress,
-          totalBossDefeated: newTotalBossDefeated,
-        });
 
         // 更新本地狀態
         setProgress((prev) => {
@@ -403,10 +420,14 @@ export function useAdventure(): UseAdventureReturn {
             (newElementProgress[stageElement] ?? 0) + correctCountRef.current;
         }
         const newCoins = currentProgress.coins + coinsGained;
-        await saveProgress(user.uid, {
-          coins: newCoins,
-          elementProgress: newElementProgress,
-        });
+        try {
+          await saveProgress(user.uid, {
+            coins: newCoins,
+            elementProgress: newElementProgress,
+          });
+        } catch (e) {
+          console.error("進度寫入失敗:", e);
+        }
         setProgress((prev) =>
           prev
             ? { ...prev, coins: newCoins, elementProgress: newElementProgress }
@@ -453,6 +474,8 @@ export function useAdventure(): UseAdventureReturn {
 
       setQuizState((prev) => {
         if (!prev) return prev;
+        // 若同幀計時器已判定本題（競態），不再重複扣命/推進
+        if (prev.isAnswered) return prev;
 
         const newCombo = isCorrect ? prev.combo + 1 : 0;
         const scoreGain = isCorrect ? 100 + prev.combo * 10 : 0;
@@ -609,26 +632,38 @@ export function useAdventure(): UseAdventureReturn {
   const drawGachaAction = useCallback(async (): Promise<GachaResult | null> => {
     const cur = progressRef.current;
     if (!user || !cur || !canAffordGacha(cur.coins)) return null;
+    // 連點保護：一次只跑一抽（避免扣一次款卻抽兩隻）
+    if (gachaInFlightRef.current) return null;
+    gachaInFlightRef.current = true;
 
-    const result = drawGacha(cur.unlockedSpiritIds);
-    const willUnlock = !result.isDuplicate;
-    const newCoins = cur.coins - result.coinsSpent + result.refundCoins;
+    try {
+      const result = drawGacha(cur.unlockedSpiritIds);
+      const willUnlock = !result.isDuplicate;
+      const newCoins = cur.coins - result.coinsSpent + result.refundCoins;
 
-    await saveProgress(user.uid, { coins: newCoins });
-    if (willUnlock) await unlockSpirit(user.uid, result.spiritId);
+      try {
+        await saveProgress(user.uid, { coins: newCoins });
+        if (willUnlock) await unlockSpirit(user.uid, result.spiritId);
+      } catch (e) {
+        console.error("扭蛋寫入失敗:", e);
+      }
 
-    setProgress((prev) =>
-      prev
-        ? {
-            ...prev,
-            coins: newCoins,
-            unlockedSpiritIds: willUnlock
-              ? [...prev.unlockedSpiritIds, result.spiritId]
-              : prev.unlockedSpiritIds,
-          }
-        : prev,
-    );
-    return result;
+      setProgress((prev) =>
+        prev
+          ? {
+              ...prev,
+              coins: newCoins,
+              unlockedSpiritIds:
+                willUnlock && !prev.unlockedSpiritIds.includes(result.spiritId)
+                  ? [...prev.unlockedSpiritIds, result.spiritId]
+                  : prev.unlockedSpiritIds,
+            }
+          : prev,
+      );
+      return result;
+    } finally {
+      gachaInFlightRef.current = false;
+    }
   }, [user]);
 
   // 檢查關卡是否完成
