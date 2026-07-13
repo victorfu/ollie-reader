@@ -1,6 +1,12 @@
+import { Fragment } from "react";
 import { motion } from "framer-motion";
 import type { Stage, PlayerProgress } from "../../types/game";
 import { SPIRIT_COMPONENTS, getSpiritById } from "../../assets/spirits";
+import {
+  CHAPTERS,
+  getChapterForStageIndex,
+  type Chapter,
+} from "../../constants/chapters";
 
 interface StageMapProps {
   stages: Stage[];
@@ -23,6 +29,34 @@ export function StageMap({
   const progressPercent = Math.round(
     (completedCount / (stages.length || 1)) * 100,
   );
+
+  // 章節分隔線（含該章 mini 進度）
+  const renderDivider = (chapter: Chapter) => {
+    const ci = CHAPTERS.indexOf(chapter);
+    const endIdx =
+      ci + 1 < CHAPTERS.length
+        ? CHAPTERS[ci + 1].firstStageIndex
+        : stages.length;
+    let done = 0;
+    for (let k = chapter.firstStageIndex; k < endIdx; k++) {
+      if (isStageCompleted(k)) done++;
+    }
+    return (
+      <div className="col-span-full mt-2">
+        <div className="flex items-center gap-3">
+          <div className="h-px flex-1 bg-border-hairline" />
+          <div className="text-center">
+            <h2 className="text-base font-semibold">{chapter.name}</h2>
+            <p className="text-xs text-muted-foreground">{chapter.subtitle}</p>
+          </div>
+          <div className="h-px flex-1 bg-border-hairline" />
+        </div>
+        <p className="text-center text-xs text-muted-foreground mt-1">
+          {done} / {endIdx - chapter.firstStageIndex} 關完成
+        </p>
+      </div>
+    );
+  };
 
   return (
     <div className="min-h-[calc(100vh-8rem)] flex flex-col">
@@ -105,13 +139,50 @@ export function StageMap({
               ? SPIRIT_COMPONENTS[stage.rewardSpiritId]
               : null;
 
+            // 章節分隔 + 鎖定章節 teaser
+            const chapterStart = CHAPTERS.find(
+              (c) => c.firstStageIndex === index,
+            );
+            const myChapter = getChapterForStageIndex(index);
+            const chapterLocked =
+              !isStageCompleted(myChapter.firstStageIndex) &&
+              !isStagePlayable(myChapter.firstStageIndex);
+
+            // 鎖定章節：只在開頭顯示 teaser，其餘關卡隱藏
+            if (chapterLocked && index !== myChapter.firstStageIndex) {
+              return null;
+            }
+
+            const dividerNode = chapterStart
+              ? renderDivider(chapterStart)
+              : null;
+
+            if (chapterLocked) {
+              const prevName = stages[index - 1]?.name ?? "前一關";
+              return (
+                <Fragment key={stage.id}>
+                  {dividerNode}
+                  <div className="col-span-full surface-card rounded-2xl p-6 text-center">
+                    <span className="text-4xl">🔒</span>
+                    <p className="mt-2 font-semibold">
+                      擊敗「{prevName}」解鎖{myChapter.name}！
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {myChapter.subtitle}
+                    </p>
+                  </div>
+                </Fragment>
+              );
+            }
+
             return (
-              <motion.div
-                key={stage.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.03 }}
-              >
+              <Fragment key={stage.id}>
+                {dividerNode}
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.03 }}
+                >
                 <button
                   onClick={() => playable && onSelectStage(index)}
                   disabled={locked}
@@ -305,7 +376,8 @@ export function StageMap({
                     />
                   )}
                 </button>
-              </motion.div>
+                </motion.div>
+              </Fragment>
             );
           })}
         </div>
