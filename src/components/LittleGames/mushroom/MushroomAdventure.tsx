@@ -76,6 +76,17 @@ const saveProgress = (progress: MushroomProgress) => {
   localStorage.setItem(MUSHROOM_CONFIG.PROGRESS_KEY, JSON.stringify(progress));
 };
 
+// 執行期生成的關卡：開局／儲存設定時重建（隨機尾段 + 套用設定）。
+// 模組級可變狀態——遊戲同時只會有一個實例。
+let currentLevels: Level[] = buildLevels(loadSettings());
+const rebuildLevels = (settings: MushroomSettings) => {
+  currentLevels = buildLevels(settings);
+};
+
+// 一般關卡查 currentLevels；教學關（TUTORIAL_INDEX）是獨立常數
+const getLevel = (index: number) =>
+  index === TUTORIAL_INDEX ? TUTORIAL_LEVEL : currentLevels[index];
+
 // 主題環境粒子（螢幕座標）：雪花、落葉、螢火蟲、星星、洞穴微光
 const spawnAmbient = (kind: AmbientKind): Particle => {
   switch (kind) {
@@ -151,12 +162,6 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
   const [levelIndex, setLevelIndex] = useState(0);
   const [settings, setSettings] = useState<MushroomSettings>(loadSettings);
   const [progress, setProgress] = useState<MushroomProgress>(loadProgress);
-  // 關卡於執行期生成：每次開局／調整設定後重建（隨機尾段 + 套用設定）
-  const levelsRef = useRef<Level[]>(buildLevels(loadSettings()));
-
-  // 一般關卡查 levelsRef；教學關（TUTORIAL_INDEX）是獨立常數
-  const getLevel = (index: number) =>
-    index === TUTORIAL_INDEX ? TUTORIAL_LEVEL : levelsRef.current[index];
 
   const stateRef = useRef({
     player: {
@@ -170,11 +175,11 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
       jumps: 0,
     },
     cameraX: 0,
-    platforms: levelsRef.current[0].platforms,
-    enemies: levelsRef.current[0].enemies.map((e) => ({ ...e })),
-    coins: levelsRef.current[0].coins.map((c) => ({ ...c })),
-    powerups: levelsRef.current[0].powerups.map((p) => ({ ...p })),
-    flag: levelsRef.current[0].flag,
+    platforms: currentLevels[0].platforms,
+    enemies: currentLevels[0].enemies.map((e) => ({ ...e })),
+    coins: currentLevels[0].coins.map((c) => ({ ...c })),
+    powerups: currentLevels[0].powerups.map((p) => ({ ...p })),
+    flag: currentLevels[0].flag,
     keys: { left: false, right: false, jump: false },
     invincibleTimer: 0,
     speedTimer: 0,
@@ -507,18 +512,9 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
     p.x += p.vx * dt;
     p.y += p.vy * dt;
 
-    // 每幀重算腳下平台（載運判定用）
+    // 每幀重算腳下平台（載運判定用）；地面也是平台（有坑洞的關卡才可能墜落）
     s.groundPlatformIndex = -1;
-
-    // ground
-    if (p.y + p.h > HEIGHT - 40) {
-      p.y = HEIGHT - 40 - p.h;
-      p.vy = 0;
-      p.onGround = true;
-      p.jumps = 0;
-    } else {
-      p.onGround = false;
-    }
+    p.onGround = false;
 
     // platforms
     s.platforms.forEach((plat, i) => {
@@ -1073,14 +1069,15 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
     ctx.ellipse(740, HEIGHT - 10, 220, 100, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    // ground stripe
-    ctx.fillStyle = lvl.theme.ground;
-    ctx.fillRect(-200, HEIGHT - 40, s.flag.x + 400, 80);
-
-    // platforms
+    // platforms（含地面段：接觸畫布底部的平台以地面色實心繪製，坑洞自然留空）
     s.platforms.forEach((p) => {
       if (p.kind === "spring") {
         drawSpring(ctx, p);
+        return;
+      }
+      if (p.y + p.h >= HEIGHT - 0.5) {
+        ctx.fillStyle = lvl.theme.ground;
+        ctx.fillRect(p.x, p.y, p.w, HEIGHT - p.y + 20);
         return;
       }
       ctx.fillStyle = lvl.theme.platform;
@@ -1264,7 +1261,7 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
     // 讓滑鼠點過的按鈕失焦，避免開場第一下空白鍵又觸發按鈕
     (document.activeElement as HTMLElement | null)?.blur();
     // 每輪重新生成關卡：隨機尾段每次不同，並套用最新設定
-    levelsRef.current = buildLevels(settings);
+    rebuildLevels(settings);
     stateRef.current.score = 0;
     stateRef.current.lives = 3;
     loadLevel(levelIdx);
@@ -1276,7 +1273,7 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
   const handleSaveSettings = (newSettings: MushroomSettings) => {
     setSettings(newSettings);
     saveSettings(newSettings);
-    levelsRef.current = buildLevels(newSettings);
+    rebuildLevels(newSettings);
     setGameState("menu");
   };
 

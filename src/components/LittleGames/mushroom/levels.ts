@@ -126,6 +126,292 @@ export const TUTORIAL_LEVEL: Level = {
   ],
 };
 
+// === 程序化尾段的地形 pattern 系統 ===
+
+type PatternResult = {
+  plats: Platform[];
+  enemies: Enemy[];
+  coins: Coin[];
+  powerups?: Powerup[];
+  // 相對本段起點的地面覆蓋區間；省略 = 全段有地面，區間外 = 坑洞
+  ground?: { start: number; end: number }[];
+  advance: number; // 本段佔用寬度（下一段從 x + advance 開始）
+};
+
+type PatternDef = {
+  id: string;
+  minLevel: number; // 從第幾關（0-based）開始出現
+  fn: (x: number, y: number, diff: number) => PatternResult;
+};
+
+const enemyAt = (
+  x: number,
+  y: number,
+  speed: number,
+  type: EnemyType = "normal",
+  dir: 1 | -1 = 1,
+): Enemy => ({ x, y, w: 36, h: 32, dir, speed, alive: true, type });
+
+const coinAt = (x: number, y: number): Coin => ({ x, y, r: 10, taken: false });
+
+const PATTERNS: PatternDef[] = [
+  {
+    id: "flat-run",
+    minLevel: 0,
+    fn: (x, y, diff) => {
+      const enemies: Enemy[] = [];
+      const count = 2 + Math.floor(Math.random() * (2 + diff * 0.8));
+      for (let i = 0; i < count; i++) {
+        let type: EnemyType = "normal";
+        if (diff >= 1 && Math.random() < 0.4) type = "fast";
+        if (diff >= 2 && Math.random() < 0.3) type = "jumper";
+        if (diff >= 3 && Math.random() < 0.2) type = "spiked";
+        enemies.push(
+          enemyAt(
+            x + 80 + i * 100,
+            y - 32,
+            80 + diff * 15 + Math.random() * 30,
+            type,
+            Math.random() > 0.5 ? 1 : -1,
+          ),
+        );
+      }
+      return {
+        plats: [{ x, y, w: 500, h: 16 }],
+        enemies,
+        coins: [
+          coinAt(x + 100, y - 40),
+          coinAt(x + 250, y - 40),
+          coinAt(x + 400, y - 40),
+        ],
+        advance: 550,
+      };
+    },
+  },
+  {
+    id: "stairs-up",
+    minLevel: 0,
+    fn: (x, y, diff) => ({
+      plats: [
+        { x, y, w: 120, h: 16 },
+        { x: x + 160, y: y - 60, w: 120, h: 16 },
+        { x: x + 320, y: y - 120, w: 120, h: 16 },
+      ],
+      enemies: [
+        enemyAt(x + 360, y - 152, 80, diff > 2 ? "jumper" : "normal"),
+      ],
+      coins: [
+        coinAt(x + 60, y - 40),
+        coinAt(x + 220, y - 100),
+        coinAt(x + 380, y - 160),
+      ],
+      advance: 500,
+    }),
+  },
+  {
+    id: "gap-jump",
+    minLevel: 1,
+    fn: (x, y, diff) => ({
+      plats: [
+        { x, y, w: 100, h: 16 },
+        { x: x + 250, y, w: 100, h: 16 },
+      ],
+      // 中段挖一個 200px 的坑
+      ground: [
+        { start: 0, end: 120 },
+        { start: 320, end: 450 },
+      ],
+      enemies: diff > 1 ? [enemyAt(x + 270, y - 32, 120, "fast")] : [],
+      coins: [coinAt(x + 175, y - 60)],
+      advance: 450,
+    }),
+  },
+  {
+    id: "tunnel",
+    minLevel: 3,
+    fn: (x, y, diff) => ({
+      plats: [
+        { x, y, w: 400, h: 16 },
+        { x, y: y - 100, w: 400, h: 40 }, // Ceiling
+      ],
+      enemies: [
+        enemyAt(x + 200, y - 32, 120, diff > 3 ? "spiked" : "fast"),
+      ],
+      coins: [coinAt(x + 50, y - 30), coinAt(x + 350, y - 30)],
+      advance: 450,
+    }),
+  },
+  {
+    id: "spring-launch",
+    minLevel: 1,
+    fn: (x, y) => {
+      const highY = clamp(y - 150, HEIGHT - 330, HEIGHT - 210);
+      const reward: Powerup[] =
+        Math.random() < 0.5
+          ? [
+              {
+                x: x + 305,
+                y: highY - 40,
+                r: 14,
+                type: Math.random() < 0.5 ? "star" : "heart",
+                taken: false,
+              },
+            ]
+          : [];
+      return {
+        plats: [
+          { x: x + 120, y: HEIGHT - 56, w: 60, h: 16, kind: "spring" },
+          { x: x + 240, y: highY, w: 130, h: 16 },
+        ],
+        enemies: [],
+        coins: [
+          coinAt(x + 150, y - 120),
+          coinAt(x + 270, highY - 40),
+          coinAt(x + 340, highY - 40),
+        ],
+        powerups: reward,
+        advance: 480,
+      };
+    },
+  },
+  {
+    id: "coin-arc-gap",
+    minLevel: 1,
+    fn: (x) => ({
+      plats: [],
+      // 純跳坑：金幣拋物線引導起跳與落點
+      ground: [
+        { start: 0, end: 100 },
+        { start: 300, end: 450 },
+      ],
+      enemies: [],
+      coins: [
+        coinAt(x + 90, HEIGHT - 120),
+        coinAt(x + 145, HEIGHT - 175),
+        coinAt(x + 200, HEIGHT - 195),
+        coinAt(x + 255, HEIGHT - 175),
+        coinAt(x + 310, HEIGHT - 120),
+      ],
+      advance: 450,
+    }),
+  },
+  {
+    id: "island-chain",
+    minLevel: 2,
+    fn: (x, y) => {
+      const yy = clamp(y, HEIGHT - 240, HEIGHT - 120);
+      const island = (ix: number, iy: number): Platform => ({
+        x: ix,
+        y: iy,
+        w: 80,
+        h: 16,
+      });
+      return {
+        plats: [
+          island(x + 80, yy),
+          island(x + 230, yy - 40),
+          island(x + 380, yy - 10),
+          island(x + 530, yy - 50),
+        ],
+        // 幾乎整段都是坑，靠小島連跳（島距 ≤ 150，支撐間隙 ≤ 70）
+        ground: [
+          { start: 0, end: 60 },
+          { start: 620, end: 660 },
+        ],
+        enemies: [],
+        coins: [
+          coinAt(x + 120, yy - 40),
+          coinAt(x + 270, yy - 80),
+          coinAt(x + 420, yy - 50),
+          coinAt(x + 570, yy - 90),
+        ],
+        advance: 660,
+      };
+    },
+  },
+  {
+    id: "stairs-down",
+    minLevel: 2,
+    fn: (x, y, diff) => {
+      const top = clamp(y - 120, HEIGHT - 300, HEIGHT - 160);
+      return {
+        plats: [
+          { x, y: top, w: 120, h: 16 },
+          { x: x + 160, y: top + 60, w: 120, h: 16 },
+          { x: x + 320, y: top + 120, w: 120, h: 16 },
+        ],
+        enemies: [
+          enemyAt(x + 40, top - 32, 80, diff > 2 ? "fast" : "normal"),
+        ],
+        coins: [
+          coinAt(x + 60, top - 40),
+          coinAt(x + 220, top + 20),
+          coinAt(x + 380, top + 80),
+        ],
+        advance: 500,
+      };
+    },
+  },
+  {
+    id: "moving-crossing",
+    minLevel: 5,
+    fn: (x, y) => {
+      const my = clamp(y - 60, HEIGHT - 260, HEIGHT - 140);
+      return {
+        plats: [
+          {
+            x: x + 185,
+            y: my,
+            w: 110,
+            h: 16,
+            kind: "moving",
+            move: { axis: "x", range: 70, speed: 1.4 },
+          },
+        ],
+        // 250px 的坑由移動平台擺渡
+        ground: [
+          { start: 0, end: 100 },
+          { start: 350, end: 480 },
+        ],
+        enemies: [],
+        coins: [coinAt(x + 240, my - 50), coinAt(x + 240, my - 90)],
+        advance: 480,
+      };
+    },
+  },
+  {
+    id: "bridge-gauntlet",
+    minLevel: 4,
+    fn: (x, _y, diff) => ({
+      plats: [
+        // 細橋與地面同高，走上去無縫；橋下是坑
+        { x: x + 80, y: HEIGHT - 40, w: 340, h: 14 },
+      ],
+      ground: [
+        { start: 0, end: 80 },
+        { start: 420, end: 520 },
+      ],
+      enemies: [
+        enemyAt(x + 180, HEIGHT - 72, 70 + diff * 8),
+        enemyAt(x + 320, HEIGHT - 72, 70 + diff * 8, "normal", -1),
+      ],
+      coins: [coinAt(x + 200, HEIGHT - 120), coinAt(x + 300, HEIGHT - 120)],
+      powerups: [
+        {
+          x: x + 470,
+          y: HEIGHT - 120,
+          r: 14,
+          type: Math.random() < 0.5 ? "heart" : "star",
+          taken: false,
+        },
+      ],
+      advance: 520,
+    }),
+  },
+];
+
+// 在手工關卡後接上程序化尾段：pattern 自帶地面（可挖坑），
+// 結尾保證一段平地降落帶再接旗子
 export function extendLevel(
   base: Level,
   idx: number,
@@ -135,119 +421,7 @@ export function extendLevel(
   const extraLength = EXTRA_SECTION_BASE + EXTRA_SECTION_STEP * idx;
   const newFlagX = extraOffset + extraLength;
 
-  // Patterns
-  const patterns = [
-    // Pattern 0: Flat run with enemies (增加地面敵人)
-    (x: number, y: number, diff: number) => {
-      const enemies: Enemy[] = [];
-      // 大幅增加敵人數量
-      const count = 2 + Math.floor(Math.random() * (2 + diff * 0.8));
-      for (let i = 0; i < count; i++) {
-        // 根據難度選擇敵人類型
-        let type: EnemyType = "normal";
-        if (diff >= 1 && Math.random() < 0.4) type = "fast";
-        if (diff >= 2 && Math.random() < 0.3) type = "jumper";
-        if (diff >= 3 && Math.random() < 0.2) type = "spiked";
-
-        const speed = 80 + diff * 15 + Math.random() * 30;
-        enemies.push({
-          x: x + 80 + i * 100,
-          y: y - 32,
-          w: 36,
-          h: 32,
-          dir: (Math.random() > 0.5 ? 1 : -1) as 1 | -1,
-          speed,
-          alive: true,
-          type,
-        });
-      }
-      return {
-        plats: [{ x, y, w: 500, h: 16 }],
-        enemies,
-        coins: [
-          { x: x + 100, y: y - 40, r: 10, taken: false },
-          { x: x + 250, y: y - 40, r: 10, taken: false },
-          { x: x + 400, y: y - 40, r: 10, taken: false },
-        ],
-      };
-    },
-    // Pattern 1: Stairs up
-    (x: number, y: number, diff: number) => ({
-      plats: [
-        { x, y, w: 120, h: 16 },
-        { x: x + 160, y: y - 60, w: 120, h: 16 },
-        { x: x + 320, y: y - 120, w: 120, h: 16 },
-      ],
-      enemies: [
-        {
-          x: x + 360,
-          y: y - 120 - 32,
-          w: 36,
-          h: 32,
-          dir: 1,
-          speed: 80,
-          alive: true,
-          type: diff > 2 ? "jumper" : "normal",
-        },
-      ],
-      coins: [
-        { x: x + 60, y: y - 40, r: 10, taken: false },
-        { x: x + 220, y: y - 100, r: 10, taken: false },
-        { x: x + 380, y: y - 160, r: 10, taken: false },
-      ],
-    }),
-    // Pattern 2: Gap jump
-    (x: number, y: number, diff: number) => ({
-      plats: [
-        { x, y, w: 100, h: 16 },
-        { x: x + 250, y: y, w: 100, h: 16 },
-      ],
-      enemies:
-        diff > 1
-          ? [
-              {
-                x: x + 270,
-                y: y - 32,
-                w: 36,
-                h: 32,
-                dir: 1,
-                speed: 120,
-                alive: true,
-                type: "fast",
-              },
-            ]
-          : [],
-      coins: [{ x: x + 175, y: y - 60, r: 10, taken: false }],
-    }),
-    // Pattern 3: Tunnel (low ceiling)
-    (x: number, y: number, diff: number) => ({
-      plats: [
-        { x, y, w: 400, h: 16 },
-        { x, y: y - 100, w: 400, h: 40 }, // Ceiling
-      ],
-      enemies: [
-        {
-          x: x + 200,
-          y: y - 32,
-          w: 36,
-          h: 32,
-          dir: 1,
-          speed: 120,
-          alive: true,
-          type: diff > 3 ? "spiked" : "fast",
-        },
-      ],
-      coins: [
-        { x: x + 50, y: y - 30, r: 10, taken: false },
-        { x: x + 350, y: y - 30, r: 10, taken: false },
-      ],
-    }),
-  ];
-
-  const platforms = base.platforms.map((p, i) =>
-    i === 0 ? { ...p, w: Math.max(p.w, newFlagX + 400) } : { ...p },
-  );
-
+  const platforms: Platform[] = base.platforms.map((p) => ({ ...p }));
   const enemies: Enemy[] = base.enemies.map((e) => ({
     ...e,
     type: "normal" as EnemyType,
@@ -255,22 +429,28 @@ export function extendLevel(
   const coins: Coin[] = base.coins.map((c) => ({ ...c }));
   const powerups: Powerup[] = base.powerups.map((p) => ({ ...p }));
 
+  const available = PATTERNS.filter((p) => p.minLevel <= idx);
+
   let currentX = extraOffset;
   let currentY = HEIGHT - 160;
 
-  while (currentX < newFlagX - 200) {
-    // Difficulty scaling
-    // Level 0: Pattern 0 only
-    // Level 1: Pattern 0, 1
-    // Level 2: Pattern 0, 1, 2
-    // Level 3+: All patterns
-    const availablePatterns = Math.min(patterns.length, idx + 1);
-    const patIdx = Math.floor(Math.random() * availablePatterns);
+  // 到 newFlagX - 800 為止，保證旗子前有一段完整的平地降落帶
+  while (currentX < newFlagX - 800) {
+    const def = available[Math.floor(Math.random() * available.length)];
+    const pat = def.fn(currentX, currentY, idx);
 
-    const pat = patterns[patIdx](currentX, currentY, idx);
+    // 地面：預設整段覆蓋；pattern 宣告 ground 時依區間鋪設（區間外為坑）
+    const segs = pat.ground ?? [{ start: 0, end: pat.advance }];
+    for (const g of segs) {
+      platforms.push({
+        x: currentX + g.start,
+        y: HEIGHT - 40,
+        w: g.end - g.start,
+        h: 60,
+      });
+    }
 
-    // Add pattern elements
-    pat.plats.forEach((p) => platforms.push(p as Platform));
+    pat.plats.forEach((p) => platforms.push(p));
     pat.enemies.forEach((e) => {
       // Randomize enemy type based on level index (difficulty)
       let type: EnemyType = "normal";
@@ -278,56 +458,53 @@ export function extendLevel(
       if (idx >= 1 && roll < 0.3) type = "fast";
       if (idx >= 2 && roll < 0.2) type = "jumper";
       if (idx >= 3 && roll < 0.15) type = "spiked";
-      // Override if pattern specified a type, otherwise use random
       if (e.type === "normal" && type !== "normal") e.type = type;
-
-      enemies.push(e as Enemy);
+      enemies.push(e);
     });
-    // 套用「敵人數量」設定：依倍率複製本段敵人，每段上限 5 隻
-    if (pat.enemies.length > 0 && settings.enemyMultiplier > 1) {
-      const target = Math.min(
-        5,
-        Math.round(pat.enemies.length * settings.enemyMultiplier),
-      );
-      for (let k = pat.enemies.length; k < target; k++) {
-        const src = pat.enemies[k % pat.enemies.length];
-        enemies.push({
-          ...(src as Enemy),
-          x: src.x + 50 + (k - pat.enemies.length) * 60,
-          dir: (Math.random() > 0.5 ? 1 : -1) as 1 | -1,
-        });
+    pat.coins.forEach((c) => coins.push(c));
+    pat.powerups?.forEach((pw) => powerups.push(pw));
+
+    // 只在無坑的段落加碼（複製敵人／地面巡邏敵），避免敵人生在坑上
+    if (!pat.ground) {
+      // 套用「敵人數量」設定：依倍率複製本段敵人，每段上限 5 隻
+      if (pat.enemies.length > 0 && settings.enemyMultiplier > 1) {
+        const target = Math.min(
+          5,
+          Math.round(pat.enemies.length * settings.enemyMultiplier),
+        );
+        for (let k = pat.enemies.length; k < target; k++) {
+          const src = pat.enemies[k % pat.enemies.length];
+          enemies.push({
+            ...src,
+            x: src.x + 50 + (k - pat.enemies.length) * 60,
+            dir: (Math.random() > 0.5 ? 1 : -1) as 1 | -1,
+          });
+        }
       }
-    }
-    pat.coins.forEach((c) => coins.push(c as Coin));
 
-    // Add ground-level enemies to prevent "just run through" strategy
-    // Spawn chance increases with difficulty level（乘上敵人數量設定）
-    const groundEnemyChance = Math.min(
-      Math.min(0.25 + idx * 0.1, 0.5) * settings.enemyMultiplier,
-      0.6,
-    );
-    if (Math.random() < groundEnemyChance) {
-      // Spawn 1-2 ground enemies per segment
-      const groundEnemyCount = 1 + (idx >= 2 && Math.random() < 0.4 ? 1 : 0);
-      for (let g = 0; g < groundEnemyCount; g++) {
-        // Randomize enemy type based on difficulty
-        let groundType: EnemyType = "normal";
-        const groundRoll = Math.random();
-        if (idx >= 1 && groundRoll < 0.35) groundType = "fast";
-        if (idx >= 2 && groundRoll < 0.25) groundType = "jumper";
-        if (idx >= 3 && groundRoll < 0.18) groundType = "spiked";
-
-        const groundSpeed = 70 + idx * 10 + Math.random() * 25;
-        enemies.push({
-          x: currentX + 120 + g * 180, // Spread enemies with 180px gap
-          y: HEIGHT - 72, // Ground level (same as BASE_LEVELS enemies)
-          w: 36,
-          h: 32,
-          dir: (Math.random() > 0.5 ? 1 : -1) as 1 | -1,
-          speed: groundSpeed,
-          alive: true,
-          type: groundType,
-        });
+      // 地面巡邏敵：防止「一路衝刺通關」（乘上敵人數量設定）
+      const groundEnemyChance = Math.min(
+        Math.min(0.25 + idx * 0.1, 0.5) * settings.enemyMultiplier,
+        0.6,
+      );
+      if (Math.random() < groundEnemyChance) {
+        const groundEnemyCount = 1 + (idx >= 2 && Math.random() < 0.4 ? 1 : 0);
+        for (let g = 0; g < groundEnemyCount; g++) {
+          let groundType: EnemyType = "normal";
+          const groundRoll = Math.random();
+          if (idx >= 1 && groundRoll < 0.35) groundType = "fast";
+          if (idx >= 2 && groundRoll < 0.25) groundType = "jumper";
+          if (idx >= 3 && groundRoll < 0.18) groundType = "spiked";
+          enemies.push(
+            enemyAt(
+              currentX + 120 + g * 180,
+              HEIGHT - 72,
+              70 + idx * 10 + Math.random() * 25,
+              groundType,
+              Math.random() > 0.5 ? 1 : -1,
+            ),
+          );
+        }
       }
     }
 
@@ -344,15 +521,21 @@ export function extendLevel(
       });
     }
 
-    currentX += 450;
-    // Randomize Y slightly for next segment, keep within bounds
-    // Expanded range to allow patterns closer to ground (HEIGHT - 60)
+    currentX += pat.advance;
     currentY = clamp(
       currentY + (Math.random() > 0.5 ? 50 : -50),
       HEIGHT - 300,
       HEIGHT - 60,
     );
   }
+
+  // 旗子前的平地降落帶
+  platforms.push({
+    x: currentX,
+    y: HEIGHT - 40,
+    w: newFlagX + 400 - currentX,
+    h: 60,
+  });
 
   return {
     ...base,
@@ -364,1182 +547,370 @@ export function extendLevel(
   };
 }
 
+// === 手工關卡：每關輪廓貼合主題（地面段以 h:60 鋪設，坑寬 ≤ 220） ===
+
 export const BASE_LEVELS: Level[] = [
+  // L1 草原：平緩入門，三座浮台
   {
     theme: THEMES.grassland,
     platforms: [
-      { x: 0, y: HEIGHT - 40, w: 2400, h: 40 },
+      { x: 0, y: HEIGHT - 40, w: 1250, h: 60 },
       { x: 200, y: HEIGHT - 140, w: 120, h: 16 },
       { x: 420, y: HEIGHT - 210, w: 150, h: 16 },
       { x: 680, y: HEIGHT - 180, w: 160, h: 16 },
     ],
     enemies: [
-      {
-        x: 260,
-        y: HEIGHT - 72,
-        w: 36,
-        h: 32,
-        dir: -1,
-        speed: 70,
-        alive: true,
-        type: "normal",
-      },
-      {
-        x: 450,
-        y: HEIGHT - 72,
-        w: 36,
-        h: 32,
-        dir: 1,
-        speed: 80,
-        alive: true,
-        type: "normal",
-      },
-      {
-        x: 650,
-        y: HEIGHT - 72,
-        w: 36,
-        h: 32,
-        dir: -1,
-        speed: 90,
-        alive: true,
-        type: "fast",
-      },
+      enemyAt(320, HEIGHT - 72, 70),
+      enemyAt(560, HEIGHT - 72, 80, "normal", -1),
+      enemyAt(840, HEIGHT - 72, 90),
     ],
     coins: [
-      { x: 160, y: HEIGHT - 200, r: 10, taken: false },
-      { x: 420, y: HEIGHT - 260, r: 10, taken: false },
-      { x: 720, y: HEIGHT - 220, r: 10, taken: false },
+      coinAt(250, HEIGHT - 180),
+      coinAt(470, HEIGHT - 250),
+      coinAt(740, HEIGHT - 220),
     ],
     powerups: [{ x: 640, y: HEIGHT - 220, r: 14, type: "boot", taken: false }],
     flag: { x: 950, y: HEIGHT - 180, h: 180 },
   },
+  // L2 森林：樹樁階梯（厚台階），上下起伏
   {
     theme: THEMES.forest,
     platforms: [
-      { x: 0, y: HEIGHT - 40, w: 2600, h: 40 },
-      { x: 240, y: HEIGHT - 170, w: 140, h: 16 },
-      { x: 520, y: HEIGHT - 240, w: 180, h: 16 },
-      { x: 840, y: HEIGHT - 180, w: 160, h: 16 },
-      { x: 1120, y: HEIGHT - 130, w: 160, h: 16 },
+      { x: 0, y: HEIGHT - 40, w: 1580, h: 60 },
+      { x: 240, y: HEIGHT - 100, w: 100, h: 60 }, // 矮樹樁
+      { x: 420, y: HEIGHT - 160, w: 100, h: 120 }, // 高樹樁
+      { x: 640, y: HEIGHT - 100, w: 100, h: 60 }, // 矮樹樁
+      { x: 850, y: HEIGHT - 200, w: 130, h: 16 },
+      { x: 1060, y: HEIGHT - 160, w: 140, h: 16 },
     ],
     enemies: [
-      {
-        x: 300,
-        y: HEIGHT - 72,
-        w: 36,
-        h: 32,
-        dir: 1,
-        speed: 80,
-        alive: true,
-        type: "normal",
-      },
-      {
-        x: 500,
-        y: HEIGHT - 72,
-        w: 36,
-        h: 32,
-        dir: -1,
-        speed: 90,
-        alive: true,
-        type: "fast",
-      },
-      {
-        x: 750,
-        y: HEIGHT - 72,
-        w: 36,
-        h: 32,
-        dir: 1,
-        speed: 85,
-        alive: true,
-        type: "normal",
-      },
-      {
-        x: 1000,
-        y: HEIGHT - 72,
-        w: 36,
-        h: 32,
-        dir: -1,
-        speed: 75,
-        alive: true,
-        type: "jumper",
-      },
-      {
-        x: 880,
-        y: HEIGHT - 212,
-        w: 36,
-        h: 32,
-        dir: -1,
-        speed: 70,
-        alive: true,
-        type: "normal",
-      },
+      enemyAt(180, HEIGHT - 72, 80),
+      enemyAt(560, HEIGHT - 72, 90, "normal", -1),
+      enemyAt(760, HEIGHT - 72, 85),
+      enemyAt(980, HEIGHT - 72, 75, "normal", -1),
+      enemyAt(1180, HEIGHT - 72, 70),
     ],
     coins: [
-      { x: 250, y: HEIGHT - 210, r: 10, taken: false },
-      { x: 520, y: HEIGHT - 280, r: 10, taken: false },
-      { x: 1120, y: HEIGHT - 170, r: 10, taken: false },
+      coinAt(290, HEIGHT - 140),
+      coinAt(470, HEIGHT - 200),
+      coinAt(905, HEIGHT - 240),
+      coinAt(1120, HEIGHT - 200),
     ],
     powerups: [
-      { x: 980, y: HEIGHT - 220, r: 14, type: "feather", taken: false },
+      { x: 690, y: HEIGHT - 150, r: 14, type: "feather", taken: false },
     ],
     flag: { x: 1280, y: HEIGHT - 180, h: 180 },
   },
+  // L3 湖畔：第一次出現坑洞——先給一座橋，再來一個要跳的小坑
   {
     theme: THEMES.lake,
     platforms: [
-      { x: 0, y: HEIGHT - 40, w: 2600, h: 40 },
-      { x: 300, y: HEIGHT - 160, w: 120, h: 16 },
-      { x: 520, y: HEIGHT - 220, w: 140, h: 16 },
-      { x: 780, y: HEIGHT - 260, w: 160, h: 16 },
-      { x: 1040, y: HEIGHT - 200, w: 160, h: 16 },
-      { x: 1300, y: HEIGHT - 150, w: 160, h: 16 },
+      { x: 0, y: HEIGHT - 40, w: 620, h: 60 },
+      { x: 620, y: HEIGHT - 40, w: 190, h: 14 }, // 木橋（橋下是水）
+      { x: 810, y: HEIGHT - 40, w: 310, h: 60 },
+      { x: 1330, y: HEIGHT - 40, w: 490, h: 60 }, // 中間留 210px 的坑
+      { x: 300, y: HEIGHT - 160, w: 130, h: 16 },
+      { x: 940, y: HEIGHT - 200, w: 140, h: 16 },
+      { x: 1420, y: HEIGHT - 170, w: 140, h: 16 },
     ],
     enemies: [
-      {
-        x: 200,
-        y: HEIGHT - 72,
-        w: 36,
-        h: 32,
-        dir: 1,
-        speed: 85,
-        alive: true,
-        type: "normal",
-      },
-      {
-        x: 400,
-        y: HEIGHT - 72,
-        w: 36,
-        h: 32,
-        dir: -1,
-        speed: 100,
-        alive: true,
-        type: "fast",
-      },
-      {
-        x: 650,
-        y: HEIGHT - 72,
-        w: 36,
-        h: 32,
-        dir: 1,
-        speed: 80,
-        alive: true,
-        type: "jumper",
-      },
-      {
-        x: 900,
-        y: HEIGHT - 72,
-        w: 36,
-        h: 32,
-        dir: -1,
-        speed: 90,
-        alive: true,
-        type: "normal",
-      },
-      {
-        x: 1150,
-        y: HEIGHT - 72,
-        w: 36,
-        h: 32,
-        dir: 1,
-        speed: 95,
-        alive: true,
-        type: "spiked",
-      },
-      {
-        x: 560,
-        y: HEIGHT - 252,
-        w: 36,
-        h: 32,
-        dir: 1,
-        speed: 90,
-        alive: true,
-        type: "jumper",
-      },
-      {
-        x: 1320,
-        y: HEIGHT - 182,
-        w: 36,
-        h: 32,
-        dir: -1,
-        speed: 100,
-        alive: true,
-        type: "fast",
-      },
+      enemyAt(240, HEIGHT - 72, 85),
+      enemyAt(470, HEIGHT - 72, 100, "normal", -1),
+      enemyAt(700, HEIGHT - 72, 80), // 橋上
+      enemyAt(900, HEIGHT - 72, 90, "normal", -1),
+      enemyAt(1050, HEIGHT - 72, 95),
+      enemyAt(1480, HEIGHT - 72, 90, "normal", -1),
+      enemyAt(1650, HEIGHT - 72, 100),
     ],
     coins: [
-      { x: 320, y: HEIGHT - 200, r: 10, taken: false },
-      { x: 780, y: HEIGHT - 300, r: 10, taken: false },
-      { x: 1300, y: HEIGHT - 190, r: 10, taken: false },
+      coinAt(350, HEIGHT - 200),
+      coinAt(1160, HEIGHT - 130), // 坑上拋物線
+      coinAt(1225, HEIGHT - 170),
+      coinAt(1290, HEIGHT - 130),
     ],
-    powerups: [{ x: 900, y: HEIGHT - 320, r: 14, type: "star", taken: false }],
+    powerups: [{ x: 1000, y: HEIGHT - 240, r: 14, type: "star", taken: false }],
     flag: { x: 1520, y: HEIGHT - 180, h: 180 },
   },
+  // L4 洞穴：低矮隧道 + 岩台，無坑（黑暗關卡保持友善）
   {
     theme: THEMES.cave,
     platforms: [
-      { x: 0, y: HEIGHT - 40, w: 2800, h: 40 },
-      { x: 260, y: HEIGHT - 200, w: 140, h: 16 },
-      { x: 520, y: HEIGHT - 140, w: 140, h: 16 },
-      { x: 760, y: HEIGHT - 190, w: 140, h: 16 },
-      { x: 1000, y: HEIGHT - 240, w: 160, h: 16 },
-      { x: 1280, y: HEIGHT - 180, w: 160, h: 16 },
-      { x: 1520, y: HEIGHT - 130, w: 180, h: 16 },
+      { x: 0, y: HEIGHT - 40, w: 2060, h: 60 },
+      { x: 500, y: HEIGHT - 150, w: 320, h: 30 }, // 隧道頂 1
+      { x: 900, y: HEIGHT - 220, w: 130, h: 16 },
+      { x: 1200, y: HEIGHT - 150, w: 320, h: 30 }, // 隧道頂 2
+      { x: 1600, y: HEIGHT - 230, w: 140, h: 16 },
+      { x: 1750, y: HEIGHT - 120, w: 110, h: 80 }, // 岩塊
     ],
     enemies: [
-      {
-        x: 180,
-        y: HEIGHT - 72,
-        w: 36,
-        h: 32,
-        dir: 1,
-        speed: 90,
-        alive: true,
-        type: "normal",
-      },
-      {
-        x: 380,
-        y: HEIGHT - 72,
-        w: 36,
-        h: 32,
-        dir: -1,
-        speed: 110,
-        alive: true,
-        type: "fast",
-      },
-      {
-        x: 540,
-        y: HEIGHT - 72,
-        w: 36,
-        h: 32,
-        dir: -1,
-        speed: 100,
-        alive: true,
-        type: "jumper",
-      },
-      {
-        x: 850,
-        y: HEIGHT - 72,
-        w: 36,
-        h: 32,
-        dir: 1,
-        speed: 95,
-        alive: true,
-        type: "normal",
-      },
-      {
-        x: 1100,
-        y: HEIGHT - 72,
-        w: 36,
-        h: 32,
-        dir: -1,
-        speed: 105,
-        alive: true,
-        type: "spiked",
-      },
-      {
-        x: 1400,
-        y: HEIGHT - 72,
-        w: 36,
-        h: 32,
-        dir: 1,
-        speed: 100,
-        alive: true,
-        type: "fast",
-      },
-      {
-        x: 1300,
-        y: HEIGHT - 212,
-        w: 36,
-        h: 32,
-        dir: 1,
-        speed: 100,
-        alive: true,
-        type: "jumper",
-      },
+      enemyAt(300, HEIGHT - 72, 90),
+      enemyAt(600, HEIGHT - 72, 110, "normal", -1), // 隧道內
+      enemyAt(760, HEIGHT - 72, 100),
+      enemyAt(1000, HEIGHT - 72, 95, "normal", -1),
+      enemyAt(1300, HEIGHT - 72, 105), // 隧道內
+      enemyAt(1450, HEIGHT - 72, 100),
+      enemyAt(1920, HEIGHT - 72, 100, "normal", -1),
     ],
     coins: [
-      { x: 280, y: HEIGHT - 240, r: 10, taken: false },
-      { x: 760, y: HEIGHT - 230, r: 10, taken: false },
-      { x: 1280, y: HEIGHT - 220, r: 10, taken: false },
-      { x: 1520, y: HEIGHT - 170, r: 10, taken: false },
+      coinAt(560, HEIGHT - 80),
+      coinAt(760, HEIGHT - 80),
+      coinAt(1360, HEIGHT - 80),
+      coinAt(1660, HEIGHT - 270),
     ],
-    powerups: [{ x: 1180, y: HEIGHT - 280, r: 14, type: "boot", taken: false }],
+    powerups: [{ x: 950, y: HEIGHT - 260, r: 14, type: "star", taken: false }],
     flag: { x: 1760, y: HEIGHT - 180, h: 180 },
   },
+  // L5 沙漠：沙丘凸塊 + 兩座彈跳蘑菇上高台
   {
     theme: THEMES.desert,
     platforms: [
-      { x: 0, y: HEIGHT - 40, w: 3000, h: 40 },
-      { x: 280, y: HEIGHT - 160, w: 160, h: 16 },
-      { x: 560, y: HEIGHT - 200, w: 140, h: 16 },
-      { x: 840, y: HEIGHT - 240, w: 160, h: 16 },
-      { x: 1120, y: HEIGHT - 280, w: 140, h: 16 },
-      { x: 1400, y: HEIGHT - 240, w: 160, h: 16 },
-      { x: 1680, y: HEIGHT - 200, w: 140, h: 16 },
-      { x: 1960, y: HEIGHT - 160, w: 160, h: 16 },
+      { x: 0, y: HEIGHT - 40, w: 2460, h: 60 },
+      { x: 350, y: HEIGHT - 90, w: 140, h: 50 }, // 沙丘
+      { x: 800, y: HEIGHT - 100, w: 160, h: 60 }, // 沙丘
+      { x: 1150, y: HEIGHT - 56, w: 60, h: 16, kind: "spring" },
+      { x: 1230, y: HEIGHT - 260, w: 130, h: 16 },
+      { x: 1500, y: HEIGHT - 90, w: 140, h: 50 }, // 沙丘
+      { x: 1900, y: HEIGHT - 56, w: 60, h: 16, kind: "spring" },
+      { x: 1980, y: HEIGHT - 280, w: 130, h: 16 },
     ],
     enemies: [
-      {
-        x: 200,
-        y: HEIGHT - 72,
-        w: 36,
-        h: 32,
-        dir: 1,
-        speed: 95,
-        alive: true,
-        type: "normal",
-      },
-      {
-        x: 400,
-        y: HEIGHT - 72,
-        w: 36,
-        h: 32,
-        dir: -1,
-        speed: 115,
-        alive: true,
-        type: "fast",
-      },
-      {
-        x: 700,
-        y: HEIGHT - 72,
-        w: 36,
-        h: 32,
-        dir: 1,
-        speed: 100,
-        alive: true,
-        type: "jumper",
-      },
-      {
-        x: 1000,
-        y: HEIGHT - 72,
-        w: 36,
-        h: 32,
-        dir: -1,
-        speed: 110,
-        alive: true,
-        type: "spiked",
-      },
-      {
-        x: 1300,
-        y: HEIGHT - 72,
-        w: 36,
-        h: 32,
-        dir: 1,
-        speed: 105,
-        alive: true,
-        type: "normal",
-      },
-      {
-        x: 1550,
-        y: HEIGHT - 72,
-        w: 36,
-        h: 32,
-        dir: -1,
-        speed: 120,
-        alive: true,
-        type: "fast",
-      },
-      {
-        x: 1850,
-        y: HEIGHT - 72,
-        w: 36,
-        h: 32,
-        dir: 1,
-        speed: 100,
-        alive: true,
-        type: "jumper",
-      },
-      {
-        x: 620,
-        y: HEIGHT - 232,
-        w: 36,
-        h: 32,
-        dir: -1,
-        speed: 120,
-        alive: true,
-        type: "fast",
-      },
-      {
-        x: 1420,
-        y: HEIGHT - 272,
-        w: 36,
-        h: 32,
-        dir: 1,
-        speed: 120,
-        alive: true,
-        type: "jumper",
-      },
-      {
-        x: 1980,
-        y: HEIGHT - 192,
-        w: 36,
-        h: 32,
-        dir: -1,
-        speed: 100,
-        alive: true,
-        type: "spiked",
-      },
+      enemyAt(250, HEIGHT - 72, 95),
+      enemyAt(550, HEIGHT - 72, 115, "normal", -1),
+      enemyAt(700, HEIGHT - 72, 100),
+      enemyAt(1000, HEIGHT - 72, 110, "normal", -1),
+      enemyAt(1300, HEIGHT - 72, 105),
+      enemyAt(1440, HEIGHT - 72, 120, "normal", -1),
+      enemyAt(1700, HEIGHT - 72, 100),
+      enemyAt(2050, HEIGHT - 72, 120, "normal", -1),
+      enemyAt(2200, HEIGHT - 72, 120),
+      enemyAt(2320, HEIGHT - 72, 100, "normal", -1),
     ],
     coins: [
-      { x: 560, y: HEIGHT - 240, r: 10, taken: false },
-      { x: 1120, y: HEIGHT - 320, r: 10, taken: false },
-      { x: 1680, y: HEIGHT - 240, r: 10, taken: false },
-      { x: 1960, y: HEIGHT - 200, r: 10, taken: false },
+      coinAt(410, HEIGHT - 140),
+      coinAt(870, HEIGHT - 160),
+      coinAt(2010, HEIGHT - 320),
+      coinAt(2070, HEIGHT - 320),
+      coinAt(1560, HEIGHT - 140),
     ],
-    powerups: [{ x: 1520, y: HEIGHT - 300, r: 14, type: "star", taken: false }],
+    powerups: [
+      { x: 1290, y: HEIGHT - 300, r: 14, type: "heart", taken: false },
+    ],
     flag: { x: 2160, y: HEIGHT - 180, h: 180 },
   },
+  // L6 雲端：浮島連跳 + 第一座移動平台，兩個坑
   {
     theme: THEMES.clouds,
     platforms: [
-      { x: 0, y: HEIGHT - 40, w: 3200, h: 40 },
-      { x: 260, y: HEIGHT - 120, w: 160, h: 16 },
-      { x: 620, y: HEIGHT - 180, w: 180, h: 16 },
-      { x: 900, y: HEIGHT - 220, w: 140, h: 16 },
-      { x: 1180, y: HEIGHT - 260, w: 140, h: 16 },
-      { x: 1460, y: HEIGHT - 210, w: 160, h: 16 },
-      { x: 1740, y: HEIGHT - 180, w: 180, h: 16 },
-      { x: 2020, y: HEIGHT - 240, w: 160, h: 16 },
-      { x: 2300, y: HEIGHT - 200, w: 180, h: 16 },
+      { x: 0, y: HEIGHT - 40, w: 700, h: 60 },
+      { x: 920, y: HEIGHT - 40, w: 640, h: 60 }, // 坑1 700–920（220）
+      { x: 1780, y: HEIGHT - 40, w: 1040, h: 60 }, // 坑2 1560–1780（220）
+      { x: 735, y: HEIGHT - 150, w: 70, h: 16 }, // 坑1 浮島
+      { x: 845, y: HEIGHT - 170, w: 70, h: 16 },
+      {
+        x: 1615,
+        y: HEIGHT - 160,
+        w: 110,
+        h: 16,
+        kind: "moving",
+        move: { axis: "x", range: 70, speed: 1.5 },
+      },
+      { x: 300, y: HEIGHT - 180, w: 130, h: 16 },
+      { x: 1150, y: HEIGHT - 220, w: 140, h: 16 },
+      { x: 2100, y: HEIGHT - 200, w: 150, h: 16 },
+      { x: 2350, y: HEIGHT - 260, w: 120, h: 16 },
     ],
     enemies: [
-      {
-        x: 180,
-        y: HEIGHT - 72,
-        w: 36,
-        h: 32,
-        dir: 1,
-        speed: 100,
-        alive: true,
-        type: "normal",
-      },
-      {
-        x: 400,
-        y: HEIGHT - 72,
-        w: 36,
-        h: 32,
-        dir: -1,
-        speed: 120,
-        alive: true,
-        type: "fast",
-      },
-      {
-        x: 650,
-        y: HEIGHT - 72,
-        w: 36,
-        h: 32,
-        dir: 1,
-        speed: 95,
-        alive: true,
-        type: "jumper",
-      },
-      {
-        x: 950,
-        y: HEIGHT - 72,
-        w: 36,
-        h: 32,
-        dir: -1,
-        speed: 110,
-        alive: true,
-        type: "spiked",
-      },
-      {
-        x: 1200,
-        y: HEIGHT - 72,
-        w: 36,
-        h: 32,
-        dir: 1,
-        speed: 105,
-        alive: true,
-        type: "normal",
-      },
-      {
-        x: 1500,
-        y: HEIGHT - 72,
-        w: 36,
-        h: 32,
-        dir: -1,
-        speed: 125,
-        alive: true,
-        type: "fast",
-      },
-      {
-        x: 1800,
-        y: HEIGHT - 72,
-        w: 36,
-        h: 32,
-        dir: 1,
-        speed: 100,
-        alive: true,
-        type: "jumper",
-      },
-      {
-        x: 2100,
-        y: HEIGHT - 72,
-        w: 36,
-        h: 32,
-        dir: -1,
-        speed: 115,
-        alive: true,
-        type: "spiked",
-      },
-      {
-        x: 280,
-        y: HEIGHT - 152,
-        w: 36,
-        h: 32,
-        dir: -1,
-        speed: 90,
-        alive: true,
-        type: "normal",
-      },
-      {
-        x: 960,
-        y: HEIGHT - 252,
-        w: 36,
-        h: 32,
-        dir: 1,
-        speed: 110,
-        alive: true,
-        type: "fast",
-      },
-      {
-        x: 1760,
-        y: HEIGHT - 212,
-        w: 36,
-        h: 32,
-        dir: -1,
-        speed: 120,
-        alive: true,
-        type: "jumper",
-      },
+      enemyAt(200, HEIGHT - 72, 100),
+      enemyAt(450, HEIGHT - 72, 120, "normal", -1),
+      enemyAt(600, HEIGHT - 72, 95),
+      enemyAt(1000, HEIGHT - 72, 110, "normal", -1),
+      enemyAt(1180, HEIGHT - 72, 105),
+      enemyAt(1350, HEIGHT - 72, 125, "normal", -1),
+      enemyAt(1480, HEIGHT - 72, 100),
+      enemyAt(1900, HEIGHT - 72, 115, "normal", -1),
+      enemyAt(2100, HEIGHT - 72, 90),
+      enemyAt(2250, HEIGHT - 72, 110, "normal", -1),
+      enemyAt(2450, HEIGHT - 72, 120),
     ],
     coins: [
-      { x: 620, y: HEIGHT - 220, r: 10, taken: false },
-      { x: 1180, y: HEIGHT - 300, r: 10, taken: false },
-      { x: 1740, y: HEIGHT - 220, r: 10, taken: false },
-      { x: 2020, y: HEIGHT - 280, r: 10, taken: false },
+      coinAt(770, HEIGHT - 200), // 坑1 上
+      coinAt(880, HEIGHT - 220),
+      coinAt(1670, HEIGHT - 220), // 坑2 移動平台上方
+      coinAt(1210, HEIGHT - 260),
     ],
     powerups: [
-      { x: 1320, y: HEIGHT - 320, r: 14, type: "feather", taken: false },
+      { x: 1200, y: HEIGHT - 260, r: 14, type: "feather", taken: false },
     ],
     flag: { x: 2520, y: HEIGHT - 180, h: 180 },
   },
+  // L7 雪地：大雪階金字塔 + 彈跳蘑菇上高崖
   {
     theme: THEMES.snow,
     platforms: [
-      { x: 0, y: HEIGHT - 40, w: 3400, h: 40 },
-      { x: 320, y: HEIGHT - 200, w: 160, h: 16 },
-      { x: 620, y: HEIGHT - 140, w: 140, h: 16 },
-      { x: 900, y: HEIGHT - 220, w: 160, h: 16 },
-      { x: 1160, y: HEIGHT - 260, w: 140, h: 16 },
-      { x: 1440, y: HEIGHT - 220, w: 180, h: 16 },
-      { x: 1720, y: HEIGHT - 180, w: 160, h: 16 },
-      { x: 2000, y: HEIGHT - 160, w: 140, h: 16 },
-      { x: 2240, y: HEIGHT - 220, w: 160, h: 16 },
-      { x: 2500, y: HEIGHT - 260, w: 140, h: 16 },
+      { x: 0, y: HEIGHT - 40, w: 3020, h: 60 },
+      { x: 600, y: HEIGHT - 100, w: 180, h: 60 }, // 雪階
+      { x: 780, y: HEIGHT - 160, w: 180, h: 120 }, // 雪階（高）
+      { x: 960, y: HEIGHT - 100, w: 180, h: 60 }, // 雪階
+      { x: 1400, y: HEIGHT - 56, w: 60, h: 16, kind: "spring" },
+      { x: 1480, y: HEIGHT - 300, w: 140, h: 16 }, // 高崖
+      { x: 1800, y: HEIGHT - 120, w: 220, h: 80 }, // 大雪塊
+      { x: 2300, y: HEIGHT - 180, w: 140, h: 16 },
+      { x: 2550, y: HEIGHT - 240, w: 130, h: 16 },
     ],
     enemies: [
-      {
-        x: 200,
-        y: HEIGHT - 72,
-        w: 36,
-        h: 32,
-        dir: 1,
-        speed: 105,
-        alive: true,
-        type: "normal",
-      },
-      {
-        x: 450,
-        y: HEIGHT - 72,
-        w: 36,
-        h: 32,
-        dir: -1,
-        speed: 130,
-        alive: true,
-        type: "fast",
-      },
-      {
-        x: 750,
-        y: HEIGHT - 72,
-        w: 36,
-        h: 32,
-        dir: 1,
-        speed: 100,
-        alive: true,
-        type: "jumper",
-      },
-      {
-        x: 1050,
-        y: HEIGHT - 72,
-        w: 36,
-        h: 32,
-        dir: -1,
-        speed: 120,
-        alive: true,
-        type: "spiked",
-      },
-      {
-        x: 1350,
-        y: HEIGHT - 72,
-        w: 36,
-        h: 32,
-        dir: 1,
-        speed: 110,
-        alive: true,
-        type: "normal",
-      },
-      {
-        x: 1600,
-        y: HEIGHT - 72,
-        w: 36,
-        h: 32,
-        dir: -1,
-        speed: 135,
-        alive: true,
-        type: "fast",
-      },
-      {
-        x: 1900,
-        y: HEIGHT - 72,
-        w: 36,
-        h: 32,
-        dir: 1,
-        speed: 105,
-        alive: true,
-        type: "jumper",
-      },
-      {
-        x: 2150,
-        y: HEIGHT - 72,
-        w: 36,
-        h: 32,
-        dir: -1,
-        speed: 125,
-        alive: true,
-        type: "spiked",
-      },
-      {
-        x: 2400,
-        y: HEIGHT - 72,
-        w: 36,
-        h: 32,
-        dir: 1,
-        speed: 115,
-        alive: true,
-        type: "fast",
-      },
-      {
-        x: 360,
-        y: HEIGHT - 232,
-        w: 36,
-        h: 32,
-        dir: 1,
-        speed: 120,
-        alive: true,
-        type: "jumper",
-      },
-      {
-        x: 1480,
-        y: HEIGHT - 252,
-        w: 36,
-        h: 32,
-        dir: -1,
-        speed: 130,
-        alive: true,
-        type: "spiked",
-      },
-      {
-        x: 2260,
-        y: HEIGHT - 252,
-        w: 36,
-        h: 32,
-        dir: 1,
-        speed: 140,
-        alive: true,
-        type: "fast",
-      },
+      enemyAt(250, HEIGHT - 72, 105),
+      enemyAt(450, HEIGHT - 72, 130, "normal", -1),
+      enemyAt(680, HEIGHT - 132, 100), // 雪階上
+      enemyAt(1100, HEIGHT - 72, 120, "normal", -1),
+      enemyAt(1250, HEIGHT - 72, 110),
+      enemyAt(1600, HEIGHT - 72, 135, "normal", -1),
+      enemyAt(1880, HEIGHT - 152, 105), // 雪塊上
+      enemyAt(2100, HEIGHT - 72, 125, "normal", -1),
+      enemyAt(2250, HEIGHT - 72, 115),
+      enemyAt(2500, HEIGHT - 72, 120, "normal", -1),
+      enemyAt(2700, HEIGHT - 72, 130),
+      enemyAt(2850, HEIGHT - 72, 140, "normal", -1),
     ],
     coins: [
-      { x: 320, y: HEIGHT - 240, r: 10, taken: false },
-      { x: 900, y: HEIGHT - 260, r: 10, taken: false },
-      { x: 1720, y: HEIGHT - 220, r: 10, taken: false },
-      { x: 2500, y: HEIGHT - 300, r: 10, taken: false },
+      coinAt(870, HEIGHT - 200),
+      coinAt(1440, HEIGHT - 160),
+      coinAt(2360, HEIGHT - 220),
+      coinAt(2610, HEIGHT - 280),
     ],
-    powerups: [{ x: 1860, y: HEIGHT - 320, r: 14, type: "star", taken: false }],
+    powerups: [
+      { x: 1540, y: HEIGHT - 340, r: 14, type: "star", taken: false },
+    ],
     flag: { x: 2720, y: HEIGHT - 180, h: 180 },
   },
+  // L8 黃昏：懸崖峭壁地形（可攀爬的大岩壁）+ 一個峽谷坑
   {
     theme: THEMES.dusk,
     platforms: [
-      { x: 0, y: HEIGHT - 40, w: 3600, h: 40 },
-      { x: 360, y: HEIGHT - 160, w: 160, h: 16 },
-      { x: 680, y: HEIGHT - 210, w: 160, h: 16 },
-      { x: 940, y: HEIGHT - 250, w: 160, h: 16 },
-      { x: 1200, y: HEIGHT - 190, w: 160, h: 16 },
-      { x: 1460, y: HEIGHT - 150, w: 160, h: 16 },
-      { x: 1720, y: HEIGHT - 200, w: 180, h: 16 },
-      { x: 2000, y: HEIGHT - 240, w: 160, h: 16 },
-      { x: 2280, y: HEIGHT - 200, w: 160, h: 16 },
-      { x: 2560, y: HEIGHT - 160, w: 160, h: 16 },
+      { x: 0, y: HEIGHT - 40, w: 1500, h: 60 },
+      { x: 1700, y: HEIGHT - 40, w: 1400, h: 60 }, // 峽谷 1500–1700（200）
+      { x: 500, y: HEIGHT - 120, w: 240, h: 80 }, // 岩壁 1
+      { x: 740, y: HEIGHT - 200, w: 240, h: 160 }, // 岩壁 2（最高）
+      { x: 980, y: HEIGHT - 120, w: 240, h: 80 }, // 岩壁 3
+      { x: 2100, y: HEIGHT - 140, w: 200, h: 100 }, // 對岸岩台
+      { x: 2500, y: HEIGHT - 200, w: 140, h: 16 },
     ],
     enemies: [
-      {
-        x: 200,
-        y: HEIGHT - 72,
-        w: 36,
-        h: 32,
-        dir: 1,
-        speed: 110,
-        alive: true,
-        type: "normal",
-      },
-      {
-        x: 480,
-        y: HEIGHT - 72,
-        w: 36,
-        h: 32,
-        dir: -1,
-        speed: 140,
-        alive: true,
-        type: "fast",
-      },
-      {
-        x: 800,
-        y: HEIGHT - 72,
-        w: 36,
-        h: 32,
-        dir: 1,
-        speed: 105,
-        alive: true,
-        type: "jumper",
-      },
-      {
-        x: 1100,
-        y: HEIGHT - 72,
-        w: 36,
-        h: 32,
-        dir: -1,
-        speed: 130,
-        alive: true,
-        type: "spiked",
-      },
-      {
-        x: 1400,
-        y: HEIGHT - 72,
-        w: 36,
-        h: 32,
-        dir: 1,
-        speed: 115,
-        alive: true,
-        type: "normal",
-      },
-      {
-        x: 1650,
-        y: HEIGHT - 72,
-        w: 36,
-        h: 32,
-        dir: -1,
-        speed: 145,
-        alive: true,
-        type: "fast",
-      },
-      {
-        x: 1950,
-        y: HEIGHT - 72,
-        w: 36,
-        h: 32,
-        dir: 1,
-        speed: 110,
-        alive: true,
-        type: "jumper",
-      },
-      {
-        x: 2200,
-        y: HEIGHT - 72,
-        w: 36,
-        h: 32,
-        dir: -1,
-        speed: 135,
-        alive: true,
-        type: "spiked",
-      },
-      {
-        x: 2450,
-        y: HEIGHT - 72,
-        w: 36,
-        h: 32,
-        dir: 1,
-        speed: 120,
-        alive: true,
-        type: "fast",
-      },
-      {
-        x: 380,
-        y: HEIGHT - 192,
-        w: 36,
-        h: 32,
-        dir: -1,
-        speed: 120,
-        alive: true,
-        type: "jumper",
-      },
-      {
-        x: 1220,
-        y: HEIGHT - 222,
-        w: 36,
-        h: 32,
-        dir: 1,
-        speed: 140,
-        alive: true,
-        type: "spiked",
-      },
-      {
-        x: 2020,
-        y: HEIGHT - 272,
-        w: 36,
-        h: 32,
-        dir: -1,
-        speed: 150,
-        alive: true,
-        type: "fast",
-      },
+      enemyAt(300, HEIGHT - 72, 110),
+      enemyAt(850, HEIGHT - 232, 105), // 岩壁頂
+      enemyAt(1100, HEIGHT - 152, 130, "normal", -1),
+      enemyAt(1300, HEIGHT - 72, 115),
+      enemyAt(1800, HEIGHT - 72, 145, "normal", -1),
+      enemyAt(1950, HEIGHT - 72, 110),
+      enemyAt(2180, HEIGHT - 172, 135), // 岩台上
+      enemyAt(2400, HEIGHT - 72, 120, "normal", -1),
+      enemyAt(2600, HEIGHT - 72, 120),
+      enemyAt(2750, HEIGHT - 72, 140, "normal", -1),
+      enemyAt(2900, HEIGHT - 72, 150),
+      enemyAt(1420, HEIGHT - 72, 105),
     ],
     coins: [
-      { x: 360, y: HEIGHT - 200, r: 10, taken: false },
-      { x: 940, y: HEIGHT - 290, r: 10, taken: false },
-      { x: 1720, y: HEIGHT - 240, r: 10, taken: false },
-      { x: 2280, y: HEIGHT - 240, r: 10, taken: false },
+      coinAt(860, HEIGHT - 240),
+      coinAt(1560, HEIGHT - 130), // 峽谷上
+      coinAt(1620, HEIGHT - 160),
+      coinAt(2550, HEIGHT - 240),
     ],
-    powerups: [
-      { x: 1340, y: HEIGHT - 280, r: 14, type: "feather", taken: false },
-    ],
+    powerups: [{ x: 1680, y: HEIGHT - 60, r: 14, type: "boot", taken: false }],
     flag: { x: 2800, y: HEIGHT - 180, h: 180 },
   },
+  // L9 夜晚：兩座垂直高塔（之字形攀爬拿獎勵）
   {
     theme: THEMES.night,
     platforms: [
-      { x: 0, y: HEIGHT - 40, w: 3800, h: 40 },
-      { x: 380, y: HEIGHT - 140, w: 160, h: 16 },
-      { x: 720, y: HEIGHT - 200, w: 160, h: 16 },
-      { x: 1040, y: HEIGHT - 240, w: 160, h: 16 },
-      { x: 1320, y: HEIGHT - 280, w: 160, h: 16 },
-      { x: 1600, y: HEIGHT - 220, w: 180, h: 16 },
-      { x: 1880, y: HEIGHT - 180, w: 180, h: 16 },
-      { x: 2160, y: HEIGHT - 220, w: 160, h: 16 },
-      { x: 2440, y: HEIGHT - 260, w: 160, h: 16 },
-      { x: 2720, y: HEIGHT - 200, w: 180, h: 16 },
-      { x: 3000, y: HEIGHT - 160, w: 180, h: 16 },
+      { x: 0, y: HEIGHT - 40, w: 3520, h: 60 },
+      // 塔 1
+      { x: 700, y: HEIGHT - 140, w: 120, h: 16 },
+      { x: 860, y: HEIGHT - 220, w: 120, h: 16 },
+      { x: 700, y: HEIGHT - 300, w: 120, h: 16 },
+      // 塔 2
+      { x: 2200, y: HEIGHT - 150, w: 120, h: 16 },
+      { x: 2360, y: HEIGHT - 230, w: 120, h: 16 },
+      { x: 2200, y: HEIGHT - 310, w: 120, h: 16 },
+      // 中途休息點
+      { x: 1400, y: HEIGHT - 180, w: 140, h: 16 },
+      { x: 2800, y: HEIGHT - 200, w: 140, h: 16 },
     ],
     enemies: [
-      {
-        x: 220,
-        y: HEIGHT - 72,
-        w: 36,
-        h: 32,
-        dir: 1,
-        speed: 115,
-        alive: true,
-        type: "normal",
-      },
-      {
-        x: 520,
-        y: HEIGHT - 72,
-        w: 36,
-        h: 32,
-        dir: -1,
-        speed: 150,
-        alive: true,
-        type: "fast",
-      },
-      {
-        x: 850,
-        y: HEIGHT - 72,
-        w: 36,
-        h: 32,
-        dir: 1,
-        speed: 110,
-        alive: true,
-        type: "jumper",
-      },
-      {
-        x: 1150,
-        y: HEIGHT - 72,
-        w: 36,
-        h: 32,
-        dir: -1,
-        speed: 140,
-        alive: true,
-        type: "spiked",
-      },
-      {
-        x: 1450,
-        y: HEIGHT - 72,
-        w: 36,
-        h: 32,
-        dir: 1,
-        speed: 120,
-        alive: true,
-        type: "normal",
-      },
-      {
-        x: 1750,
-        y: HEIGHT - 72,
-        w: 36,
-        h: 32,
-        dir: -1,
-        speed: 155,
-        alive: true,
-        type: "fast",
-      },
-      {
-        x: 2050,
-        y: HEIGHT - 72,
-        w: 36,
-        h: 32,
-        dir: 1,
-        speed: 115,
-        alive: true,
-        type: "jumper",
-      },
-      {
-        x: 2350,
-        y: HEIGHT - 72,
-        w: 36,
-        h: 32,
-        dir: -1,
-        speed: 145,
-        alive: true,
-        type: "spiked",
-      },
-      {
-        x: 2650,
-        y: HEIGHT - 72,
-        w: 36,
-        h: 32,
-        dir: 1,
-        speed: 125,
-        alive: true,
-        type: "fast",
-      },
-      {
-        x: 2900,
-        y: HEIGHT - 72,
-        w: 36,
-        h: 32,
-        dir: -1,
-        speed: 130,
-        alive: true,
-        type: "jumper",
-      },
-      {
-        x: 760,
-        y: HEIGHT - 232,
-        w: 36,
-        h: 32,
-        dir: -1,
-        speed: 130,
-        alive: true,
-        type: "spiked",
-      },
-      {
-        x: 1620,
-        y: HEIGHT - 252,
-        w: 36,
-        h: 32,
-        dir: 1,
-        speed: 150,
-        alive: true,
-        type: "fast",
-      },
-      {
-        x: 2460,
-        y: HEIGHT - 292,
-        w: 36,
-        h: 32,
-        dir: -1,
-        speed: 160,
-        alive: true,
-        type: "jumper",
-      },
+      enemyAt(300, HEIGHT - 72, 115),
+      enemyAt(500, HEIGHT - 72, 150, "normal", -1),
+      enemyAt(900, HEIGHT - 72, 110),
+      enemyAt(1100, HEIGHT - 72, 140, "normal", -1),
+      enemyAt(1300, HEIGHT - 72, 120),
+      enemyAt(1460, HEIGHT - 212, 115), // 休息點上
+      enemyAt(1700, HEIGHT - 72, 155, "normal", -1),
+      enemyAt(1900, HEIGHT - 72, 115),
+      enemyAt(2100, HEIGHT - 72, 145, "normal", -1),
+      enemyAt(2500, HEIGHT - 72, 125),
+      enemyAt(2700, HEIGHT - 72, 130, "normal", -1),
+      enemyAt(2950, HEIGHT - 72, 130),
+      enemyAt(3150, HEIGHT - 72, 150, "normal", -1),
     ],
     coins: [
-      { x: 720, y: HEIGHT - 240, r: 10, taken: false },
-      { x: 1320, y: HEIGHT - 320, r: 10, taken: false },
-      { x: 1880, y: HEIGHT - 220, r: 10, taken: false },
-      { x: 2720, y: HEIGHT - 240, r: 10, taken: false },
+      coinAt(760, HEIGHT - 340), // 塔1 頂
+      coinAt(2260, HEIGHT - 350), // 塔2 頂
+      coinAt(1460, HEIGHT - 220),
+      coinAt(2860, HEIGHT - 240),
     ],
-    powerups: [{ x: 2100, y: HEIGHT - 300, r: 14, type: "star", taken: false }],
+    powerups: [
+      { x: 2260, y: HEIGHT - 350, r: 14, type: "star", taken: false },
+      { x: 1460, y: HEIGHT - 220, r: 14, type: "heart", taken: false },
+    ],
     flag: { x: 3220, y: HEIGHT - 180, h: 180 },
   },
+  // L10 星空大結局：浮島、移動平台、彈跳蘑菇全部登場，兩個坑
   {
     theme: THEMES.starry,
     platforms: [
-      { x: 0, y: HEIGHT - 40, w: 4000, h: 40 },
-      { x: 420, y: HEIGHT - 190, w: 160, h: 16 },
-      { x: 760, y: HEIGHT - 140, w: 160, h: 16 },
-      { x: 1080, y: HEIGHT - 220, w: 160, h: 16 },
-      { x: 1360, y: HEIGHT - 260, w: 160, h: 16 },
-      { x: 1640, y: HEIGHT - 220, w: 180, h: 16 },
-      { x: 1920, y: HEIGHT - 200, w: 180, h: 16 },
-      { x: 2200, y: HEIGHT - 240, w: 180, h: 16 },
-      { x: 2480, y: HEIGHT - 280, w: 160, h: 16 },
-      { x: 2760, y: HEIGHT - 240, w: 180, h: 16 },
-      { x: 3040, y: HEIGHT - 200, w: 180, h: 16 },
+      { x: 0, y: HEIGHT - 40, w: 900, h: 60 },
+      { x: 1120, y: HEIGHT - 40, w: 930, h: 60 }, // 坑1 900–1120（220）
+      { x: 2270, y: HEIGHT - 40, w: 1330, h: 60 }, // 坑2 2050–2270（220）
+      { x: 935, y: HEIGHT - 150, w: 70, h: 16 }, // 坑1 浮島
+      { x: 1040, y: HEIGHT - 180, w: 70, h: 16 },
+      {
+        x: 2085,
+        y: HEIGHT - 170,
+        w: 110,
+        h: 16,
+        kind: "moving",
+        move: { axis: "x", range: 70, speed: 1.6 },
+      },
+      { x: 1600, y: HEIGHT - 56, w: 60, h: 16, kind: "spring" },
+      { x: 1690, y: HEIGHT - 300, w: 140, h: 16 }, // 彈簧高台
+      { x: 400, y: HEIGHT - 180, w: 130, h: 16 },
+      { x: 2600, y: HEIGHT - 220, w: 140, h: 16 },
+      { x: 2900, y: HEIGHT - 160, w: 130, h: 16 },
+      { x: 3050, y: HEIGHT - 260, w: 120, h: 16 },
     ],
     enemies: [
-      // 地面怪物 - 最終關卡最具挑戰性
-      {
-        x: 250,
-        y: HEIGHT - 72,
-        w: 36,
-        h: 32,
-        dir: 1,
-        speed: 120,
-        alive: true,
-        type: "normal",
-      },
-      {
-        x: 550,
-        y: HEIGHT - 72,
-        w: 36,
-        h: 32,
-        dir: -1,
-        speed: 160,
-        alive: true,
-        type: "fast",
-      },
-      {
-        x: 900,
-        y: HEIGHT - 72,
-        w: 36,
-        h: 32,
-        dir: 1,
-        speed: 115,
-        alive: true,
-        type: "jumper",
-      },
-      {
-        x: 1200,
-        y: HEIGHT - 72,
-        w: 36,
-        h: 32,
-        dir: -1,
-        speed: 150,
-        alive: true,
-        type: "spiked",
-      },
-      {
-        x: 1500,
-        y: HEIGHT - 72,
-        w: 36,
-        h: 32,
-        dir: 1,
-        speed: 125,
-        alive: true,
-        type: "normal",
-      },
-      {
-        x: 1800,
-        y: HEIGHT - 72,
-        w: 36,
-        h: 32,
-        dir: -1,
-        speed: 165,
-        alive: true,
-        type: "fast",
-      },
-      {
-        x: 2100,
-        y: HEIGHT - 72,
-        w: 36,
-        h: 32,
-        dir: 1,
-        speed: 120,
-        alive: true,
-        type: "jumper",
-      },
-      {
-        x: 2400,
-        y: HEIGHT - 72,
-        w: 36,
-        h: 32,
-        dir: -1,
-        speed: 155,
-        alive: true,
-        type: "spiked",
-      },
-      {
-        x: 2700,
-        y: HEIGHT - 72,
-        w: 36,
-        h: 32,
-        dir: 1,
-        speed: 130,
-        alive: true,
-        type: "fast",
-      },
-      {
-        x: 3000,
-        y: HEIGHT - 72,
-        w: 36,
-        h: 32,
-        dir: -1,
-        speed: 140,
-        alive: true,
-        type: "jumper",
-      },
-      // 平台怪物
-      {
-        x: 440,
-        y: HEIGHT - 222,
-        w: 36,
-        h: 32,
-        dir: 1,
-        speed: 140,
-        alive: true,
-        type: "spiked",
-      },
-      {
-        x: 1100,
-        y: HEIGHT - 252,
-        w: 36,
-        h: 32,
-        dir: -1,
-        speed: 160,
-        alive: true,
-        type: "fast",
-      },
-      {
-        x: 2220,
-        y: HEIGHT - 272,
-        w: 36,
-        h: 32,
-        dir: 1,
-        speed: 170,
-        alive: true,
-        type: "jumper",
-      },
-      {
-        x: 2780,
-        y: HEIGHT - 272,
-        w: 36,
-        h: 32,
-        dir: -1,
-        speed: 180,
-        alive: true,
-        type: "spiked",
-      },
+      enemyAt(250, HEIGHT - 72, 120),
+      enemyAt(450, HEIGHT - 72, 160, "normal", -1),
+      enemyAt(650, HEIGHT - 72, 115),
+      enemyAt(1200, HEIGHT - 72, 150, "normal", -1),
+      enemyAt(1350, HEIGHT - 72, 125),
+      enemyAt(1500, HEIGHT - 72, 165, "normal", -1),
+      enemyAt(1750, HEIGHT - 72, 120),
+      enemyAt(1900, HEIGHT - 72, 155, "normal", -1),
+      enemyAt(2350, HEIGHT - 72, 130),
+      enemyAt(2500, HEIGHT - 72, 140, "normal", -1),
+      enemyAt(2700, HEIGHT - 72, 140),
+      enemyAt(2850, HEIGHT - 72, 160, "normal", -1),
+      enemyAt(3050, HEIGHT - 72, 170),
+      enemyAt(3250, HEIGHT - 72, 180, "normal", -1),
     ],
     coins: [
-      { x: 420, y: HEIGHT - 230, r: 10, taken: false },
-      { x: 1080, y: HEIGHT - 260, r: 10, taken: false },
-      { x: 1920, y: HEIGHT - 240, r: 10, taken: false },
-      { x: 2760, y: HEIGHT - 280, r: 10, taken: false },
+      coinAt(970, HEIGHT - 200), // 坑1 上
+      coinAt(1080, HEIGHT - 230),
+      coinAt(2140, HEIGHT - 230), // 坑2 移動平台上
+      coinAt(1750, HEIGHT - 340), // 彈簧高台
+      coinAt(3110, HEIGHT - 300),
     ],
     powerups: [
-      { x: 1680, y: HEIGHT - 300, r: 14, type: "feather", taken: false },
+      { x: 1720, y: HEIGHT - 340, r: 14, type: "feather", taken: false },
+      { x: 2950, y: HEIGHT - 200, r: 14, type: "star", taken: false },
     ],
     flag: { x: 3300, y: HEIGHT - 180, h: 180 },
   },
