@@ -221,7 +221,7 @@ export function AdventureHome({
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
               onClick={onOpenShop}
-              className="btn btn-outline btn-warning w-full gap-2"
+              className="btn btn-soft btn-warning w-full gap-2"
             >
               <span className="text-lg">🛒</span>
               神秘商店（扭蛋）
