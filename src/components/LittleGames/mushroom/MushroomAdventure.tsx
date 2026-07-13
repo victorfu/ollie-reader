@@ -1,10 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { MUSHROOM_CONFIG } from "../lib/constants";
 import { clamp, getBestScore, setBestScore } from "../lib/game-utils";
 import { type MushroomSettings } from "../lib/types";
 import { BASE_SPEED, GRAVITY, HEIGHT, JUMP_SPEED, WIDTH } from "./constants";
 import { LEVELS } from "./levels";
-import { Overlay, SettingsOverlay } from "./overlays";
+import { Overlay, PauseOverlay, SettingsOverlay } from "./overlays";
 import {
   drawCloud,
   drawHero,
@@ -126,6 +126,15 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
     };
   }, []);
 
+  // 暫停：先清空按鍵，避免恢復時角色帶著舊輸入暴衝
+  const pauseGame = useCallback(() => {
+    const keys = stateRef.current.keys;
+    keys.left = false;
+    keys.right = false;
+    keys.jump = false;
+    setGameState("paused");
+  }, []);
+
   useEffect(() => {
     const isGameKey = (key: string) =>
       key === "arrowleft" ||
@@ -137,8 +146,15 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
       key === " ";
     const onKeyDown = (e: KeyboardEvent) => {
       const key = e.key.toLowerCase();
+      if (key === "escape") {
+        if (gameState === "playing") pauseGame();
+        else if (gameState === "paused") setGameState("playing");
+        return;
+      }
       // 遊玩中攔截遊戲鍵：空白鍵/方向鍵不捲動頁面、不誤觸 focused 按鈕
       if (gameState === "playing" && isGameKey(key)) e.preventDefault();
+      // 暫停中不累積按鍵，避免恢復時角色暴衝
+      if (gameState === "paused") return;
       const keys = stateRef.current.keys;
       if (key === "arrowleft" || key === "a") keys.left = true;
       if (key === "arrowright" || key === "d") keys.right = true;
@@ -157,7 +173,22 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
     };
-  }, [gameState]);
+  }, [gameState, pauseGame]);
+
+  // 視窗失焦/分頁切走時自動暫停，中途被叫走也不會送命
+  useEffect(() => {
+    if (gameState !== "playing") return;
+    const onVisibility = () => {
+      if (document.hidden) pauseGame();
+    };
+    const onBlur = () => pauseGame();
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("blur", onBlur);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("blur", onBlur);
+    };
+  }, [gameState, pauseGame]);
 
   const loadLevel = (index: number) => {
     const lvl = LEVELS[index];
@@ -888,19 +919,14 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
     };
   }, [gameState]);
 
-  const resetGame = () => {
+  const startGame = (levelIdx = 0) => {
     // 讓滑鼠點過的按鈕失焦，避免開場第一下空白鍵又觸發按鈕
     (document.activeElement as HTMLElement | null)?.blur();
     stateRef.current.score = 0;
     stateRef.current.lives = 3;
-    loadLevel(0);
+    loadLevel(levelIdx);
     setScore(0);
     setLives(3);
-    setGameState("playing");
-  };
-
-  const startGame = () => {
-    resetGame();
     setGameState("playing");
   };
 
@@ -926,7 +952,7 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
           </p>
           <div className="flex gap-3 justify-center flex-wrap">
             <button
-              onClick={startGame}
+              onClick={() => startGame()}
               className="rounded-full bg-emerald-500 text-white px-4 py-2 font-semibold shadow hover:bg-emerald-600 transition"
             >
               開始遊戲
@@ -952,6 +978,16 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
       );
     }
 
+    if (gameState === "paused") {
+      return (
+        <PauseOverlay
+          onResume={() => setGameState("playing")}
+          onRestart={() => startGame(stateRef.current.levelIndex)}
+          onMenu={() => setGameState("menu")}
+        />
+      );
+    }
+
     if (gameState === "win") {
       return (
         <Overlay>
@@ -962,7 +998,7 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
           <p className="text-xs text-slate-600 mb-4">最佳：{best}</p>
           <div className="flex gap-3 justify-center">
             <button
-              onClick={resetGame}
+              onClick={() => startGame()}
               className="rounded-full bg-emerald-500 text-white px-4 py-2 font-semibold shadow"
             >
               再玩一次
@@ -987,7 +1023,7 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
           <p className="text-slate-700 mb-2">分數 {score}</p>
           <div className="flex gap-3 justify-center">
             <button
-              onClick={resetGame}
+              onClick={() => startGame()}
               className="rounded-full bg-emerald-500 text-white px-4 py-2 font-semibold shadow"
             >
               再試一次
@@ -1022,6 +1058,14 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
           className="absolute left-6 top-6 z-20 rounded-full bg-white/90 px-4 py-2 text-sm font-semibold text-slate-900 shadow-lg backdrop-blur transition hover:-translate-y-0.5 hover:shadow-xl"
         >
           ← 回遊戲列表
+        </button>
+      )}
+      {gameState === "playing" && (
+        <button
+          onClick={pauseGame}
+          className="absolute right-6 top-6 z-20 rounded-full bg-white/90 px-4 py-2 text-sm font-semibold text-slate-900 shadow-lg backdrop-blur transition hover:-translate-y-0.5 hover:shadow-xl"
+        >
+          ⏸ 暫停
         </button>
       )}
       <div

@@ -1,4 +1,10 @@
-export type GameState = "menu" | "settings" | "playing" | "win" | "dead";
+export type GameState =
+  | "menu"
+  | "settings"
+  | "playing"
+  | "paused"
+  | "win"
+  | "dead";
 export type Platform = { x: number; y: number; w: number; h: number };
 export type EnemyType = "normal" | "fast" | "jumper" | "spiked";
 export type Particle = {

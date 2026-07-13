@@ -11,6 +11,45 @@ export function Overlay({ children }: { children: ReactNode }) {
   );
 }
 
+export function PauseOverlay({
+  onResume,
+  onRestart,
+  onMenu,
+}: {
+  onResume: () => void;
+  onRestart: () => void;
+  onMenu: () => void;
+}) {
+  return (
+    <Overlay>
+      <h2 className="text-3xl font-bold text-emerald-800 mb-2">暫停中</h2>
+      <p className="text-slate-600 mb-4 text-sm">
+        休息一下，準備好了再繼續！（按 Esc 也可以繼續）
+      </p>
+      <div className="flex gap-3 justify-center flex-wrap">
+        <button
+          onClick={onResume}
+          className="rounded-full bg-emerald-500 text-white px-4 py-2 font-semibold shadow hover:bg-emerald-600 transition"
+        >
+          ▶ 繼續
+        </button>
+        <button
+          onClick={onRestart}
+          className="rounded-full bg-slate-100 text-slate-700 px-4 py-2 font-semibold shadow hover:bg-slate-200 transition"
+        >
+          ↻ 重新開始本關
+        </button>
+        <button
+          onClick={onMenu}
+          className="rounded-full bg-white border border-emerald-200 px-4 py-2 font-semibold text-emerald-700 shadow"
+        >
+          回主選單
+        </button>
+      </div>
+    </Overlay>
+  );
+}
+
 export function SettingsOverlay({
   settings,
   onSave,
