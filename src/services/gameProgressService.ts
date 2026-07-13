@@ -354,12 +354,11 @@ export async function fetchProgress(
             ? data.updatedAt.toMillis()
             : data.updatedAt,
       } as PlayerProgress;
-      // 重算 expToNextLevel：被舊 L10 上限卡住(=0)的玩家能對到新的等級表
-      merged.expToNextLevel = calculateLevelUp(
-        merged.level,
-        merged.exp,
-        0,
-      ).expToNextLevel;
+      // 重算等級：被舊 L10 上限卡住的玩家，把累積的 exp 對到新的 15 級表
+      // （只更新 expToNextLevel 會讓 level 停在 10、與 exp 不一致並卡住新章節）
+      const recomputed = calculateLevelUp(merged.level, merged.exp, 0);
+      merged.level = recomputed.newLevel;
+      merged.expToNextLevel = recomputed.expToNextLevel;
       return merged;
     }
     return null;
