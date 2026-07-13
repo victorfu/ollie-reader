@@ -1,5 +1,4 @@
 import { useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { getBestScore } from "./lib/game-utils";
 
 const METEOR_BEST_KEY = "meteor-glider-best";
@@ -23,7 +22,6 @@ function readBest(key: string): number | null {
 }
 
 export default function GameHub() {
-  const navigate = useNavigate();
   const [bunnyBest] = useState(() => getBestScore());
   const [meteorBest] = useState(() => readBest(METEOR_BEST_KEY));
   const [mushroomBest] = useState(() => readBest(MUSHROOM_BEST_KEY));
@@ -81,13 +79,9 @@ export default function GameHub() {
     [bunnyBest, meteorBest, mushroomBest],
   );
 
+  // 所有遊戲一律新分頁開啟，遊戲頁面不受主視窗切換/返回影響
   const openGame = (card: GameCard) => {
-    if (card.id === "wonder-academy") {
-      window.open(card.to, "_blank", "noopener,noreferrer");
-      return;
-    }
-
-    navigate(card.to);
+    window.open(card.to, "_blank", "noopener,noreferrer");
   };
 
   return (
@@ -137,7 +131,7 @@ export default function GameHub() {
                 onClick={() => openGame(card)}
                 className="btn btn-primary btn-sm rounded-[6px]"
               >
-                {card.id === "wonder-academy" ? "新分頁開啟" : "開始遊戲"}
+                開始遊戲
               </button>
             </div>
           </article>
