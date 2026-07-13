@@ -6,7 +6,18 @@ export type GameState =
   | "win"
   | "dead"
   | "tutorialComplete";
-export type Platform = { x: number; y: number; w: number; h: number };
+export type Platform = {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  kind?: "solid" | "moving" | "spring"; // 未指定視為 solid
+  move?: { axis: "x" | "y"; range: number; speed: number; phase?: number };
+  // 執行期欄位（loadLevel 時記錄）
+  baseX?: number;
+  baseY?: number;
+  squash?: number; // spring 擠壓動畫倒數
+};
 export type EnemyType = "normal" | "fast" | "jumper" | "spiked";
 export type Particle = {
   x: number;

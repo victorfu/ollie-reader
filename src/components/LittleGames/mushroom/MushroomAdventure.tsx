@@ -7,6 +7,7 @@ import {
   GRAVITY,
   HEIGHT,
   JUMP_SPEED,
+  SPRING_SPEED,
   TUTORIAL_INDEX,
   WIDTH,
 } from "./constants";
@@ -24,6 +25,7 @@ import {
   drawMushroomEnemy,
   drawPowerup,
   drawSign,
+  drawSpring,
   roundRect,
 } from "./sprites";
 import type {
@@ -125,6 +127,9 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
     gatesOpen: {} as Record<string, boolean>,
     activeHintId: null as string | null,
     checkpointX: 80,
+    // 移動平台：關卡內累計時間 + 玩家腳下的平台索引（載運用）
+    time: 0,
+    groundPlatformIndex: -1,
   });
 
   useEffect(() => {
@@ -257,7 +262,7 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
         jumps: 0,
       },
       cameraX: 0,
-      platforms: lvl.platforms.map((p) => ({ ...p })),
+      platforms: lvl.platforms.map((p) => ({ ...p, baseX: p.x, baseY: p.y })),
       enemies: lvl.enemies.map((e) => ({
         ...e,
         jumpTimer: Math.random() * 2,
@@ -280,6 +285,9 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
       gatesOpen: {},
       activeHintId: null,
       checkpointX: 80,
+      // 重置平台時間與載運
+      time: 0,
+      groundPlatformIndex: -1,
     };
     setLevelIndex(index);
   };
@@ -384,6 +392,26 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
     const s = stateRef.current;
     const p = s.player;
     const lvl = getLevel(s.levelIndex);
+    s.time += dt;
+
+    // 移動平台：以絕對時間正弦定位（不受 dt clamp 影響、無漂移），
+    // 玩家上一幀站在其上時跟著平台位移
+    s.platforms.forEach((plat, i) => {
+      if (plat.squash) plat.squash = Math.max(0, plat.squash - dt);
+      if (plat.kind !== "moving" || !plat.move) return;
+      const { axis, range, speed, phase = 0 } = plat.move;
+      const offset = Math.sin(s.time * speed + phase) * range;
+      if (axis === "x") {
+        const next = (plat.baseX ?? plat.x) + offset;
+        if (s.groundPlatformIndex === i) p.x += next - plat.x;
+        plat.x = next;
+      } else {
+        const next = (plat.baseY ?? plat.y) + offset;
+        if (s.groundPlatformIndex === i) p.y += next - plat.y;
+        plat.y = next;
+      }
+    });
+
     const speedBoost = s.speedTimer > 0 ? 0.35 : 0;
     const move = (s.keys.left ? -1 : 0) + (s.keys.right ? 1 : 0);
     const maxSpeed = 500 * (1 + speedBoost);
@@ -409,6 +437,9 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
     p.x += p.vx * dt;
     p.y += p.vy * dt;
 
+    // 每幀重算腳下平台（載運判定用）
+    s.groundPlatformIndex = -1;
+
     // ground
     if (p.y + p.h > HEIGHT - 40) {
       p.y = HEIGHT - 40 - p.h;
@@ -420,14 +451,45 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
     }
 
     // platforms
-    s.platforms.forEach((plat) => {
+    s.platforms.forEach((plat, i) => {
       if (aabb(p, plat)) {
         const prevY = p.y - p.vy * dt;
         if (prevY + p.h <= plat.y + 6) {
+          if (plat.kind === "spring" && p.vy > 0) {
+            // 彈跳蘑菇：自動高彈（比一般跳更高），保留二段跳機會
+            p.y = plat.y - p.h;
+            p.vy = -SPRING_SPEED;
+            p.onGround = false;
+            p.jumps = 1;
+            plat.squash = 0.25;
+            if (
+              settings.enableParticles &&
+              s.particles.length < MUSHROOM_CONFIG.MAX_PARTICLES
+            ) {
+              for (
+                let k = 0;
+                k < 6 && s.particles.length < MUSHROOM_CONFIG.MAX_PARTICLES;
+                k++
+              ) {
+                s.particles.push({
+                  x: plat.x + plat.w / 2 + (Math.random() - 0.5) * plat.w,
+                  y: plat.y,
+                  vx: (Math.random() - 0.5) * 120,
+                  vy: -60 - Math.random() * 120,
+                  life: 0.5,
+                  maxLife: 0.5,
+                  color: "#fda4af",
+                  size: 3 + Math.random() * 3,
+                });
+              }
+            }
+            return;
+          }
           p.y = plat.y - p.h;
           p.vy = 0;
           p.onGround = true;
           p.jumps = 0;
+          s.groundPlatformIndex = i;
         } else if (prevY >= plat.y + plat.h - 6) {
           p.y = plat.y + plat.h;
           p.vy = 10;
@@ -928,10 +990,25 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
 
     // platforms
     s.platforms.forEach((p) => {
+      if (p.kind === "spring") {
+        drawSpring(ctx, p);
+        return;
+      }
       ctx.fillStyle = "#8bd17a";
       roundRect(ctx, p.x, p.y, p.w, p.h, 6);
       ctx.fillStyle = "#6ab05f";
       roundRect(ctx, p.x, p.y, p.w, 8, 6);
+      if (p.kind === "moving") {
+        // 移動平台：底部兩顆鉚釘 + 描邊做視覺區隔
+        ctx.strokeStyle = "rgba(45, 90, 39, 0.55)";
+        ctx.lineWidth = 2;
+        ctx.strokeRect(p.x + 1, p.y + 1, p.w - 2, p.h - 2);
+        ctx.fillStyle = "#3f6212";
+        ctx.beginPath();
+        ctx.arc(p.x + 10, p.y + p.h - 5, 3, 0, Math.PI * 2);
+        ctx.arc(p.x + p.w - 10, p.y + p.h - 5, 3, 0, Math.PI * 2);
+        ctx.fill();
+      }
     });
 
     // coins

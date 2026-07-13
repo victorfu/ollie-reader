@@ -400,3 +400,32 @@ export function drawGate(
   ctx.fillText(hint, x + 12, top - 18);
   ctx.restore();
 }
+
+// 彈跳蘑菇（trampoline）：粉紅菇傘 + 白點，被踩到時擠壓回彈
+export function drawSpring(
+  ctx: CanvasRenderingContext2D,
+  plat: { x: number; y: number; w: number; h: number; squash?: number },
+) {
+  ctx.save();
+  const squashT = plat.squash ?? 0;
+  const squash = 1 - Math.sin(Math.min(squashT / 0.25, 1) * Math.PI) * 0.35;
+  const cx = plat.x + plat.w / 2;
+  const capH = 18 * squash;
+  const top = plat.y + plat.h - capH - 6;
+  // 菇柄
+  ctx.fillStyle = "#fef3c7";
+  roundRect(ctx, cx - 8, plat.y + plat.h - 10, 16, 10, 4);
+  // 菇傘
+  ctx.fillStyle = "#fb7185";
+  ctx.beginPath();
+  ctx.ellipse(cx, top + capH, plat.w / 2, capH, 0, Math.PI, 0);
+  ctx.closePath();
+  ctx.fill();
+  // 白點
+  ctx.fillStyle = "rgba(255,255,255,0.85)";
+  ctx.beginPath();
+  ctx.arc(cx - plat.w * 0.22, top + capH * 0.65, 3.5, 0, Math.PI * 2);
+  ctx.arc(cx + plat.w * 0.18, top + capH * 0.5, 3, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
