@@ -39,6 +39,13 @@ import {
 
 const QUIZ_TIME_LIMIT = 30; // 每題 30 秒
 const QUIZ_MAX_LIVES = 3; // 3 條命
+const BOSS_QUESTION_BUFFER = 3; // 魔王題數 = bossHp + buffer（一次失誤不會變不可過）
+
+export interface BossState {
+  bossHp: number;
+  bossMaxHp: number;
+  lastHit: "player" | "boss" | null; // 最近一次是誰被打（給 UI 做 shake）
+}
 
 interface UseAdventureReturn {
   // 玩家進度
@@ -58,6 +65,9 @@ interface UseAdventureReturn {
 
   // 快問快答狀態
   quizState: QuizState | null;
+
+  // 魔王戰狀態
+  bossState: BossState | null;
 
   // 獎勵狀態
   pendingReward: GameReward | null;
@@ -139,6 +149,14 @@ export function useAdventure(): UseAdventureReturn {
   // 獎勵狀態
   const [pendingReward, setPendingReward] = useState<GameReward | null>(null);
 
+  // 魔王戰狀態（gameView === "boss" 時與 quizState 並存）
+  const [bossState, setBossState] = useState<BossState | null>(null);
+  const bossStateRef = useRef<BossState | null>(null);
+  const bossHpRef = useRef<number>(0);
+  useEffect(() => {
+    bossStateRef.current = bossState;
+  }, [bossState]);
+
   // 初始化遊戲（載入玩家進度）
   const initializeGame = useCallback(async () => {
     if (!user) return;
@@ -195,9 +213,16 @@ export function useAdventure(): UseAdventureReturn {
         coinsEarnedRef.current = 0; // 重置本輪金幣
         correctCountRef.current = 0; // 重置本輪答對數
 
+        // 魔王關題數 = bossHp + buffer，確保一次失誤不會變不可過
+        const bossHp = stage.bossHp ?? 5;
+        const questionCount = stage.isBoss
+          ? bossHp + BOSS_QUESTION_BUFFER
+          : stage.questionCount;
+
         // 依關卡題型組合建題
         const questions = buildQuizQuestions(wordPool, stage, {
           speechSupported,
+          count: questionCount,
         });
 
         // 初始化快問快答狀態
@@ -213,7 +238,16 @@ export function useAdventure(): UseAdventureReturn {
           lastAnswerCorrect: null,
         });
 
-        setGameView("quiz");
+        // 魔王關：初始化魔王血量並切到魔王畫面
+        if (stage.isBoss) {
+          bossHpRef.current = bossHp;
+          setBossState({ bossHp, bossMaxHp: bossHp, lastHit: null });
+          setGameView("boss");
+        } else {
+          bossHpRef.current = 0;
+          setBossState(null);
+          setGameView("quiz");
+        }
       } catch (err) {
         console.error("Failed to start quiz:", err);
         setError("無法開始遊戲");
@@ -272,6 +306,9 @@ export function useAdventure(): UseAdventureReturn {
         );
         const coinsGained = coinsEarnedRef.current;
         const newCoins = currentProgress.coins + coinsGained;
+        const newTotalBossDefeated = stage.isBoss
+          ? currentProgress.totalBossDefeated + 1
+          : currentProgress.totalBossDefeated;
 
         // 元素訓練：本關獎勵精靈的元素 += 本輪答對數
         const stageElement = stage.rewardSpiritId
@@ -306,6 +343,7 @@ export function useAdventure(): UseAdventureReturn {
           highestCombo: newHighestCombo,
           coins: newCoins,
           elementProgress: newElementProgress,
+          totalBossDefeated: newTotalBossDefeated,
         });
 
         // 更新本地狀態
@@ -333,6 +371,7 @@ export function useAdventure(): UseAdventureReturn {
             highestCombo: newHighestCombo,
             coins: newCoins,
             elementProgress: newElementProgress,
+            totalBossDefeated: newTotalBossDefeated,
             unlockedSpiritIds,
             evolvedSpiritIds,
           };
@@ -348,6 +387,7 @@ export function useAdventure(): UseAdventureReturn {
           evolvedSpirit: evolution
             ? { from: evolution.from, to: evolution.to }
             : undefined,
+          isBossVictory: stage.isBoss,
         });
 
         setGameView("reward");
@@ -377,6 +417,8 @@ export function useAdventure(): UseAdventureReturn {
 
       coinsEarnedRef.current = 0;
       correctCountRef.current = 0;
+      bossHpRef.current = 0;
+      setBossState(null);
       setQuizState(null);
     },
     [user],
@@ -390,10 +432,23 @@ export function useAdventure(): UseAdventureReturn {
       const currentQuestion = quizState.questions[quizState.currentIndex];
       const isCorrect = isQuestionCorrect(currentQuestion, answer);
 
+      const inBoss = bossStateRef.current !== null;
+
       // 答對即累積金幣與答對數 — 在 updater 外累加，避免 StrictMode 重複
       if (isCorrect) {
         coinsEarnedRef.current += coinsForAnswer(quizState.combo + 1);
         correctCountRef.current += 1;
+        // 魔王扣血（連擊 ≥3 爆擊 -2）
+        if (inBoss) {
+          const crit = quizState.combo + 1 >= 3;
+          const newHp = Math.max(0, bossHpRef.current - (crit ? 2 : 1));
+          bossHpRef.current = newHp;
+          setBossState((s) =>
+            s ? { ...s, bossHp: newHp, lastHit: "boss" } : s,
+          );
+        }
+      } else if (inBoss) {
+        setBossState((s) => (s ? { ...s, lastHit: "player" } : s));
       }
 
       setQuizState((prev) => {
@@ -420,10 +475,17 @@ export function useAdventure(): UseAdventureReturn {
           if (!prev) return prev;
 
           const isLastQuestion = prev.currentIndex >= prev.questions.length - 1;
-          const isGameOver = prev.lives <= 0;
 
-          if (isLastQuestion || isGameOver) {
-            // 遊戲結束，計算獎勵
+          if (inBoss) {
+            if (bossHpRef.current <= 0) {
+              handleQuizEnd(true, prev.score, prev.combo); // 打敗魔王
+              return prev;
+            }
+            if (prev.lives <= 0 || isLastQuestion) {
+              handleQuizEnd(false, prev.score, prev.combo); // 被擊敗 / 魔王存活
+              return prev;
+            }
+          } else if (isLastQuestion || prev.lives <= 0) {
             handleQuizEnd(prev.lives > 0, prev.score, prev.combo);
             return prev;
           }
@@ -445,6 +507,7 @@ export function useAdventure(): UseAdventureReturn {
 
   // 計時器每秒減少
   const tickTimer = useCallback(() => {
+    const inBoss = bossStateRef.current !== null;
     setQuizState((prev) => {
       if (!prev || prev.isAnswered) return prev;
 
@@ -456,18 +519,29 @@ export function useAdventure(): UseAdventureReturn {
 
         const timeoutId = setTimeout(() => {
           timeoutRefs.current.delete(timeoutId);
+          if (inBoss) {
+            setBossState((s) => (s ? { ...s, lastHit: "player" } : s));
+          }
           setQuizState((p) => {
             if (!p) return p;
 
-            if (p.lives <= 0) {
-              handleQuizEnd(false, p.score, p.combo);
-              return p;
-            }
-
             const isLastQuestion = p.currentIndex >= p.questions.length - 1;
-            if (isLastQuestion) {
-              handleQuizEnd(true, p.score, p.combo);
-              return p;
+
+            if (inBoss) {
+              // 逾時＝失誤：沒命或題目用完（魔王存活）都算敗
+              if (p.lives <= 0 || isLastQuestion) {
+                handleQuizEnd(false, p.score, p.combo);
+                return p;
+              }
+            } else {
+              if (p.lives <= 0) {
+                handleQuizEnd(false, p.score, p.combo);
+                return p;
+              }
+              if (isLastQuestion) {
+                handleQuizEnd(true, p.score, p.combo);
+                return p;
+              }
             }
 
             return {
@@ -590,6 +664,7 @@ export function useAdventure(): UseAdventureReturn {
     isStageCompleted: checkStageCompleted,
     isStagePlayable: checkStagePlayable,
     quizState,
+    bossState,
     pendingReward,
     coins: progress?.coins ?? 0,
     pendingDailyBonus,

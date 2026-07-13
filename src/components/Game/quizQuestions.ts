@@ -137,10 +137,10 @@ function resolveKinds(
 export function buildQuizQuestions(
   pool: GameWord[],
   stage: Stage,
-  opts?: { speechSupported?: boolean },
+  opts?: { speechSupported?: boolean; count?: number },
 ): QuizQuestion[] {
   const speechSupported = opts?.speechSupported ?? true;
-  const count = Math.min(stage.questionCount, pool.length);
+  const count = Math.min(opts?.count ?? stage.questionCount, pool.length);
   const words = pool.slice(0, count);
   const kinds = resolveKinds(stage, count, speechSupported);
 
