@@ -1,4 +1,5 @@
 import { clamp } from "../lib/game-utils";
+import type { MushroomSettings } from "../lib/types";
 import { EXTRA_SECTION_BASE, EXTRA_SECTION_STEP, HEIGHT } from "./constants";
 import type {
   Coin,
@@ -124,7 +125,11 @@ export const TUTORIAL_LEVEL: Level = {
   ],
 };
 
-export function extendLevel(base: Level, idx: number): Level {
+export function extendLevel(
+  base: Level,
+  idx: number,
+  settings: MushroomSettings,
+): Level {
   const extraOffset = base.flag.x + 200;
   const extraLength = EXTRA_SECTION_BASE + EXTRA_SECTION_STEP * idx;
   const newFlagX = extraOffset + extraLength;
@@ -277,11 +282,29 @@ export function extendLevel(base: Level, idx: number): Level {
 
       enemies.push(e as Enemy);
     });
+    // 套用「敵人數量」設定：依倍率複製本段敵人，每段上限 5 隻
+    if (pat.enemies.length > 0 && settings.enemyMultiplier > 1) {
+      const target = Math.min(
+        5,
+        Math.round(pat.enemies.length * settings.enemyMultiplier),
+      );
+      for (let k = pat.enemies.length; k < target; k++) {
+        const src = pat.enemies[k % pat.enemies.length];
+        enemies.push({
+          ...(src as Enemy),
+          x: src.x + 50 + (k - pat.enemies.length) * 60,
+          dir: (Math.random() > 0.5 ? 1 : -1) as 1 | -1,
+        });
+      }
+    }
     pat.coins.forEach((c) => coins.push(c as Coin));
 
     // Add ground-level enemies to prevent "just run through" strategy
-    // Spawn chance increases with difficulty level
-    const groundEnemyChance = Math.min(0.25 + idx * 0.1, 0.5); // 25% at level 0, up to 50% at level 3+
+    // Spawn chance increases with difficulty level（乘上敵人數量設定）
+    const groundEnemyChance = Math.min(
+      Math.min(0.25 + idx * 0.1, 0.5) * settings.enemyMultiplier,
+      0.6,
+    );
     if (Math.random() < groundEnemyChance) {
       // Spawn 1-2 ground enemies per segment
       const groundEnemyCount = 1 + (idx >= 2 && Math.random() < 0.4 ? 1 : 0);
@@ -307,8 +330,8 @@ export function extendLevel(base: Level, idx: number): Level {
       }
     }
 
-    // Chance for powerup
-    if (Math.random() < 0.25) {
+    // Chance for powerup（乘上道具頻率設定）
+    if (Math.random() < clamp(0.25 * settings.powerupFrequency, 0.1, 0.6)) {
       const types: PowerType[] = ["boot", "feather", "star", "heart"];
       const type = types[Math.floor(Math.random() * types.length)];
       powerups.push({
@@ -1521,4 +1544,9 @@ export const BASE_LEVELS: Level[] = [
   },
 ];
 
-export const LEVELS = BASE_LEVELS.map((lvl, index) => extendLevel(lvl, index));
+export const LEVEL_COUNT = BASE_LEVELS.length;
+
+// 每次開局重新生成（隨機尾段每輪都不同），並套用玩家設定
+export function buildLevels(settings: MushroomSettings): Level[] {
+  return BASE_LEVELS.map((lvl, index) => extendLevel(lvl, index, settings));
+}

@@ -11,7 +11,7 @@ import {
   TUTORIAL_INDEX,
   WIDTH,
 } from "./constants";
-import { LEVELS, TUTORIAL_LEVEL } from "./levels";
+import { buildLevels, LEVEL_COUNT, TUTORIAL_LEVEL } from "./levels";
 import {
   Overlay,
   PauseOverlay,
@@ -31,6 +31,7 @@ import {
 import type {
   FloatingText,
   GameState,
+  Level,
   MushroomProgress,
   Particle,
 } from "./types";
@@ -61,7 +62,7 @@ const loadProgress = (): MushroomProgress => {
         highestUnlocked: clamp(
           Math.floor(parsed.highestUnlocked ?? 0),
           0,
-          LEVELS.length - 1,
+          LEVEL_COUNT - 1,
         ),
         tutorialDone: Boolean(parsed.tutorialDone),
       };
@@ -74,9 +75,6 @@ const saveProgress = (progress: MushroomProgress) => {
   localStorage.setItem(MUSHROOM_CONFIG.PROGRESS_KEY, JSON.stringify(progress));
 };
 
-// 一般關卡查 LEVELS；教學關（TUTORIAL_INDEX）是獨立常數
-const getLevel = (index: number) =>
-  index === TUTORIAL_INDEX ? TUTORIAL_LEVEL : LEVELS[index];
 
 export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -90,6 +88,12 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
   const [levelIndex, setLevelIndex] = useState(0);
   const [settings, setSettings] = useState<MushroomSettings>(loadSettings);
   const [progress, setProgress] = useState<MushroomProgress>(loadProgress);
+  // 關卡於執行期生成：每次開局／調整設定後重建（隨機尾段 + 套用設定）
+  const levelsRef = useRef<Level[]>(buildLevels(loadSettings()));
+
+  // 一般關卡查 levelsRef；教學關（TUTORIAL_INDEX）是獨立常數
+  const getLevel = (index: number) =>
+    index === TUTORIAL_INDEX ? TUTORIAL_LEVEL : levelsRef.current[index];
 
   const stateRef = useRef({
     player: {
@@ -103,11 +107,11 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
       jumps: 0,
     },
     cameraX: 0,
-    platforms: LEVELS[0].platforms,
-    enemies: LEVELS[0].enemies.map((e) => ({ ...e })),
-    coins: LEVELS[0].coins.map((c) => ({ ...c })),
-    powerups: LEVELS[0].powerups.map((p) => ({ ...p })),
-    flag: LEVELS[0].flag,
+    platforms: levelsRef.current[0].platforms,
+    enemies: levelsRef.current[0].enemies.map((e) => ({ ...e })),
+    coins: levelsRef.current[0].coins.map((c) => ({ ...c })),
+    powerups: levelsRef.current[0].powerups.map((p) => ({ ...p })),
+    flag: levelsRef.current[0].flag,
     keys: { left: false, right: false, jump: false },
     invincibleTimer: 0,
     speedTimer: 0,
@@ -298,7 +302,7 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
       const highestUnlocked = clamp(
         Math.max(prev.highestUnlocked, idx),
         0,
-        LEVELS.length - 1,
+        LEVEL_COUNT - 1,
       );
       if (highestUnlocked === prev.highestUnlocked) return prev;
       const next = { ...prev, highestUnlocked };
@@ -310,7 +314,7 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
   const nextLevel = () => {
     const next = stateRef.current.levelIndex + 1;
     unlockLevel(next);
-    if (next >= LEVELS.length) {
+    if (next >= LEVEL_COUNT) {
       setGameState("win");
       setScore(stateRef.current.score);
       if (stateRef.current.score > best) {
@@ -1111,7 +1115,7 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
       ctx.fillText("教學關 · 放心練習", 150, 38);
     } else {
       ctx.fillText(`生命: ${s.lives}`, 150, 38);
-      ctx.fillText(`關卡: ${s.levelIndex + 1}/${LEVELS.length}`, 240, 38);
+      ctx.fillText(`關卡: ${s.levelIndex + 1}/${LEVEL_COUNT}`, 240, 38);
     }
     ctx.fillText(`最佳: ${best}`, 380, 38);
 
@@ -1162,6 +1166,8 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
   const startGame = (levelIdx = 0) => {
     // 讓滑鼠點過的按鈕失焦，避免開場第一下空白鍵又觸發按鈕
     (document.activeElement as HTMLElement | null)?.blur();
+    // 每輪重新生成關卡：隨機尾段每次不同，並套用最新設定
+    levelsRef.current = buildLevels(settings);
     stateRef.current.score = 0;
     stateRef.current.lives = 3;
     loadLevel(levelIdx);
@@ -1173,6 +1179,7 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
   const handleSaveSettings = (newSettings: MushroomSettings) => {
     setSettings(newSettings);
     saveSettings(newSettings);
+    levelsRef.current = buildLevels(newSettings);
     setGameState("menu");
   };
 
@@ -1249,7 +1256,7 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
             <div className="mt-4">
               <p className="text-xs text-slate-500 mb-2">選擇關卡</p>
               <div className="flex flex-wrap gap-2 justify-center">
-                {LEVELS.map((_, i) => {
+                {Array.from({ length: LEVEL_COUNT }, (_, i) => {
                   const unlocked = i <= progress.highestUnlocked;
                   return (
                     <button
