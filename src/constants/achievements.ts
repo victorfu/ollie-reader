@@ -1,4 +1,6 @@
 import type { PlayerProgress } from "../types/game";
+import { SPIRITS } from "../assets/spirits";
+import { STAGES } from "../services/gameProgressService";
 
 // Achievement definitions
 export interface Achievement {
@@ -41,7 +43,7 @@ export const ACHIEVEMENTS: Achievement[] = [
     name: "傳說收藏家",
     description: "收集所有精靈",
     icon: "🏆",
-    requirement: (p) => p.unlockedSpiritIds.length >= 14,
+    requirement: (p) => p.unlockedSpiritIds.length >= SPIRITS.length,
     rarity: "rainbow",
   },
 
@@ -73,9 +75,9 @@ export const ACHIEVEMENTS: Achievement[] = [
   {
     id: "level-max",
     name: "語言大師",
-    description: "達到最高等級",
+    description: "達到最高等級 15",
     icon: "💎",
-    requirement: (p) => p.level >= 10,
+    requirement: (p) => p.level >= 15,
     rarity: "rainbow",
   },
 
@@ -129,6 +131,60 @@ export const ACHIEVEMENTS: Achievement[] = [
     icon: "⚡",
     requirement: (p) => p.highestCombo >= 15,
     rarity: "gold",
+  },
+
+  // Evolution Achievements
+  {
+    id: "first-evolution",
+    name: "初次進化",
+    description: "讓一隻精靈進化",
+    icon: "🦋",
+    requirement: (p) => p.evolvedSpiritIds.length >= 1,
+    rarity: "silver",
+  },
+  {
+    id: "evolution-master",
+    name: "進化大師",
+    description: "讓 3 隻精靈進化",
+    icon: "🌈",
+    requirement: (p) => p.evolvedSpiritIds.length >= 3,
+    rarity: "gold",
+  },
+
+  // Boss Achievements
+  {
+    id: "boss-slayer",
+    name: "首勝魔王",
+    description: "第一次擊敗魔王",
+    icon: "⚔️",
+    requirement: (p) => p.totalBossDefeated >= 1,
+    rarity: "silver",
+  },
+  {
+    id: "boss-conqueror",
+    name: "魔王剋星",
+    description: "擊敗所有魔王",
+    icon: "👑",
+    requirement: (p) => p.totalBossDefeated >= 8,
+    rarity: "rainbow",
+  },
+
+  // Chapter & Streak Achievements
+  {
+    id: "chapter2-clear",
+    name: "星夢傳說",
+    description: "通關雲頂星夢國",
+    icon: "🍬",
+    requirement: (p) => p.currentStageIndex >= STAGES.length,
+    rarity: "gold",
+  },
+  {
+    id: "streak-3",
+    name: "每天都來玩",
+    description: "連續登入 3 天",
+    icon: "🔥",
+    requirement: (p) => p.streakDays >= 3,
+    rarity: "silver",
   },
 ];
 
