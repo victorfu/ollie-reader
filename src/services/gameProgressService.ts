@@ -26,6 +26,14 @@ export const DEFAULT_PLAYER_PROGRESS: Omit<
   totalQuizCompleted: 0,
   totalBossDefeated: 0,
   highestCombo: 0,
+  // 進化系統
+  evolvedSpiritIds: [],
+  elementProgress: {},
+  // 經濟系統
+  coins: 100, // 新手金幣
+  streakDays: 0,
+  lastLoginDate: "",
+  lastDailyClaimDate: "",
 };
 
 // 關卡定義
@@ -193,7 +201,9 @@ export async function fetchProgress(
 
     if (docSnap.exists()) {
       const data = docSnap.data();
-      return {
+      // 讀取時 backfill：舊存檔缺新欄位 → 先鋪預設值再蓋上存檔值（存檔值優先）
+      const merged = {
+        ...DEFAULT_PLAYER_PROGRESS,
         ...data,
         createdAt:
           data.createdAt instanceof Timestamp
@@ -204,6 +214,13 @@ export async function fetchProgress(
             ? data.updatedAt.toMillis()
             : data.updatedAt,
       } as PlayerProgress;
+      // 重算 expToNextLevel：被舊 L10 上限卡住(=0)的玩家能對到新的等級表
+      merged.expToNextLevel = calculateLevelUp(
+        merged.level,
+        merged.exp,
+        0,
+      ).expToNextLevel;
+      return merged;
     }
     return null;
   } catch (error) {

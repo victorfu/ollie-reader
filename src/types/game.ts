@@ -3,12 +3,21 @@
 export type SpiritElement = "fire" | "water" | "grass" | "electric" | "normal";
 export type SpiritRarity = "common" | "uncommon" | "rare" | "legendary";
 
+// 精靈進化條件
+export type EvolveCondition =
+  | { type: "train"; element: SpiritElement; correctCount: number } // 該元素答對 N 題（啟用中）
+  | { type: "level"; level: number }; // 玩家等級達標（保留，暫未使用）
+
 export interface Spirit {
   id: string;
   name: string;
   element: SpiritElement;
   rarity: SpiritRarity;
   description: string;
+  evolvesToId?: string; // 進化後的精靈 id
+  evolvesFromId?: string; // 進化前的精靈 id
+  evolveCondition?: EvolveCondition; // 進化條件（無 = 不可進化）
+  source?: "stage" | "gacha"; // 取得來源（undefined 視為 stage，不會被扭蛋抽到）
 }
 
 export interface PlayerProgress {
@@ -21,6 +30,14 @@ export interface PlayerProgress {
   totalQuizCompleted: number;
   totalBossDefeated: number;
   highestCombo: number;
+  // 進化系統
+  evolvedSpiritIds: string[]; // 已進化的「原始」精靈 id（防重複觸發）
+  elementProgress: Partial<Record<SpiritElement, number>>; // 各元素累積答對題數
+  // 經濟系統
+  coins: number;
+  streakDays: number;
+  lastLoginDate: string; // 本地 YYYY-MM-DD
+  lastDailyClaimDate: string; // 本地 YYYY-MM-DD（每日獎勵冪等用）
   createdAt: number;
   updatedAt: number;
 }
@@ -35,6 +52,9 @@ export interface Stage {
   rewardSpiritId?: string; // 過關可獲得的精靈
   bossHp?: number; // Boss 戰專用
   questionCount: number; // 普通關卡題數
+  chapterId?: string; // 所屬章節（undefined = 第一章）
+  questionKinds?: QuizKind[]; // 本關題型組合（undefined = 全部 "meaning"）
+  rewardCoins?: number; // 過關金幣（undefined = 用公式推算）
 }
 
 export type GameView =
@@ -42,8 +62,12 @@ export type GameView =
   | "map"
   | "quiz"
   | "boss"
+  | "shop"
   | "collection"
   | "reward";
+
+// 題型判別子（commit 2 會把 QuizQuestion 改成依此判別的聯集）
+export type QuizKind = "meaning" | "listen" | "spell" | "reverse" | "emoji";
 
 export interface QuizQuestion {
   word: string;
@@ -114,4 +138,7 @@ export interface GameReward {
   newLevel?: number;
   newSpirit?: Spirit;
   isNewHighScore: boolean;
+  coinsGained?: number; // 本次獲得金幣
+  evolvedSpirit?: { from: Spirit; to: Spirit }; // 本次精靈進化
+  isBossVictory?: boolean; // 是否為魔王勝利（金色皇冠慶祝）
 }
