@@ -303,6 +303,7 @@ function AppContent() {
   const normalizedPathname = location.pathname.replace(/\/+$/, "") || "/";
   const isStandaloneWonderAcademy =
     normalizedPathname === "/games/wonder-academy";
+  const isStandaloneMushroom = normalizedPathname === "/games/mushroom";
   const isLegacyMonsterAcademy =
     normalizedPathname === "/games/monster-academy";
 
@@ -321,6 +322,14 @@ function AppContent() {
           </PdfProvider>
         </SpeechProvider>
       </SettingsProvider>
+    );
+  }
+
+  if (isStandaloneMushroom) {
+    return (
+      <Suspense fallback={<RouteLoadingFallback />}>
+        <MushroomAdventure onExit={() => navigate("/games")} />
+      </Suspense>
     );
   }
 
@@ -665,12 +674,6 @@ function AppContent() {
                             onExit={() => navigate("/games")}
                             onPlayBunny={() => navigate("/games/bunny")}
                           />
-                        }
-                      />
-                      <Route
-                        path="/games/mushroom"
-                        element={
-                          <MushroomAdventure onExit={() => navigate("/games")} />
                         }
                       />
                       <Route path="/travel" element={<TravelEnglishPage />} />

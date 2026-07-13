@@ -85,6 +85,8 @@ const saveSettings = (settings: MushroomSettings) => {
 
 export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const stageRef = useRef<HTMLDivElement>(null);
+  const renderRef = useRef<(() => void) | null>(null);
   const rafRef = useRef<number | null>(null);
   const [gameState, setGameState] = useState<GameState>("menu");
   const [score, setScore] = useState(0);
@@ -136,32 +138,76 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
     }
   }, []);
 
+  // 全螢幕遊戲頁：鎖住頁面捲動（防 macOS 橡皮筋效應）
+  useEffect(() => {
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, []);
+
+  // 依視窗大小等比縮放 canvas（letterbox）；update/render 維持 960×540 邏輯座標
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
-    const dpr = window.devicePixelRatio || 1;
-    canvas.width = WIDTH * dpr;
-    canvas.height = HEIGHT * dpr;
-    canvas.style.width = `${WIDTH}px`;
-    canvas.style.height = `${HEIGHT}px`;
-    const ctx = canvas.getContext("2d");
-    if (ctx) ctx.scale(dpr, dpr);
+    const stage = stageRef.current;
+    if (!canvas || !stage) return;
+    const applySize = () => {
+      const rect = stage.getBoundingClientRect();
+      const availW = rect.width - 32;
+      const availH = rect.height - 32;
+      const scale = Math.max(Math.min(availW / WIDTH, availH / HEIGHT), 0.35);
+      const displayW = Math.round(WIDTH * scale);
+      const displayH = Math.round(HEIGHT * scale);
+      const dpr = window.devicePixelRatio || 1;
+      canvas.style.width = `${displayW}px`;
+      canvas.style.height = `${displayH}px`;
+      canvas.width = Math.round(displayW * dpr);
+      canvas.height = Math.round(displayH * dpr);
+      const ctx = canvas.getContext("2d");
+      if (ctx) {
+        ctx.setTransform(canvas.width / WIDTH, 0, 0, canvas.height / HEIGHT, 0, 0);
+      }
+      // 改尺寸會清空畫布；非遊玩狀態沒有 rAF 迴圈，需補畫一幀
+      renderRef.current?.();
+    };
+    applySize();
+    const observer = new ResizeObserver(applySize);
+    observer.observe(stage);
+    // ResizeObserver 之外再聽 window resize（部分內嵌環境不派送 RO callback）
+    window.addEventListener("resize", applySize);
+    // 首幀補畫：等 renderRef 於 effect 鏈後段就緒再畫
+    const raf = requestAnimationFrame(() => renderRef.current?.());
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("resize", applySize);
+      observer.disconnect();
+    };
   }, []);
 
   useEffect(() => {
+    const isGameKey = (key: string) =>
+      key === "arrowleft" ||
+      key === "arrowright" ||
+      key === "arrowup" ||
+      key === "a" ||
+      key === "d" ||
+      key === "w" ||
+      key === " ";
     const onKeyDown = (e: KeyboardEvent) => {
+      const key = e.key.toLowerCase();
+      // 遊玩中攔截遊戲鍵：空白鍵/方向鍵不捲動頁面、不誤觸 focused 按鈕
+      if (gameState === "playing" && isGameKey(key)) e.preventDefault();
       const keys = stateRef.current.keys;
-      if (e.key === "ArrowLeft" || e.key === "a") keys.left = true;
-      if (e.key === "ArrowRight" || e.key === "d") keys.right = true;
-      if (e.key === "ArrowUp" || e.key === "w" || e.key === " ")
-        keys.jump = true;
+      if (key === "arrowleft" || key === "a") keys.left = true;
+      if (key === "arrowright" || key === "d") keys.right = true;
+      if (key === "arrowup" || key === "w" || key === " ") keys.jump = true;
     };
     const onKeyUp = (e: KeyboardEvent) => {
+      const key = e.key.toLowerCase();
       const keys = stateRef.current.keys;
-      if (e.key === "ArrowLeft" || e.key === "a") keys.left = false;
-      if (e.key === "ArrowRight" || e.key === "d") keys.right = false;
-      if (e.key === "ArrowUp" || e.key === "w" || e.key === " ")
-        keys.jump = false;
+      if (key === "arrowleft" || key === "a") keys.left = false;
+      if (key === "arrowright" || key === "d") keys.right = false;
+      if (key === "arrowup" || key === "w" || key === " ") keys.jump = false;
     };
     window.addEventListener("keydown", onKeyDown);
     window.addEventListener("keyup", onKeyUp);
@@ -882,6 +928,11 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
     ctx.restore(); // 結束螢幕震動 save
   };
 
+  // 保持 renderRef 指向最新 closure，供縮放時補畫
+  useEffect(() => {
+    renderRef.current = render;
+  });
+
   useEffect(() => {
     if (gameState !== "playing") return;
     let lastTime = performance.now();
@@ -899,6 +950,8 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
   }, [gameState]);
 
   const resetGame = () => {
+    // 讓滑鼠點過的按鈕失焦，避免開場第一下空白鍵又觸發按鈕
+    (document.activeElement as HTMLElement | null)?.blur();
     stateRef.current.score = 0;
     stateRef.current.lives = 3;
     loadLevel(0);
@@ -1018,7 +1071,7 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
 
   return (
     <div
-      className="relative flex items-center justify-center min-h-screen"
+      className="relative flex h-[100dvh] w-full items-center justify-center overflow-hidden"
       style={{
         background:
           "radial-gradient(circle at 20% 20%, rgba(126,195,148,0.35), transparent 40%), radial-gradient(circle at 80% 10%, rgba(146,187,255,0.3), transparent 35%), #e9fdf3",
@@ -1032,19 +1085,22 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
           ← 回遊戲列表
         </button>
       )}
-      <div className="relative">
-        <canvas
-          ref={canvasRef}
-          width={WIDTH}
-          height={HEIGHT}
-          style={{
-            borderRadius: "22px",
-            boxShadow: "0 24px 60px rgba(16, 78, 50, 0.28)",
-            border: "3px solid rgba(255,255,255,0.5)",
-            background: "#c8f7e1",
-          }}
-        />
-        {overlay()}
+      <div
+        ref={stageRef}
+        className="flex h-full min-h-0 w-full items-center justify-center"
+      >
+        <div className="relative">
+          <canvas
+            ref={canvasRef}
+            style={{
+              borderRadius: "22px",
+              boxShadow: "0 24px 60px rgba(16, 78, 50, 0.28)",
+              border: "3px solid rgba(255,255,255,0.5)",
+              background: "#c8f7e1",
+            }}
+          />
+          {overlay()}
+        </div>
       </div>
     </div>
   );
