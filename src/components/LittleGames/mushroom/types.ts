@@ -4,7 +4,8 @@ export type GameState =
   | "playing"
   | "paused"
   | "win"
-  | "dead";
+  | "dead"
+  | "tutorialComplete";
 export type Platform = { x: number; y: number; w: number; h: number };
 export type EnemyType = "normal" | "fast" | "jumper" | "spiked";
 export type Particle = {
@@ -44,6 +45,21 @@ export type Powerup = {
   type: PowerType;
   taken: boolean;
 };
+// 教學關：進入 [x, x+w] 區間時顯示 text 的告示（告示牌立在 anchorX 的地面上）
+export type TutorialTrigger = {
+  id: string;
+  x: number;
+  w: number;
+  text: string;
+  anchorX: number;
+};
+// 教學關：條件達成前擋路的門
+export type TutorialGate = {
+  id: string;
+  x: number;
+  hint: string;
+  until: "enemiesCleared" | "coinsCollected";
+};
 export type Level = {
   platforms: Platform[];
   enemies: Enemy[];
@@ -51,6 +67,9 @@ export type Level = {
   powerups: Powerup[];
   flag: Flag;
   sky: { top: string; bottom: string };
+  tutorial?: boolean; // 教學關：不扣生命、旗子改為完成教學
+  triggers?: TutorialTrigger[];
+  gates?: TutorialGate[];
 };
 export type MushroomProgress = {
   version: 1;

@@ -10,6 +10,120 @@ import type {
   PowerType,
 } from "./types";
 
+// 教學關：手工腳本化、零坑洞、不經過 extendLevel（無隨機尾段）
+// 區段：A 移動 → B 跳躍 → C 上平台 → D 踩蘑菇（門）→ E 金幣 → F 道具 → G 旗子
+export const TUTORIAL_LEVEL: Level = {
+  tutorial: true,
+  sky: { top: "#c8f7e1", bottom: "#e8f3ff" },
+  platforms: [
+    { x: 0, y: HEIGHT - 40, w: 2400, h: 40 },
+    { x: 620, y: HEIGHT - 100, w: 120, h: 60 }, // B 小台階
+    { x: 860, y: HEIGHT - 140, w: 130, h: 16 }, // C 低平台
+    { x: 1060, y: HEIGHT - 220, w: 130, h: 16 }, // C 高平台
+    { x: 1300, y: HEIGHT - 120, w: 240, h: 16 }, // D 蘑菇圈養台
+    { x: 1980, y: HEIGHT - 110, w: 90, h: 16 }, // F 星星台座
+  ],
+  enemies: [
+    // D 區教學目標：慢速、被圈養在平台上（邊緣會折返）
+    {
+      x: 1380,
+      y: HEIGHT - 120 - 32,
+      w: 36,
+      h: 32,
+      dir: 1,
+      speed: 40,
+      alive: true,
+      type: "normal",
+    },
+    // F 區無敵示範用：慢速靠近星星
+    {
+      x: 2150,
+      y: HEIGHT - 72,
+      w: 36,
+      h: 32,
+      dir: -1,
+      speed: 30,
+      alive: true,
+      type: "normal",
+    },
+  ],
+  coins: [
+    // C 區沿爬升路線鋪路
+    { x: 925, y: HEIGHT - 180, r: 10, taken: false },
+    { x: 1125, y: HEIGHT - 260, r: 10, taken: false },
+    { x: 1190, y: HEIGHT - 270, r: 10, taken: false },
+    // E 區拱形金幣
+    { x: 1640, y: HEIGHT - 100, r: 10, taken: false },
+    { x: 1690, y: HEIGHT - 150, r: 10, taken: false },
+    { x: 1740, y: HEIGHT - 170, r: 10, taken: false },
+    { x: 1790, y: HEIGHT - 150, r: 10, taken: false },
+    { x: 1840, y: HEIGHT - 100, r: 10, taken: false },
+  ],
+  powerups: [
+    { x: 2025, y: HEIGHT - 140, r: 14, type: "star", taken: false },
+  ],
+  flag: { x: 2280, y: HEIGHT - 180, h: 180 },
+  triggers: [
+    {
+      id: "move",
+      x: 40,
+      w: 340,
+      text: "用 ← → 或 A D 鍵移動，往右走吧！",
+      anchorX: 230,
+    },
+    {
+      id: "jump",
+      x: 420,
+      w: 190,
+      text: "按 ↑、W 或空白鍵跳上小台階！",
+      anchorX: 545,
+    },
+    {
+      id: "climb",
+      x: 790,
+      w: 280,
+      text: "一階一階跳上平台，吃到金幣！",
+      anchorX: 815,
+    },
+    {
+      id: "stomp",
+      x: 1180,
+      w: 320,
+      text: "從上面跳下去，踩扁蘑菇怪就能開門！",
+      anchorX: 1245,
+    },
+    {
+      id: "coin",
+      x: 1600,
+      w: 220,
+      text: "收集金幣可以加分！",
+      anchorX: 1610,
+    },
+    {
+      id: "power",
+      x: 1890,
+      w: 200,
+      text: "吃下星星會無敵一下下，去撞撞看！",
+      anchorX: 1920,
+    },
+    {
+      id: "goal",
+      x: 2140,
+      w: 200,
+      text: "碰到旗子就過關囉！",
+      anchorX: 2200,
+    },
+  ],
+  gates: [
+    {
+      id: "gate-stomp",
+      x: 1580,
+      hint: "踩扁蘑菇怪才能開門",
+      until: "enemiesCleared",
+    },
+  ],
+};
+
 export function extendLevel(base: Level, idx: number): Level {
   const extraOffset = base.flag.x + 200;
   const extraLength = EXTRA_SECTION_BASE + EXTRA_SECTION_STEP * idx;

@@ -2,14 +2,28 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { MUSHROOM_CONFIG } from "../lib/constants";
 import { clamp, getBestScore, setBestScore } from "../lib/game-utils";
 import { type MushroomSettings } from "../lib/types";
-import { BASE_SPEED, GRAVITY, HEIGHT, JUMP_SPEED, WIDTH } from "./constants";
-import { LEVELS } from "./levels";
-import { Overlay, PauseOverlay, SettingsOverlay } from "./overlays";
+import {
+  BASE_SPEED,
+  GRAVITY,
+  HEIGHT,
+  JUMP_SPEED,
+  TUTORIAL_INDEX,
+  WIDTH,
+} from "./constants";
+import { LEVELS, TUTORIAL_LEVEL } from "./levels";
+import {
+  Overlay,
+  PauseOverlay,
+  SettingsOverlay,
+  TutorialCompleteOverlay,
+} from "./overlays";
 import {
   drawCloud,
+  drawGate,
   drawHero,
   drawMushroomEnemy,
   drawPowerup,
+  drawSign,
   roundRect,
 } from "./sprites";
 import type {
@@ -58,6 +72,10 @@ const saveProgress = (progress: MushroomProgress) => {
   localStorage.setItem(MUSHROOM_CONFIG.PROGRESS_KEY, JSON.stringify(progress));
 };
 
+// 一般關卡查 LEVELS；教學關（TUTORIAL_INDEX）是獨立常數
+const getLevel = (index: number) =>
+  index === TUTORIAL_INDEX ? TUTORIAL_LEVEL : LEVELS[index];
+
 export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
@@ -103,6 +121,10 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
     particles: [] as Particle[],
     // 螢幕震動
     screenShake: { intensity: 0, duration: 0 },
+    // 教學關狀態
+    gatesOpen: {} as Record<string, boolean>,
+    activeHintId: null as string | null,
+    checkpointX: 80,
   });
 
   useEffect(() => {
@@ -221,7 +243,7 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
   }, [gameState, pauseGame]);
 
   const loadLevel = (index: number) => {
-    const lvl = LEVELS[index];
+    const lvl = getLevel(index);
     stateRef.current = {
       ...stateRef.current,
       player: {
@@ -254,6 +276,10 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
       lastStompTime: 0,
       particles: [],
       screenShake: { intensity: 0, duration: 0 },
+      // 重置教學狀態
+      gatesOpen: {},
+      activeHintId: null,
+      checkpointX: 80,
     };
     setLevelIndex(index);
   };
@@ -289,9 +315,30 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
     }
   };
 
+  const completeTutorial = () => {
+    setProgress((prev) => {
+      if (prev.tutorialDone) return prev;
+      const next = { ...prev, tutorialDone: true };
+      saveProgress(next);
+      return next;
+    });
+    setGameState("tutorialComplete");
+  };
+
   const hitPlayer = () => {
     const s = stateRef.current;
     if (s.invincibleTimer > 0) return;
+
+    // 教學關不扣生命：輕震動 + 擊退 + 短暫無敵，讓小孩安心試錯
+    if (getLevel(s.levelIndex).tutorial) {
+      const p = s.player;
+      s.screenShake = { intensity: 4, duration: 0.2 };
+      s.comboCount = 0;
+      p.vy = -400;
+      p.vx = -Math.sign(p.vx || 1) * 220;
+      s.invincibleTimer = 2;
+      return;
+    }
 
     // 觸發螢幕震動
     s.screenShake = {
@@ -313,7 +360,7 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
       }
       setGameState("dead");
     } else {
-      const lvl = LEVELS[s.levelIndex];
+      const lvl = getLevel(s.levelIndex);
       s.player = {
         x: 80,
         y: HEIGHT - 140,
@@ -336,6 +383,7 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
   const update = (dt: number) => {
     const s = stateRef.current;
     const p = s.player;
+    const lvl = getLevel(s.levelIndex);
     const speedBoost = s.speedTimer > 0 ? 0.35 : 0;
     const move = (s.keys.left ? -1 : 0) + (s.keys.right ? 1 : 0);
     const maxSpeed = 500 * (1 + speedBoost);
@@ -392,6 +440,44 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
         }
       }
     });
+
+    // 教學關：告示觸發、檢查點推進、關卡門
+    if (lvl.tutorial) {
+      const px = p.x + p.w / 2;
+      s.activeHintId = null;
+      for (const t of lvl.triggers ?? []) {
+        if (px >= t.x && px <= t.x + t.w) s.activeHintId = t.id;
+        // 走過的區段起點成為落地重生的檢查點
+        if (px >= t.x) s.checkpointX = Math.max(s.checkpointX, t.x + 20);
+      }
+      for (const g of lvl.gates ?? []) {
+        if (s.gatesOpen[g.id]) continue;
+        const cleared =
+          g.until === "enemiesCleared"
+            ? s.enemies.every(
+                (e) => !e.alive || e.x < g.x - 600 || e.x > g.x,
+              )
+            : s.coins.every((c) => c.taken || c.x > g.x);
+        if (cleared) {
+          s.gatesOpen[g.id] = true;
+          s.floatingTexts.push({
+            x: g.x + 12,
+            y: HEIGHT - 220,
+            text: "門打開了！",
+            life: 1.5,
+            color: "#22c55e",
+          });
+        } else {
+          // 未解鎖：視為一面牆
+          const wall = { x: g.x, y: 0, w: 24, h: HEIGHT - 40 };
+          if (aabb(p, wall)) {
+            if (p.x < wall.x) p.x = wall.x - p.w;
+            else p.x = wall.x + wall.w;
+            p.vx = 0;
+          }
+        }
+      }
+    }
 
     // enemies
     s.enemies.forEach((e) => {
@@ -732,15 +818,27 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
 
     // win
     if (p.x > s.flag.x - 24) {
-      const bonus = 150 + Math.max(0, 200 - Math.floor(p.y));
-      s.score += bonus;
-      nextLevel();
+      if (lvl.tutorial) {
+        completeTutorial();
+      } else {
+        const bonus = 150 + Math.max(0, 200 - Math.floor(p.y));
+        s.score += bonus;
+        nextLevel();
+      }
       return;
     }
 
     // fall death
     if (p.y > HEIGHT + 220) {
-      hitPlayer();
+      if (lvl.tutorial) {
+        // 教學關落地重生於檢查點，不扣生命
+        p.x = s.checkpointX;
+        p.y = HEIGHT - 140;
+        p.vx = 0;
+        p.vy = 0;
+      } else {
+        hitPlayer();
+      }
     }
   };
 
@@ -750,7 +848,7 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     const s = stateRef.current;
-    const lvl = LEVELS[s.levelIndex];
+    const lvl = getLevel(s.levelIndex);
 
     ctx.save();
 
@@ -862,6 +960,16 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
       drawMushroomEnemy(ctx, e);
     });
 
+    // 教學：告示牌與未解鎖的門
+    if (lvl.tutorial) {
+      for (const t of lvl.triggers ?? []) {
+        drawSign(ctx, t.anchorX, HEIGHT - 40, t.text, s.activeHintId === t.id);
+      }
+      for (const g of lvl.gates ?? []) {
+        if (!s.gatesOpen[g.id]) drawGate(ctx, g.x, HEIGHT - 40, g.hint);
+      }
+    }
+
     // flag
     ctx.fillStyle = "#f97316";
     ctx.fillRect(s.flag.x, s.flag.y, 12, s.flag.h);
@@ -922,8 +1030,12 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
     ctx.fillStyle = "#0f172a";
     ctx.font = "16px system-ui";
     ctx.fillText(`分數: ${s.score}`, 24, 38);
-    ctx.fillText(`生命: ${s.lives}`, 150, 38);
-    ctx.fillText(`關卡: ${s.levelIndex + 1}/${LEVELS.length}`, 240, 38);
+    if (s.levelIndex === TUTORIAL_INDEX) {
+      ctx.fillText("教學關 · 放心練習", 150, 38);
+    } else {
+      ctx.fillText(`生命: ${s.lives}`, 150, 38);
+      ctx.fillText(`關卡: ${s.levelIndex + 1}/${LEVELS.length}`, 240, 38);
+    }
     ctx.fillText(`最佳: ${best}`, 380, 38);
 
     // 連擊顯示
@@ -1003,7 +1115,22 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
             跳躍，踩怪可得分，星星無敵、羽毛二段跳、靴子加速、愛心補生命。
           </p>
           <div className="flex gap-3 justify-center flex-wrap">
-            {hasProgress ? (
+            {!progress.tutorialDone ? (
+              <>
+                <button
+                  onClick={() => startGame(TUTORIAL_INDEX)}
+                  className="rounded-full bg-emerald-500 text-white px-4 py-2 font-semibold shadow hover:bg-emerald-600 transition"
+                >
+                  🎓 先玩教學
+                </button>
+                <button
+                  onClick={() => startGame()}
+                  className="rounded-full bg-slate-100 text-slate-700 px-4 py-2 font-semibold shadow hover:bg-slate-200 transition"
+                >
+                  直接開始
+                </button>
+              </>
+            ) : hasProgress ? (
               <>
                 <button
                   onClick={() => startGame(progress.highestUnlocked)}
@@ -1024,6 +1151,14 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
                 className="rounded-full bg-emerald-500 text-white px-4 py-2 font-semibold shadow hover:bg-emerald-600 transition"
               >
                 開始遊戲
+              </button>
+            )}
+            {progress.tutorialDone && (
+              <button
+                onClick={() => startGame(TUTORIAL_INDEX)}
+                className="rounded-full bg-slate-100 text-slate-700 px-4 py-2 font-semibold shadow hover:bg-slate-200 transition"
+              >
+                🎓 教學
               </button>
             )}
             <button
@@ -1071,6 +1206,15 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
           settings={settings}
           onSave={handleSaveSettings}
           onCancel={() => setGameState("menu")}
+        />
+      );
+    }
+
+    if (gameState === "tutorialComplete") {
+      return (
+        <TutorialCompleteOverlay
+          onStart={() => startGame(0)}
+          onMenu={() => setGameState("menu")}
         />
       );
     }

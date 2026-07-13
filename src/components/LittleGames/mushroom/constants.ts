@@ -5,3 +5,5 @@ export const BASE_SPEED = 320;
 export const JUMP_SPEED = 720;
 export const EXTRA_SECTION_BASE = 2400;
 export const EXTRA_SECTION_STEP = 300;
+// 教學關的虛擬關卡索引（不在 LEVELS 陣列中，永不經過 extendLevel）
+export const TUTORIAL_INDEX = -1;

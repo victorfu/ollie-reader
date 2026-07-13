@@ -331,3 +331,72 @@ export function drawCloud(ctx: CanvasRenderingContext2D, x: number, y: number) {
   ctx.closePath();
   ctx.fill();
 }
+
+// 教學告示牌：木牌立在地面，active 時上方顯示浮動對話泡泡
+export function drawSign(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  baseY: number,
+  text: string,
+  active: boolean,
+) {
+  ctx.save();
+  ctx.fillStyle = "#b45309";
+  ctx.fillRect(x - 5, baseY - 66, 10, 66);
+  ctx.fillStyle = "#d97706";
+  roundRect(ctx, x - 26, baseY - 100, 52, 40, 8);
+  ctx.fillStyle = "#fffbeb";
+  ctx.font = "bold 22px system-ui";
+  ctx.textAlign = "center";
+  ctx.fillText("！", x, baseY - 71);
+
+  if (active) {
+    const bob = Math.sin(performance.now() / 350) * 4;
+    ctx.font = "bold 16px system-ui";
+    const w = ctx.measureText(text).width + 28;
+    const by = baseY - 140 + bob;
+    ctx.fillStyle = "rgba(255,255,255,0.95)";
+    roundRect(ctx, x - w / 2, by - 26, w, 38, 12);
+    ctx.beginPath();
+    ctx.moveTo(x - 8, by + 11);
+    ctx.lineTo(x + 8, by + 11);
+    ctx.lineTo(x, by + 24);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = "#1e293b";
+    ctx.fillText(text, x, by);
+  }
+  ctx.restore();
+}
+
+// 教學門：解鎖前的半透明斜紋屏障
+export function drawGate(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  groundY: number,
+  hint: string,
+) {
+  ctx.save();
+  const top = 140;
+  ctx.fillStyle = "rgba(148, 163, 184, 0.45)";
+  ctx.fillRect(x, top, 24, groundY - top);
+  ctx.strokeStyle = "rgba(71, 85, 105, 0.5)";
+  ctx.lineWidth = 4;
+  for (let yy = top + 8; yy < groundY - 14; yy += 26) {
+    ctx.beginPath();
+    ctx.moveTo(x + 2, yy + 14);
+    ctx.lineTo(x + 22, yy);
+    ctx.stroke();
+  }
+  ctx.textAlign = "center";
+  ctx.font = "20px system-ui";
+  ctx.fillStyle = "#475569";
+  ctx.fillText("🔒", x + 12, top + 34);
+  ctx.font = "bold 14px system-ui";
+  const w = ctx.measureText(hint).width + 20;
+  ctx.fillStyle = "rgba(255,255,255,0.92)";
+  roundRect(ctx, x + 12 - w / 2, top - 36, w, 26, 10);
+  ctx.fillStyle = "#334155";
+  ctx.fillText(hint, x + 12, top - 18);
+  ctx.restore();
+}
