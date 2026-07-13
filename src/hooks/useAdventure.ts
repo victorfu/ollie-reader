@@ -24,6 +24,16 @@ import type {
 } from "../types/game";
 import type { VocabularyWord } from "../types/vocabulary";
 import { getSpiritById } from "../assets/spirits";
+import {
+  coinsForAnswer,
+  coinsForStageClear,
+  computeDailyBonus,
+  canAffordGacha,
+  drawGacha,
+  todayLocal,
+  type DailyBonusResult,
+  type GachaResult,
+} from "../services/economyService";
 
 const QUIZ_TIME_LIMIT = 30; // 每題 30 秒
 const QUIZ_MAX_LIVES = 3; // 3 條命
@@ -50,6 +60,10 @@ interface UseAdventureReturn {
   // 獎勵狀態
   pendingReward: GameReward | null;
 
+  // 經濟系統
+  coins: number;
+  pendingDailyBonus: DailyBonusResult | null;
+
   // 動作
   initializeGame: () => Promise<void>;
   startQuiz: (
@@ -60,6 +74,8 @@ interface UseAdventureReturn {
   submitAnswer: (answer: number | string) => void;
   tickTimer: () => void;
   claimReward: () => Promise<void>;
+  claimDailyBonus: () => Promise<void>;
+  drawGacha: () => Promise<GachaResult | null>;
   goHome: () => void;
 }
 
@@ -80,6 +96,13 @@ export function useAdventure(): UseAdventureReturn {
 
   // 題目池
   const wordPoolRef = useRef<GameWord[]>([]);
+
+  // 本輪快問快答累積的金幣（每題答對即累加，關卡結束一次寫入）
+  const coinsEarnedRef = useRef<number>(0);
+
+  // 每日獎勵（登入時計算，可領時由 UI 顯示）
+  const [pendingDailyBonus, setPendingDailyBonus] =
+    useState<DailyBonusResult | null>(null);
 
   // 用於在 callbacks 內引用最新狀態的 refs
   const progressRef = useRef<PlayerProgress | null>(null);
@@ -122,6 +145,14 @@ export function useAdventure(): UseAdventureReturn {
     try {
       const playerProgress = await getOrCreateProgress(user.uid);
       setProgress(playerProgress);
+
+      // 計算每日獎勵（今天還沒領才提示）
+      const bonus = computeDailyBonus(
+        playerProgress.lastDailyClaimDate,
+        todayLocal(),
+        playerProgress.streakDays,
+      );
+      setPendingDailyBonus(bonus.eligible ? bonus : null);
     } catch (err) {
       console.error("Failed to initialize game:", err);
       setError("無法載入遊戲進度");
@@ -157,6 +188,7 @@ export function useAdventure(): UseAdventureReturn {
         // 準備題目池
         const wordPool = await prepareGamePool(vocabularyWords);
         wordPoolRef.current = wordPool;
+        coinsEarnedRef.current = 0; // 重置本輪金幣
 
         // 依關卡題型組合建題
         const questions = buildQuizQuestions(wordPool, stage, {
@@ -228,6 +260,14 @@ export function useAdventure(): UseAdventureReturn {
           maxCombo,
         );
 
+        // 金幣：答題累積 + 過關獎勵
+        coinsEarnedRef.current += coinsForStageClear(
+          stage.rewardCoins,
+          stage.isBoss,
+        );
+        const coinsGained = coinsEarnedRef.current;
+        const newCoins = currentProgress.coins + coinsGained;
+
         await saveProgress(user.uid, {
           level: newLevel,
           exp: newExp,
@@ -235,6 +275,7 @@ export function useAdventure(): UseAdventureReturn {
           currentStageIndex: newStageIndex,
           totalQuizCompleted: currentProgress.totalQuizCompleted + 1,
           highestCombo: newHighestCombo,
+          coins: newCoins,
         });
 
         // 更新本地狀態
@@ -248,6 +289,7 @@ export function useAdventure(): UseAdventureReturn {
                 currentStageIndex: newStageIndex,
                 totalQuizCompleted: prev.totalQuizCompleted + 1,
                 highestCombo: newHighestCombo,
+                coins: newCoins,
                 unlockedSpiritIds: newSpirit
                   ? [...prev.unlockedSpiritIds, stage.rewardSpiritId!]
                   : prev.unlockedSpiritIds,
@@ -261,14 +303,24 @@ export function useAdventure(): UseAdventureReturn {
           newLevel: didLevelUp ? newLevel : undefined,
           newSpirit,
           isNewHighScore: maxCombo > currentProgress.highestCombo,
+          coinsGained,
         });
 
         setGameView("reward");
       } else {
-        // 失敗，回到地圖
+        // 失敗：仍保留本輪答題賺到的金幣（不懲罰），再回地圖
+        const coinsGained = coinsEarnedRef.current;
+        if (coinsGained > 0) {
+          const newCoins = currentProgress.coins + coinsGained;
+          await saveProgress(user.uid, { coins: newCoins });
+          setProgress((prev) =>
+            prev ? { ...prev, coins: newCoins } : prev,
+          );
+        }
         setGameView("map");
       }
 
+      coinsEarnedRef.current = 0;
       setQuizState(null);
     },
     [user],
@@ -281,6 +333,11 @@ export function useAdventure(): UseAdventureReturn {
 
       const currentQuestion = quizState.questions[quizState.currentIndex];
       const isCorrect = isQuestionCorrect(currentQuestion, answer);
+
+      // 答對即累積金幣（連擊越高越多）— 在 updater 外累加，避免 StrictMode 重複
+      if (isCorrect) {
+        coinsEarnedRef.current += coinsForAnswer(quizState.combo + 1);
+      }
 
       setQuizState((prev) => {
         if (!prev) return prev;
@@ -397,6 +454,52 @@ export function useAdventure(): UseAdventureReturn {
     setPendingReward(null);
   }, []);
 
+  // 領取每日獎勵（冪等：領完 lastDailyClaimDate=today，下次載入即不再提示）
+  const claimDailyBonus = useCallback(async () => {
+    const cur = progressRef.current;
+    const bonus = pendingDailyBonus;
+    if (!user || !cur || !bonus || !bonus.eligible) {
+      setPendingDailyBonus(null);
+      return;
+    }
+    const today = todayLocal();
+    const patch = {
+      coins: cur.coins + bonus.coins,
+      streakDays: bonus.streakDays,
+      lastDailyClaimDate: today,
+      lastLoginDate: today,
+    };
+    await saveProgress(user.uid, patch);
+    setProgress((prev) => (prev ? { ...prev, ...patch } : prev));
+    setPendingDailyBonus(null);
+  }, [user, pendingDailyBonus]);
+
+  // 抽扭蛋：扣幣、解鎖新精靈（重複則退幣），回傳結果供 UI 演出
+  const drawGachaAction = useCallback(async (): Promise<GachaResult | null> => {
+    const cur = progressRef.current;
+    if (!user || !cur || !canAffordGacha(cur.coins)) return null;
+
+    const result = drawGacha(cur.unlockedSpiritIds);
+    const willUnlock = !result.isDuplicate;
+    const newCoins = cur.coins - result.coinsSpent + result.refundCoins;
+
+    await saveProgress(user.uid, { coins: newCoins });
+    if (willUnlock) await unlockSpirit(user.uid, result.spiritId);
+
+    setProgress((prev) =>
+      prev
+        ? {
+            ...prev,
+            coins: newCoins,
+            unlockedSpiritIds: willUnlock
+              ? [...prev.unlockedSpiritIds, result.spiritId]
+              : prev.unlockedSpiritIds,
+          }
+        : prev,
+    );
+    return result;
+  }, [user]);
+
   // 檢查關卡是否完成
   const checkStageCompleted = useCallback(
     (stageIndex: number): boolean => {
@@ -431,11 +534,15 @@ export function useAdventure(): UseAdventureReturn {
     isStagePlayable: checkStagePlayable,
     quizState,
     pendingReward,
+    coins: progress?.coins ?? 0,
+    pendingDailyBonus,
     initializeGame,
     startQuiz,
     submitAnswer,
     tickTimer,
     claimReward,
+    claimDailyBonus,
+    drawGacha: drawGachaAction,
     goHome,
   };
 }

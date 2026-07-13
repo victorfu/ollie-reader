@@ -127,6 +127,21 @@ export function RewardModal({ reward, onClaim }: RewardModalProps) {
             </span>
           </motion.div>
 
+          {/* 金幣獎勵 */}
+          {reward.coinsGained ? (
+            <motion.div
+              initial={{ y: 20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ delay: 0.5 }}
+              className="flex items-center gap-2 mt-2"
+            >
+              <span className="text-3xl">🪙</span>
+              <span className="text-2xl font-bold text-warning">
+                +{reward.coinsGained} 金幣
+              </span>
+            </motion.div>
+          ) : null}
+
           {/* 升級提示 */}
           {reward.newLevel && (
             <motion.div
