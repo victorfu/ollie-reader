@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useAdventure } from "../../hooks/useAdventure";
 import { useVocabulary } from "../../hooks/useVocabulary";
+import { useSpeechState } from "../../hooks/useSpeechState";
 import { AdventureHome } from "./AdventureHome";
 import { StageMap } from "./StageMap";
 import { QuizGame } from "./QuizGame";
@@ -31,6 +32,7 @@ export function SpiritAdventure() {
   } = useAdventure();
 
   const { words, loadVocabulary } = useVocabulary();
+  const { speechSupported } = useSpeechState();
 
   // 載入詞彙用於遊戲
   useEffect(() => {
@@ -39,7 +41,7 @@ export function SpiritAdventure() {
 
   // 處理關卡選擇
   const handleSelectStage = async (stageIndex: number) => {
-    await startQuiz(stageIndex, words);
+    await startQuiz(stageIndex, words, speechSupported);
   };
 
   // 載入中

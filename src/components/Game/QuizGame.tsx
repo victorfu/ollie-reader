@@ -9,7 +9,7 @@ import { SceneBackground } from "./SceneBackground";
 interface QuizGameProps {
   stage: Stage;
   quizState: QuizState;
-  onSubmitAnswer: (answerIndex: number) => void;
+  onSubmitAnswer: (answer: number | string) => void;
   onTickTimer: () => void;
   onQuit: () => void;
 }
@@ -214,6 +214,7 @@ export function QuizGame({
             </div>
 
             {/* 選項 */}
+            {currentQuestion.kind !== "spell" && (
             <div className="grid grid-cols-1 gap-3">
               {currentQuestion.options.map((option, index) => {
                 const isCorrect = index === currentQuestion.correctIndex;
@@ -253,6 +254,7 @@ export function QuizGame({
                 );
               })}
             </div>
+            )}
 
             {/* 答題結果 */}
             <AnimatePresence>

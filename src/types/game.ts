@@ -66,15 +66,31 @@ export type GameView =
   | "collection"
   | "reward";
 
-// 題型判別子（commit 2 會把 QuizQuestion 改成依此判別的聯集）
+// 題型判別子
 export type QuizKind = "meaning" | "listen" | "spell" | "reverse" | "emoji";
 
-export interface QuizQuestion {
-  word: string;
-  options: string[]; // 4 個選項
-  correctIndex: number;
+interface BaseQuestion {
+  kind: QuizKind;
+  word: string; // 正解英文單字
   spiritId?: string; // 這題對應的精靈
 }
+
+// 四選一題型：meaning=看英文選中文 · listen=聽發音選中文 · reverse=看中文選英文 · emoji=看圖選中文
+export interface OptionQuestion extends BaseQuestion {
+  kind: "meaning" | "listen" | "reverse" | "emoji";
+  prompt: string; // meaning=英文字 · reverse=中文 · emoji=emoji · listen=""（改用 TTS 唸）
+  options: string[]; // 4 個選項
+  correctIndex: number;
+}
+
+// 拼字題型：把打散的字母排回正確單字
+export interface SpellQuestion extends BaseQuestion {
+  kind: "spell";
+  letters: string[]; // 打散後的字母 chips
+  hint: string; // 中文提示（該字的意思）
+}
+
+export type QuizQuestion = OptionQuestion | SpellQuestion;
 
 export interface QuizState {
   questions: QuizQuestion[];

@@ -10,11 +10,14 @@ import {
   isStagePlayable,
 } from "../services/gameProgressService";
 import { prepareGamePool, type GameWord } from "../services/gameService";
+import {
+  buildQuizQuestions,
+  isQuestionCorrect,
+} from "../components/Game/quizQuestions";
 import type {
   PlayerProgress,
   GameView,
   QuizState,
-  QuizQuestion,
   Stage,
   GameReward,
   Spirit,
@@ -52,8 +55,9 @@ interface UseAdventureReturn {
   startQuiz: (
     stageIndex: number,
     vocabularyWords: VocabularyWord[],
+    speechSupported?: boolean,
   ) => Promise<void>;
-  submitAnswer: (answerIndex: number) => void;
+  submitAnswer: (answer: number | string) => void;
   tickTimer: () => void;
   claimReward: () => Promise<void>;
   goHome: () => void;
@@ -133,41 +137,13 @@ export function useAdventure(): UseAdventureReturn {
     }
   }, [user, progress, initializeGame]);
 
-  // 生成選項（1 個正確 + 3 個錯誤）
-  const generateOptions = useCallback(
-    (
-      correctDef: string,
-      allWords: GameWord[],
-    ): { options: string[]; correctIndex: number } => {
-      // 從其他單字取錯誤選項
-      const wrongDefs = allWords
-        .filter((w) => w.def !== correctDef)
-        .map((w) => w.def)
-        .sort(() => Math.random() - 0.5)
-        .slice(0, 3);
-
-      // 如果錯誤選項不夠，補充一些通用錯誤選項
-      const fallbackDefs = ["未知的意思", "一種動物", "一種食物", "一個動作"];
-      while (wrongDefs.length < 3) {
-        const fallback = fallbackDefs[wrongDefs.length];
-        if (!wrongDefs.includes(fallback)) {
-          wrongDefs.push(fallback);
-        }
-      }
-
-      // 隨機插入正確答案
-      const correctIndex = Math.floor(Math.random() * 4);
-      const options = [...wrongDefs];
-      options.splice(correctIndex, 0, correctDef);
-
-      return { options, correctIndex };
-    },
-    [],
-  );
-
   // 開始快問快答
   const startQuiz = useCallback(
-    async (stageIndex: number, vocabularyWords: VocabularyWord[]) => {
+    async (
+      stageIndex: number,
+      vocabularyWords: VocabularyWord[],
+      speechSupported: boolean = true,
+    ) => {
       if (!progress) return;
 
       setIsLoading(true);
@@ -182,18 +158,9 @@ export function useAdventure(): UseAdventureReturn {
         const wordPool = await prepareGamePool(vocabularyWords);
         wordPoolRef.current = wordPool;
 
-        // 生成題目
-        const questionCount = stage.questionCount;
-        const selectedWords = wordPool.slice(0, questionCount);
-
-        const questions: QuizQuestion[] = selectedWords.map((word) => {
-          const { options, correctIndex } = generateOptions(word.def, wordPool);
-          return {
-            word: word.word,
-            options,
-            correctIndex,
-            spiritId: stage.rewardSpiritId,
-          };
+        // 依關卡題型組合建題
+        const questions = buildQuizQuestions(wordPool, stage, {
+          speechSupported,
         });
 
         // 初始化快問快答狀態
@@ -217,7 +184,7 @@ export function useAdventure(): UseAdventureReturn {
         setIsLoading(false);
       }
     },
-    [progress, generateOptions],
+    [progress],
   );
 
   // 處理遊戲結束 - 使用 refs 避免依賴問題
@@ -307,13 +274,13 @@ export function useAdventure(): UseAdventureReturn {
     [user],
   );
 
-  // 提交答案
+  // 提交答案（選項題傳 index，拼字題傳字串）
   const submitAnswer = useCallback(
-    (answerIndex: number) => {
+    (answer: number | string) => {
       if (!quizState || quizState.isAnswered) return;
 
       const currentQuestion = quizState.questions[quizState.currentIndex];
-      const isCorrect = answerIndex === currentQuestion.correctIndex;
+      const isCorrect = isQuestionCorrect(currentQuestion, answer);
 
       setQuizState((prev) => {
         if (!prev) return prev;
