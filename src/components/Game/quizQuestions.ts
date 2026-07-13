@@ -14,21 +14,34 @@ const FALLBACK_WORDS = ["apple", "book", "cat", "dog"];
 // prepareGamePool 對沒有 emoji 的字會塞這個預設值 → 拿它出 emoji 題會無解，故過濾
 const DEFAULT_EMOJI = "✨";
 
-/** 從 correct + 干擾項組出 4 選 1（含洗牌與備援補足） */
+const normOpt = (s: string) => s.trim().toLowerCase();
+
+/**
+ * 從 correct + 干擾項組出 4 選 1。
+ * 干擾項會去重（忽略大小寫/前後空白）並排除與正解相同者，避免出現重複選項、
+ * 或與正解只差大小寫的「看起來一樣卻算錯」選項。
+ */
 function makeOptions(
   correct: string,
   distractors: string[],
   fallbacks: string[],
 ): { options: string[]; correctIndex: number } {
-  const wrong = shuffleArray(
-    distractors.filter((d) => d && d !== correct),
-  ).slice(0, 3);
+  const seen = new Set<string>([normOpt(correct)]);
+  const wrong: string[] = [];
 
-  let fi = 0;
-  while (wrong.length < 3) {
-    const f = fallbacks[fi++] ?? `選項 ${wrong.length + 1}`;
-    if (f !== correct && !wrong.includes(f)) wrong.push(f);
-  }
+  const tryPush = (candidate: string) => {
+    if (wrong.length >= 3 || !candidate) return;
+    const key = normOpt(candidate);
+    if (seen.has(key)) return;
+    seen.add(key);
+    wrong.push(candidate);
+  };
+
+  shuffleArray(distractors).forEach(tryPush);
+  fallbacks.forEach(tryPush);
+  // 極端情況（選項全被去重掉）用序號補滿，n 遞增保證終止
+  let n = 1;
+  while (wrong.length < 3) tryPush(`選項 ${n++}`);
 
   const options = shuffleArray([correct, ...wrong]);
   return { options, correctIndex: options.indexOf(correct) };
@@ -140,11 +153,15 @@ export function buildQuizQuestions(
   opts?: { speechSupported?: boolean; count?: number },
 ): QuizQuestion[] {
   const speechSupported = opts?.speechSupported ?? true;
-  const count = Math.min(opts?.count ?? stage.questionCount, pool.length);
-  const words = pool.slice(0, count);
+  if (pool.length === 0) return [];
+
+  const count = opts?.count ?? stage.questionCount;
   const kinds = resolveKinds(stage, count, speechSupported);
 
-  return words.map((word, i) => {
+  // 單字池不足時循環取用，確保題數足夠
+  // （魔王題數 = bossHp + 3，不能少於 bossHp，否則永遠打不倒）
+  return Array.from({ length: count }, (_, i) => {
+    const word = pool[i % pool.length];
     let kind = kinds[i];
     if (kind === "emoji" && (!word.emoji || word.emoji === DEFAULT_EMOJI)) {
       kind = "meaning";

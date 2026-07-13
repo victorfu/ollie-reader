@@ -42,9 +42,30 @@ describe("buildQuizQuestions", () => {
     });
   });
 
-  it("caps question count at pool size", () => {
-    const qs = buildQuizQuestions(POOL, makeStage({ questionCount: 99 }));
-    expect(qs).toHaveLength(POOL.length);
+  it("fills the requested count by cycling a small pool (boss winnability)", () => {
+    const smallPool = POOL.slice(0, 4);
+    const qs = buildQuizQuestions(smallPool, makeStage({ questionCount: 8 }));
+    expect(qs).toHaveLength(8); // 需求 8 題 > 池 4 → 循環補足，魔王才打得倒
+    const poolWords = new Set(smallPool.map((w) => w.word));
+    expect(qs.every((q) => poolWords.has(q.word))).toBe(true);
+  });
+
+  it("returns no questions for an empty pool", () => {
+    expect(buildQuizQuestions([], makeStage({ questionCount: 5 }))).toEqual([]);
+  });
+
+  it("never produces duplicate options even when many defs are identical", () => {
+    const pool = [
+      { word: "real", def: "真的", emoji: "" },
+      { word: "a", def: "未知定義", emoji: "" },
+      { word: "b", def: "未知定義", emoji: "" },
+      { word: "c", def: "未知定義", emoji: "" },
+    ];
+    const q = buildQuizQuestions(pool, makeStage({ questionCount: 1 }))[0];
+    if (q.kind === "spell") throw new Error("unexpected spell");
+    expect(q.options).toHaveLength(4);
+    expect(new Set(q.options).size).toBe(4); // 無重複選項
+    expect(q.options[q.correctIndex]).toBe("真的");
   });
 
   it("cycles through declared question kinds", () => {
