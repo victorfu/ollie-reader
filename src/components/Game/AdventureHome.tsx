@@ -10,12 +10,14 @@ interface AdventureHomeProps {
   progress: PlayerProgress;
   onStartAdventure: () => void;
   onOpenCollection: () => void;
+  onOpenShop: () => void;
 }
 
 export function AdventureHome({
   progress,
   onStartAdventure,
   onOpenCollection,
+  onOpenShop,
 }: AdventureHomeProps) {
   const [showAchievements, setShowAchievements] = useState(false);
 
@@ -113,6 +115,18 @@ export function AdventureHome({
               />
             </div>
 
+            {/* 金幣與連勝 */}
+            <div className="flex items-center justify-center gap-2 mt-3">
+              <span className="badge badge-warning gap-1">
+                🪙 {progress.coins}
+              </span>
+              {progress.streakDays > 0 && (
+                <span className="badge badge-error gap-1">
+                  🔥 連續 {progress.streakDays} 天
+                </span>
+              )}
+            </div>
+
             {/* 統計數據 */}
             <div className="grid grid-cols-3 gap-2 mt-4 text-center">
               <div className="p-2 bg-base-100/70 rounded-lg border border-border-hairline">
@@ -202,6 +216,16 @@ export function AdventureHome({
                 </span>
               </motion.button>
             </div>
+
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={onOpenShop}
+              className="btn btn-outline btn-warning w-full gap-2"
+            >
+              <span className="text-lg">🛒</span>
+              神秘商店（扭蛋）
+            </motion.button>
           </div>
         </div>
       </motion.div>

@@ -8,6 +8,8 @@ import { QuizGame } from "./QuizGame";
 import { SpiritCollection } from "./SpiritCollection";
 import { RewardModal } from "./RewardModal";
 import { CompanionGuide } from "./CompanionGuide";
+import { Shop } from "./Shop";
+import { DailyBonusModal } from "./DailyBonusModal";
 
 export function SpiritAdventure() {
   const [showCompanion, setShowCompanion] = useState(true);
@@ -24,10 +26,14 @@ export function SpiritAdventure() {
     isStagePlayable,
     quizState,
     pendingReward,
+    coins,
+    pendingDailyBonus,
     startQuiz,
     submitAnswer,
     tickTimer,
     claimReward,
+    claimDailyBonus,
+    drawGacha,
     goHome,
   } = useAdventure();
 
@@ -102,12 +108,26 @@ export function SpiritAdventure() {
         <RewardModal reward={pendingReward} onClaim={claimReward} />
       )}
 
+      {/* 每日獎勵彈窗 */}
+      {pendingDailyBonus && (
+        <DailyBonusModal bonus={pendingDailyBonus} onClaim={claimDailyBonus} />
+      )}
+
       {/* 主要內容根據 gameView 切換 */}
       {gameView === "home" && (
         <AdventureHome
           progress={progress}
           onStartAdventure={() => setGameView("map")}
           onOpenCollection={() => setGameView("collection")}
+          onOpenShop={() => setGameView("shop")}
+        />
+      )}
+
+      {gameView === "shop" && (
+        <Shop
+          coins={coins}
+          onDraw={drawGacha}
+          onBack={() => setGameView("home")}
         />
       )}
 
