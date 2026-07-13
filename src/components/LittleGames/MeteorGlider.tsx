@@ -85,6 +85,8 @@ type MeteorGliderProps = {
 
 export default function MeteorGlider({ onExit, onPlayBunny }: MeteorGliderProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const stageRef = useRef<HTMLDivElement>(null);
+  const redrawRef = useRef<() => void>(() => {});
   const gameDataRef = useRef<GameData | null>(null);
   const rafRef = useRef<number | null>(null);
   const renderedScoreRef = useRef(0);
@@ -103,28 +105,79 @@ export default function MeteorGlider({ onExit, onPlayBunny }: MeteorGliderProps)
     }
   }, []);
 
+  // 全螢幕遊戲頁：鎖住頁面捲動（防 macOS 橡皮筋效應）
+  useEffect(() => {
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, []);
+
+  // 依視窗大小等比縮放 canvas（letterbox）；renderGame 維持 480×720 邏輯座標
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
-    const dpr = window.devicePixelRatio || 1;
-    canvas.width = WIDTH * dpr;
-    canvas.height = HEIGHT * dpr;
-    canvas.style.width = `${WIDTH}px`;
-    canvas.style.height = `${HEIGHT}px`;
-    const ctx = canvas.getContext("2d");
-    if (ctx) ctx.scale(dpr, dpr);
+    const stage = stageRef.current;
+    if (!canvas || !stage) return;
+    const applySize = () => {
+      const rect = stage.getBoundingClientRect();
+      // 底限只避免尺寸歸零；不設高地板，確保 canvas 一定能塞進容器
+      const availW = Math.max(rect.width - 32, 1);
+      const availH = Math.max(rect.height - 32, 1);
+      const scale = Math.max(Math.min(availW / WIDTH, availH / HEIGHT), 0.05);
+      const displayW = Math.round(WIDTH * scale);
+      const displayH = Math.round(HEIGHT * scale);
+      const dpr = window.devicePixelRatio || 1;
+      canvas.style.width = `${displayW}px`;
+      canvas.style.height = `${displayH}px`;
+      canvas.width = Math.round(displayW * dpr);
+      canvas.height = Math.round(displayH * dpr);
+      const ctx = canvas.getContext("2d");
+      if (ctx) {
+        ctx.setTransform(canvas.width / WIDTH, 0, 0, canvas.height / HEIGHT, 0, 0);
+      }
+      // 改尺寸會清空畫布；非遊玩狀態沒有 rAF 迴圈，需補畫一幀
+      redrawRef.current();
+    };
+    applySize();
+    const observer = new ResizeObserver(applySize);
+    observer.observe(stage);
+    window.addEventListener("resize", applySize);
+    const raf = requestAnimationFrame(() => redrawRef.current());
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("resize", applySize);
+      observer.disconnect();
+    };
   }, []);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Esc 切換暫停 / 繼續
+      if (e.key === "Escape") {
+        if (gameState === "playing") {
+          setGameState("paused");
+        } else if (gameState === "paused") {
+          if (gameDataRef.current) gameDataRef.current.lastTime = performance.now();
+          setGameState("playing");
+        }
+        return;
+      }
+      // 遊玩中攔截捲動鍵，避免空白鍵/方向鍵捲動頁面
+      if (
+        gameState === "playing" &&
+        (e.key === "ArrowLeft" ||
+          e.key === "ArrowRight" ||
+          e.key === "ArrowUp" ||
+          e.key === "ArrowDown" ||
+          e.key === " ")
+      ) {
+        e.preventDefault();
+      }
       if (!gameDataRef.current) return;
       if (e.key === "ArrowLeft" || e.key === "a") gameDataRef.current.input.left = true;
       if (e.key === "ArrowRight" || e.key === "d") gameDataRef.current.input.right = true;
       if (e.key === " " || e.key.toLowerCase() === "k" || e.key === "Shift") {
         gameDataRef.current.input.dashQueued = true;
-      }
-      if (e.key === "Escape" && gameState === "playing") {
-        setGameState("paused");
       }
     };
 
@@ -395,6 +448,44 @@ export default function MeteorGlider({ onExit, onPlayBunny }: MeteorGliderProps)
     }
   };
 
+  // 保持重繪 closure 為最新，供縮放時補畫最後一幀（renderGame 已宣告）
+  useEffect(() => {
+    redrawRef.current = () => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+      const data = gameDataRef.current;
+      if (data) renderGame(ctx, data);
+    };
+  });
+
+  // 進入暫停時清空輸入，避免恢復時角色帶著舊輸入漂移
+  useEffect(() => {
+    if (gameState !== "paused") return;
+    const data = gameDataRef.current;
+    if (data) {
+      data.input.left = false;
+      data.input.right = false;
+      data.input.touchDir = 0;
+    }
+  }, [gameState]);
+
+  // 視窗失焦/分頁切走時自動暫停，中途被叫走也不會繼續墜毀
+  useEffect(() => {
+    if (gameState !== "playing") return;
+    const onVisibility = () => {
+      if (document.hidden) setGameState("paused");
+    };
+    const onBlur = () => setGameState("paused");
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("blur", onBlur);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("blur", onBlur);
+    };
+  }, [gameState]);
+
   useEffect(() => {
     if (gameState !== "playing") return;
     const loop = (time: number) => {
@@ -480,7 +571,7 @@ export default function MeteorGlider({ onExit, onPlayBunny }: MeteorGliderProps)
 
   return (
     <div
-      className="relative flex items-center justify-center min-h-screen"
+      className="relative flex h-[100dvh] w-full items-center justify-center overflow-hidden"
       style={{
         background:
           "radial-gradient(circle at 20% 20%, rgba(62,105,255,0.15), transparent 40%), radial-gradient(circle at 80% 10%, rgba(255,176,117,0.2), transparent 32%), #0b1020",
@@ -492,22 +583,24 @@ export default function MeteorGlider({ onExit, onPlayBunny }: MeteorGliderProps)
           className="absolute left-6 top-6 z-20 rounded-full bg-white/90 px-4 py-2 text-sm font-semibold text-slate-900 shadow-lg backdrop-blur transition hover:-translate-y-0.5 hover:shadow-xl"
           type="button"
         >
-          ← Back to games
+          ← 回遊戲列表
         </button>
       )}
 
-      <div className="relative">
-        <canvas
-          ref={canvasRef}
-          width={WIDTH}
-          height={HEIGHT}
-          style={{
-            borderRadius: "22px",
-            boxShadow: "0 28px 70px rgba(12,16,32,0.55)",
-            border: "3px solid rgba(255,255,255,0.08)",
-            background: "#0b1020",
-          }}
-        />
+      <div
+        ref={stageRef}
+        className="flex h-full min-h-0 w-full items-center justify-center"
+      >
+        <div className="relative">
+          <canvas
+            ref={canvasRef}
+            style={{
+              borderRadius: "22px",
+              boxShadow: "0 28px 70px rgba(12,16,32,0.55)",
+              border: "3px solid rgba(255,255,255,0.08)",
+              background: "#0b1020",
+            }}
+          />
 
         {(gameState === "menu" || gameState === "gameover") && (
           <div className="absolute inset-0 flex items-center justify-center">
@@ -628,6 +721,7 @@ export default function MeteorGlider({ onExit, onPlayBunny }: MeteorGliderProps)
             </div>
           </div>
         )}
+        </div>
       </div>
     </div>
   );
