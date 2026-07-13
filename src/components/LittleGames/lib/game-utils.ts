@@ -30,13 +30,18 @@ export function generateId(): string {
   return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 }
 
-export function getBestScore(): number {
-  const stored = localStorage.getItem(GAME_CONFIG.SCORING.BEST_SCORE_KEY);
+export function getBestScore(
+  key: string = GAME_CONFIG.SCORING.BEST_SCORE_KEY,
+): number {
+  const stored = localStorage.getItem(key);
   if (!stored) return 0;
   const parsed = parseInt(stored, 10);
   return isNaN(parsed) ? 0 : parsed;
 }
 
-export function setBestScore(score: number): void {
-  localStorage.setItem(GAME_CONFIG.SCORING.BEST_SCORE_KEY, score.toString());
+export function setBestScore(
+  score: number,
+  key: string = GAME_CONFIG.SCORING.BEST_SCORE_KEY,
+): void {
+  localStorage.setItem(key, score.toString());
 }

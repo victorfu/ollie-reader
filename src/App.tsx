@@ -85,7 +85,7 @@ const MeteorGlider = lazyWithReload(
   () => import("./components/LittleGames/MeteorGlider"),
 );
 const MushroomAdventure = lazyWithReload(
-  () => import("./components/LittleGames/MushroomAdventure"),
+  () => import("./components/LittleGames/mushroom/MushroomAdventure"),
 );
 const WonderAcademyGame = lazyWithReload(
   () => import("./components/LittleGames/wonder-academy/WonderAcademyCollector"),
