@@ -13,6 +13,7 @@ import StarOwl from "./StarOwl";
 import ShadowCat from "./ShadowCat";
 import EarthGolem from "./EarthGolem";
 import WindEagle from "./WindEagle";
+import { NEW_SPIRITS, NEW_SPIRIT_COMPONENTS } from "./newSpirits";
 
 // 精靈資料清單
 export const SPIRITS: Spirit[] = [
@@ -22,6 +23,8 @@ export const SPIRITS: Spirit[] = [
     element: "fire",
     rarity: "common",
     description: "圓滾滾的小火球，總是溫暖地發著光。",
+    evolvesToId: "blaze-drake",
+    evolveCondition: { type: "train", element: "fire", correctCount: 12 },
   },
   {
     id: "water-fox",
@@ -29,6 +32,8 @@ export const SPIRITS: Spirit[] = [
     element: "water",
     rarity: "common",
     description: "優雅的藍色狐狸，喜歡在雨天出現。",
+    evolvesToId: "tide-fox",
+    evolveCondition: { type: "train", element: "water", correctCount: 12 },
   },
   {
     id: "leaf-bunny",
@@ -36,6 +41,8 @@ export const SPIRITS: Spirit[] = [
     element: "grass",
     rarity: "common",
     description: "活潑好動的綠色兔兔，耳朵上會長出小葉子。",
+    evolvesToId: "forest-deer",
+    evolveCondition: { type: "train", element: "grass", correctCount: 12 },
   },
   {
     id: "thunder-mouse",
@@ -114,6 +121,8 @@ export const SPIRITS: Spirit[] = [
     rarity: "rare",
     description: "乘風而行的雄鷹，速度快如閃電。",
   },
+  // 第二章 / 進化 / 扭蛋 的新精靈
+  ...NEW_SPIRITS,
 ];
 
 // 精靈元件映射
@@ -139,6 +148,7 @@ export const SPIRIT_COMPONENTS: Record<
   "shadow-cat": ShadowCat,
   "earth-golem": EarthGolem,
   "wind-eagle": WindEagle,
+  ...NEW_SPIRIT_COMPONENTS,
 };
 
 // 稀有度對應的顏色
@@ -199,6 +209,13 @@ export const ELEMENT_INFO: Record<
 // 根據 ID 獲取精靈資料
 export function getSpiritById(id: string): Spirit | undefined {
   return SPIRITS.find((s) => s.id === id);
+}
+
+// 取得某精靈的進化後精靈（無則 undefined）
+export function getEvolution(id: string): Spirit | undefined {
+  const base = getSpiritById(id);
+  if (!base?.evolvesToId) return undefined;
+  return getSpiritById(base.evolvesToId);
 }
 
 // 獲取指定元素的精靈
