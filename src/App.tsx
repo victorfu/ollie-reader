@@ -304,6 +304,7 @@ function AppContent() {
   const isStandaloneWonderAcademy =
     normalizedPathname === "/games/wonder-academy";
   const isStandaloneMushroom = normalizedPathname === "/games/mushroom";
+  const isStandaloneBunny = normalizedPathname === "/games/bunny";
   const isLegacyMonsterAcademy =
     normalizedPathname === "/games/monster-academy";
 
@@ -329,6 +330,14 @@ function AppContent() {
     return (
       <Suspense fallback={<RouteLoadingFallback />}>
         <MushroomAdventure onExit={() => navigate("/games")} />
+      </Suspense>
+    );
+  }
+
+  if (isStandaloneBunny) {
+    return (
+      <Suspense fallback={<RouteLoadingFallback />}>
+        <BunnyJumper onExit={() => navigate("/games")} />
       </Suspense>
     );
   }
@@ -662,10 +671,6 @@ function AppContent() {
                       <Route
                         path="/games/spirit"
                         element={<SpiritAdventure />}
-                      />
-                      <Route
-                        path="/games/bunny"
-                        element={<BunnyJumper onExit={() => navigate("/games")} />}
                       />
                       <Route
                         path="/games/meteor"

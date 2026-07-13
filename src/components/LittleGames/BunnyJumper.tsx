@@ -1,3 +1,5 @@
+import confetti from "canvas-confetti";
+import { useReducedMotion } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
 import { GAME_CONFIG } from "./lib/constants";
 import {
@@ -93,10 +95,16 @@ const POWERUP_DURATIONS_BY_TYPE: Record<PowerupType, number> = {
 
 export default function BunnyJumper({ onExit }: BunnyJumperProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const stageRef = useRef<HTMLDivElement>(null);
+  const redrawRef = useRef<() => void>(() => {});
+  const playingRef = useRef(false);
+  const pausedRef = useRef(false);
   const [gameState, setGameState] = useState<GameState>(GameState.Menu);
   const [currentScore, setCurrentScore] = useState(0);
   const [bestScore, setBestScoreState] = useState(0);
   const [gapScale, setGapScale] = useState(1.25);
+  const [isNewBest, setIsNewBest] = useState(false);
+  const shouldReduceMotion = useReducedMotion();
   const renderedScoreRef = useRef(0);
   const lastScoreSyncRef = useRef(-Infinity);
   const gameLoopRef = useRef<number | undefined>(undefined);
@@ -104,6 +112,60 @@ export default function BunnyJumper({ onExit }: BunnyJumperProps) {
 
   useEffect(() => {
     setBestScoreState(getBestScore());
+  }, []);
+
+  // 全螢幕遊戲頁：鎖住頁面捲動（防 macOS 橡皮筋效應）
+  useEffect(() => {
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, []);
+
+  // 依視窗大小等比縮放 canvas（letterbox）；render 維持 480×800 邏輯座標
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const stage = stageRef.current;
+    if (!canvas || !stage) return;
+    const applySize = () => {
+      const rect = stage.getBoundingClientRect();
+      const availW = rect.width - 32;
+      const availH = rect.height - 32;
+      const scale = Math.max(
+        Math.min(availW / GAME_CONFIG.WIDTH, availH / GAME_CONFIG.HEIGHT),
+        0.3,
+      );
+      const displayW = Math.round(GAME_CONFIG.WIDTH * scale);
+      const displayH = Math.round(GAME_CONFIG.HEIGHT * scale);
+      const dpr = window.devicePixelRatio || 1;
+      canvas.style.width = `${displayW}px`;
+      canvas.style.height = `${displayH}px`;
+      canvas.width = Math.round(displayW * dpr);
+      canvas.height = Math.round(displayH * dpr);
+      const ctx = canvas.getContext("2d");
+      if (ctx) {
+        ctx.setTransform(
+          canvas.width / GAME_CONFIG.WIDTH,
+          0,
+          0,
+          canvas.height / GAME_CONFIG.HEIGHT,
+          0,
+          0,
+        );
+      }
+      // 改尺寸會清空畫布；非遊玩狀態沒有 rAF 迴圈，需補畫一幀
+      redrawRef.current();
+    };
+    applySize();
+    const observer = new ResizeObserver(applySize);
+    observer.observe(stage);
+    window.addEventListener("resize", applySize);
+    const raf = requestAnimationFrame(() => redrawRef.current());
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("resize", applySize);
+      observer.disconnect();
+    };
   }, []);
 
   const initGame = (gapScaleValue: number) => {
@@ -226,6 +288,7 @@ export default function BunnyJumper({ onExit }: BunnyJumperProps) {
     initGame(gapScale);
     renderedScoreRef.current = 0;
     lastScoreSyncRef.current = -Infinity;
+    setIsNewBest(false);
     setGameState(GameState.Playing);
     setCurrentScore(0);
   };
@@ -238,10 +301,41 @@ export default function BunnyJumper({ onExit }: BunnyJumperProps) {
     setGameState(GameState.Menu);
   };
 
+  // 暫停：先清空按鍵，避免恢復時角色帶著舊輸入亂移
+  const pauseGame = () => {
+    if (gameDataRef.current) gameDataRef.current.keys = {};
+    setGameState(GameState.Paused);
+  };
+
+  const resumeGame = () => {
+    setGameState(GameState.Playing);
+  };
+
+  // 遊玩中會捲動頁面的按鍵：方向鍵與空白鍵
+  const isScrollKey = (key: string) =>
+    key === "arrowleft" ||
+    key === "arrowright" ||
+    key === "arrowup" ||
+    key === "arrowdown" ||
+    key === " ";
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      const key = e.key.toLowerCase();
+      // Esc 切換暫停 / 繼續
+      if (key === "escape") {
+        if (playingRef.current) {
+          if (gameDataRef.current) gameDataRef.current.keys = {};
+          setGameState(GameState.Paused);
+        } else if (pausedRef.current) {
+          setGameState(GameState.Playing);
+        }
+        return;
+      }
+      // 遊玩中攔截捲動鍵，避免空白鍵/方向鍵捲動頁面
+      if (playingRef.current && isScrollKey(key)) e.preventDefault();
       if (!gameDataRef.current) return;
-      gameDataRef.current.keys[e.key.toLowerCase()] = true;
+      gameDataRef.current.keys[key] = true;
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
@@ -1848,6 +1942,50 @@ export default function BunnyJumper({ onExit }: BunnyJumperProps) {
     }
   };
 
+  // 保持重繪 closure 為最新，供縮放時補畫最後一幀（render 已宣告）
+  useEffect(() => {
+    redrawRef.current = () => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+      const data = gameDataRef.current;
+      if (data) render(ctx, data);
+    };
+  });
+
+  // preventDefault / Esc 只在遊玩中攔截，選單/結束畫面按鍵仍可操作
+  useEffect(() => {
+    playingRef.current = gameState === GameState.Playing;
+    pausedRef.current = gameState === GameState.Paused;
+  }, [gameState]);
+
+  // 破紀錄時的彩帶慶祝（尊重減少動態偏好）
+  useEffect(() => {
+    if (gameState !== GameState.GameOver || !isNewBest) return;
+    if (shouldReduceMotion) return;
+    confetti({ particleCount: 120, spread: 75, origin: { y: 0.6 } });
+    const timer = setTimeout(() => {
+      confetti({ particleCount: 80, spread: 110, origin: { y: 0.4 } });
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [gameState, isNewBest, shouldReduceMotion]);
+
+  // 視窗失焦/分頁切走時自動暫停，中途被叫走也不會繼續掉下去
+  useEffect(() => {
+    if (gameState !== GameState.Playing) return;
+    const onVisibility = () => {
+      if (document.hidden) pauseGame();
+    };
+    const onBlur = () => pauseGame();
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("blur", onBlur);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("blur", onBlur);
+    };
+  }, [gameState]);
+
   useEffect(() => {
     if (gameState !== GameState.Playing) return;
 
@@ -1856,6 +1994,9 @@ export default function BunnyJumper({ onExit }: BunnyJumperProps) {
 
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
+
+    // 重新進入遊玩（開局／從暫停恢復）時重置時間，避免第一幀 dt 過大
+    if (gameDataRef.current) gameDataRef.current.lastTime = performance.now();
 
     const gameLoop = (time: number) => {
       if (!gameDataRef.current) return;
@@ -1909,10 +2050,12 @@ export default function BunnyJumper({ onExit }: BunnyJumperProps) {
         } else {
           // 無護盾，遊戲結束
           const best = getBestScore();
-          if (totalScore > best) {
+          const beatBest = totalScore > best && totalScore > 0;
+          if (beatBest) {
             setBestScore(totalScore);
             setBestScoreState(totalScore);
           }
+          setIsNewBest(beatBest);
           renderedScoreRef.current = totalScore;
           setCurrentScore(totalScore);
           setGameState(GameState.GameOver);
@@ -1935,7 +2078,7 @@ export default function BunnyJumper({ onExit }: BunnyJumperProps) {
   // 繪製可愛小兔子角色 - 新設計：直立耳朵、小花裝飾、棉花尾巴、肉球腳掌
   return (
     <div
-      className="relative flex items-center justify-center min-h-screen"
+      className="relative flex h-[100dvh] w-full items-center justify-center overflow-hidden"
       style={{
         background:
           "linear-gradient(135deg, #ffeef8 0%, #e8f4fc 50%, #fff5e6 100%)",
@@ -1947,21 +2090,32 @@ export default function BunnyJumper({ onExit }: BunnyJumperProps) {
           className="absolute left-6 top-6 z-20 rounded-full bg-white/90 px-4 py-2 text-sm font-semibold text-slate-800 shadow-lg backdrop-blur transition hover:-translate-y-0.5 hover:shadow-xl"
           type="button"
         >
-          ← Back to games
+          ← 回遊戲列表
         </button>
       )}
-      <div className="relative">
-        <canvas
-          ref={canvasRef}
-          width={GAME_CONFIG.WIDTH}
-          height={GAME_CONFIG.HEIGHT}
-          style={{
-            borderRadius: "24px",
-            boxShadow:
-              "0 25px 80px rgba(255, 150, 180, 0.25), 0 10px 30px rgba(135, 206, 235, 0.15)",
-            border: "4px solid rgba(255, 255, 255, 0.8)",
-          }}
-        />
+      {gameState === GameState.Playing && (
+        <button
+          onClick={pauseGame}
+          className="absolute right-6 top-6 z-20 rounded-full bg-white/90 px-4 py-2 text-sm font-semibold text-slate-800 shadow-lg backdrop-blur transition hover:-translate-y-0.5 hover:shadow-xl"
+          type="button"
+        >
+          ⏸ 暫停
+        </button>
+      )}
+      <div
+        ref={stageRef}
+        className="flex h-full min-h-0 w-full items-center justify-center"
+      >
+        <div className="relative">
+          <canvas
+            ref={canvasRef}
+            style={{
+              borderRadius: "24px",
+              boxShadow:
+                "0 25px 80px rgba(255, 150, 180, 0.25), 0 10px 30px rgba(135, 206, 235, 0.15)",
+              border: "4px solid rgba(255, 255, 255, 0.8)",
+            }}
+          />
 
         {gameState === GameState.Menu && (
           <div className="absolute inset-0 flex items-center justify-center">
@@ -2226,6 +2380,139 @@ export default function BunnyJumper({ onExit }: BunnyJumperProps) {
               >
                 ← → 或 A D 移動
               </p>
+
+              {/* 難度：雲間距 */}
+              <div
+                style={{
+                  marginTop: "18px",
+                  padding: "14px 16px",
+                  background: "rgba(255, 245, 248, 0.9)",
+                  borderRadius: "14px",
+                  border: "1px solid rgba(255, 200, 210, 0.6)",
+                }}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-semibold text-pink-500">
+                    雲間距 / 難度
+                  </span>
+                  <span className="text-sm font-semibold text-gray-700">
+                    {gapScale.toFixed(2)}x
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min={1}
+                  max={1.6}
+                  step={0.05}
+                  value={gapScale}
+                  onChange={(e) => setGapScale(parseFloat(e.target.value))}
+                  aria-label="雲間距倍率"
+                  className="w-full accent-pink-400"
+                />
+                <div className="flex justify-between text-[11px] text-gray-500 mt-1">
+                  <span>較多雲 (容易)</span>
+                  <span>較少雲 (困難)</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {gameState === GameState.Paused && (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div
+              style={{
+                background: "rgba(255, 255, 255, 0.95)",
+                backdropFilter: "blur(20px)",
+                borderRadius: "28px",
+                padding: "36px 32px",
+                boxShadow:
+                  "0 20px 60px rgba(255, 150, 180, 0.2), 0 8px 24px rgba(0, 0, 0, 0.08)",
+                border: "2px solid rgba(255, 200, 210, 0.5)",
+                textAlign: "center",
+                maxWidth: "320px",
+                width: "85%",
+              }}
+            >
+              <div style={{ fontSize: "48px", marginBottom: "8px" }}>⏸️</div>
+              <h2
+                style={{
+                  fontSize: "26px",
+                  fontWeight: "700",
+                  color: "#FF6B9D",
+                  marginBottom: "8px",
+                  fontFamily: "system-ui, -apple-system, sans-serif",
+                }}
+              >
+                暫停中
+              </h2>
+              <p
+                style={{
+                  color: "#999",
+                  fontSize: "13px",
+                  marginBottom: "20px",
+                  fontFamily: "system-ui, -apple-system, sans-serif",
+                }}
+              >
+                休息一下，準備好了再繼續！（按 Esc 也可以繼續）
+              </p>
+              <div
+                style={{ display: "flex", flexDirection: "column", gap: "10px" }}
+              >
+                <button
+                  onClick={resumeGame}
+                  style={{
+                    width: "100%",
+                    padding: "14px 24px",
+                    fontSize: "16px",
+                    fontWeight: "600",
+                    color: "#fff",
+                    background:
+                      "linear-gradient(135deg, #FF6B9D 0%, #FF8A80 100%)",
+                    border: "none",
+                    borderRadius: "14px",
+                    cursor: "pointer",
+                    boxShadow: "0 8px 24px rgba(255, 107, 157, 0.4)",
+                    fontFamily: "system-ui, -apple-system, sans-serif",
+                  }}
+                >
+                  ▶ 繼續
+                </button>
+                <button
+                  onClick={handleRestart}
+                  style={{
+                    width: "100%",
+                    padding: "13px 24px",
+                    fontSize: "15px",
+                    fontWeight: "600",
+                    color: "#FF6B9D",
+                    background: "#FFF5F8",
+                    border: "2px solid #FFD6E0",
+                    borderRadius: "14px",
+                    cursor: "pointer",
+                    fontFamily: "system-ui, -apple-system, sans-serif",
+                  }}
+                >
+                  🔄 重新開始
+                </button>
+                <button
+                  onClick={handleMenu}
+                  style={{
+                    width: "100%",
+                    padding: "13px 24px",
+                    fontSize: "15px",
+                    fontWeight: "600",
+                    color: "#FF6B9D",
+                    background: "#FFF5F8",
+                    border: "2px solid #FFD6E0",
+                    borderRadius: "14px",
+                    cursor: "pointer",
+                    fontFamily: "system-ui, -apple-system, sans-serif",
+                  }}
+                >
+                  🏠 主選單
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -2246,18 +2533,38 @@ export default function BunnyJumper({ onExit }: BunnyJumperProps) {
                 width: "85%",
               }}
             >
-              <div style={{ fontSize: "56px", marginBottom: "12px" }}>✨</div>
+              <div style={{ fontSize: "56px", marginBottom: "12px" }}>
+                {isNewBest ? "🎉" : "✨"}
+              </div>
               <h2
                 style={{
                   fontSize: "28px",
                   fontWeight: "700",
                   color: "#FF6B9D",
-                  marginBottom: "20px",
+                  marginBottom: isNewBest ? "10px" : "20px",
                   fontFamily: "system-ui, -apple-system, sans-serif",
                 }}
               >
-                遊戲結束
+                {isNewBest ? "新紀錄！" : "遊戲結束"}
               </h2>
+              {isNewBest && (
+                <div
+                  style={{
+                    display: "inline-block",
+                    marginBottom: "16px",
+                    padding: "6px 16px",
+                    borderRadius: "9999px",
+                    background:
+                      "linear-gradient(135deg, #FFE29A 0%, #FFD36E 100%)",
+                    color: "#8a5a00",
+                    fontSize: "13px",
+                    fontWeight: "700",
+                    fontFamily: "system-ui, -apple-system, sans-serif",
+                  }}
+                >
+                  👑 你創下新高分！
+                </div>
+              )}
 
               <div
                 style={{
@@ -2363,47 +2670,6 @@ export default function BunnyJumper({ onExit }: BunnyJumperProps) {
           </div>
         )}
 
-        <div className="mt-6">
-          <div
-            style={{
-              background: "rgba(255, 255, 255, 0.9)",
-              borderRadius: "16px",
-              padding: "16px 18px",
-              boxShadow:
-                "0 12px 32px rgba(255, 150, 180, 0.12), 0 6px 16px rgba(135, 206, 235, 0.12)",
-              border: "1px solid rgba(255, 200, 210, 0.5)",
-              backdropFilter: "blur(12px)",
-              width: GAME_CONFIG.WIDTH,
-            }}
-          >
-            <div className="flex items-center justify-between mb-3">
-              <div>
-                <p className="text-sm font-semibold text-pink-500">
-                  雲間距 / 難度設定
-                </p>
-                <p className="text-xs text-gray-500">
-                  提高間距會減少平台數量，讓遊戲更具挑戰。
-                </p>
-              </div>
-              <div className="text-sm font-semibold text-gray-700">
-                {gapScale.toFixed(2)}x
-              </div>
-            </div>
-            <input
-              type="range"
-              min={1}
-              max={1.6}
-              step={0.05}
-              value={gapScale}
-              onChange={(e) => setGapScale(parseFloat(e.target.value))}
-              aria-label="雲間距倍率"
-              className="w-full accent-pink-400"
-            />
-            <div className="flex justify-between text-[11px] text-gray-500 mt-1">
-              <span>較多雲 (容易)</span>
-              <span>較少雲 (困難)</span>
-            </div>
-          </div>
         </div>
       </div>
     </div>

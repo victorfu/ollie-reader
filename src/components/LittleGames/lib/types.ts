@@ -22,6 +22,7 @@ export type PowerupType = (typeof PowerupType)[keyof typeof PowerupType];
 export const GameState = {
   Menu: "menu",
   Playing: "playing",
+  Paused: "paused",
   GameOver: "gameover",
 } as const;
 export type GameState = (typeof GameState)[keyof typeof GameState];
