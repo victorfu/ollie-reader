@@ -117,11 +117,11 @@ export function AdventureHome({
 
             {/* 金幣與連勝 */}
             <div className="flex items-center justify-center gap-2 mt-3">
-              <span className="badge badge-warning gap-1">
+              <span className="badge badge-soft badge-warning gap-1 font-semibold">
                 🪙 {progress.coins}
               </span>
               {progress.streakDays > 0 && (
-                <span className="badge badge-error gap-1">
+                <span className="badge badge-soft badge-error gap-1 font-semibold">
                   🔥 連續 {progress.streakDays} 天
                 </span>
               )}

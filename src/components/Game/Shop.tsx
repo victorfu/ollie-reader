@@ -48,7 +48,7 @@ export function Shop({ coins, onDraw, onBack }: ShopProps) {
         >
           ← 回主選單
         </button>
-        <span className="badge badge-warning badge-lg gap-1">
+        <span className="badge badge-soft badge-warning badge-lg gap-1 font-semibold">
           🪙 {coins}
         </span>
       </div>
