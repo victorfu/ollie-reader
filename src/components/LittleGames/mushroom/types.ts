@@ -52,6 +52,11 @@ export type Level = {
   flag: Flag;
   sky: { top: string; bottom: string };
 };
+export type MushroomProgress = {
+  version: 1;
+  highestUnlocked: number; // 0-based 已解鎖的最高關卡索引
+  tutorialDone: boolean;
+};
 export type FloatingText = {
   x: number;
   y: number;

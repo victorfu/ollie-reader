@@ -106,6 +106,7 @@ export const MUSHROOM_CONFIG = {
   MAX_PARTICLES: 50, // 粒子數量上限
   SETTINGS_KEY: "mushroom-adventure-settings",
   BEST_SCORE_KEY: "mushroom-adventure-best",
+  PROGRESS_KEY: "mushroom-adventure-progress",
 
   DEFAULT_SETTINGS: {
     difficultyScale: 1.0,

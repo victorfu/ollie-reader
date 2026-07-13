@@ -12,7 +12,12 @@ import {
   drawPowerup,
   roundRect,
 } from "./sprites";
-import type { FloatingText, GameState, Particle } from "./types";
+import type {
+  FloatingText,
+  GameState,
+  MushroomProgress,
+  Particle,
+} from "./types";
 
 // 設定持久化函式
 const loadSettings = (): MushroomSettings => {
@@ -29,6 +34,30 @@ const saveSettings = (settings: MushroomSettings) => {
   localStorage.setItem(MUSHROOM_CONFIG.SETTINGS_KEY, JSON.stringify(settings));
 };
 
+// 關卡進度持久化
+const loadProgress = (): MushroomProgress => {
+  try {
+    const stored = localStorage.getItem(MUSHROOM_CONFIG.PROGRESS_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored) as Partial<MushroomProgress>;
+      return {
+        version: 1,
+        highestUnlocked: clamp(
+          Math.floor(parsed.highestUnlocked ?? 0),
+          0,
+          LEVELS.length - 1,
+        ),
+        tutorialDone: Boolean(parsed.tutorialDone),
+      };
+    }
+  } catch { /* ignore invalid stored progress */ }
+  return { version: 1, highestUnlocked: 0, tutorialDone: false };
+};
+
+const saveProgress = (progress: MushroomProgress) => {
+  localStorage.setItem(MUSHROOM_CONFIG.PROGRESS_KEY, JSON.stringify(progress));
+};
+
 export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
@@ -38,8 +67,9 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
   const [score, setScore] = useState(0);
   const [best, setBest] = useState(0);
   const [, setLives] = useState(3);
-  const [, setLevelIndex] = useState(0);
+  const [levelIndex, setLevelIndex] = useState(0);
   const [settings, setSettings] = useState<MushroomSettings>(loadSettings);
+  const [progress, setProgress] = useState<MushroomProgress>(loadProgress);
 
   const stateRef = useRef({
     player: {
@@ -228,8 +258,24 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
     setLevelIndex(index);
   };
 
+  // 過關即解鎖，之後可從選單直接挑戰
+  const unlockLevel = (idx: number) => {
+    setProgress((prev) => {
+      const highestUnlocked = clamp(
+        Math.max(prev.highestUnlocked, idx),
+        0,
+        LEVELS.length - 1,
+      );
+      if (highestUnlocked === prev.highestUnlocked) return prev;
+      const next = { ...prev, highestUnlocked };
+      saveProgress(next);
+      return next;
+    });
+  };
+
   const nextLevel = () => {
     const next = stateRef.current.levelIndex + 1;
+    unlockLevel(next);
     if (next >= LEVELS.length) {
       setGameState("win");
       setScore(stateRef.current.score);
@@ -260,6 +306,11 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
     if (s.lives <= 0) {
       setScore(s.score);
       setLives(0);
+      // 死亡也結算最佳分數（原本只有全通關才會存）
+      if (s.score > best) {
+        setBest(s.score);
+        setBestScore(s.score, MUSHROOM_CONFIG.BEST_SCORE_KEY);
+      }
       setGameState("dead");
     } else {
       const lvl = LEVELS[s.levelIndex];
@@ -938,6 +989,7 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
 
   const overlay = () => {
     if (gameState === "menu") {
+      const hasProgress = progress.highestUnlocked > 0;
       return (
         <Overlay>
           <h2 className="text-3xl font-bold text-emerald-800 mb-2">
@@ -951,12 +1003,29 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
             跳躍，踩怪可得分，星星無敵、羽毛二段跳、靴子加速、愛心補生命。
           </p>
           <div className="flex gap-3 justify-center flex-wrap">
-            <button
-              onClick={() => startGame()}
-              className="rounded-full bg-emerald-500 text-white px-4 py-2 font-semibold shadow hover:bg-emerald-600 transition"
-            >
-              開始遊戲
-            </button>
+            {hasProgress ? (
+              <>
+                <button
+                  onClick={() => startGame(progress.highestUnlocked)}
+                  className="rounded-full bg-emerald-500 text-white px-4 py-2 font-semibold shadow hover:bg-emerald-600 transition"
+                >
+                  繼續（第 {progress.highestUnlocked + 1} 關）
+                </button>
+                <button
+                  onClick={() => startGame()}
+                  className="rounded-full bg-slate-100 text-slate-700 px-4 py-2 font-semibold shadow hover:bg-slate-200 transition"
+                >
+                  從第 1 關開始
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={() => startGame()}
+                className="rounded-full bg-emerald-500 text-white px-4 py-2 font-semibold shadow hover:bg-emerald-600 transition"
+              >
+                開始遊戲
+              </button>
+            )}
             <button
               onClick={() => setGameState("settings")}
               className="rounded-full bg-slate-100 text-slate-700 px-4 py-2 font-semibold shadow hover:bg-slate-200 transition"
@@ -964,6 +1033,34 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
               ⚙️ 設定
             </button>
           </div>
+          {hasProgress && (
+            <div className="mt-4">
+              <p className="text-xs text-slate-500 mb-2">選擇關卡</p>
+              <div className="flex flex-wrap gap-2 justify-center">
+                {LEVELS.map((_, i) => {
+                  const unlocked = i <= progress.highestUnlocked;
+                  return (
+                    <button
+                      key={i}
+                      disabled={!unlocked}
+                      aria-disabled={!unlocked}
+                      onClick={() => startGame(i)}
+                      aria-label={
+                        unlocked ? `第 ${i + 1} 關` : `第 ${i + 1} 關（未解鎖）`
+                      }
+                      className={`h-9 w-9 rounded-full text-sm font-semibold shadow transition ${
+                        unlocked
+                          ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"
+                          : "bg-slate-100 text-slate-400 cursor-not-allowed"
+                      }`}
+                    >
+                      {unlocked ? i + 1 : "🔒"}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </Overlay>
       );
     }
@@ -1023,10 +1120,10 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
           <p className="text-slate-700 mb-2">分數 {score}</p>
           <div className="flex gap-3 justify-center">
             <button
-              onClick={() => startGame()}
+              onClick={() => startGame(levelIndex)}
               className="rounded-full bg-emerald-500 text-white px-4 py-2 font-semibold shadow"
             >
-              再試一次
+              從第 {levelIndex + 1} 關再試
             </button>
             {onExit && (
               <button
