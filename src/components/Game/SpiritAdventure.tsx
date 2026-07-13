@@ -10,6 +10,7 @@ import { RewardModal } from "./RewardModal";
 import { CompanionGuide } from "./CompanionGuide";
 import { Shop } from "./Shop";
 import { DailyBonusModal } from "./DailyBonusModal";
+import { BossBattle } from "./BossBattle";
 
 export function SpiritAdventure() {
   const [showCompanion, setShowCompanion] = useState(true);
@@ -25,6 +26,7 @@ export function SpiritAdventure() {
     isStageCompleted,
     isStagePlayable,
     quizState,
+    bossState,
     pendingReward,
     coins,
     pendingDailyBonus,
@@ -146,6 +148,17 @@ export function SpiritAdventure() {
         <QuizGame
           stage={currentStage}
           quizState={quizState}
+          onSubmitAnswer={submitAnswer}
+          onTickTimer={tickTimer}
+          onQuit={() => setGameView("map")}
+        />
+      )}
+
+      {gameView === "boss" && quizState && bossState && currentStage && (
+        <BossBattle
+          stage={currentStage}
+          quizState={quizState}
+          bossState={bossState}
           onSubmitAnswer={submitAnswer}
           onTickTimer={tickTimer}
           onQuit={() => setGameView("map")}

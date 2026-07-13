@@ -117,7 +117,7 @@ export function RewardModal({ reward, onClaim }: RewardModalProps) {
               transition={{ delay: 0.2, type: "spring" }}
               className="text-6xl"
             >
-              🎉
+              {reward.isBossVictory ? "👑" : "🎉"}
             </motion.span>
           </div>
         </div>
@@ -130,7 +130,7 @@ export function RewardModal({ reward, onClaim }: RewardModalProps) {
             transition={{ delay: 0.3 }}
             className="text-2xl font-semibold tracking-tight"
           >
-            🏆 關卡完成！
+            {reward.isBossVictory ? "你打敗魔王了！" : "🏆 關卡完成！"}
           </motion.h2>
 
           {/* 經驗值獎勵 */}
