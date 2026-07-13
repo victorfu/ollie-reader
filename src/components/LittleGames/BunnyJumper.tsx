@@ -129,11 +129,13 @@ export default function BunnyJumper({ onExit }: BunnyJumperProps) {
     if (!canvas || !stage) return;
     const applySize = () => {
       const rect = stage.getBoundingClientRect();
-      const availW = rect.width - 32;
-      const availH = rect.height - 32;
+      // 底限只避免尺寸歸零；不設高地板，確保 canvas 一定能塞進容器
+      // （容器 overflow-hidden，canvas 若比容器高會裁掉頂端的分數列）
+      const availW = Math.max(rect.width - 32, 1);
+      const availH = Math.max(rect.height - 32, 1);
       const scale = Math.max(
         Math.min(availW / GAME_CONFIG.WIDTH, availH / GAME_CONFIG.HEIGHT),
-        0.3,
+        0.05,
       );
       const displayW = Math.round(GAME_CONFIG.WIDTH * scale);
       const displayH = Math.round(GAME_CONFIG.HEIGHT * scale);

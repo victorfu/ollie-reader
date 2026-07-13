@@ -231,9 +231,11 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
     if (!canvas || !stage) return;
     const applySize = () => {
       const rect = stage.getBoundingClientRect();
-      const availW = rect.width - 32;
-      const availH = rect.height - 32;
-      const scale = Math.max(Math.min(availW / WIDTH, availH / HEIGHT), 0.35);
+      // 底限只避免尺寸歸零；不設高地板，確保 canvas 一定能塞進容器
+      // （容器 overflow-hidden，canvas 若比容器大會裁掉 HUD）
+      const availW = Math.max(rect.width - 32, 1);
+      const availH = Math.max(rect.height - 32, 1);
+      const scale = Math.max(Math.min(availW / WIDTH, availH / HEIGHT), 0.05);
       const displayW = Math.round(WIDTH * scale);
       const displayH = Math.round(HEIGHT * scale);
       const dpr = window.devicePixelRatio || 1;
