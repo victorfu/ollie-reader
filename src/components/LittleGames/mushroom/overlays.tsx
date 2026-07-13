@@ -1,6 +1,14 @@
 import { useState, type ReactNode } from "react";
 import { type MushroomSettings } from "../lib/types";
 
+// 兒童友善的大按鈕（≥44px 觸擊目標 + focus ring）
+export const BTN_PRIMARY =
+  "rounded-full bg-emerald-500 text-white min-h-11 px-6 py-2.5 text-lg font-semibold shadow hover:bg-emerald-600 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 active:scale-[0.98]";
+export const BTN_SECONDARY =
+  "rounded-full bg-slate-100 text-slate-700 min-h-11 px-6 py-2.5 text-lg font-semibold shadow hover:bg-slate-200 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 active:scale-[0.98]";
+export const BTN_OUTLINE =
+  "rounded-full bg-white border border-emerald-200 text-emerald-700 min-h-11 px-6 py-2.5 text-lg font-semibold shadow transition hover:bg-emerald-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 active:scale-[0.98]";
+
 export function Overlay({ children }: { children: ReactNode }) {
   return (
     <div className="absolute inset-0 flex items-center justify-center bg-slate-900/30 backdrop-blur">
@@ -22,27 +30,18 @@ export function PauseOverlay({
 }) {
   return (
     <Overlay>
-      <h2 className="text-3xl font-bold text-emerald-800 mb-2">暫停中</h2>
-      <p className="text-slate-600 mb-4 text-sm">
+      <h2 className="text-4xl font-bold text-emerald-800 mb-2">暫停中</h2>
+      <p className="text-slate-600 mb-5 text-base">
         休息一下，準備好了再繼續！（按 Esc 也可以繼續）
       </p>
       <div className="flex gap-3 justify-center flex-wrap">
-        <button
-          onClick={onResume}
-          className="rounded-full bg-emerald-500 text-white px-4 py-2 font-semibold shadow hover:bg-emerald-600 transition"
-        >
+        <button onClick={onResume} className={BTN_PRIMARY}>
           ▶ 繼續
         </button>
-        <button
-          onClick={onRestart}
-          className="rounded-full bg-slate-100 text-slate-700 px-4 py-2 font-semibold shadow hover:bg-slate-200 transition"
-        >
+        <button onClick={onRestart} className={BTN_SECONDARY}>
           ↻ 重新開始本關
         </button>
-        <button
-          onClick={onMenu}
-          className="rounded-full bg-white border border-emerald-200 px-4 py-2 font-semibold text-emerald-700 shadow"
-        >
+        <button onClick={onMenu} className={BTN_OUTLINE}>
           回主選單
         </button>
       </div>
@@ -59,23 +58,17 @@ export function TutorialCompleteOverlay({
 }) {
   return (
     <Overlay>
-      <h2 className="text-3xl font-bold text-emerald-800 mb-2">
+      <h2 className="text-4xl font-bold text-emerald-800 mb-2">
         🎉 教學完成！
       </h2>
-      <p className="text-slate-700 mb-4">
+      <p className="text-slate-700 mb-5 text-base">
         你學會了移動、跳躍、踩蘑菇怪和吃道具，出發去冒險吧！
       </p>
       <div className="flex gap-3 justify-center flex-wrap">
-        <button
-          onClick={onStart}
-          className="rounded-full bg-emerald-500 text-white px-4 py-2 font-semibold shadow hover:bg-emerald-600 transition"
-        >
+        <button onClick={onStart} className={BTN_PRIMARY}>
           開始第 1 關
         </button>
-        <button
-          onClick={onMenu}
-          className="rounded-full bg-white border border-emerald-200 px-4 py-2 font-semibold text-emerald-700 shadow"
-        >
+        <button onClick={onMenu} className={BTN_OUTLINE}>
           回主選單
         </button>
       </div>
@@ -230,13 +223,13 @@ export function SettingsOverlay({
         <div className="flex gap-3">
           <button
             onClick={onCancel}
-            className="flex-1 py-2 rounded-full bg-slate-100 text-slate-700 font-semibold hover:bg-slate-200 transition"
+            className="flex-1 min-h-11 py-2.5 rounded-full bg-slate-100 text-slate-700 font-semibold hover:bg-slate-200 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
           >
             取消
           </button>
           <button
             onClick={() => onSave(localSettings)}
-            className="flex-1 py-2 rounded-full bg-emerald-500 text-white font-semibold hover:bg-emerald-600 transition"
+            className="flex-1 min-h-11 py-2.5 rounded-full bg-emerald-500 text-white font-semibold hover:bg-emerald-600 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
           >
             儲存
           </button>

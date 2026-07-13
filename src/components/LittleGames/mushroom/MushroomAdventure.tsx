@@ -1,3 +1,5 @@
+import confetti from "canvas-confetti";
+import { useReducedMotion } from "framer-motion";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { MUSHROOM_CONFIG } from "../lib/constants";
 import { clamp, getBestScore, setBestScore } from "../lib/game-utils";
@@ -13,6 +15,9 @@ import {
 } from "./constants";
 import { buildLevels, LEVEL_COUNT, TUTORIAL_LEVEL } from "./levels";
 import {
+  BTN_OUTLINE,
+  BTN_PRIMARY,
+  BTN_SECONDARY,
   Overlay,
   PauseOverlay,
   SettingsOverlay,
@@ -320,6 +325,18 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
       window.removeEventListener("blur", onBlur);
     };
   }, [gameState, pauseGame]);
+
+  // 全通關／教學完成的彩帶慶祝（尊重減少動態偏好）
+  const shouldReduceMotion = useReducedMotion();
+  useEffect(() => {
+    if (gameState !== "win" && gameState !== "tutorialComplete") return;
+    if (shouldReduceMotion) return;
+    confetti({ particleCount: 120, spread: 75, origin: { y: 0.6 } });
+    const timer = setTimeout(() => {
+      confetti({ particleCount: 80, spread: 110, origin: { y: 0.4 } });
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [gameState, shouldReduceMotion]);
 
   const loadLevel = (index: number) => {
     const lvl = getLevel(index);
@@ -1199,21 +1216,29 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
       ctx.restore();
     });
 
-    // HUD
-    ctx.fillStyle = "rgba(255,255,255,0.92)";
-    ctx.fillRect(12, 12, WIDTH - 24, 54);
-    ctx.fillStyle = "#0f172a";
-    ctx.font = "16px system-ui";
-    ctx.fillText(`分數: ${s.score}`, 24, 38);
+    // HUD：圓角半透明資訊籤（邏輯座標繪製，letterbox 縮放下自動等比）
+    let hudX = 14;
+    const chip = (text: string, color = "#0f172a") => {
+      ctx.font = "bold 18px system-ui";
+      ctx.textAlign = "left";
+      const w = ctx.measureText(text).width + 28;
+      ctx.fillStyle = "rgba(255,255,255,0.88)";
+      roundRect(ctx, hudX, 12, w, 36, 18);
+      ctx.fillStyle = color;
+      ctx.fillText(text, hudX + 14, 37);
+      hudX += w + 8;
+    };
+    chip(`分數 ${s.score}`);
     if (s.levelIndex === TUTORIAL_INDEX) {
-      ctx.fillText("教學關 · 放心練習", 150, 38);
+      chip("教學關 · 放心練習", "#0369a1");
     } else {
-      ctx.fillText(`生命: ${s.lives}`, 150, 38);
-      ctx.fillText(`關卡: ${s.levelIndex + 1}/${LEVEL_COUNT}`, 240, 38);
+      chip(
+        s.lives <= 5 ? "❤️".repeat(Math.max(s.lives, 0)) : `❤️ ×${s.lives}`,
+        "#e11d48",
+      );
+      chip(`第 ${s.levelIndex + 1} 關 · ${lvl.theme.name}`);
     }
-    ctx.fillText(`最佳: ${best}`, 380, 38);
-
-    // 連擊顯示
+    chip(`最佳 ${best}`, "#64748b");
     if (s.comboCount >= 2) {
       const comboColor =
         s.comboCount >= 5
@@ -1221,17 +1246,11 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
           : s.comboCount >= 3
           ? "#22c55e"
           : "#3b82f6";
-      ctx.fillStyle = comboColor;
-      ctx.font = "bold 18px system-ui";
-      ctx.fillText(`連擊 ×${s.comboCount}`, 500, 40);
+      chip(`連擊 ×${s.comboCount}`, comboColor);
     }
-
-    if (s.invincibleTimer > 0)
-      ctx.fillText(`星星 ${s.invincibleTimer.toFixed(1)}s`, 620, 38);
-    if (s.featherTimer > 0)
-      ctx.fillText(`二段跳 ${s.featherTimer.toFixed(1)}s`, 740, 38);
-    if (s.speedTimer > 0)
-      ctx.fillText(`加速 ${s.speedTimer.toFixed(1)}s`, 870, 38);
+    if (s.invincibleTimer > 0) chip(`⭐ ${s.invincibleTimer.toFixed(1)}s`, "#d97706");
+    if (s.featherTimer > 0) chip(`🪶 ${s.featherTimer.toFixed(1)}s`, "#7c3aed");
+    if (s.speedTimer > 0) chip(`👟 ${s.speedTimer.toFixed(1)}s`, "#0284c7");
 
     ctx.restore(); // 結束螢幕震動 save
   };
@@ -1282,7 +1301,7 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
       const hasProgress = progress.highestUnlocked > 0;
       return (
         <Overlay>
-          <h2 className="text-3xl font-bold text-emerald-800 mb-2">
+          <h2 className="text-4xl font-bold text-emerald-800 mb-2">
             森林蘑菇冒險
           </h2>
           <p className="text-slate-700 mb-2">
@@ -1297,13 +1316,13 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
               <>
                 <button
                   onClick={() => startGame(TUTORIAL_INDEX)}
-                  className="rounded-full bg-emerald-500 text-white px-4 py-2 font-semibold shadow hover:bg-emerald-600 transition"
+                  className={BTN_PRIMARY}
                 >
                   🎓 先玩教學
                 </button>
                 <button
                   onClick={() => startGame()}
-                  className="rounded-full bg-slate-100 text-slate-700 px-4 py-2 font-semibold shadow hover:bg-slate-200 transition"
+                  className={BTN_SECONDARY}
                 >
                   直接開始
                 </button>
@@ -1312,13 +1331,13 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
               <>
                 <button
                   onClick={() => startGame(progress.highestUnlocked)}
-                  className="rounded-full bg-emerald-500 text-white px-4 py-2 font-semibold shadow hover:bg-emerald-600 transition"
+                  className={BTN_PRIMARY}
                 >
                   繼續（第 {progress.highestUnlocked + 1} 關）
                 </button>
                 <button
                   onClick={() => startGame()}
-                  className="rounded-full bg-slate-100 text-slate-700 px-4 py-2 font-semibold shadow hover:bg-slate-200 transition"
+                  className={BTN_SECONDARY}
                 >
                   從第 1 關開始
                 </button>
@@ -1326,7 +1345,7 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
             ) : (
               <button
                 onClick={() => startGame()}
-                className="rounded-full bg-emerald-500 text-white px-4 py-2 font-semibold shadow hover:bg-emerald-600 transition"
+                className={BTN_PRIMARY}
               >
                 開始遊戲
               </button>
@@ -1334,14 +1353,14 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
             {progress.tutorialDone && (
               <button
                 onClick={() => startGame(TUTORIAL_INDEX)}
-                className="rounded-full bg-slate-100 text-slate-700 px-4 py-2 font-semibold shadow hover:bg-slate-200 transition"
+                className={BTN_SECONDARY}
               >
                 🎓 教學
               </button>
             )}
             <button
               onClick={() => setGameState("settings")}
-              className="rounded-full bg-slate-100 text-slate-700 px-4 py-2 font-semibold shadow hover:bg-slate-200 transition"
+              className={BTN_SECONDARY}
             >
               ⚙️ 設定
             </button>
@@ -1410,7 +1429,7 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
     if (gameState === "win") {
       return (
         <Overlay>
-          <h2 className="text-3xl font-bold text-emerald-800 mb-2">
+          <h2 className="text-4xl font-bold text-emerald-800 mb-2">
             全部通關！
           </h2>
           <p className="text-slate-700 mb-2">總分 {score}</p>
@@ -1418,14 +1437,14 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
           <div className="flex gap-3 justify-center">
             <button
               onClick={() => startGame()}
-              className="rounded-full bg-emerald-500 text-white px-4 py-2 font-semibold shadow"
+              className={BTN_PRIMARY}
             >
               再玩一次
             </button>
             {onExit && (
               <button
                 onClick={onExit}
-                className="rounded-full bg-white border border-emerald-200 px-4 py-2 font-semibold text-emerald-700 shadow"
+                className={BTN_OUTLINE}
               >
                 回主選單
               </button>
@@ -1438,19 +1457,22 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
     if (gameState === "dead") {
       return (
         <Overlay>
-          <h2 className="text-3xl font-bold text-rose-600 mb-2">失敗了！</h2>
-          <p className="text-slate-700 mb-2">分數 {score}</p>
+          <h2 className="text-4xl font-bold text-rose-500 mb-2">差一點點！</h2>
+          <p className="text-slate-700 mb-1">再試一次一定可以的！</p>
+          <p className="text-slate-600 mb-4 text-sm">
+            這次拿到 {score} 分（第 {levelIndex + 1} 關）
+          </p>
           <div className="flex gap-3 justify-center">
             <button
               onClick={() => startGame(levelIndex)}
-              className="rounded-full bg-emerald-500 text-white px-4 py-2 font-semibold shadow"
+              className={BTN_PRIMARY}
             >
               從第 {levelIndex + 1} 關再試
             </button>
             {onExit && (
               <button
                 onClick={onExit}
-                className="rounded-full bg-white border border-emerald-200 px-4 py-2 font-semibold text-emerald-700 shadow"
+                className={BTN_OUTLINE}
               >
                 回主選單
               </button>
