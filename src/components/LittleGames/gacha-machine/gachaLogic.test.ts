@@ -11,9 +11,9 @@ import {
 import { GACHA_CHARACTER_IDS } from "./gachaTypes";
 
 describe("gacha character ids", () => {
-  it("contains 37 unique ids while preserving the original 12 order", () => {
-    expect(GACHA_CHARACTER_IDS).toHaveLength(37);
-    expect(new Set(GACHA_CHARACTER_IDS).size).toBe(37);
+  it("contains 57 unique ids while preserving the original 12 order", () => {
+    expect(GACHA_CHARACTER_IDS).toHaveLength(57);
+    expect(new Set(GACHA_CHARACTER_IDS).size).toBe(57);
     expect(GACHA_CHARACTER_IDS.slice(0, 12)).toEqual([
       "hello-kitty",
       "my-melody",
@@ -28,7 +28,15 @@ describe("gacha character ids", () => {
       "hangyodon",
       "gudetama",
     ]);
-    expect(GACHA_CHARACTER_IDS.at(-1)).toBe("nya-ni-nyu-nye-nyon");
+    expect(GACHA_CHARACTER_IDS.slice(-7)).toEqual([
+      "doraemon",
+      "dorami",
+      "nobita-nobi",
+      "shizuka-minamoto",
+      "takeshi-goda",
+      "suneo-honekawa",
+      "dekisugi",
+    ]);
   });
 });
 
@@ -41,7 +49,7 @@ describe("pickGachaOutcome", () => {
     });
   });
 
-  it("maps the remaining range equally across all 37 characters", () => {
+  it("maps the remaining range equally across all 57 characters", () => {
     GACHA_CHARACTER_IDS.forEach((characterId, index) => {
       const middleOfHitInterval = MISS_RATE
         + ((index + 0.5) / GACHA_CHARACTER_IDS.length) * (1 - MISS_RATE);
@@ -59,7 +67,7 @@ describe("pickGachaOutcome", () => {
     });
     expect(pickGachaOutcome(() => 0.9999999999999999)).toEqual({
       kind: "character",
-      characterId: "nya-ni-nyu-nye-nyon",
+      characterId: "dekisugi",
     });
   });
 

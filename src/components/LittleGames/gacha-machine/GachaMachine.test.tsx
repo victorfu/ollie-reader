@@ -198,6 +198,38 @@ describe("GachaMachine page states", () => {
     expect(buttonWithText("圖鑑").getAttribute("aria-current")).toBe("page");
   });
 
+  it("renders popular cartoon characters as separate collection items", async () => {
+    const collectionSave: GachaSaveV1 = {
+      schemaVersion: 1,
+      resetVersion: 0,
+      totalDraws: 6,
+      ownedCounts: {
+        "crayon-shinchan": 1,
+        "waniyama-san": 1,
+        buriburizaemon: 1,
+        doraemon: 1,
+        dorami: 1,
+        "nobita-nobi": 1,
+      },
+    };
+    storageMocks.readGachaCache.mockReturnValue(collectionSave);
+    storageMocks.loadGachaCloud.mockResolvedValue(collectionSave);
+
+    await renderAt("/games/gacha?view=collection");
+
+    for (const name of [
+      "蠟筆小新",
+      "鱷魚阿山",
+      "肥嘟嘟左衛門",
+      "哆啦A夢",
+      "哆啦美",
+      "大雄",
+    ]) {
+      expect(container.querySelector(`img[alt="${name}"]`)).toBeTruthy();
+    }
+    expect(container.textContent).toContain("6 / 57");
+  });
+
   it("shows auth loading and signed-out states without loading Firestore", async () => {
     authState.user = null;
     authState.loading = true;
@@ -372,7 +404,7 @@ describe("GachaMachine draw guard", () => {
     });
 
     expect(container.textContent).not.toContain("酷洛米");
-    expect(container.textContent).toContain("0 / 37");
+    expect(container.textContent).toContain("0 / 57");
 
     await act(async () => {
       failDraw?.(new Error("write failed"));
@@ -380,7 +412,7 @@ describe("GachaMachine draw guard", () => {
     });
 
     expect(container.textContent).toContain("酷洛米");
-    expect(container.textContent).toContain("1 / 37");
+    expect(container.textContent).toContain("1 / 57");
   });
 
   it("keeps a buffered successful draw hidden until its capsule is opened", async () => {
@@ -907,6 +939,7 @@ describe("GachaMachine collection reset", () => {
     act(() => buttonWithText("清空圖鑑").click());
     const dialog = container.querySelector<HTMLDialogElement>("dialog[open]");
     expect(dialog?.getAttribute("aria-labelledby")).toBeTruthy();
+    expect(dialog?.textContent).toContain("57 個圖鑑項目");
     expect(dialog?.textContent).toContain("無法復原");
     expect(storageMocks.resetGachaCollection).not.toHaveBeenCalled();
 
@@ -919,7 +952,7 @@ describe("GachaMachine collection reset", () => {
     });
 
     expect(storageMocks.resetGachaCollection).toHaveBeenCalledWith("player-1");
-    expect(container.textContent).toContain("0 / 37");
+    expect(container.textContent).toContain("0 / 57");
     expect(container.textContent).toContain("圖鑑已清空");
   });
 
@@ -996,7 +1029,7 @@ describe("GachaMachine collection reset", () => {
     });
 
     expect(container.textContent).toContain("Hello Kitty");
-    expect(container.textContent).toContain("1 / 37");
+    expect(container.textContent).toContain("1 / 57");
   });
 
   it("closes an unsubmitted reset confirmation when the app goes offline", async () => {

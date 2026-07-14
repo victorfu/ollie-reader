@@ -105,7 +105,7 @@ const GACHA_STEPS = [
   {
     number: "2",
     title: "轉動機台把手",
-    description: `50% 命中角色、50% 空膠囊；命中後由 ${GACHA_CHARACTERS.length} 組角色平分`,
+    description: `50% 命中角色、50% 空膠囊；命中後由 ${GACHA_CHARACTERS.length} 個圖鑑項目平分`,
   },
   { number: "3", title: "點擊膠囊開獎", description: "結果成功存檔後才會掉出來" },
 ] as const;
@@ -749,7 +749,7 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
               Ollie Little Games
             </p>
             <h1 className="truncate text-base font-bold tracking-tight sm:text-xl">
-              三麗鷗扭蛋機
+              人氣角色扭蛋機
             </h1>
           </div>
         </div>
@@ -1270,7 +1270,7 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
       <ConfirmModal
         isOpen={isResetConfirmOpen}
         title="清空整本圖鑑？"
-        message="這會移除全部 37 組角色、相遇次數、抽取與空膠囊統計，並同步到其他裝置。這個動作無法復原。"
+        message={`這會移除全部 ${GACHA_CHARACTERS.length} 個圖鑑項目、相遇次數、抽取與空膠囊統計，並同步到其他裝置。這個動作無法復原。`}
         confirmText="清空圖鑑"
         cancelText="保留收藏"
         confirmVariant="error"

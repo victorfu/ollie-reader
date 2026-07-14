@@ -100,6 +100,54 @@ describe("gacha cache", () => {
     ).toBeNull();
   });
 
+  it("keeps the previous 39-item roster in cached progress", async () => {
+    await writeGachaCache("previous-roster-player", {
+      schemaVersion: 1,
+      resetVersion: 0,
+      totalDraws: 2,
+      ownedCounts: {
+        "crayon-shinchan": 1,
+        doraemon: 1,
+      },
+    });
+
+    expect(readGachaCache("previous-roster-player")).toEqual({
+      schemaVersion: 1,
+      resetVersion: 0,
+      totalDraws: 2,
+      ownedCounts: {
+        "crayon-shinchan": 1,
+        doraemon: 1,
+      },
+    });
+  });
+
+  it("keeps newly appended individual characters in cached progress", async () => {
+    await writeGachaCache("expanded-roster-player", {
+      schemaVersion: 1,
+      resetVersion: 0,
+      totalDraws: 4,
+      ownedCounts: {
+        "crayon-shinchan": 1,
+        "waniyama-san": 1,
+        buriburizaemon: 1,
+        dorami: 1,
+      },
+    });
+
+    expect(readGachaCache("expanded-roster-player")).toEqual({
+      schemaVersion: 1,
+      resetVersion: 0,
+      totalDraws: 4,
+      ownedCounts: {
+        "crayon-shinchan": 1,
+        "waniyama-san": 1,
+        buriburizaemon: 1,
+        dorami: 1,
+      },
+    });
+  });
+
   it("normalizes invalid values before returning cached progress", () => {
     localStorage.setItem(
       getGachaCacheKey("player"),

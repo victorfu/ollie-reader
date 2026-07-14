@@ -54,8 +54,8 @@ export default function GameHub() {
       {
         id: "gacha-machine",
         to: "/games/gacha",
-        title: "三麗鷗扭蛋機",
-        blurb: `投入代幣、轉動把手，收集 ${GACHA_CHARACTER_IDS.length} 組三麗鷗角色並完成你的圖鑑。`,
+        title: "人氣角色扭蛋機",
+        blurb: `投入代幣、轉動把手，收集 ${GACHA_CHARACTER_IDS.length} 個人氣角色圖鑑項目。`,
         tag: "Collection",
         emoji: "🎀",
         best: null,

@@ -1,16 +1,25 @@
+import actionKamenImage from "../../../assets/games/gacha-machine/characters/action-kamen.webp";
 import aggretsukoImage from "../../../assets/games/gacha-machine/characters/aggretsuko.webp";
 import badtzMaruImage from "../../../assets/games/gacha-machine/characters/badtz-maru.webp";
+import boChanImage from "../../../assets/games/gacha-machine/characters/bo-chan.webp";
 import bonbonribbonImage from "../../../assets/games/gacha-machine/characters/bonbonribbon.webp";
+import buriburizaemonImage from "../../../assets/games/gacha-machine/characters/buriburizaemon.webp";
 import charmmyKittyImage from "../../../assets/games/gacha-machine/characters/charmmy-kitty.webp";
 import cheeryChumsImage from "../../../assets/games/gacha-machine/characters/cheery-chums.webp";
 import cinnamorollImage from "../../../assets/games/gacha-machine/characters/cinnamoroll.webp";
 import chococatImage from "../../../assets/games/gacha-machine/characters/chococat.webp";
 import cogimyunImage from "../../../assets/games/gacha-machine/characters/cogimyun.webp";
 import corocorokuririnImage from "../../../assets/games/gacha-machine/characters/corocorokuririn.webp";
+import crayonShinchanImage from "../../../assets/games/gacha-machine/characters/crayon-shinchan.webp";
+import dekisugiImage from "../../../assets/games/gacha-machine/characters/dekisugi.webp";
+import doraemonImage from "../../../assets/games/gacha-machine/characters/doraemon.webp";
+import doramiImage from "../../../assets/games/gacha-machine/characters/dorami.webp";
 import goropikadonImage from "../../../assets/games/gacha-machine/characters/goropikadon.webp";
 import gudetamaImage from "../../../assets/games/gacha-machine/characters/gudetama.webp";
 import hangyodonImage from "../../../assets/games/gacha-machine/characters/hangyodon.webp";
 import helloKittyImage from "../../../assets/games/gacha-machine/characters/hello-kitty.webp";
+import himawariNoharaImage from "../../../assets/games/gacha-machine/characters/himawari-nohara.webp";
+import hiroshiNoharaImage from "../../../assets/games/gacha-machine/characters/hiroshi-nohara.webp";
 import hummingmintImage from "../../../assets/games/gacha-machine/characters/hummingmint.webp";
 import keroppiImage from "../../../assets/games/gacha-machine/characters/keroppi.webp";
 import kuromiImage from "../../../assets/games/gacha-machine/characters/kuromi.webp";
@@ -18,21 +27,32 @@ import littleForestFellowImage from "../../../assets/games/gacha-machine/charact
 import littleTwinStarsImage from "../../../assets/games/gacha-machine/characters/little-twin-stars.webp";
 import marronCreamImage from "../../../assets/games/gacha-machine/characters/marron-cream.webp";
 import marumofubiyoriImage from "../../../assets/games/gacha-machine/characters/marumofubiyori.webp";
+import masaoSatoImage from "../../../assets/games/gacha-machine/characters/masao-sato.webp";
 import mewkledreamyImage from "../../../assets/games/gacha-machine/characters/mewkledreamy.webp";
 import minnaNoTaboImage from "../../../assets/games/gacha-machine/characters/minna-no-tabo.webp";
+import misaeNoharaImage from "../../../assets/games/gacha-machine/characters/misae-nohara.webp";
 import myMelodyImage from "../../../assets/games/gacha-machine/characters/my-melody.webp";
 import mySweetPianoImage from "../../../assets/games/gacha-machine/characters/my-sweet-piano.webp";
+import nanakoOharaImage from "../../../assets/games/gacha-machine/characters/nanako-ohara.webp";
+import neneSakuradaImage from "../../../assets/games/gacha-machine/characters/nene-sakurada.webp";
+import nobitaNobiImage from "../../../assets/games/gacha-machine/characters/nobita-nobi.webp";
 import nyaNiNyuNyeNyonImage from "../../../assets/games/gacha-machine/characters/nya-ni-nyu-nye-nyon.webp";
 import osaruNoMonkichiImage from "../../../assets/games/gacha-machine/characters/osaru-no-monkichi.webp";
 import pattyAndJimmyImage from "../../../assets/games/gacha-machine/characters/patty-and-jimmy.webp";
 import pekkleImage from "../../../assets/games/gacha-machine/characters/pekkle.webp";
 import pochaccoImage from "../../../assets/games/gacha-machine/characters/pochacco.webp";
 import pompompurinImage from "../../../assets/games/gacha-machine/characters/pompompurin.webp";
+import shiroImage from "../../../assets/games/gacha-machine/characters/shiro.webp";
+import shizukaMinamotoImage from "../../../assets/games/gacha-machine/characters/shizuka-minamoto.webp";
+import suneoHonekawaImage from "../../../assets/games/gacha-machine/characters/suneo-honekawa.webp";
 import sugarbunniesImage from "../../../assets/games/gacha-machine/characters/sugarbunnies.webp";
+import takeshiGodaImage from "../../../assets/games/gacha-machine/characters/takeshi-goda.webp";
 import tenorikumaImage from "../../../assets/games/gacha-machine/characters/tenorikuma.webp";
 import theRunaboutsImage from "../../../assets/games/gacha-machine/characters/the-runabouts.webp";
+import toruKazamaImage from "../../../assets/games/gacha-machine/characters/toru-kazama.webp";
 import tuxedosamImage from "../../../assets/games/gacha-machine/characters/tuxedosam.webp";
 import usahanaImage from "../../../assets/games/gacha-machine/characters/usahana.webp";
+import waniyamaSanImage from "../../../assets/games/gacha-machine/characters/waniyama-san.webp";
 import weAreDinosaursImage from "../../../assets/games/gacha-machine/characters/we-are-dinosaurs.webp";
 import wishMeMellImage from "../../../assets/games/gacha-machine/characters/wish-me-mell.webp";
 import type { GachaCharacter, GachaCharacterId } from "./gachaTypes";
@@ -261,6 +281,126 @@ export const GACHA_CHARACTERS = [
     name: "喵喵家族",
     englishName: "Nya Ni Nyu Nye Nyon",
     imageUrl: nyaNiNyuNyeNyonImage,
+  },
+  {
+    id: "crayon-shinchan",
+    name: "蠟筆小新",
+    englishName: "Crayon Shin-chan",
+    imageUrl: crayonShinchanImage,
+  },
+  {
+    id: "misae-nohara",
+    name: "野原美冴",
+    englishName: "Misae Nohara",
+    imageUrl: misaeNoharaImage,
+  },
+  {
+    id: "hiroshi-nohara",
+    name: "野原廣志",
+    englishName: "Hiroshi Nohara",
+    imageUrl: hiroshiNoharaImage,
+  },
+  {
+    id: "himawari-nohara",
+    name: "野原向日葵",
+    englishName: "Himawari Nohara",
+    imageUrl: himawariNoharaImage,
+  },
+  {
+    id: "shiro",
+    name: "小白",
+    englishName: "Shiro",
+    imageUrl: shiroImage,
+  },
+  {
+    id: "toru-kazama",
+    name: "風間徹",
+    englishName: "Toru Kazama",
+    imageUrl: toruKazamaImage,
+  },
+  {
+    id: "nene-sakurada",
+    name: "櫻田妮妮",
+    englishName: "Nene Sakurada",
+    imageUrl: neneSakuradaImage,
+  },
+  {
+    id: "masao-sato",
+    name: "佐藤正男",
+    englishName: "Masao Sato",
+    imageUrl: masaoSatoImage,
+  },
+  {
+    id: "bo-chan",
+    name: "阿呆",
+    englishName: "Bo-chan",
+    imageUrl: boChanImage,
+  },
+  {
+    id: "nanako-ohara",
+    name: "娜娜子姐姐",
+    englishName: "Nanako Ohara",
+    imageUrl: nanakoOharaImage,
+  },
+  {
+    id: "action-kamen",
+    name: "動感超人",
+    englishName: "Action Kamen",
+    imageUrl: actionKamenImage,
+  },
+  {
+    id: "waniyama-san",
+    name: "鱷魚阿山",
+    englishName: "Waniyama-san",
+    imageUrl: waniyamaSanImage,
+  },
+  {
+    id: "buriburizaemon",
+    name: "肥嘟嘟左衛門",
+    englishName: "Buriburizaemon",
+    imageUrl: buriburizaemonImage,
+  },
+  {
+    id: "doraemon",
+    name: "哆啦A夢",
+    englishName: "Doraemon",
+    imageUrl: doraemonImage,
+  },
+  {
+    id: "dorami",
+    name: "哆啦美",
+    englishName: "Dorami",
+    imageUrl: doramiImage,
+  },
+  {
+    id: "nobita-nobi",
+    name: "大雄",
+    englishName: "Nobita Nobi",
+    imageUrl: nobitaNobiImage,
+  },
+  {
+    id: "shizuka-minamoto",
+    name: "靜香",
+    englishName: "Shizuka Minamoto",
+    imageUrl: shizukaMinamotoImage,
+  },
+  {
+    id: "takeshi-goda",
+    name: "胖虎",
+    englishName: "Takeshi Goda",
+    imageUrl: takeshiGodaImage,
+  },
+  {
+    id: "suneo-honekawa",
+    name: "小夫",
+    englishName: "Suneo Honekawa",
+    imageUrl: suneoHonekawaImage,
+  },
+  {
+    id: "dekisugi",
+    name: "出木杉",
+    englishName: "Dekisugi",
+    imageUrl: dekisugiImage,
   },
 ] as const satisfies readonly GachaCharacter[];
 
