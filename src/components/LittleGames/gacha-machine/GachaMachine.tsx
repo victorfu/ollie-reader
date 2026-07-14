@@ -11,7 +11,6 @@ import {
   Info,
   LogIn,
   RefreshCw,
-  RotateCcw,
   RotateCw,
   Sparkles,
   Ticket,
@@ -79,6 +78,17 @@ const CAPSULE_STYLES = [
   "bg-gradient-to-br from-orange-200 to-amber-400",
 ] as const;
 
+const DISPENSED_CAPSULE_STYLES = [
+  "bg-gradient-to-b from-pink-100 from-50% to-rose-400 to-50%",
+  "bg-gradient-to-b from-sky-100 from-50% to-blue-400 to-50%",
+  "bg-gradient-to-b from-amber-100 from-50% to-orange-400 to-50%",
+  "bg-gradient-to-b from-violet-100 from-50% to-purple-400 to-50%",
+  "bg-gradient-to-b from-emerald-100 from-50% to-teal-400 to-50%",
+  "bg-gradient-to-b from-fuchsia-100 from-50% to-pink-400 to-50%",
+  "bg-gradient-to-b from-cyan-100 from-50% to-indigo-400 to-50%",
+  "bg-gradient-to-b from-lime-100 from-50% to-green-400 to-50%",
+] as const;
+
 const CAPSULE_POSITIONS = [
   "left-[8%] bottom-[8%] -rotate-12",
   "left-[27%] bottom-[3%] rotate-6",
@@ -95,10 +105,19 @@ const GACHA_STEPS = [
   {
     number: "2",
     title: "轉動機台把手",
-    description: `20% 空膠囊，其餘由 ${GACHA_CHARACTERS.length} 組角色平分`,
+    description: `50% 命中角色、50% 空膠囊；命中後由 ${GACHA_CHARACTERS.length} 組角色平分`,
   },
   { number: "3", title: "點擊膠囊開獎", description: "結果成功存檔後才會掉出來" },
 ] as const;
+
+function isKeyboardShortcutTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof Element)) return false;
+  return Boolean(
+    target.closest(
+      "button, a, input, textarea, select, summary, dialog, [role='button'], [role='link'], [role='textbox'], [contenteditable]",
+    ),
+  );
+}
 
 function getStatusMessage(
   phase: GachaPhase,
@@ -156,6 +175,7 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
   const [phase, setPhase] = useState<GachaPhase>("idle");
   const [drawResult, setDrawResult] = useState<GachaDrawResult | null>(null);
   const [hasPendingCapsule, setHasPendingCapsule] = useState(false);
+  const [dispensedCapsuleStyleIndex, setDispensedCapsuleStyleIndex] = useState(0);
   const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
   const [isResettingCollection, setIsResettingCollection] = useState(false);
   const [resetError, setResetError] = useState<string | null>(null);
@@ -170,7 +190,10 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
   const loadedUidRef = useRef<string | undefined>(undefined);
   const activeUidRef = useRef(user?.uid);
   const coinButtonRef = useRef<HTMLButtonElement>(null);
+  const turnButtonRef = useRef<HTMLButtonElement>(null);
+  const capsuleButtonRef = useRef<HTMLButtonElement>(null);
   const collectionTabRef = useRef<HTMLButtonElement>(null);
+  const keyboardActionRef = useRef<() => boolean>(() => false);
   activeUidRef.current = user?.uid;
 
   const setVisibleSave = useCallback((nextSave: GachaSaveV1) => {
@@ -386,6 +409,22 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
     }
   }, [isOnline, isResetConfirmOpen, isResettingCollection]);
 
+  useEffect(() => {
+    if (
+      view !== "machine" ||
+      phase !== "capsuleReady" ||
+      !hasPendingCapsule
+    ) {
+      return;
+    }
+    const frame = window.requestAnimationFrame(() => {
+      if (!document.querySelector("dialog[open]")) {
+        capsuleButtonRef.current?.focus();
+      }
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [hasPendingCapsule, phase, view]);
+
   const setView = (nextView: GachaView) => {
     const nextParams = new URLSearchParams(searchParams);
     if (nextView === "collection") {
@@ -417,6 +456,7 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
     setActionNotice(null);
     if (!moveToPhase("coinInserted")) return;
     playSound("click");
+    window.requestAnimationFrame(() => turnButtonRef.current?.focus());
   };
 
   const handleTurn = async () => {
@@ -467,6 +507,9 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
         return;
       }
       pendingAttemptRef.current = committed;
+      setDispensedCapsuleStyleIndex(
+        (current) => (current + 1) % DISPENSED_CAPSULE_STYLES.length,
+      );
       setHasPendingCapsule(true);
       setSyncStatus(navigator.onLine ? "cloud" : "offline");
       moveToPhase("capsuleReady");
@@ -533,23 +576,6 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
   const handleCloseReveal = () => {
     if (phaseRef.current === "revealed") moveToPhase("idle");
     setDrawResult(null);
-  };
-
-  const handleResetMachine = () => {
-    const current = phaseRef.current;
-    if (current === "idle" || current === "turning") return;
-
-    const hadCommittedResult = Boolean(pendingAttemptRef.current || drawResult);
-    applyPendingSave();
-    if (canTransitionGachaPhase(current, "idle")) moveToPhase("idle");
-    setDrawResult(null);
-    setActionError(null);
-    setActionNotice(
-      hadCommittedResult
-        ? "機台已重設；已完成的抽取仍保存在雲端圖鑑。"
-        : "機台已重設，代幣已退回。",
-    );
-    window.requestAnimationFrame(() => coinButtonRef.current?.focus());
   };
 
   const handleRetrySync = () => {
@@ -626,6 +652,54 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
     isOnline &&
     syncStatus === "cloud" &&
     !isResettingCollection;
+
+  keyboardActionRef.current = () => {
+    if (view !== "machine" || authLoading || !user) return false;
+
+    const current = phaseRef.current;
+    if (current === "idle") {
+      if (!canDraw) return false;
+      handleInsertCoin();
+      return true;
+    }
+    if (current === "coinInserted") {
+      if (!isOnline || drawInFlightRef.current) return false;
+      void handleTurn();
+      return true;
+    }
+    if (current === "capsuleReady") {
+      if (!pendingAttemptRef.current) return false;
+      handleOpenCapsule();
+      return true;
+    }
+    return false;
+  };
+
+  useEffect(() => {
+    const handleKeyboardShortcut = (event: KeyboardEvent) => {
+      const isPrimaryKey = event.code === "Space" || event.key === "Enter";
+      if (
+        !isPrimaryKey ||
+        event.defaultPrevented ||
+        event.repeat ||
+        event.isComposing ||
+        event.altKey ||
+        event.ctrlKey ||
+        event.metaKey ||
+        event.shiftKey ||
+        document.querySelector("dialog[open]") ||
+        isKeyboardShortcutTarget(event.target)
+      ) {
+        return;
+      }
+
+      if (keyboardActionRef.current()) event.preventDefault();
+    };
+
+    window.addEventListener("keydown", handleKeyboardShortcut);
+    return () => window.removeEventListener("keydown", handleKeyboardShortcut);
+  }, []);
+
   const unlockedCount = GACHA_CHARACTERS.filter(
     (character) => (save.ownedCounts[character.id] ?? 0) > 0,
   ).length;
@@ -909,6 +983,7 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
                         type="button"
                         onClick={handleInsertCoin}
                         disabled={phase !== "idle" || !canDraw}
+                        aria-keyshortcuts="Space Enter"
                         className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[9px] bg-gradient-to-b from-amber-300 to-amber-500 px-3 text-sm font-black text-amber-950 shadow-[0_4px_0_rgb(180,83,9),0_8px_15px_rgba(146,64,14,0.2)] transition-all hover:brightness-105 active:translate-y-1 active:shadow-none disabled:cursor-not-allowed disabled:opacity-45 disabled:shadow-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-pink-500"
                       >
                         <CircleDollarSign className="size-4" strokeWidth={2} aria-hidden="true" />
@@ -919,9 +994,11 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
                     </div>
 
                     <button
+                      ref={turnButtonRef}
                       type="button"
                       onClick={() => void handleTurn()}
                       disabled={phase !== "coinInserted"}
+                      aria-keyshortcuts="Space Enter"
                       aria-label={
                         phase === "coinInserted"
                           ? "轉動扭蛋機把手"
@@ -954,8 +1031,10 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
                     <AnimatePresence>
                       {phase === "capsuleReady" && hasPendingCapsule ? (
                         <motion.button
+                          ref={capsuleButtonRef}
                           type="button"
                           onClick={handleOpenCapsule}
+                          aria-keyshortcuts="Space Enter"
                           initial={reduceMotion ? false : { y: -125, rotate: -24, scale: 0.78 }}
                           animate={{ y: 0, rotate: 0, scale: 1 }}
                           exit={{ opacity: 0, scale: 0.9 }}
@@ -964,7 +1043,8 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
                             type: reduceMotion ? "tween" : "spring",
                             bounce: reduceMotion ? 0 : 0.42,
                           }}
-                          className="relative flex size-20 items-center justify-center overflow-hidden rounded-full border-2 border-white/80 bg-gradient-to-b from-white/95 from-50% to-sky-300 to-50% shadow-[0_8px_16px_rgba(0,0,0,0.45),inset_0_2px_0_rgba(255,255,255,0.9)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950"
+                          data-capsule-variant={dispensedCapsuleStyleIndex}
+                          className={`relative flex size-20 items-center justify-center overflow-hidden rounded-full border-2 border-white/80 shadow-[0_8px_16px_rgba(0,0,0,0.45),inset_0_2px_0_rgba(255,255,255,0.9)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950 ${DISPENSED_CAPSULE_STYLES[dispensedCapsuleStyleIndex]}`}
                           aria-label="膠囊已經出來，點擊開獎"
                         >
                           <span aria-hidden="true" className="absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 bg-white/90 shadow-sm" />
@@ -1080,17 +1160,19 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
                   })}
                 </ol>
                 <div className="mt-5 border-t border-border-hairline pt-4">
-                  <button
-                    type="button"
-                    onClick={handleResetMachine}
-                    disabled={phase === "idle" || phase === "turning"}
-                    className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[9px] border border-border-hairline bg-background px-4 text-sm font-semibold shadow-sm transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-                  >
-                    <RotateCcw className="size-4" strokeWidth={1.8} aria-hidden="true" />
-                    重設機台
-                  </button>
-                  <p className="mt-2 text-xs leading-5 text-muted-foreground">
-                    只會清除目前操作與動畫；已經完成雲端存檔的抽取仍會保留在圖鑑。
+                  <p className="text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">
+                    鍵盤快速操作
+                  </p>
+                  <p className="mt-2 text-xs leading-6 text-muted-foreground">
+                    按
+                    <kbd className="mx-1 rounded-[5px] border border-border-hairline bg-background px-1.5 py-0.5 font-mono text-[11px] text-foreground shadow-sm">
+                      空白鍵
+                    </kbd>
+                    或
+                    <kbd className="mx-1 rounded-[5px] border border-border-hairline bg-background px-1.5 py-0.5 font-mono text-[11px] text-foreground shadow-sm">
+                      Enter
+                    </kbd>
+                    ，即可依序投幣、轉動與開啟膠囊。
                   </p>
                 </div>
               </section>

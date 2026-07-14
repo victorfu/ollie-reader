@@ -33,7 +33,8 @@ describe("gacha character ids", () => {
 });
 
 describe("pickGachaOutcome", () => {
-  it("uses the first 20 percent of the RNG range for misses", () => {
+  it("uses the first 50 percent of the RNG range for misses", () => {
+    expect(MISS_RATE).toBe(0.5);
     expect(pickGachaOutcome(() => 0)).toEqual({ kind: "miss" });
     expect(pickGachaOutcome(() => MISS_RATE - Number.EPSILON)).toEqual({
       kind: "miss",

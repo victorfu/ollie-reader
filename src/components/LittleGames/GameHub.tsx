@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { getBestScore } from "./lib/game-utils";
+import { GACHA_CHARACTER_IDS } from "./gacha-machine/gachaTypes";
 
 const METEOR_BEST_KEY = "meteor-glider-best";
 const MUSHROOM_BEST_KEY = "mushroom-adventure-best";
@@ -54,7 +55,7 @@ export default function GameHub() {
         id: "gacha-machine",
         to: "/games/gacha",
         title: "三麗鷗扭蛋機",
-        blurb: "投入代幣、轉動把手，收集 12 位可愛角色並完成你的圖鑑。",
+        blurb: `投入代幣、轉動把手，收集 ${GACHA_CHARACTER_IDS.length} 組三麗鷗角色並完成你的圖鑑。`,
         tag: "Collection",
         emoji: "🎀",
         best: null,

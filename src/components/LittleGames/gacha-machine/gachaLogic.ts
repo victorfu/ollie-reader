@@ -12,7 +12,7 @@ import {
 
 export type GachaRng = () => number;
 
-export const MISS_RATE = 0.2;
+export const MISS_RATE = 0.5;
 
 export const EMPTY_GACHA_SAVE: GachaSaveV1 = Object.freeze({
   schemaVersion: 1,

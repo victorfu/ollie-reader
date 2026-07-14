@@ -71,11 +71,17 @@ vi.mock("./GachaRevealDialog", () => ({
   GachaRevealDialog: ({
     isOpen,
     result,
+    onClose,
   }: {
     isOpen: boolean;
     result: AppliedGachaAttempt["result"] | null;
+    onClose: () => void;
   }) =>
-    isOpen ? <div data-testid="reveal-dialog">{result?.kind}</div> : null,
+    isOpen ? (
+      <button type="button" data-testid="reveal-dialog" onClick={onClose}>
+        {result?.kind}
+      </button>
+    ) : null,
 }));
 
 import GachaMachine from "./GachaMachine";
@@ -118,6 +124,22 @@ function buttonWithText(text: string): HTMLButtonElement {
     throw new Error(`button not found: ${text}`);
   }
   return button;
+}
+
+function dispatchShortcut(
+  code: "Space" | "Enter",
+  init: KeyboardEventInit = {},
+  target: Window | Element = window,
+): KeyboardEvent {
+  const event = new KeyboardEvent("keydown", {
+    key: code === "Space" ? " " : "Enter",
+    code,
+    bubbles: true,
+    cancelable: true,
+    ...init,
+  });
+  target.dispatchEvent(event);
+  return event;
 }
 
 beforeEach(() => {
@@ -254,17 +276,13 @@ describe("GachaMachine page states", () => {
 });
 
 describe("GachaMachine draw guard", () => {
-  it("returns an inserted coin when the local machine is reset", async () => {
+  it("only exposes collection clearing, not a local machine reset", async () => {
     await renderAt("/games/gacha");
 
-    act(() => buttonWithText("投入免費代幣").click());
-    const resetButton = buttonWithText("重設機台");
-    expect(resetButton.disabled).toBe(false);
-    act(() => resetButton.click());
+    expect(container.textContent).not.toContain("重設機台");
+    act(() => buttonWithText("圖鑑").click());
 
-    expect(buttonWithText("投入免費代幣").disabled).toBe(false);
-    expect(storageMocks.recordGachaAttempt).not.toHaveBeenCalled();
-    expect(container.textContent).toContain("代幣已退回");
+    expect(buttonWithText("清空圖鑑")).toBeInstanceOf(HTMLButtonElement);
   });
 
   it("records only one draw when the handle is clicked repeatedly", async () => {
@@ -675,41 +693,196 @@ describe("GachaMachine draw guard", () => {
     expect(container.textContent).not.toContain("這次沒有開獎");
   });
 
-  it("resets the local machine without undoing a committed draw", async () => {
+  it("changes the generic capsule color for each completed draw", async () => {
+    storageMocks.recordGachaAttempt
+      .mockResolvedValueOnce({
+        save: {
+          schemaVersion: 1,
+          resetVersion: 0,
+          totalDraws: 1,
+          ownedCounts: { kuromi: 1 },
+        },
+        result: {
+          kind: "character",
+          characterId: "kuromi",
+          isNew: true,
+          ownedCount: 1,
+          totalDraws: 1,
+        },
+      })
+      .mockResolvedValueOnce({
+        save: {
+          schemaVersion: 1,
+          resetVersion: 0,
+          totalDraws: 2,
+          ownedCounts: { kuromi: 1, "hello-kitty": 1 },
+        },
+        result: {
+          kind: "character",
+          characterId: "hello-kitty",
+          isNew: true,
+          ownedCount: 1,
+          totalDraws: 2,
+        },
+      });
+    await renderAt("/games/gacha");
+
+    const completeDraw = async (): Promise<string | null> => {
+      act(() => buttonWithText("投入免費代幣").click());
+      await act(async () => {
+        container
+          .querySelector<HTMLButtonElement>('button[aria-label="轉動扭蛋機把手"]')
+          ?.click();
+        await Promise.resolve();
+      });
+      const capsule = container.querySelector<HTMLButtonElement>(
+        'button[aria-label="膠囊已經出來，點擊開獎"]',
+      );
+      const variant = capsule?.getAttribute("data-capsule-variant") ?? null;
+      expect(capsule?.outerHTML).not.toContain("kuromi");
+      expect(capsule?.outerHTML).not.toContain("hello-kitty");
+      act(() => capsule?.click());
+      act(() => {
+        container
+          .querySelector<HTMLButtonElement>('[data-testid="reveal-dialog"]')
+          ?.click();
+      });
+      return variant;
+    };
+
+    const firstVariant = await completeDraw();
+    const secondVariant = await completeDraw();
+
+    expect(firstVariant).not.toBeNull();
+    expect(secondVariant).not.toBe(firstVariant);
+    expect(storageMocks.recordGachaAttempt).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("GachaMachine keyboard controls", () => {
+  it.each([
+    ["空白鍵", "Space" as const],
+    ["Enter", "Enter" as const],
+  ])("uses %s to complete the machine flow", async (_label, code) => {
     storageMocks.recordGachaAttempt.mockResolvedValue({
       save: {
         schemaVersion: 1,
         resetVersion: 0,
         totalDraws: 1,
-        ownedCounts: { kuromi: 1 },
+        ownedCounts: {},
       },
-      result: {
-        kind: "character",
-        characterId: "kuromi",
-        isNew: true,
-        ownedCount: 1,
-        totalDraws: 1,
-      },
+      result: { kind: "miss", totalDraws: 1 },
     });
     await renderAt("/games/gacha");
 
-    act(() => buttonWithText("投入免費代幣").click());
+    let shortcut: KeyboardEvent | undefined;
+    act(() => {
+      shortcut = dispatchShortcut(code);
+    });
+    expect(shortcut?.defaultPrevented).toBe(true);
+    expect(container.textContent).toContain("代幣投入成功");
+
     await act(async () => {
-      container
-        .querySelector<HTMLButtonElement>('button[aria-label="轉動扭蛋機把手"]')
-        ?.click();
+      shortcut = dispatchShortcut(code);
       await Promise.resolve();
     });
-    act(() => buttonWithText("重設機台").click());
-
+    expect(shortcut?.defaultPrevented).toBe(true);
+    expect(storageMocks.recordGachaAttempt).toHaveBeenCalledTimes(1);
     expect(
       container.querySelector('button[aria-label="膠囊已經出來，點擊開獎"]'),
-    ).toBeNull();
-    expect(container.textContent).toContain("已完成的抽取仍保存在雲端圖鑑");
-    expect(storageMocks.resetGachaCollection).not.toHaveBeenCalled();
+    ).toBeTruthy();
 
-    act(() => buttonWithText("圖鑑").click());
-    expect(container.textContent).toContain("酷洛米");
+    act(() => {
+      shortcut = dispatchShortcut(code);
+    });
+    expect(shortcut?.defaultPrevented).toBe(true);
+    expect(container.querySelector('[data-testid="reveal-dialog"]')?.textContent).toBe(
+      "miss",
+    );
+    expect(container.textContent).toContain("鍵盤快速操作");
+  });
+
+  it("moves focus to the next keyboard-operable control", async () => {
+    const animationFrames: FrameRequestCallback[] = [];
+    let animationFrameId = 0;
+    const animationFrame = vi
+      .spyOn(window, "requestAnimationFrame")
+      .mockImplementation((callback) => {
+        animationFrames.push(callback);
+        animationFrameId += 1;
+        return animationFrameId;
+      });
+    const flushAnimationFrames = () => {
+      for (const callback of animationFrames.splice(0)) callback(0);
+    };
+    storageMocks.recordGachaAttempt.mockResolvedValue({
+      save: {
+        schemaVersion: 1,
+        resetVersion: 0,
+        totalDraws: 1,
+        ownedCounts: {},
+      },
+      result: { kind: "miss", totalDraws: 1 },
+    });
+
+    try {
+      await renderAt("/games/gacha");
+
+      act(() => dispatchShortcut("Space"));
+      act(flushAnimationFrames);
+      expect(document.activeElement?.getAttribute("aria-label")).toBe(
+        "轉動扭蛋機把手",
+      );
+
+      await act(async () => {
+        container
+          .querySelector<HTMLButtonElement>('button[aria-label="轉動扭蛋機把手"]')
+          ?.click();
+        await Promise.resolve();
+      });
+      act(flushAnimationFrames);
+      expect(document.activeElement?.getAttribute("aria-label")).toBe(
+        "膠囊已經出來，點擊開獎",
+      );
+    } finally {
+      animationFrame.mockRestore();
+    }
+  });
+
+  it("does not capture shortcuts from controls, modified keys, or open dialogs", async () => {
+    await renderAt("/games/gacha");
+    const input = document.createElement("input");
+    const dialog = document.createElement("dialog");
+    document.body.append(input, dialog);
+
+    try {
+      const controlEvent = dispatchShortcut("Space", {}, input);
+      const repeatEvent = dispatchShortcut("Space", { repeat: true });
+      const modifiedEvent = dispatchShortcut("Enter", { metaKey: true });
+      dialog.setAttribute("open", "");
+      const dialogEvent = dispatchShortcut("Space");
+
+      expect(controlEvent.defaultPrevented).toBe(false);
+      expect(repeatEvent.defaultPrevented).toBe(false);
+      expect(modifiedEvent.defaultPrevented).toBe(false);
+      expect(dialogEvent.defaultPrevented).toBe(false);
+      expect(container.textContent).toContain("準備好了！先投入免費代幣");
+      expect(storageMocks.recordGachaAttempt).not.toHaveBeenCalled();
+    } finally {
+      input.remove();
+      dialog.remove();
+    }
+  });
+
+  it("leaves collection keyboard behavior to the browser", async () => {
+    await renderAt("/games/gacha?view=collection");
+
+    const spaceEvent = dispatchShortcut("Space");
+    const enterEvent = dispatchShortcut("Enter");
+
+    expect(spaceEvent.defaultPrevented).toBe(false);
+    expect(enterEvent.defaultPrevented).toBe(false);
+    expect(storageMocks.recordGachaAttempt).not.toHaveBeenCalled();
   });
 });
 
