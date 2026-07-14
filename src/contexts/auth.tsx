@@ -87,6 +87,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [authError, setAuthError] = useState<string | null>(null);
   const currentUserRef = useRef<User | null>(null);
+  const publishedUserRef = useRef<User | null>(null);
   const needsAccessRecheckRef = useRef(false);
   const verificationSequenceRef = useRef(0);
 
@@ -95,6 +96,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (error) console.error("權限驗證失敗:", error);
       needsAccessRecheckRef.current = false;
       currentUserRef.current = null;
+      publishedUserRef.current = null;
       setAuthError(message);
       setUser(null);
       setLoading(false);
@@ -113,9 +115,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       currentUserRef.current = currentUser;
       if (!currentUser) {
         needsAccessRecheckRef.current = false;
+        publishedUserRef.current = null;
         setUser(null);
         setLoading(false);
         return;
+      }
+
+      if (publishedUserRef.current?.uid !== currentUser.uid) {
+        needsAccessRecheckRef.current = false;
+        publishedUserRef.current = null;
+        setAuthError(null);
+        setUser(null);
+        setLoading(true);
       }
 
       const verification = await verifyAllowedUser(currentUser);
@@ -132,6 +143,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.warn("暫時無法驗證帳號權限:", verification.error);
         needsAccessRecheckRef.current = true;
         setAuthError(unavailableAccessMessage());
+        publishedUserRef.current = currentUser;
         setUser(currentUser);
         setLoading(false);
         return;
@@ -139,6 +151,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       needsAccessRecheckRef.current = false;
       setAuthError(null);
+      publishedUserRef.current = currentUser;
       setUser(currentUser);
       setLoading(false);
     });
@@ -173,6 +186,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         needsAccessRecheckRef.current = false;
         setAuthError(null);
+        publishedUserRef.current = currentUser;
         setUser(currentUser);
       });
     };

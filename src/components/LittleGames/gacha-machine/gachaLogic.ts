@@ -1,6 +1,7 @@
 import type {
-  AppliedGachaDraw,
+  AppliedGachaAttempt,
   GachaCharacterId,
+  GachaOutcome,
   GachaPhase,
   GachaSaveV1,
 } from "./gachaTypes";
@@ -11,8 +12,11 @@ import {
 
 export type GachaRng = () => number;
 
+export const MISS_RATE = 0.2;
+
 export const EMPTY_GACHA_SAVE: GachaSaveV1 = Object.freeze({
   schemaVersion: 1,
+  resetVersion: 0,
   totalDraws: 0,
   ownedCounts: Object.freeze({}),
 });
@@ -37,6 +41,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 export function createEmptyGachaSave(): GachaSaveV1 {
   return {
     schemaVersion: 1,
+    resetVersion: 0,
     totalDraws: 0,
     ownedCounts: {},
   };
@@ -59,6 +64,7 @@ export function normalizeGachaSave(value: unknown): GachaSaveV1 {
 
   return {
     schemaVersion: 1,
+    resetVersion: toNonNegativeInteger(value.resetVersion),
     totalDraws: Math.max(
       toNonNegativeInteger(value.totalDraws),
       knownOwnedTotal,
@@ -67,15 +73,41 @@ export function normalizeGachaSave(value: unknown): GachaSaveV1 {
   };
 }
 
-export function pickGachaCharacter(
+export function assertGachaOutcome(
+  outcome: unknown,
+): asserts outcome is GachaOutcome {
+  if (!isRecord(outcome)) {
+    throw new Error("Invalid gacha outcome.");
+  }
+  if (outcome.kind === "miss") return;
+  if (
+    outcome.kind === "character"
+    && isGachaCharacterId(outcome.characterId)
+  ) {
+    return;
+  }
+  throw new Error("Invalid gacha outcome.");
+}
+
+export function pickGachaOutcome(
   rng: GachaRng = Math.random,
-): GachaCharacterId {
+): GachaOutcome {
   const roll = rng();
   if (!Number.isFinite(roll) || roll < 0 || roll >= 1) {
     throw new RangeError("Gacha RNG must return a number in the range [0, 1).");
   }
 
-  return GACHA_CHARACTER_IDS[Math.floor(roll * GACHA_CHARACTER_IDS.length)];
+  if (roll < MISS_RATE) return { kind: "miss" };
+
+  const hitRoll = (roll - MISS_RATE) / (1 - MISS_RATE);
+  const characterIndex = Math.min(
+    GACHA_CHARACTER_IDS.length - 1,
+    Math.floor(hitRoll * GACHA_CHARACTER_IDS.length),
+  );
+  return {
+    kind: "character",
+    characterId: GACHA_CHARACTER_IDS[characterIndex],
+  };
 }
 
 export function canTransitionGachaPhase(
@@ -95,31 +127,44 @@ export function transitionGachaPhase(
   return to;
 }
 
-export function applyGachaDraw(
+export function applyGachaAttempt(
   save: GachaSaveV1,
-  characterId: GachaCharacterId,
-): AppliedGachaDraw {
-  if (!isGachaCharacterId(characterId)) {
-    throw new Error(`Unknown gacha character: ${String(characterId)}`);
-  }
+  outcome: GachaOutcome,
+): AppliedGachaAttempt {
+  assertGachaOutcome(outcome);
 
   const normalized = normalizeGachaSave(save);
-  const previousCount = normalized.ownedCounts[characterId] ?? 0;
-  const ownedCount = previousCount + 1;
   const totalDraws = normalized.totalDraws + 1;
+
+  if (outcome.kind === "miss") {
+    return {
+      save: {
+        ...normalized,
+        totalDraws,
+      },
+      result: {
+        kind: "miss",
+        totalDraws,
+      },
+    };
+  }
+
+  const previousCount = normalized.ownedCounts[outcome.characterId] ?? 0;
+  const ownedCount = previousCount + 1;
   const nextSave: GachaSaveV1 = {
-    schemaVersion: 1,
+    ...normalized,
     totalDraws,
     ownedCounts: {
       ...normalized.ownedCounts,
-      [characterId]: ownedCount,
+      [outcome.characterId]: ownedCount,
     },
   };
 
   return {
     save: nextSave,
     result: {
-      characterId,
+      kind: "character",
+      characterId: outcome.characterId,
       isNew: previousCount === 0,
       ownedCount,
       totalDraws,

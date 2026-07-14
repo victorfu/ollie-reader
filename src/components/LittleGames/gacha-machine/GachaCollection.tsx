@@ -1,4 +1,13 @@
-import { BookOpen, Check, Cloud, LockKeyhole, Sparkles, WifiOff } from "lucide-react";
+import {
+  BookOpen,
+  Check,
+  Cloud,
+  LockKeyhole,
+  RotateCcw,
+  Sparkles,
+  Trash2,
+  WifiOff,
+} from "lucide-react";
 import { motion, useReducedMotion } from "framer-motion";
 import { GACHA_CHARACTERS } from "./gachaData";
 import type { GachaSaveV1 } from "./gachaTypes";
@@ -8,6 +17,10 @@ interface GachaCollectionProps {
   isLoading?: boolean;
   isOffline?: boolean;
   syncLabel?: string;
+  hasPendingCapsule?: boolean;
+  canResetCollection?: boolean;
+  onOpenPendingCapsule?: () => void;
+  onRequestReset?: () => void;
 }
 
 export function GachaCollection({
@@ -15,6 +28,10 @@ export function GachaCollection({
   isLoading = false,
   isOffline = false,
   syncLabel = "已與雲端同步",
+  hasPendingCapsule = false,
+  canResetCollection = false,
+  onOpenPendingCapsule,
+  onRequestReset,
 }: GachaCollectionProps) {
   const reduceMotion = useReducedMotion();
   const unlockedCount = GACHA_CHARACTERS.reduce(
@@ -25,6 +42,11 @@ export function GachaCollection({
   const completion = Math.round(
     (unlockedCount / GACHA_CHARACTERS.length) * 100,
   );
+  const ownedTotal = Object.values(save.ownedCounts).reduce(
+    (total, count) => total + (count ?? 0),
+    0,
+  );
+  const missCount = Math.max(0, save.totalDraws - ownedTotal);
 
   return (
     <section
@@ -85,8 +107,35 @@ export function GachaCollection({
             )}
             {isOffline ? "離線快取 · 僅供查看" : syncLabel}
           </div>
+          <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border-hairline pt-3 text-center">
+            <div>
+              <p className="text-lg font-black text-foreground">{save.totalDraws}</p>
+              <p className="text-[11px] font-medium text-muted-foreground">累計抽取</p>
+            </div>
+            <div>
+              <p className="text-lg font-black text-foreground">{missCount}</p>
+              <p className="text-[11px] font-medium text-muted-foreground">空膠囊</p>
+            </div>
+          </div>
         </div>
       </div>
+
+      {hasPendingCapsule ? (
+        <div className="mb-5 flex flex-col gap-3 rounded-[14px] border border-sky-400/30 bg-sky-400/10 px-4 py-3 text-sm text-sky-900 sm:flex-row sm:items-center sm:justify-between dark:text-sky-100" role="status">
+          <span>
+            <strong className="font-bold">還有一顆待開啟膠囊。</strong>
+            本次結果會在你親手打開後才顯示於圖鑑。
+          </span>
+          <button
+            type="button"
+            onClick={onOpenPendingCapsule}
+            className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-[9px] border border-sky-400/30 bg-background/85 px-4 font-semibold text-foreground shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+          >
+            <RotateCcw className="size-4" strokeWidth={1.8} aria-hidden="true" />
+            回到扭蛋機
+          </button>
+        </div>
+      ) : null}
 
       {unlockedCount === GACHA_CHARACTERS.length ? (
         <div className="mb-5 flex items-center gap-3 rounded-[14px] border border-amber-300/35 bg-amber-300/10 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
@@ -184,6 +233,36 @@ export function GachaCollection({
           正在更新雲端圖鑑…
         </div>
       ) : null}
+
+      <section className="mt-8 rounded-[16px] border border-error/20 bg-error/5 p-5" aria-labelledby="gacha-reset-title">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div className="flex items-center gap-2 text-error">
+              <Trash2 className="size-5" strokeWidth={1.8} aria-hidden="true" />
+              <h3 id="gacha-reset-title" className="font-bold">
+                圖鑑管理
+              </h3>
+            </div>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+              清空會移除全部角色、相遇次數、抽取與空膠囊統計，並同步到其他裝置。這個動作無法復原。
+            </p>
+            {isOffline ? (
+              <p className="mt-1 text-xs font-semibold text-amber-700 dark:text-amber-300">
+                離線時只能查看快取，重新連線後才能清空圖鑑。
+              </p>
+            ) : null}
+          </div>
+          <button
+            type="button"
+            onClick={onRequestReset}
+            disabled={!canResetCollection}
+            className="btn btn-error min-h-11 shrink-0 rounded-[9px] px-5 disabled:cursor-not-allowed"
+          >
+            <Trash2 className="size-4" strokeWidth={1.8} aria-hidden="true" />
+            清空圖鑑
+          </button>
+        </div>
+      </section>
     </section>
   );
 }

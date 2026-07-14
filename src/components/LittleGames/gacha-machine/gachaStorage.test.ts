@@ -14,17 +14,23 @@ vi.mock("../../../utils/firebaseUtil", () => ({ db: mockDb }));
 
 import { createEmptyGachaSave } from "./gachaLogic";
 import {
+  compareGachaSaveVersions,
   GACHA_CACHE_PREFIX,
   GACHA_CLOUD_DOC,
+  GachaResetConflictError,
   getGachaCacheKey,
+  isGachaResetConflictError,
   loadGachaCloud,
+  parseGachaCacheValue,
   readGachaCache,
-  recordGachaDraw,
+  recordGachaAttempt,
+  resetGachaCollection,
   writeGachaCache,
   type GachaCacheLockManager,
 } from "./gachaStorage";
 
 const documentRef = { kind: "gacha-document" };
+const serverTimestamp = { kind: "server-timestamp" };
 
 function snapshot(data: unknown | null) {
   return {
@@ -33,22 +39,32 @@ function snapshot(data: unknown | null) {
   };
 }
 
+function transactionFor(data: unknown | null) {
+  return {
+    get: vi.fn().mockResolvedValue(snapshot(data)),
+    set: vi.fn(),
+    update: vi.fn(),
+  };
+}
+
 beforeEach(() => {
   localStorage.clear();
   vi.clearAllMocks();
   firestoreMocks.doc.mockReturnValue(documentRef);
-  firestoreMocks.serverTimestamp.mockReturnValue({ kind: "server-timestamp" });
+  firestoreMocks.serverTimestamp.mockReturnValue(serverTimestamp);
 });
 
 describe("gacha cache", () => {
   it("isolates cached progress by uid", async () => {
     await writeGachaCache("player-a", {
       schemaVersion: 1,
+      resetVersion: 0,
       totalDraws: 1,
       ownedCounts: { kuromi: 1 },
     });
     await writeGachaCache("player-b", {
       schemaVersion: 1,
+      resetVersion: 2,
       totalDraws: 2,
       ownedCounts: { keroppi: 2 },
     });
@@ -60,15 +76,28 @@ describe("gacha cache", () => {
     expect(readGachaCache("player-b")?.ownedCounts).toEqual({ keroppi: 2 });
   });
 
-  it("rejects broken or incompatible cache payloads", () => {
-    localStorage.setItem(getGachaCacheKey("broken"), "not-json");
-    localStorage.setItem(
-      getGachaCacheKey("future"),
-      JSON.stringify({ schemaVersion: 2, totalDraws: 9, ownedCounts: {} }),
-    );
-
-    expect(readGachaCache("broken")).toBeNull();
-    expect(readGachaCache("future")).toBeNull();
+  it("parses storage events and migrates old V1 payloads", () => {
+    expect(
+      parseGachaCacheValue(JSON.stringify({
+        schemaVersion: 1,
+        totalDraws: 1,
+        ownedCounts: { kuromi: 1 },
+      })),
+    ).toEqual({
+      schemaVersion: 1,
+      resetVersion: 0,
+      totalDraws: 1,
+      ownedCounts: { kuromi: 1 },
+    });
+    expect(parseGachaCacheValue(null)).toBeNull();
+    expect(parseGachaCacheValue("not-json")).toBeNull();
+    expect(
+      parseGachaCacheValue(JSON.stringify({
+        schemaVersion: 2,
+        totalDraws: 9,
+        ownedCounts: {},
+      })),
+    ).toBeNull();
   });
 
   it("normalizes invalid values before returning cached progress", () => {
@@ -76,6 +105,7 @@ describe("gacha cache", () => {
       getGachaCacheKey("player"),
       JSON.stringify({
         schemaVersion: 1,
+        resetVersion: 3.9,
         totalDraws: -3,
         ownedCounts: {
           "hello-kitty": 3.8,
@@ -87,12 +117,66 @@ describe("gacha cache", () => {
 
     expect(readGachaCache("player")).toEqual({
       schemaVersion: 1,
+      resetVersion: 3,
       totalDraws: 3,
       ownedCounts: { "hello-kitty": 3 },
     });
   });
 
-  it("serializes monotonic writes across tabs when Web Locks is available", async () => {
+  it("compares resetVersion before totalDraws", () => {
+    const oldCollection = {
+      schemaVersion: 1 as const,
+      resetVersion: 1,
+      totalDraws: 50,
+      ownedCounts: { kuromi: 50 },
+    };
+    const resetCollection = {
+      schemaVersion: 1 as const,
+      resetVersion: 2,
+      totalDraws: 0,
+      ownedCounts: {},
+    };
+    const newerDraw = {
+      ...resetCollection,
+      totalDraws: 1,
+      ownedCounts: { keroppi: 1 },
+    };
+
+    expect(compareGachaSaveVersions(resetCollection, oldCollection)).toBe(1);
+    expect(compareGachaSaveVersions(oldCollection, resetCollection)).toBe(-1);
+    expect(compareGachaSaveVersions(newerDraw, resetCollection)).toBe(1);
+    expect(compareGachaSaveVersions(resetCollection, resetCollection)).toBe(0);
+  });
+
+  it("lets a newer reset replace an older high-draw cache", async () => {
+    await writeGachaCache("reset-player", {
+      schemaVersion: 1,
+      resetVersion: 1,
+      totalDraws: 50,
+      ownedCounts: { kuromi: 50 },
+    });
+    await writeGachaCache("reset-player", {
+      schemaVersion: 1,
+      resetVersion: 2,
+      totalDraws: 0,
+      ownedCounts: {},
+    });
+    await writeGachaCache("reset-player", {
+      schemaVersion: 1,
+      resetVersion: 1,
+      totalDraws: 99,
+      ownedCounts: { kuromi: 99 },
+    });
+
+    expect(readGachaCache("reset-player")).toEqual({
+      schemaVersion: 1,
+      resetVersion: 2,
+      totalDraws: 0,
+      ownedCounts: {},
+    });
+  });
+
+  it("serializes freshness-checked writes with Web Locks", async () => {
     let queue = Promise.resolve();
     const lockManager: GachaCacheLockManager = {
       request<T>(_name: string, callback: () => T | PromiseLike<T>) {
@@ -110,6 +194,7 @@ describe("gacha cache", () => {
         "locked-player",
         {
           schemaVersion: 1,
+          resetVersion: 0,
           totalDraws: 3,
           ownedCounts: { kuromi: 2, keroppi: 1 },
         },
@@ -120,6 +205,7 @@ describe("gacha cache", () => {
         "locked-player",
         {
           schemaVersion: 1,
+          resetVersion: 0,
           totalDraws: 2,
           ownedCounts: { kuromi: 2 },
         },
@@ -128,16 +214,12 @@ describe("gacha cache", () => {
       ),
     ]);
 
-    expect(readGachaCache("locked-player")).toEqual({
-      schemaVersion: 1,
-      totalDraws: 3,
-      ownedCounts: { kuromi: 2, keroppi: 1 },
-    });
+    expect(readGachaCache("locked-player")?.totalDraws).toBe(3);
   });
 });
 
 describe("loadGachaCloud", () => {
-  it("loads the Firestore document and refreshes the cache", async () => {
+  it("loads the Firestore document, migrates it, and refreshes the cache", async () => {
     firestoreMocks.getDocFromServer.mockResolvedValue(
       snapshot({
         schemaVersion: 1,
@@ -158,6 +240,7 @@ describe("loadGachaCloud", () => {
     expect(firestoreMocks.getDocFromServer).toHaveBeenCalledWith(documentRef);
     expect(save).toEqual({
       schemaVersion: 1,
+      resetVersion: 0,
       totalDraws: 5,
       ownedCounts: { pochacco: 2, gudetama: 3 },
     });
@@ -173,9 +256,10 @@ describe("loadGachaCloud", () => {
     expect(readGachaCache("new-player")).toEqual(createEmptyGachaSave());
   });
 
-  it("does not replace the last successful cache when cloud loading fails", async () => {
+  it("does not replace the last successful cache when loading fails", async () => {
     const cached = {
       schemaVersion: 1 as const,
+      resetVersion: 0,
       totalDraws: 1,
       ownedCounts: { "hello-kitty": 1 },
     };
@@ -186,18 +270,20 @@ describe("loadGachaCloud", () => {
     expect(readGachaCache("offline-player")).toEqual(cached);
   });
 
-  it("returns the newest cache when an older server read finishes late", async () => {
+  it("returns the newer cache when an older server read finishes late", async () => {
     const newest = {
       schemaVersion: 1 as const,
-      totalDraws: 3,
-      ownedCounts: { kuromi: 2, keroppi: 1 },
+      resetVersion: 2,
+      totalDraws: 0,
+      ownedCounts: {},
     };
     await writeGachaCache("racing-player", newest);
     firestoreMocks.getDocFromServer.mockResolvedValue(
       snapshot({
         schemaVersion: 1,
-        totalDraws: 2,
-        ownedCounts: { kuromi: 2 },
+        resetVersion: 1,
+        totalDraws: 20,
+        ownedCounts: { kuromi: 20 },
       }),
     );
 
@@ -206,95 +292,191 @@ describe("loadGachaCloud", () => {
   });
 });
 
-describe("recordGachaDraw", () => {
-  it("creates progress in a transaction and caches only after it commits", async () => {
-    const transaction = {
-      get: vi.fn().mockResolvedValue(snapshot(null)),
-      set: vi.fn(),
-    };
+describe("recordGachaAttempt", () => {
+  it("creates character progress and caches only after the transaction commits", async () => {
+    const transaction = transactionFor(null);
     firestoreMocks.runTransaction.mockImplementation(
       async (_database, update) => update(transaction),
     );
 
-    const result = await recordGachaDraw("new-player", "cinnamoroll");
+    const applied = await recordGachaAttempt(
+      "new-player",
+      { kind: "character", characterId: "cinnamoroll" },
+      0,
+    );
 
-    expect(result).toEqual({
-      characterId: "cinnamoroll",
-      isNew: true,
-      ownedCount: 1,
-      totalDraws: 1,
+    expect(applied).toEqual({
+      save: {
+        schemaVersion: 1,
+        resetVersion: 0,
+        totalDraws: 1,
+        ownedCounts: { cinnamoroll: 1 },
+      },
+      result: {
+        kind: "character",
+        characterId: "cinnamoroll",
+        isNew: true,
+        ownedCount: 1,
+        totalDraws: 1,
+      },
     });
     expect(transaction.set).toHaveBeenCalledWith(
       documentRef,
       expect.objectContaining({
         schemaVersion: 1,
+        resetVersion: 0,
         totalDraws: 1,
         ownedCounts: { cinnamoroll: 1 },
-        createdAt: { kind: "server-timestamp" },
-        updatedAt: { kind: "server-timestamp" },
+        createdAt: serverTimestamp,
+        updatedAt: serverTimestamp,
       }),
     );
-    expect(readGachaCache("new-player")).toEqual({
-      schemaVersion: 1,
-      totalDraws: 1,
-      ownedCounts: { cinnamoroll: 1 },
-    });
+    expect(readGachaCache("new-player")).toEqual(applied.save);
   });
 
-  it("keeps the selected character fixed if Firestore retries the transaction", async () => {
-    const set = vi.fn();
-    const transactionAttempts = [
+  it("merges only the selected count for existing documents", async () => {
+    const transaction = transactionFor({
+      schemaVersion: 1,
+      resetVersion: 4,
+      totalDraws: 5,
+      ownedCounts: { kuromi: 2, futureCharacter: 3 },
+      createdAt: "original-created-at",
+      futureTopLevelField: true,
+    });
+    firestoreMocks.runTransaction.mockImplementation(
+      async (_database, update) => update(transaction),
+    );
+
+    await recordGachaAttempt(
+      "existing-player",
+      { kind: "character", characterId: "kuromi" },
+      4,
+    );
+
+    expect(transaction.set).toHaveBeenCalledWith(
+      documentRef,
       {
-        get: vi.fn().mockResolvedValue(
-          snapshot({
-            schemaVersion: 1,
-            totalDraws: 1,
-            ownedCounts: { kuromi: 1 },
-            createdAt: "original-created-at",
-          }),
-        ),
-        set,
+        schemaVersion: 1,
+        resetVersion: 4,
+        totalDraws: 6,
+        ownedCounts: { kuromi: 3 },
+        updatedAt: serverTimestamp,
       },
+      { merge: true },
+    );
+  });
+
+  it("records a miss without writing ownedCounts", async () => {
+    const transaction = transactionFor({
+      schemaVersion: 1,
+      resetVersion: 1,
+      totalDraws: 2,
+      ownedCounts: { kuromi: 1 },
+      createdAt: "original-created-at",
+    });
+    firestoreMocks.runTransaction.mockImplementation(
+      async (_database, update) => update(transaction),
+    );
+
+    const applied = await recordGachaAttempt(
+      "miss-player",
+      { kind: "miss" },
+      1,
+    );
+
+    expect(applied.result).toEqual({ kind: "miss", totalDraws: 3 });
+    expect(transaction.set).toHaveBeenCalledWith(
+      documentRef,
       {
-        get: vi.fn().mockResolvedValue(
-          snapshot({
-            schemaVersion: 1,
-            totalDraws: 2,
-            ownedCounts: { kuromi: 2 },
-            createdAt: "original-created-at",
-          }),
-        ),
-        set,
+        schemaVersion: 1,
+        resetVersion: 1,
+        totalDraws: 3,
+        updatedAt: serverTimestamp,
       },
+      { merge: true },
+    );
+  });
+
+  it("keeps the supplied outcome fixed if Firestore retries", async () => {
+    const transactions = [
+      transactionFor({
+        schemaVersion: 1,
+        resetVersion: 0,
+        totalDraws: 1,
+        ownedCounts: { kuromi: 1 },
+        createdAt: "original-created-at",
+      }),
+      transactionFor({
+        schemaVersion: 1,
+        resetVersion: 0,
+        totalDraws: 2,
+        ownedCounts: { kuromi: 2 },
+        createdAt: "original-created-at",
+      }),
     ];
     firestoreMocks.runTransaction.mockImplementation(
       async (_database, update) => {
-        await update(transactionAttempts[0]);
-        return update(transactionAttempts[1]);
+        await update(transactions[0]);
+        return update(transactions[1]);
       },
     );
 
-    const result = await recordGachaDraw("retry-player", "kuromi");
+    const applied = await recordGachaAttempt(
+      "retry-player",
+      { kind: "character", characterId: "kuromi" },
+      0,
+    );
 
-    expect(result).toEqual({
+    expect(applied.result).toEqual({
+      kind: "character",
       characterId: "kuromi",
       isNew: false,
       ownedCount: 3,
       totalDraws: 3,
     });
-    expect(set).toHaveBeenCalledTimes(2);
-    for (const [, writtenData] of set.mock.calls) {
-      expect(writtenData.ownedCounts).toEqual(
-        expect.objectContaining({ kuromi: expect.any(Number) }),
+    for (const transaction of transactions) {
+      expect(transaction.set).toHaveBeenCalledWith(
+        documentRef,
+        expect.objectContaining({ ownedCounts: { kuromi: expect.any(Number) } }),
+        { merge: true },
       );
-      expect(writtenData.createdAt).toBe("original-created-at");
     }
-    expect(readGachaCache("retry-player")?.ownedCounts).toEqual({ kuromi: 3 });
+  });
+
+  it("throws a typed conflict when the collection was reset", async () => {
+    const transaction = transactionFor({
+      schemaVersion: 1,
+      resetVersion: 3,
+      totalDraws: 0,
+      ownedCounts: {},
+    });
+    firestoreMocks.runTransaction.mockImplementation(
+      async (_database, update) => update(transaction),
+    );
+
+    const promise = recordGachaAttempt(
+      "conflict-player",
+      { kind: "miss" },
+      2,
+    );
+
+    await expect(promise).rejects.toBeInstanceOf(GachaResetConflictError);
+    await promise.catch((error: unknown) => {
+      expect(isGachaResetConflictError(error)).toBe(true);
+      expect(error).toMatchObject({
+        code: "GACHA_RESET_CONFLICT",
+        expectedResetVersion: 2,
+        actualResetVersion: 3,
+      });
+    });
+    expect(transaction.set).not.toHaveBeenCalled();
+    expect(readGachaCache("conflict-player")).toBeNull();
   });
 
   it("does not update the cache when the transaction fails", async () => {
     const cached = {
       schemaVersion: 1 as const,
+      resetVersion: 0,
       totalDraws: 1,
       ownedCounts: { keroppi: 1 },
     };
@@ -302,38 +484,78 @@ describe("recordGachaDraw", () => {
     firestoreMocks.runTransaction.mockRejectedValue(new Error("unavailable"));
 
     await expect(
-      recordGachaDraw("offline-player", "gudetama"),
+      recordGachaAttempt("offline-player", { kind: "miss" }, 0),
     ).rejects.toThrow("unavailable");
     expect(readGachaCache("offline-player")).toEqual(cached);
   });
+});
 
-  it("does not let a late transaction response roll the cache backward", async () => {
-    await writeGachaCache("multi-tab-player", {
+describe("resetGachaCollection", () => {
+  it("clears an existing collection while preserving unrelated top-level fields", async () => {
+    const transaction = transactionFor({
       schemaVersion: 1,
-      totalDraws: 3,
-      ownedCounts: { kuromi: 2, keroppi: 1 },
+      resetVersion: 4,
+      totalDraws: 12,
+      ownedCounts: { kuromi: 10, futureCharacter: 2 },
+      createdAt: "original-created-at",
+      futureTopLevelField: true,
     });
-    const transaction = {
-      get: vi.fn().mockResolvedValue(
-        snapshot({
-          schemaVersion: 1,
-          totalDraws: 1,
-          ownedCounts: { kuromi: 1 },
-        }),
-      ),
-      set: vi.fn(),
-    };
     firestoreMocks.runTransaction.mockImplementation(
       async (_database, update) => update(transaction),
     );
 
-    await expect(
-      recordGachaDraw("multi-tab-player", "kuromi"),
-    ).resolves.toMatchObject({ totalDraws: 2 });
-    expect(readGachaCache("multi-tab-player")).toEqual({
+    const save = await resetGachaCollection("reset-player");
+
+    expect(save).toEqual({
       schemaVersion: 1,
-      totalDraws: 3,
-      ownedCounts: { kuromi: 2, keroppi: 1 },
+      resetVersion: 5,
+      totalDraws: 0,
+      ownedCounts: {},
     });
+    expect(transaction.update).toHaveBeenCalledWith(documentRef, {
+      schemaVersion: 1,
+      resetVersion: 5,
+      totalDraws: 0,
+      ownedCounts: {},
+      resetAt: serverTimestamp,
+      updatedAt: serverTimestamp,
+    });
+    expect(readGachaCache("reset-player")).toEqual(save);
+  });
+
+  it("creates a reset document with timestamps when progress is missing", async () => {
+    const transaction = transactionFor(null);
+    firestoreMocks.runTransaction.mockImplementation(
+      async (_database, update) => update(transaction),
+    );
+
+    const save = await resetGachaCollection("new-reset-player");
+
+    expect(save.resetVersion).toBe(1);
+    expect(transaction.set).toHaveBeenCalledWith(documentRef, {
+      schemaVersion: 1,
+      resetVersion: 1,
+      totalDraws: 0,
+      ownedCounts: {},
+      createdAt: serverTimestamp,
+      resetAt: serverTimestamp,
+      updatedAt: serverTimestamp,
+    });
+  });
+
+  it("does not clear the cache when reset fails", async () => {
+    const cached = {
+      schemaVersion: 1 as const,
+      resetVersion: 1,
+      totalDraws: 2,
+      ownedCounts: { kuromi: 2 },
+    };
+    await writeGachaCache("failed-reset", cached);
+    firestoreMocks.runTransaction.mockRejectedValue(new Error("offline"));
+
+    await expect(resetGachaCollection("failed-reset")).rejects.toThrow(
+      "offline",
+    );
+    expect(readGachaCache("failed-reset")).toEqual(cached);
   });
 });

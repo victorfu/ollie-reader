@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useId, useRef } from "react";
 
 interface ConfirmModalProps {
   isOpen: boolean;
@@ -10,6 +10,8 @@ interface ConfirmModalProps {
   cancelText?: string;
   confirmVariant?: "primary" | "error" | "warning";
   isLoading?: boolean;
+  errorMessage?: string | null;
+  confirmDisabled?: boolean;
 }
 
 export function ConfirmModal({
@@ -22,30 +24,23 @@ export function ConfirmModal({
   cancelText = "取消",
   confirmVariant = "error",
   isLoading = false,
+  errorMessage = null,
+  confirmDisabled = false,
 }: ConfirmModalProps) {
   const modalRef = useRef<HTMLDialogElement>(null);
+  const titleId = useId();
+  const descriptionId = useId();
 
   useEffect(() => {
     const modal = modalRef.current;
     if (!modal) return;
 
     if (isOpen) {
-      modal.showModal();
-    } else {
+      if (!modal.open) modal.showModal();
+    } else if (modal.open) {
       modal.close();
     }
   }, [isOpen]);
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && isOpen && !isLoading) {
-        onCancel();
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen, isLoading, onCancel]);
 
   const confirmButtonClass = {
     primary: "btn-primary",
@@ -54,10 +49,31 @@ export function ConfirmModal({
   }[confirmVariant];
 
   return (
-    <dialog ref={modalRef} className="modal modal-bottom sm:modal-middle">
+    <dialog
+      ref={modalRef}
+      className="modal modal-bottom sm:modal-middle"
+      aria-labelledby={titleId}
+      aria-describedby={descriptionId}
+      onCancel={(event) => {
+        event.preventDefault();
+        if (!isLoading) onCancel();
+      }}
+    >
       <div className="modal-box rounded-2xl border border-border-hairline shadow-floating">
-        <h3 className="text-lg font-semibold tracking-tight">{title}</h3>
-        <p className="py-4 text-muted-foreground">{message}</p>
+        <h3 id={titleId} className="text-lg font-semibold tracking-tight">
+          {title}
+        </h3>
+        <p id={descriptionId} className="py-4 text-muted-foreground">
+          {message}
+        </p>
+        {errorMessage ? (
+          <p
+            className="mb-2 rounded-[10px] bg-error/10 px-3 py-2 text-sm text-error"
+            role="alert"
+          >
+            {errorMessage}
+          </p>
+        ) : null}
         <div className="modal-action">
           <button
             type="button"
@@ -71,7 +87,7 @@ export function ConfirmModal({
             type="button"
             className={`btn ${confirmButtonClass} active:scale-[0.98]`}
             onClick={onConfirm}
-            disabled={isLoading}
+            disabled={isLoading || confirmDisabled}
           >
             {isLoading ? (
               <>

@@ -39,6 +39,7 @@ function AuthProbe() {
   return (
     <div>
       <span data-state>{loading ? "loading" : user?.uid ?? "signed-out"}</span>
+      <span data-user>{user?.uid ?? "none"}</span>
       <span data-error>{authError ?? ""}</span>
     </div>
   );
@@ -80,6 +81,50 @@ afterEach(() => {
 });
 
 describe("AuthProvider allowlist verification", () => {
+  it("hides the previous user while a different uid is being verified", async () => {
+    const userA = {
+      uid: "player-a",
+      email: "player-a@example.com",
+    } as User;
+    const userB = {
+      uid: "player-b",
+      email: "player-b@example.com",
+    } as User;
+    let finishUserBVerification:
+      | ((snapshot: { exists: () => boolean }) => void)
+      | undefined;
+
+    firestoreMocks.getDocFromServer
+      .mockResolvedValueOnce({ exists: () => true })
+      .mockImplementationOnce(
+        () =>
+          new Promise<{ exists: () => boolean }>((resolve) => {
+            finishUserBVerification = resolve;
+          }),
+      );
+
+    await act(async () => {
+      await authMocks.callback?.(userA);
+    });
+    expect(container.querySelector("[data-state]")?.textContent).toBe("player-a");
+
+    let userBVerification: Promise<void> | undefined;
+    act(() => {
+      userBVerification = authMocks.callback?.(userB);
+    });
+
+    expect(container.querySelector("[data-state]")?.textContent).toBe("loading");
+    expect(container.querySelector("[data-user]")?.textContent).toBe("none");
+
+    await act(async () => {
+      finishUserBVerification?.({ exists: () => true });
+      await userBVerification;
+    });
+
+    expect(container.querySelector("[data-state]")?.textContent).toBe("player-b");
+    expect(container.querySelector("[data-user]")?.textContent).toBe("player-b");
+  });
+
   it("keeps the persisted user when allowlist verification is unavailable offline", async () => {
     setOnline(false);
     firestoreMocks.getDocFromServer.mockRejectedValue(

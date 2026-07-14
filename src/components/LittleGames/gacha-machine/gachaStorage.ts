@@ -1,22 +1,41 @@
 import {
-  applyGachaDraw,
+  applyGachaAttempt,
+  assertGachaOutcome,
   createEmptyGachaSave,
   normalizeGachaSave,
 } from "./gachaLogic";
 import type {
-  GachaCharacterId,
-  GachaDrawResult,
+  AppliedGachaAttempt,
+  GachaOutcome,
   GachaSaveV1,
 } from "./gachaTypes";
-import { isGachaCharacterId } from "./gachaTypes";
 
 export const GACHA_CACHE_PREFIX = "ollie-gacha-machine-cache-v1:";
 export const GACHA_CLOUD_DOC = "gachaMachine";
+export const GACHA_RESET_CONFLICT = "GACHA_RESET_CONFLICT";
 
 export type GachaCacheStorage = Pick<Storage, "getItem" | "setItem">;
 export type GachaCacheLockManager = {
   request<T>(name: string, callback: () => T | PromiseLike<T>): Promise<T>;
 };
+
+export class GachaResetConflictError extends Error {
+  readonly code = GACHA_RESET_CONFLICT;
+  readonly expectedResetVersion: number;
+  readonly actualResetVersion: number;
+
+  constructor(
+    expectedResetVersion: number,
+    actualResetVersion: number,
+  ) {
+    super(
+      `Gacha collection was reset while drawing (expected version ${expectedResetVersion}, found ${actualResetVersion}).`,
+    );
+    this.name = "GachaResetConflictError";
+    this.expectedResetVersion = expectedResetVersion;
+    this.actualResetVersion = actualResetVersion;
+  }
+}
 
 function defaultStorage(): GachaCacheStorage | null {
   if (typeof window === "undefined") return null;
@@ -38,13 +57,51 @@ function assertUid(uid: string): void {
   }
 }
 
+function assertResetVersion(resetVersion: number): void {
+  if (!Number.isSafeInteger(resetVersion) || resetVersion < 0) {
+    throw new Error("A non-negative reset version is required for gacha storage.");
+  }
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+export function isGachaResetConflictError(
+  error: unknown,
+): error is GachaResetConflictError {
+  return error instanceof GachaResetConflictError
+    || (isRecord(error) && error.code === GACHA_RESET_CONFLICT);
 }
 
 export function getGachaCacheKey(uid: string): string {
   assertUid(uid);
   return `${GACHA_CACHE_PREFIX}${uid}`;
+}
+
+export function parseGachaCacheValue(raw: string | null): GachaSaveV1 | null {
+  if (!raw) return null;
+
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (!isRecord(parsed) || parsed.schemaVersion !== 1) return null;
+    return normalizeGachaSave(parsed);
+  } catch {
+    return null;
+  }
+}
+
+export function compareGachaSaveVersions(
+  left: GachaSaveV1,
+  right: GachaSaveV1,
+): number {
+  if (left.resetVersion !== right.resetVersion) {
+    return left.resetVersion > right.resetVersion ? 1 : -1;
+  }
+  if (left.totalDraws !== right.totalDraws) {
+    return left.totalDraws > right.totalDraws ? 1 : -1;
+  }
+  return 0;
 }
 
 export function readGachaCache(
@@ -54,11 +111,7 @@ export function readGachaCache(
   if (!storage) return null;
 
   try {
-    const raw = storage.getItem(getGachaCacheKey(uid));
-    if (!raw) return null;
-    const parsed: unknown = JSON.parse(raw);
-    if (!isRecord(parsed) || parsed.schemaVersion !== 1) return null;
-    return normalizeGachaSave(parsed);
+    return parseGachaCacheValue(storage.getItem(getGachaCacheKey(uid)));
   } catch {
     return null;
   }
@@ -74,7 +127,7 @@ function writeGachaCacheUnlocked(
   try {
     const normalized = normalizeGachaSave(save);
     const current = readGachaCache(uid, storage);
-    if (current && current.totalDraws > normalized.totalDraws) {
+    if (current && compareGachaSaveVersions(current, normalized) > 0) {
       return true;
     }
     storage.setItem(
@@ -101,8 +154,8 @@ export async function writeGachaCache(
         writeGachaCacheUnlocked(uid, save, storage),
       );
     } catch {
-      // A browser may expose Web Locks but reject a request in a restricted
-      // context. Keep the monotonic fallback instead of losing the cache.
+      // Restricted contexts may expose Web Locks but reject lock requests.
+      // Keep the freshness-checked fallback instead of losing the cache.
     }
   }
 
@@ -128,15 +181,15 @@ export async function loadGachaCloud(
   return readGachaCache(uid, storage) ?? save;
 }
 
-export async function recordGachaDraw(
+export async function recordGachaAttempt(
   uid: string,
-  characterId: GachaCharacterId,
+  outcome: GachaOutcome,
+  expectedResetVersion: number,
   storage: GachaCacheStorage | null = defaultStorage(),
-): Promise<GachaDrawResult> {
+): Promise<AppliedGachaAttempt> {
   assertUid(uid);
-  if (!isGachaCharacterId(characterId)) {
-    throw new Error(`Unknown gacha character: ${String(characterId)}`);
-  }
+  assertGachaOutcome(outcome);
+  assertResetVersion(expectedResetVersion);
 
   const [{ doc, runTransaction, serverTimestamp }, { db }] = await Promise.all([
     import("firebase/firestore"),
@@ -150,18 +203,93 @@ export async function recordGachaDraw(
     const currentSave = snapshot.exists()
       ? normalizeGachaSave(rawData)
       : createEmptyGachaSave();
-    const applied = applyGachaDraw(currentSave, characterId);
+
+    if (currentSave.resetVersion !== expectedResetVersion) {
+      throw new GachaResetConflictError(
+        expectedResetVersion,
+        currentSave.resetVersion,
+      );
+    }
+
+    const applied = applyGachaAttempt(currentSave, outcome);
+    const timestamp = serverTimestamp();
     const existingCreatedAt = isRecord(rawData) ? rawData.createdAt : undefined;
+    const writeData: Record<string, unknown> = {
+      schemaVersion: 1,
+      resetVersion: applied.save.resetVersion,
+      totalDraws: applied.save.totalDraws,
+      updatedAt: timestamp,
+    };
 
-    transaction.set(ref, {
-      ...applied.save,
-      createdAt: existingCreatedAt ?? serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    });
+    if (outcome.kind === "character") {
+      writeData.ownedCounts = {
+        [outcome.characterId]: applied.save.ownedCounts[outcome.characterId],
+      };
+    } else if (!snapshot.exists()) {
+      writeData.ownedCounts = {};
+    }
 
+    if (existingCreatedAt == null) {
+      writeData.createdAt = timestamp;
+    }
+
+    if (snapshot.exists()) {
+      transaction.set(ref, writeData, { merge: true });
+    } else {
+      transaction.set(ref, writeData);
+    }
     return applied;
   });
 
   await writeGachaCache(uid, committed.save, storage);
-  return committed.result;
+  return committed;
+}
+
+export async function resetGachaCollection(
+  uid: string,
+  storage: GachaCacheStorage | null = defaultStorage(),
+): Promise<GachaSaveV1> {
+  assertUid(uid);
+
+  const [{ doc, runTransaction, serverTimestamp }, { db }] = await Promise.all([
+    import("firebase/firestore"),
+    import("../../../utils/firebaseUtil"),
+  ]);
+  const ref = doc(db, "gameProgress", uid, "littleGames", GACHA_CLOUD_DOC);
+
+  const committed = await runTransaction(db, async (transaction) => {
+    const snapshot = await transaction.get(ref);
+    const rawData = snapshot.exists() ? snapshot.data() : null;
+    const currentSave = snapshot.exists()
+      ? normalizeGachaSave(rawData)
+      : createEmptyGachaSave();
+    const resetSave: GachaSaveV1 = {
+      schemaVersion: 1,
+      resetVersion: currentSave.resetVersion + 1,
+      totalDraws: 0,
+      ownedCounts: {},
+    };
+    const timestamp = serverTimestamp();
+    const resetData: Record<string, unknown> = {
+      ...resetSave,
+      resetAt: timestamp,
+      updatedAt: timestamp,
+    };
+    const existingCreatedAt = isRecord(rawData) ? rawData.createdAt : undefined;
+
+    if (existingCreatedAt == null) {
+      resetData.createdAt = timestamp;
+    }
+
+    if (snapshot.exists()) {
+      transaction.update(ref, resetData);
+    } else {
+      transaction.set(ref, resetData);
+    }
+
+    return resetSave;
+  });
+
+  await writeGachaCache(uid, committed, storage);
+  return committed;
 }

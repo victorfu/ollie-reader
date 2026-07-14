@@ -34,6 +34,7 @@ let root: Root;
 let trigger: HTMLButtonElement;
 
 const NEW_RESULT: GachaDrawResult = {
+  kind: "character",
   characterId: "kuromi",
   isNew: true,
   ownedCount: 1,
@@ -44,16 +45,18 @@ function renderDialog(
   result: GachaDrawResult,
   reduceMotion: boolean,
   onClose = vi.fn(),
+  isOpen = true,
+  onRestoreFocus = vi.fn(),
 ): void {
   act(() => {
     root.render(
       <GachaRevealDialog
-        isOpen
+        isOpen={isOpen}
         result={result}
         reduceMotion={reduceMotion}
         onClose={onClose}
         onOpenCollection={vi.fn()}
-        onRestoreFocus={vi.fn()}
+        onRestoreFocus={onRestoreFocus}
       />,
     );
   });
@@ -118,6 +121,23 @@ describe("GachaRevealDialog", () => {
     expect(document.activeElement).toBe(trigger);
   });
 
+  it("uses the fallback when the opening trigger was already unmounted", () => {
+    const fallback = document.createElement("button");
+    const onRestoreFocus = vi.fn(() => fallback.focus());
+    document.body.appendChild(fallback);
+    trigger.remove();
+    expect(document.activeElement).toBe(document.body);
+
+    renderDialog(NEW_RESULT, false, vi.fn(), true, onRestoreFocus);
+    const dialog = container.querySelector<HTMLDialogElement>("dialog[open]");
+
+    act(() => dialog?.close());
+
+    expect(onRestoreFocus).toHaveBeenCalledTimes(1);
+    expect(document.activeElement).toBe(fallback);
+    fallback.remove();
+  });
+
   it("suppresses confetti when reduced motion is enabled", () => {
     renderDialog(NEW_RESULT, true);
 
@@ -133,5 +153,24 @@ describe("GachaRevealDialog", () => {
 
     expect(container.textContent).toContain("第 4 次遇見");
     expect(confettiMock).not.toHaveBeenCalled();
+  });
+
+  it("reveals an accessible empty-capsule result without character art", () => {
+    renderDialog({ kind: "miss", totalDraws: 9 }, false);
+
+    expect(container.querySelector("#gacha-reveal-title")?.textContent).toBe(
+      "這次是空膠囊",
+    );
+    expect(container.textContent).toContain("EMPTY · 空膠囊");
+    expect(container.querySelector("img")).toBeNull();
+    expect(playSoundMock).toHaveBeenCalledWith("click");
+    expect(confettiMock).not.toHaveBeenCalled();
+  });
+
+  it("does not leave a closed result in the dialog DOM", () => {
+    renderDialog(NEW_RESULT, false, vi.fn(), false);
+
+    expect(container.textContent).not.toContain("酷洛米");
+    expect(container.querySelector("img")).toBeNull();
   });
 });

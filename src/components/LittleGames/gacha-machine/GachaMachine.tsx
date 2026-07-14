@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import {
   AlertTriangle,
@@ -11,6 +11,7 @@ import {
   Info,
   LogIn,
   RefreshCw,
+  RotateCcw,
   RotateCw,
   Sparkles,
   Ticket,
@@ -18,22 +19,29 @@ import {
   WifiOff,
 } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
+import { ConfirmModal } from "../../common/ConfirmModal";
 import { useAuth } from "../../../hooks/useAuth";
 import { playSound } from "../../../services/gameService";
 import { logger } from "../../../utils/logger";
-import { GACHA_CHARACTERS, getGachaCharacter } from "./gachaData";
+import { GACHA_CHARACTERS } from "./gachaData";
 import {
   EMPTY_GACHA_SAVE,
   canTransitionGachaPhase,
-  pickGachaCharacter,
+  pickGachaOutcome,
   transitionGachaPhase,
 } from "./gachaLogic";
 import {
+  compareGachaSaveVersions,
+  getGachaCacheKey,
+  isGachaResetConflictError,
   loadGachaCloud,
+  parseGachaCacheValue,
   readGachaCache,
-  recordGachaDraw,
+  recordGachaAttempt,
+  resetGachaCollection,
 } from "./gachaStorage";
 import type {
+  AppliedGachaAttempt,
   GachaDrawResult,
   GachaPhase,
   GachaSaveV1,
@@ -44,6 +52,12 @@ import { GachaRevealDialog } from "./GachaRevealDialog";
 
 interface GachaMachineProps {
   onExit: () => void;
+}
+
+type GachaAuthState = ReturnType<typeof useAuth>;
+
+interface GachaMachineSessionProps extends GachaMachineProps {
+  auth: GachaAuthState;
 }
 
 type SyncStatus =
@@ -78,7 +92,11 @@ const CAPSULE_POSITIONS = [
 
 const GACHA_STEPS = [
   { number: "1", title: "投入免費代幣", description: "不會扣除任何遊戲金幣" },
-  { number: "2", title: "轉動機台把手", description: "每位角色的機率都是 1/12" },
+  {
+    number: "2",
+    title: "轉動機台把手",
+    description: `20% 空膠囊，其餘由 ${GACHA_CHARACTERS.length} 組角色平分`,
+  },
   { number: "3", title: "點擊膠囊開獎", description: "結果成功存檔後才會掉出來" },
 ] as const;
 
@@ -105,27 +123,24 @@ function getStatusMessage(
     case "capsuleReady":
       return "膠囊掉出來了！點擊膠囊開獎。";
     case "revealed":
-      return "角色已收藏到你的圖鑑。";
+      return "本次結果已同步，可以繼續扭蛋。";
   }
 }
 
-function mergeDrawResult(
-  previous: GachaSaveV1,
-  result: GachaDrawResult,
-): GachaSaveV1 {
-  return {
-    schemaVersion: 1,
-    totalDraws: Math.max(previous.totalDraws, result.totalDraws),
-    ownedCounts: {
-      ...previous.ownedCounts,
-      [result.characterId]: result.ownedCount,
-    },
-  };
+export default function GachaMachine(props: GachaMachineProps) {
+  const auth = useAuth();
+  return (
+    <GachaMachineSession
+      key={auth.user?.uid ?? "signed-out"}
+      {...props}
+      auth={auth}
+    />
+  );
 }
 
-export default function GachaMachine({ onExit }: GachaMachineProps) {
+function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
   const reduceMotion = useReducedMotion();
-  const { user, loading: authLoading, authError, signInWithGoogle } = useAuth();
+  const { user, loading: authLoading, authError, signInWithGoogle } = auth;
   const [searchParams, setSearchParams] = useSearchParams();
   const view: GachaView =
     searchParams.get("view") === "collection" ? "collection" : "machine";
@@ -134,18 +149,105 @@ export default function GachaMachine({ onExit }: GachaMachineProps) {
   const [syncStatus, setSyncStatus] = useState<SyncStatus>("loading");
   const [syncError, setSyncError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [actionNotice, setActionNotice] = useState<string | null>(null);
   const [isOnline, setIsOnline] = useState(() =>
     typeof navigator === "undefined" ? true : navigator.onLine,
   );
   const [phase, setPhase] = useState<GachaPhase>("idle");
   const [drawResult, setDrawResult] = useState<GachaDrawResult | null>(null);
+  const [hasPendingCapsule, setHasPendingCapsule] = useState(false);
+  const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
+  const [isResettingCollection, setIsResettingCollection] = useState(false);
+  const [resetError, setResetError] = useState<string | null>(null);
   const phaseRef = useRef<GachaPhase>("idle");
+  const saveRef = useRef<GachaSaveV1>(EMPTY_GACHA_SAVE);
+  const pendingAttemptRef = useRef<AppliedGachaAttempt | null>(null);
+  const bufferedSaveRef = useRef<GachaSaveV1 | null>(null);
+  const resetSubmissionStartedRef = useRef(false);
   const drawInFlightRef = useRef(false);
+  const drawAttemptTokenRef = useRef(0);
   const loadSequenceRef = useRef(0);
+  const loadedUidRef = useRef<string | undefined>(undefined);
   const activeUidRef = useRef(user?.uid);
   const coinButtonRef = useRef<HTMLButtonElement>(null);
   const collectionTabRef = useRef<HTMLButtonElement>(null);
   activeUidRef.current = user?.uid;
+
+  const setVisibleSave = useCallback((nextSave: GachaSaveV1) => {
+    saveRef.current = nextSave;
+    setSave(nextSave);
+  }, []);
+
+  const setVisibleSaveIfNewer = useCallback((incoming: GachaSaveV1) => {
+    if (compareGachaSaveVersions(saveRef.current, incoming) > 0) return;
+    saveRef.current = incoming;
+    setSave(incoming);
+  }, []);
+
+  const clearPendingAttempt = useCallback(() => {
+    pendingAttemptRef.current = null;
+    bufferedSaveRef.current = null;
+    setHasPendingCapsule(false);
+  }, []);
+
+  const applyBufferedSave = useCallback(() => {
+    const buffered = bufferedSaveRef.current;
+    bufferedSaveRef.current = null;
+    if (buffered) setVisibleSaveIfNewer(buffered);
+  }, [setVisibleSaveIfNewer]);
+
+  const applyIncomingSave = useCallback(
+    (incoming: GachaSaveV1) => {
+      const current = saveRef.current;
+      if (incoming.resetVersion < current.resetVersion) return;
+
+      const pending = pendingAttemptRef.current;
+      const protectsActiveDraw =
+        drawInFlightRef.current &&
+        incoming.resetVersion === current.resetVersion;
+      if (
+        protectsActiveDraw ||
+        (pending && incoming.resetVersion <= pending.save.resetVersion)
+      ) {
+        const buffered = bufferedSaveRef.current;
+        if (
+          !buffered ||
+          compareGachaSaveVersions(buffered, incoming) <= 0
+        ) {
+          bufferedSaveRef.current = incoming;
+        }
+        return;
+      }
+
+      if (incoming.resetVersion > current.resetVersion) {
+        drawAttemptTokenRef.current += 1;
+        drawInFlightRef.current = false;
+        clearPendingAttempt();
+        setDrawResult(null);
+        phaseRef.current = "idle";
+        setPhase("idle");
+        setActionError(null);
+        setActionNotice("圖鑑已在另一個分頁重設，機台狀態已同步更新。");
+      }
+
+      setVisibleSaveIfNewer(incoming);
+    },
+    [clearPendingAttempt, setVisibleSaveIfNewer],
+  );
+
+  const applyPendingSave = useCallback((): AppliedGachaAttempt | null => {
+    const pending = pendingAttemptRef.current;
+    if (!pending) return null;
+
+    const buffered = bufferedSaveRef.current;
+    let newest = pending.save;
+    if (buffered && compareGachaSaveVersions(newest, buffered) <= 0) {
+      newest = buffered;
+    }
+    setVisibleSaveIfNewer(newest);
+    clearPendingAttempt();
+    return pending;
+  }, [clearPendingAttempt, setVisibleSaveIfNewer]);
 
   const moveToPhase = (next: GachaPhase): boolean => {
     const current = phaseRef.current;
@@ -167,22 +269,61 @@ export default function GachaMachine({ onExit }: GachaMachineProps) {
     };
   }, []);
 
+  useEffect(
+    () => () => {
+      activeUidRef.current = undefined;
+      drawAttemptTokenRef.current += 1;
+      loadSequenceRef.current += 1;
+    },
+    [],
+  );
+
   useEffect(() => {
     if (!user?.uid) {
       loadSequenceRef.current += 1;
-      setSave(EMPTY_GACHA_SAVE);
+      loadedUidRef.current = undefined;
+      setVisibleSave(EMPTY_GACHA_SAVE);
       setSyncStatus("loading");
       setSyncError(null);
+      setActionError(null);
+      setActionNotice(null);
+      drawAttemptTokenRef.current += 1;
       drawInFlightRef.current = false;
       phaseRef.current = "idle";
       setPhase("idle");
       setDrawResult(null);
+      clearPendingAttempt();
+      setIsResetConfirmOpen(false);
+      setIsResettingCollection(false);
+      setResetError(null);
+      resetSubmissionStartedRef.current = false;
       return;
+    }
+
+    const uidChanged = loadedUidRef.current !== user.uid;
+    if (uidChanged) {
+      loadedUidRef.current = user.uid;
+      drawAttemptTokenRef.current += 1;
+      drawInFlightRef.current = false;
+      phaseRef.current = "idle";
+      setPhase("idle");
+      setDrawResult(null);
+      clearPendingAttempt();
+      setActionError(null);
+      setActionNotice(null);
+      setIsResetConfirmOpen(false);
+      setIsResettingCollection(false);
+      setResetError(null);
+      resetSubmissionStartedRef.current = false;
     }
 
     const sequence = ++loadSequenceRef.current;
     const cached = readGachaCache(user.uid);
-    setSave(cached ?? EMPTY_GACHA_SAVE);
+    if (uidChanged) {
+      setVisibleSave(cached ?? EMPTY_GACHA_SAVE);
+    } else if (cached) {
+      applyIncomingSave(cached);
+    }
     setSyncError(null);
 
     if (!isOnline) {
@@ -194,7 +335,7 @@ export default function GachaMachine({ onExit }: GachaMachineProps) {
     void loadGachaCloud(user.uid)
       .then((cloudSave) => {
         if (loadSequenceRef.current !== sequence) return;
-        setSave(cloudSave);
+        applyIncomingSave(cloudSave);
         setSyncStatus("cloud");
       })
       .catch((error: unknown) => {
@@ -207,16 +348,43 @@ export default function GachaMachine({ onExit }: GachaMachineProps) {
             : "暫時無法載入雲端圖鑑，請檢查連線後再試。",
         );
       });
-  }, [isOnline, user?.uid]);
+  }, [
+    applyIncomingSave,
+    clearPendingAttempt,
+    isOnline,
+    setVisibleSave,
+    user?.uid,
+  ]);
 
   useEffect(() => {
-    if (!isOnline && phaseRef.current === "coinInserted") {
+    if (!user?.uid) return;
+    const cacheKey = getGachaCacheKey(user.uid);
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key !== cacheKey || !event.newValue) return;
+      const incoming = parseGachaCacheValue(event.newValue);
+      if (incoming) applyIncomingSave(incoming);
+    };
+
+    window.addEventListener("storage", handleStorage);
+    return () => window.removeEventListener("storage", handleStorage);
+  }, [applyIncomingSave, user?.uid]);
+
+  useEffect(() => {
+    if (isOnline) return;
+
+    if (phaseRef.current === "coinInserted") {
       const next = transitionGachaPhase(phaseRef.current, "idle");
       phaseRef.current = next;
       setPhase(next);
       setActionError("連線中斷，代幣已退回；重新連線後再試一次。");
     }
-  }, [isOnline]);
+
+    if (isResetConfirmOpen && !resetSubmissionStartedRef.current) {
+      setIsResetConfirmOpen(false);
+      setResetError(null);
+      setActionNotice("連線中斷，尚未送出清空圖鑑；重新連線後可再操作。");
+    }
+  }, [isOnline, isResetConfirmOpen, isResettingCollection]);
 
   const setView = (nextView: GachaView) => {
     const nextParams = new URLSearchParams(searchParams);
@@ -239,11 +407,14 @@ export default function GachaMachine({ onExit }: GachaMachineProps) {
       phaseRef.current !== "idle" ||
       !user ||
       !isOnline ||
-      syncStatus !== "cloud"
+      syncStatus !== "cloud" ||
+      drawInFlightRef.current ||
+      isResettingCollection
     ) {
       return;
     }
     setActionError(null);
+    setActionNotice(null);
     if (!moveToPhase("coinInserted")) return;
     playSound("click");
   };
@@ -259,9 +430,13 @@ export default function GachaMachine({ onExit }: GachaMachineProps) {
     }
 
     const uid = user.uid;
-    const characterId = pickGachaCharacter();
+    const outcome = pickGachaOutcome();
+    const expectedResetVersion = saveRef.current.resetVersion;
+    const attemptToken = ++drawAttemptTokenRef.current;
     drawInFlightRef.current = true;
+    bufferedSaveRef.current = null;
     setActionError(null);
+    setActionNotice(null);
     if (!moveToPhase("turning")) {
       drawInFlightRef.current = false;
       return;
@@ -269,35 +444,112 @@ export default function GachaMachine({ onExit }: GachaMachineProps) {
     playSound("click");
 
     try {
-      const result = await recordGachaDraw(uid, characterId);
-      if (activeUidRef.current !== uid) return;
-      const cached = readGachaCache(uid);
-      setSave((current) => cached ?? mergeDrawResult(current, result));
-      setDrawResult(result);
+      const committed = await recordGachaAttempt(
+        uid,
+        outcome,
+        expectedResetVersion,
+      );
+      if (
+        activeUidRef.current !== uid ||
+        drawAttemptTokenRef.current !== attemptToken
+      ) {
+        return;
+      }
+      const phaseAfterCommit = phaseRef.current as GachaPhase;
+      if (
+        phaseAfterCommit !== "turning" ||
+        committed.save.resetVersion !== saveRef.current.resetVersion
+      ) {
+        if (phaseAfterCommit === "turning") moveToPhase("idle");
+        setActionError(
+          "圖鑑在抽取完成後被其他分頁重設，本次結果已隨重設清除。請重新投入代幣。",
+        );
+        return;
+      }
+      pendingAttemptRef.current = committed;
+      setHasPendingCapsule(true);
       setSyncStatus(navigator.onLine ? "cloud" : "offline");
       moveToPhase("capsuleReady");
     } catch (error) {
-      if (activeUidRef.current !== uid) return;
+      if (
+        activeUidRef.current !== uid ||
+        drawAttemptTokenRef.current !== attemptToken
+      ) {
+        return;
+      }
       logger.error("Failed to record gacha draw", error);
       playSound("wrong");
       moveToPhase("idle");
-      setActionError(
-        navigator.onLine
-          ? "這次開獎沒有寫入雲端，收藏完全不受影響。請再試一次。"
-          : "連線中斷，這次沒有開獎；回到線上後再試一次。",
-      );
+      if (isGachaResetConflictError(error)) {
+        try {
+          const cloudSave = await loadGachaCloud(uid);
+          if (
+            activeUidRef.current !== uid ||
+            drawAttemptTokenRef.current !== attemptToken
+          ) {
+            return;
+          }
+          applyIncomingSave(cloudSave);
+          setSyncStatus("cloud");
+        } catch (syncFailure) {
+          if (
+            activeUidRef.current !== uid ||
+            drawAttemptTokenRef.current !== attemptToken
+          ) {
+            return;
+          }
+          logger.error("Failed to reload gacha after reset conflict", syncFailure);
+          setSyncStatus("error");
+          setSyncError("圖鑑已重設，但目前無法重新同步；請稍後再試。");
+        }
+        setActionNotice(null);
+        setActionError("圖鑑剛剛已在其他分頁重設，本次沒有開獎。請重新投入代幣。");
+      } else {
+        setActionError(
+          navigator.onLine
+            ? "這次開獎沒有寫入雲端，收藏完全不受影響。請再試一次。"
+            : "連線中斷，這次沒有開獎；回到線上後再試一次。",
+        );
+      }
     } finally {
-      drawInFlightRef.current = false;
+      if (
+        activeUidRef.current === uid &&
+        drawAttemptTokenRef.current === attemptToken
+      ) {
+        drawInFlightRef.current = false;
+        if (!pendingAttemptRef.current) applyBufferedSave();
+      }
     }
   };
 
   const handleOpenCapsule = () => {
-    if (!drawResult || !moveToPhase("revealed")) return;
+    const pending = pendingAttemptRef.current;
+    if (!pending || !moveToPhase("revealed")) return;
+    const committed = applyPendingSave();
+    if (!committed) return;
+    setDrawResult(committed.result);
   };
 
   const handleCloseReveal = () => {
     if (phaseRef.current === "revealed") moveToPhase("idle");
     setDrawResult(null);
+  };
+
+  const handleResetMachine = () => {
+    const current = phaseRef.current;
+    if (current === "idle" || current === "turning") return;
+
+    const hadCommittedResult = Boolean(pendingAttemptRef.current || drawResult);
+    applyPendingSave();
+    if (canTransitionGachaPhase(current, "idle")) moveToPhase("idle");
+    setDrawResult(null);
+    setActionError(null);
+    setActionNotice(
+      hadCommittedResult
+        ? "機台已重設；已完成的抽取仍保存在雲端圖鑑。"
+        : "機台已重設，代幣已退回。",
+    );
+    window.requestAnimationFrame(() => coinButtonRef.current?.focus());
   };
 
   const handleRetrySync = () => {
@@ -308,7 +560,7 @@ export default function GachaMachine({ onExit }: GachaMachineProps) {
     void loadGachaCloud(user.uid)
       .then((cloudSave) => {
         if (loadSequenceRef.current !== sequence) return;
-        setSave(cloudSave);
+        applyIncomingSave(cloudSave);
         setSyncStatus("cloud");
       })
       .catch((error: unknown) => {
@@ -319,7 +571,61 @@ export default function GachaMachine({ onExit }: GachaMachineProps) {
       });
   };
 
-  const canDraw = isOnline && syncStatus === "cloud";
+  const handleRequestCollectionReset = () => {
+    if (!user?.uid || !isOnline || syncStatus !== "cloud") return;
+    resetSubmissionStartedRef.current = false;
+    setResetError(null);
+    setIsResetConfirmOpen(true);
+  };
+
+  const handleConfirmCollectionReset = async () => {
+    if (
+      !user?.uid ||
+      !isOnline ||
+      syncStatus !== "cloud" ||
+      isResettingCollection
+    ) {
+      return;
+    }
+
+    const uid = user.uid;
+    resetSubmissionStartedRef.current = true;
+    setIsResettingCollection(true);
+    setResetError(null);
+    try {
+      const resetSave = await resetGachaCollection(uid);
+      if (activeUidRef.current !== uid) return;
+      drawAttemptTokenRef.current += 1;
+      drawInFlightRef.current = false;
+      clearPendingAttempt();
+      setDrawResult(null);
+      phaseRef.current = "idle";
+      setPhase("idle");
+      setVisibleSaveIfNewer(resetSave);
+      setSyncStatus("cloud");
+      setActionError(null);
+      setActionNotice("圖鑑已清空，所有裝置會在下次同步時套用這次重設。");
+      resetSubmissionStartedRef.current = false;
+      setIsResetConfirmOpen(false);
+      window.requestAnimationFrame(() => collectionTabRef.current?.focus());
+    } catch (error) {
+      logger.error("Failed to reset gacha collection", error);
+      setResetError(
+        navigator.onLine
+          ? "無法清空雲端圖鑑，原有收藏完全沒有變更。請再試一次。"
+          : "連線已中斷，原有收藏完全沒有變更。重新連線後再試一次。",
+      );
+    } finally {
+      setIsResettingCollection(false);
+    }
+  };
+
+  const canDraw =
+    isOnline && syncStatus === "cloud" && !isResettingCollection;
+  const canResetCollection =
+    isOnline &&
+    syncStatus === "cloud" &&
+    !isResettingCollection;
   const unlockedCount = GACHA_CHARACTERS.filter(
     (character) => (save.ownedCounts[character.id] ?? 0) > 0,
   ).length;
@@ -329,9 +635,6 @@ export default function GachaMachine({ onExit }: GachaMachineProps) {
     !isOnline,
     syncStatus !== "offlineEmpty",
   );
-  const resultCharacter = drawResult
-    ? getGachaCharacter(drawResult.characterId)
-    : null;
   const syncLabel =
     syncStatus === "cloud"
       ? "已與雲端同步"
@@ -422,7 +725,7 @@ export default function GachaMachine({ onExit }: GachaMachineProps) {
           ? "正在準備扭蛋機。"
           : !user
             ? "請先登入以同步角色圖鑑。"
-            : statusMessage}
+            : actionError ?? actionNotice ?? statusMessage}
       </p>
 
       <main className="relative z-10 min-h-0 flex-1 overflow-y-auto overscroll-contain">
@@ -464,6 +767,12 @@ export default function GachaMachine({ onExit }: GachaMachineProps) {
           </div>
         ) : view === "collection" ? (
           <div className="px-3 py-5 sm:px-6 sm:py-7 lg:px-8">
+            {actionNotice ? (
+              <div className="mx-auto mb-4 flex max-w-6xl items-start gap-2 rounded-[12px] border border-emerald-400/30 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-800 dark:text-emerald-200" role="status">
+                <Check className="mt-0.5 size-4 shrink-0" strokeWidth={1.9} aria-hidden="true" />
+                {actionNotice}
+              </div>
+            ) : null}
             {syncError ? (
               <div className="mx-auto mb-4 flex max-w-6xl flex-col gap-3 rounded-[12px] border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-sm text-amber-800 sm:flex-row sm:items-center sm:justify-between dark:text-amber-200" role="alert">
                 <span className="flex items-start gap-2">
@@ -502,6 +811,10 @@ export default function GachaMachine({ onExit }: GachaMachineProps) {
                 isLoading={syncStatus === "loading" || syncStatus === "cache"}
                 isOffline={!isOnline}
                 syncLabel={syncLabel}
+                hasPendingCapsule={hasPendingCapsule}
+                canResetCollection={canResetCollection}
+                onOpenPendingCapsule={() => setView("machine")}
+                onRequestReset={handleRequestCollectionReset}
               />
             )}
           </div>
@@ -550,9 +863,9 @@ export default function GachaMachine({ onExit }: GachaMachineProps) {
                 <div className="relative z-10 mx-auto -mt-1 aspect-[1.22/1] w-[76%] overflow-hidden rounded-t-[42%] border-[6px] border-pink-400/75 bg-white/35 shadow-[inset_0_0_45px_rgba(255,255,255,0.65),0_16px_30px_rgba(68,50,88,0.12)] backdrop-blur-[2px] dark:border-pink-600/70 dark:bg-white/10 dark:shadow-[inset_0_0_35px_rgba(255,255,255,0.08),0_16px_30px_rgba(0,0,0,0.22)]">
                   <div aria-hidden="true" className="absolute left-[18%] top-[8%] h-[48%] w-[13%] -rotate-[24deg] rounded-full bg-white/55 blur-sm dark:bg-white/10" />
                   <div aria-hidden="true" className="absolute right-[10%] top-[12%] size-3 rounded-full bg-white/90 shadow-[0_0_18px_rgba(255,255,255,0.85)] dark:bg-white/30" />
-                  {GACHA_CHARACTERS.slice(0, 8).map((character, index) => (
+                  {CAPSULE_STYLES.map((capsuleStyle, index) => (
                     <motion.div
-                      key={character.id}
+                      key={capsuleStyle}
                       aria-hidden="true"
                       animate={
                         phase === "turning" && !reduceMotion
@@ -563,15 +876,10 @@ export default function GachaMachine({ onExit }: GachaMachineProps) {
                         duration: reduceMotion ? 0 : 0.62,
                         delay: reduceMotion ? 0 : index * 0.025,
                       }}
-                      className={`absolute size-[26%] overflow-hidden rounded-full border-2 border-white/80 shadow-[0_8px_14px_rgba(65,45,84,0.22),inset_0_2px_0_rgba(255,255,255,0.7)] ${CAPSULE_POSITIONS[index]} ${CAPSULE_STYLES[index]}`}
+                      className={`absolute size-[26%] overflow-hidden rounded-full border-2 border-white/80 shadow-[0_8px_14px_rgba(65,45,84,0.22),inset_0_2px_0_rgba(255,255,255,0.7)] ${CAPSULE_POSITIONS[index]} ${capsuleStyle}`}
                     >
-                      <img
-                        src={character.imageUrl}
-                        alt=""
-                        loading="lazy"
-                        decoding="async"
-                        className="h-full w-full object-contain p-1.5"
-                      />
+                      <span className="absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 bg-white/80 shadow-sm" />
+                      <span className="absolute left-[24%] top-[14%] h-[27%] w-[13%] -rotate-[28deg] rounded-full bg-white/65 blur-[1px]" />
                     </motion.div>
                   ))}
                   <div className="absolute inset-x-0 bottom-0 h-[18%] bg-gradient-to-t from-pink-200/90 to-transparent dark:from-pink-900/60" />
@@ -644,7 +952,7 @@ export default function GachaMachine({ onExit }: GachaMachineProps) {
                   <div className="relative mx-auto mt-5 flex h-24 w-[78%] items-center justify-center overflow-hidden rounded-b-[18px] rounded-t-[8px] border-4 border-rose-900/45 bg-gradient-to-b from-rose-950 to-slate-950 shadow-[inset_0_10px_18px_rgba(0,0,0,0.65),0_2px_0_rgba(255,255,255,0.25)]">
                     <div className="absolute inset-x-3 top-3 h-1 rounded-full bg-white/10" />
                     <AnimatePresence>
-                      {phase === "capsuleReady" && resultCharacter ? (
+                      {phase === "capsuleReady" && hasPendingCapsule ? (
                         <motion.button
                           type="button"
                           onClick={handleOpenCapsule}
@@ -660,12 +968,7 @@ export default function GachaMachine({ onExit }: GachaMachineProps) {
                           aria-label="膠囊已經出來，點擊開獎"
                         >
                           <span aria-hidden="true" className="absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 bg-white/90 shadow-sm" />
-                          <img
-                            src={resultCharacter.imageUrl}
-                            alt=""
-                            decoding="async"
-                            className="relative z-10 size-14 object-contain drop-shadow-md"
-                          />
+                          <span aria-hidden="true" className="absolute left-4 top-3 h-5 w-2 -rotate-[28deg] rounded-full bg-white/70 blur-[1px]" />
                           {!reduceMotion ? (
                             <span aria-hidden="true" className="absolute -right-0.5 top-0 text-base text-amber-300">
                               ✦
@@ -722,6 +1025,13 @@ export default function GachaMachine({ onExit }: GachaMachineProps) {
                   </button>
                 </div>
               ) : null}
+
+              {actionNotice ? (
+                <div className="mx-auto mt-3 flex max-w-[570px] items-start gap-2 rounded-[12px] border border-emerald-400/30 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-800 dark:text-emerald-200" role="status">
+                  <Check className="mt-0.5 size-4 shrink-0" strokeWidth={1.9} aria-hidden="true" />
+                  {actionNotice}
+                </div>
+              ) : null}
             </section>
 
             <aside className="space-y-4 lg:sticky lg:top-5" aria-label="扭蛋說明與收藏進度">
@@ -769,6 +1079,20 @@ export default function GachaMachine({ onExit }: GachaMachineProps) {
                     );
                   })}
                 </ol>
+                <div className="mt-5 border-t border-border-hairline pt-4">
+                  <button
+                    type="button"
+                    onClick={handleResetMachine}
+                    disabled={phase === "idle" || phase === "turning"}
+                    className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[9px] border border-border-hairline bg-background px-4 text-sm font-semibold shadow-sm transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                  >
+                    <RotateCcw className="size-4" strokeWidth={1.8} aria-hidden="true" />
+                    重設機台
+                  </button>
+                  <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                    只會清除目前操作與動畫；已經完成雲端存檔的抽取仍會保留在圖鑑。
+                  </p>
+                </div>
               </section>
 
               <section className="rounded-[18px] border border-border-hairline bg-card p-5 shadow-sm">
@@ -859,6 +1183,24 @@ export default function GachaMachine({ onExit }: GachaMachineProps) {
           } else {
             coinButtonRef.current?.focus();
           }
+        }}
+      />
+      <ConfirmModal
+        isOpen={isResetConfirmOpen}
+        title="清空整本圖鑑？"
+        message="這會移除全部 37 組角色、相遇次數、抽取與空膠囊統計，並同步到其他裝置。這個動作無法復原。"
+        confirmText="清空圖鑑"
+        cancelText="保留收藏"
+        confirmVariant="error"
+        isLoading={isResettingCollection}
+        confirmDisabled={!isOnline}
+        errorMessage={resetError}
+        onConfirm={() => void handleConfirmCollectionReset()}
+        onCancel={() => {
+          if (isResettingCollection) return;
+          resetSubmissionStartedRef.current = false;
+          setIsResetConfirmOpen(false);
+          setResetError(null);
         }}
       />
     </div>

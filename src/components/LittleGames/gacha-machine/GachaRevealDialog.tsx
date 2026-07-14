@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import confetti from "canvas-confetti";
 import { motion } from "framer-motion";
-import { BookOpen, Check, Sparkles, X } from "lucide-react";
+import { BookOpen, Check, PackageOpen, Sparkles, X } from "lucide-react";
 import { playSound } from "../../../services/gameService";
 import { getGachaCharacter } from "./gachaData";
 import type { GachaDrawResult } from "./gachaTypes";
@@ -46,13 +46,21 @@ export function GachaRevealDialog({
   }, [isOpen]);
 
   useEffect(() => {
-    if (!isOpen || !result) return;
-    const resultKey = `${result.totalDraws}:${result.characterId}:${result.ownedCount}`;
+    if (!isOpen) {
+      celebratedResultRef.current = null;
+      return;
+    }
+    if (!result) return;
+    const resultKey =
+      result.kind === "miss"
+        ? `${result.totalDraws}:miss`
+        : `${result.totalDraws}:${result.characterId}:${result.ownedCount}`;
     if (celebratedResultRef.current === resultKey) return;
     celebratedResultRef.current = resultKey;
 
-    playSound(result.isNew ? "unlock" : "click");
-    if (!result.isNew || reduceMotion) return;
+    const isNewCharacter = result.kind === "character" && result.isNew;
+    playSound(isNewCharacter ? "unlock" : "click");
+    if (!isNewCharacter || reduceMotion) return;
 
     void confetti({
       particleCount: 110,
@@ -69,11 +77,15 @@ export function GachaRevealDialog({
     onClose();
     const restoreFocus = () => {
       const previous = previouslyFocusedRef.current;
-      if (previous?.isConnected) {
+      const isDocumentFallback =
+        previous === document.body || previous === document.documentElement;
+
+      if (previous?.isConnected && !isDocumentFallback) {
         previous.focus();
-      } else {
-        onRestoreFocus();
+        if (document.activeElement === previous) return;
       }
+
+      onRestoreFocus();
     };
     if (typeof window.requestAnimationFrame === "function") {
       window.requestAnimationFrame(restoreFocus);
@@ -87,7 +99,11 @@ export function GachaRevealDialog({
     dialogRef.current?.close();
   };
 
-  const character = result ? getGachaCharacter(result.characterId) : null;
+  const character =
+    result?.kind === "character"
+      ? getGachaCharacter(result.characterId)
+      : null;
+  const isMiss = result?.kind === "miss";
 
   return (
     <dialog
@@ -97,7 +113,7 @@ export function GachaRevealDialog({
       aria-describedby="gacha-reveal-description"
       onClose={handleDialogClose}
     >
-      {result && character ? (
+      {isOpen && result && (isMiss || character) ? (
         <motion.div
           className="modal-box relative max-h-[92dvh] w-full max-w-md overflow-y-auto rounded-t-[28px] border border-white/60 bg-background/95 p-0 shadow-floating backdrop-blur-2xl sm:rounded-[24px] dark:border-white/10"
           initial={reduceMotion ? false : { opacity: 0, y: 28, scale: 0.94 }}
@@ -131,56 +147,82 @@ export function GachaRevealDialog({
             >
               ✦
             </div>
-            <motion.div
-              initial={reduceMotion ? false : { y: 20, rotate: -4, scale: 0.78 }}
-              animate={{ y: 0, rotate: 0, scale: 1 }}
-              transition={{
-                duration: reduceMotion ? 0 : 0.48,
-                delay: reduceMotion ? 0 : 0.08,
-                ease: [0.34, 1.56, 0.64, 1],
-              }}
-              className="relative z-10 flex size-56 items-center justify-center rounded-full border border-white/70 bg-white/45 shadow-[0_24px_55px_rgba(76,61,107,0.18),inset_0_1px_0_rgba(255,255,255,0.85)] backdrop-blur-sm dark:border-white/15 dark:bg-white/5"
-            >
-              <img
-                src={character.imageUrl}
-                alt={character.name}
-                decoding="async"
-                className="h-[92%] w-[92%] object-contain drop-shadow-[0_18px_18px_rgba(56,45,80,0.2)]"
-              />
-            </motion.div>
+            {character ? (
+              <motion.div
+                initial={reduceMotion ? false : { y: 20, rotate: -4, scale: 0.78 }}
+                animate={{ y: 0, rotate: 0, scale: 1 }}
+                transition={{
+                  duration: reduceMotion ? 0 : 0.48,
+                  delay: reduceMotion ? 0 : 0.08,
+                  ease: [0.34, 1.56, 0.64, 1],
+                }}
+                className="relative z-10 flex size-56 items-center justify-center rounded-full border border-white/70 bg-white/45 shadow-[0_24px_55px_rgba(76,61,107,0.18),inset_0_1px_0_rgba(255,255,255,0.85)] backdrop-blur-sm dark:border-white/15 dark:bg-white/5"
+              >
+                <img
+                  src={character.imageUrl}
+                  alt={character.name}
+                  loading="eager"
+                  decoding="async"
+                  className="h-[92%] w-[92%] object-contain drop-shadow-[0_18px_18px_rgba(56,45,80,0.2)]"
+                />
+              </motion.div>
+            ) : (
+              <motion.div
+                initial={reduceMotion ? false : { y: 18, scale: 0.82 }}
+                animate={{ y: 0, scale: 1 }}
+                transition={{ duration: reduceMotion ? 0 : 0.32 }}
+                className="relative z-10 flex size-48 items-center justify-center rounded-full border border-white/70 bg-white/55 text-muted-foreground shadow-[0_24px_55px_rgba(76,61,107,0.14),inset_0_1px_0_rgba(255,255,255,0.85)] backdrop-blur-sm dark:border-white/15 dark:bg-white/5"
+              >
+                <PackageOpen className="size-24" strokeWidth={1.2} aria-hidden="true" />
+              </motion.div>
+            )}
           </div>
 
           <div className="px-6 pb-7 pt-3 text-center sm:px-8">
             <div
               className={`mx-auto mb-3 inline-flex min-h-8 items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold ${
-                result.isNew
-                  ? "bg-amber-400/15 text-amber-700 dark:text-amber-200"
-                  : "bg-accent-tint text-accent"
+                isMiss
+                  ? "bg-muted text-muted-foreground"
+                  : result.kind === "character" && result.isNew
+                    ? "bg-amber-400/15 text-amber-700 dark:text-amber-200"
+                    : "bg-accent-tint text-accent"
               }`}
             >
-              {result.isNew ? (
+              {isMiss ? (
+                <PackageOpen className="size-4" strokeWidth={1.9} aria-hidden="true" />
+              ) : result.kind === "character" && result.isNew ? (
                 <Sparkles className="size-4" strokeWidth={1.9} aria-hidden="true" />
               ) : (
                 <Check className="size-4" strokeWidth={2} aria-hidden="true" />
               )}
-              {result.isNew ? "NEW · 圖鑑解鎖" : `第 ${result.ownedCount} 次遇見`}
+              {isMiss
+                ? "EMPTY · 空膠囊"
+                : result.kind === "character" && result.isNew
+                  ? "NEW · 圖鑑解鎖"
+                  : result.kind === "character"
+                    ? `第 ${result.ownedCount} 次遇見`
+                    : null}
             </div>
             <h2
               id="gacha-reveal-title"
               className="text-3xl font-bold tracking-tight text-foreground"
             >
-              {character.name}
+              {isMiss ? "這次是空膠囊" : character?.name}
             </h2>
-            <p className="mt-1 text-sm font-semibold text-muted-foreground">
-              {character.englishName}
-            </p>
+            {character ? (
+              <p className="mt-1 text-sm font-semibold text-muted-foreground">
+                {character.englishName}
+              </p>
+            ) : null}
             <p
               id="gacha-reveal-description"
               className="mx-auto mt-4 max-w-xs text-sm leading-6 text-muted-foreground"
             >
-              {result.isNew
-                ? "恭喜獲得新角色！已經幫你放進雲端圖鑑，可以隨時回來看看。"
-                : "這位好朋友又來找你了，圖鑑中的相遇次數已經更新。"}
+              {isMiss
+                ? "這次沒有遇見角色，但抽取次數已經安全同步。再試一次，下一顆也許就有驚喜！"
+                : result.kind === "character" && result.isNew
+                  ? "恭喜獲得新角色！已經幫你放進雲端圖鑑，可以隨時回來看看。"
+                  : "這位好朋友又來找你了，圖鑑中的相遇次數已經更新。"}
             </p>
 
             <div className="mt-6 grid grid-cols-2 gap-3">
