@@ -5,13 +5,25 @@ const METEOR_BEST_KEY = "meteor-glider-best";
 const MUSHROOM_BEST_KEY = "mushroom-adventure-best";
 
 type GameCard = {
-  id: "spirit-adventure" | "bunny" | "meteor" | "mushroom" | "wonder-academy";
+  id:
+    | "spirit-adventure"
+    | "gacha-machine"
+    | "bunny"
+    | "meteor"
+    | "mushroom"
+    | "wonder-academy";
   to: string;
   title: string;
   blurb: string;
   tag: string;
   emoji: string;
   best: number | null;
+  primaryLabel?: string;
+  statusLabel?: string;
+  secondaryAction?: {
+    label: string;
+    to: string;
+  };
 };
 
 function readBest(key: string): number | null {
@@ -37,6 +49,21 @@ export default function GameHub() {
         tag: "Quiz",
         emoji: "🧚",
         best: null,
+      },
+      {
+        id: "gacha-machine",
+        to: "/games/gacha",
+        title: "三麗鷗扭蛋機",
+        blurb: "投入代幣、轉動把手，收集 12 位可愛角色並完成你的圖鑑。",
+        tag: "Collection",
+        emoji: "🎀",
+        best: null,
+        primaryLabel: "開始扭蛋",
+        statusLabel: "雲端圖鑑",
+        secondaryAction: {
+          label: "查看圖鑑",
+          to: "/games/gacha?view=collection",
+        },
       },
       {
         id: "wonder-academy",
@@ -80,8 +107,8 @@ export default function GameHub() {
   );
 
   // 所有遊戲一律新分頁開啟，遊戲頁面不受主視窗切換/返回影響
-  const openGame = (card: GameCard) => {
-    window.open(card.to, "_blank", "noopener,noreferrer");
+  const openGame = (to: string) => {
+    window.open(to, "_blank", "noopener,noreferrer");
   };
 
   return (
@@ -116,23 +143,35 @@ export default function GameHub() {
             <p className="mt-1 flex-1 text-sm text-muted-foreground">
               {card.blurb}
             </p>
-            <div className="mt-4 flex items-center justify-between">
+            <div className="mt-4 flex flex-wrap items-end justify-between gap-3">
               <span className="text-xs text-muted-foreground">
-                {card.best && card.best > 0
+                {card.statusLabel ??
+                (card.best && card.best > 0
                   ? `最高星星 ${card.best}`
                   : card.id === "wonder-academy"
                     ? "Firestore 雲端存檔"
                     : card.id === "spirit-adventure"
                       ? "雲端存檔進度"
-                      : "尚無紀錄"}
+                      : "尚無紀錄")}
               </span>
-              <button
-                type="button"
-                onClick={() => openGame(card)}
-                className="btn btn-primary btn-sm rounded-[6px]"
-              >
-                開始遊戲
-              </button>
+              <div className="flex flex-wrap justify-end gap-2">
+                {card.secondaryAction && (
+                  <button
+                    type="button"
+                    onClick={() => openGame(card.secondaryAction!.to)}
+                    className="btn btn-outline btn-sm min-h-11 rounded-[6px]"
+                  >
+                    {card.secondaryAction.label}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => openGame(card.to)}
+                  className="btn btn-primary btn-sm min-h-11 rounded-[6px]"
+                >
+                  {card.primaryLabel ?? "開始遊戲"}
+                </button>
+              </div>
             </div>
           </article>
         ))}

@@ -90,6 +90,9 @@ const MushroomAdventure = lazyWithReload(
 const WonderAcademyGame = lazyWithReload(
   () => import("./components/LittleGames/wonder-academy/WonderAcademyCollector"),
 );
+const GachaMachine = lazyWithReload(
+  () => import("./components/LittleGames/gacha-machine/GachaMachine"),
+);
 
 const SIDEBAR_COLLAPSED_KEY = "ollie-sidebar-collapsed";
 
@@ -306,6 +309,7 @@ function AppContent() {
   const isStandaloneMushroom = normalizedPathname === "/games/mushroom";
   const isStandaloneBunny = normalizedPathname === "/games/bunny";
   const isStandaloneMeteor = normalizedPathname === "/games/meteor";
+  const isStandaloneGacha = normalizedPathname === "/games/gacha";
   const isLegacyMonsterAcademy =
     normalizedPathname === "/games/monster-academy";
 
@@ -350,6 +354,14 @@ function AppContent() {
           onExit={() => navigate("/games")}
           onPlayBunny={() => navigate("/games/bunny")}
         />
+      </Suspense>
+    );
+  }
+
+  if (isStandaloneGacha) {
+    return (
+      <Suspense fallback={<RouteLoadingFallback />}>
+        <GachaMachine onExit={() => navigate("/games")} />
       </Suspense>
     );
   }
