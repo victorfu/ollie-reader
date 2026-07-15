@@ -14,7 +14,6 @@ import {
   RotateCw,
   Sparkles,
   Ticket,
-  Wifi,
   WifiOff,
 } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
@@ -894,31 +893,15 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
           </div>
         ) : (
           <div className="mx-auto grid min-h-full w-full max-w-6xl items-center gap-5 px-3 py-5 sm:px-6 sm:py-7 lg:grid-cols-[minmax(0,1.25fr)_minmax(280px,0.75fr)] lg:gap-8 lg:px-8">
-            <section aria-labelledby="machine-title" className="min-w-0">
-              <div className="mb-3 flex items-center justify-between gap-3 px-1">
-                <div>
-                  <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-pink-600 dark:text-pink-300">
-                    Free Play
-                  </p>
-                  <h2 id="machine-title" className="text-xl font-bold tracking-tight sm:text-2xl">
-                    投入代幣，轉出驚喜
-                  </h2>
-                </div>
-                <span
-                  className={`inline-flex min-h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-semibold ${
-                    isOnline
-                      ? "border-emerald-400/25 bg-emerald-400/10 text-emerald-700 dark:text-emerald-300"
-                      : "border-amber-400/25 bg-amber-400/10 text-amber-700 dark:text-amber-300"
-                  }`}
-                >
-                  {isOnline ? (
-                    <Wifi className="size-3.5" strokeWidth={1.8} aria-hidden="true" />
-                  ) : (
+            <section aria-label="扭蛋機" className="min-w-0">
+              {!isOnline && (
+                <div className="mb-3 flex justify-end px-1">
+                  <span className="inline-flex min-h-8 items-center gap-1.5 rounded-full border border-amber-400/25 bg-amber-400/10 px-3 text-xs font-semibold text-amber-700 dark:text-amber-300">
                     <WifiOff className="size-3.5" strokeWidth={1.8} aria-hidden="true" />
-                  )}
-                  {isOnline ? "雲端連線" : "離線模式"}
-                </span>
-              </div>
+                    離線模式
+                  </span>
+                </div>
+              )}
 
               <motion.div
                 animate={
