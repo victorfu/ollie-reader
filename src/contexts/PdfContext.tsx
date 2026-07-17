@@ -148,6 +148,10 @@ export const PdfProvider = ({ children }: PdfProviderProps) => {
 
   const handleFileChange = useCallback(
     (file: File | null) => {
+      // A newly selected document must not inherit the cached reader position.
+      // Cached positions are only for restoring the same PDF on app startup.
+      setInitialScrollPosition(null);
+
       // Revoke previous object URL to prevent memory leaks
       if (pdfUrlRef.current) {
         URL.revokeObjectURL(pdfUrlRef.current);
@@ -190,6 +194,9 @@ export const PdfProvider = ({ children }: PdfProviderProps) => {
 
     setIsLoadingFromUrl(true);
     setError(null);
+    // Drawer course changes load a different document, so start it at the top
+    // instead of reusing the position restored for the previous cached PDF.
+    setInitialScrollPosition(null);
     setResult(null);
     setSelectedFile(null);
     setPdfUrl(null);

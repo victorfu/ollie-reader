@@ -58,9 +58,11 @@ export const PdfViewer = memo(
       setFrontendPages(new Map());
     }
 
-    // Reset scroll tracking when URL changes
+    // A different PDF always starts at the top. Startup cache restoration runs
+    // separately once that PDF's pages are ready.
     useEffect(() => {
       scrollRestoredRef.current = false;
+      containerRef.current?.scrollTo({ top: 0, left: 0 });
     }, [url]);
 
     // Keep PDF page width synced with preview column width so large PDFs always fit.
@@ -106,7 +108,7 @@ export const PdfViewer = memo(
       return pagesByNumber.get(pageNumber)?.text || "";
     }, [textParsingMode, frontendPages, pagesByNumber]);
 
-    // Debounced scroll position save (window level)
+    // Debounced scroll position save for the actual PDF scroll container.
     const handleScroll = useCallback(() => {
       if (!onScrollPositionChange) return;
 
@@ -115,22 +117,21 @@ export const PdfViewer = memo(
       }
 
       debounceTimerRef.current = setTimeout(() => {
-        onScrollPositionChange(window.scrollY);
+        const container = containerRef.current;
+        if (container) {
+          onScrollPositionChange(container.scrollTop);
+        }
       }, 500);
     }, [onScrollPositionChange]);
 
-    // Listen to window scroll events
+    // Clear a pending cache write when the viewer unmounts or its handler changes.
     useEffect(() => {
-      if (!onScrollPositionChange) return;
-
-      window.addEventListener("scroll", handleScroll, { passive: true });
       return () => {
-        window.removeEventListener("scroll", handleScroll);
         if (debounceTimerRef.current) {
           clearTimeout(debounceTimerRef.current);
         }
       };
-    }, [handleScroll, onScrollPositionChange]);
+    }, [handleScroll]);
 
     // Mark PDF as ready after pages are rendered
     useEffect(() => {
@@ -143,7 +144,7 @@ export const PdfViewer = memo(
       }
     }, [numPages, pdfReady]);
 
-    // Restore scroll position after PDF is ready (window level)
+    // Restore the cached position inside the PDF viewport after pages are ready.
     useEffect(() => {
       if (
         pdfReady &&
@@ -151,7 +152,10 @@ export const PdfViewer = memo(
         initialScrollPosition > 0 &&
         !scrollRestoredRef.current
       ) {
-        window.scrollTo(0, initialScrollPosition);
+        containerRef.current?.scrollTo({
+          top: initialScrollPosition,
+          left: 0,
+        });
         scrollRestoredRef.current = true;
       }
     }, [pdfReady, initialScrollPosition]);
@@ -163,6 +167,7 @@ export const PdfViewer = memo(
         </div>
         <div
           ref={containerRef}
+          onScroll={handleScroll}
           className="w-full flex-1 overflow-y-auto overflow-x-auto rounded-b-xl p-3"
           style={{ minHeight: "800px", height: "800px" }}
         >
