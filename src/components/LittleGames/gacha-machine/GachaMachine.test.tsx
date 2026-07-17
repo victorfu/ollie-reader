@@ -146,6 +146,7 @@ beforeEach(() => {
   (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean })
     .IS_REACT_ACT_ENVIRONMENT = true;
   setOnline(true);
+  localStorage.clear();
   authState.user = { uid: "player-1" };
   authState.loading = false;
   authState.authError = null;
@@ -181,6 +182,53 @@ afterEach(() => {
 });
 
 describe("GachaMachine page states", () => {
+  it("adjusts and persists the empty-capsule rate used by the next draw", async () => {
+    const randomSpy = vi.spyOn(Math, "random").mockReturnValue(0.5);
+    storageMocks.recordGachaAttempt.mockResolvedValue({
+      save: {
+        schemaVersion: 1,
+        resetVersion: 0,
+        totalDraws: 1,
+        ownedCounts: {},
+      },
+      result: { kind: "miss", totalDraws: 1 },
+    });
+    await renderAt("/games/gacha");
+
+    const slider = container.querySelector<HTMLInputElement>(
+      'input[aria-label="空膠囊機率"]',
+    );
+    expect(slider?.value).toBe("50");
+
+    act(() => {
+      if (!slider) throw new Error("miss-rate slider not found");
+      const setter = Object.getOwnPropertyDescriptor(
+        window.HTMLInputElement.prototype,
+        "value",
+      )?.set;
+      setter?.call(slider, "75");
+      slider.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+
+    expect(container.textContent).toContain("25% 命中角色、75% 空膠囊");
+    expect(localStorage.getItem("ollie-gacha-machine-miss-rate-v1")).toBe("75");
+
+    act(() => buttonWithText("投入免費代幣").click());
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>('button[aria-label="轉動扭蛋機把手"]')
+        ?.click();
+      await Promise.resolve();
+    });
+
+    expect(storageMocks.recordGachaAttempt).toHaveBeenCalledWith(
+      "player-1",
+      { kind: "miss" },
+      0,
+    );
+    randomSpy.mockRestore();
+  });
+
   it("opens the collection from a deep link", async () => {
     const collectionSave: GachaSaveV1 = {
       schemaVersion: 1,

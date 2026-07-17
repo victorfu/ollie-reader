@@ -3,7 +3,7 @@ import {
   applyGachaAttempt,
   canTransitionGachaPhase,
   createEmptyGachaSave,
-  MISS_RATE,
+  DEFAULT_MISS_RATE,
   normalizeGachaSave,
   pickGachaOutcome,
   transitionGachaPhase,
@@ -42,17 +42,17 @@ describe("gacha character ids", () => {
 
 describe("pickGachaOutcome", () => {
   it("uses the first 50 percent of the RNG range for misses", () => {
-    expect(MISS_RATE).toBe(0.5);
+    expect(DEFAULT_MISS_RATE).toBe(0.5);
     expect(pickGachaOutcome(() => 0)).toEqual({ kind: "miss" });
-    expect(pickGachaOutcome(() => MISS_RATE - Number.EPSILON)).toEqual({
+    expect(pickGachaOutcome(() => DEFAULT_MISS_RATE - Number.EPSILON)).toEqual({
       kind: "miss",
     });
   });
 
   it("maps the remaining range equally across all 57 characters", () => {
     GACHA_CHARACTER_IDS.forEach((characterId, index) => {
-      const middleOfHitInterval = MISS_RATE
-        + ((index + 0.5) / GACHA_CHARACTER_IDS.length) * (1 - MISS_RATE);
+      const middleOfHitInterval = DEFAULT_MISS_RATE
+        + ((index + 0.5) / GACHA_CHARACTER_IDS.length) * (1 - DEFAULT_MISS_RATE);
       expect(pickGachaOutcome(() => middleOfHitInterval)).toEqual({
         kind: "character",
         characterId,
@@ -61,7 +61,7 @@ describe("pickGachaOutcome", () => {
   });
 
   it("handles the inclusive hit boundary and exclusive RNG upper boundary", () => {
-    expect(pickGachaOutcome(() => MISS_RATE)).toEqual({
+    expect(pickGachaOutcome(() => DEFAULT_MISS_RATE)).toEqual({
       kind: "character",
       characterId: "hello-kitty",
     });
@@ -69,6 +69,27 @@ describe("pickGachaOutcome", () => {
       kind: "character",
       characterId: "dekisugi",
     });
+  });
+
+  it("supports adjustable miss rates including guaranteed hit and miss", () => {
+    expect(pickGachaOutcome(() => 0.24, 0.25)).toEqual({ kind: "miss" });
+    expect(pickGachaOutcome(() => 0.25, 0.25)).toEqual({
+      kind: "character",
+      characterId: "hello-kitty",
+    });
+    expect(pickGachaOutcome(() => 0, 0)).toEqual({
+      kind: "character",
+      characterId: "hello-kitty",
+    });
+    expect(pickGachaOutcome(() => 0.9999999999999999, 1)).toEqual({
+      kind: "miss",
+    });
+  });
+
+  it("rejects miss rates outside the supported range", () => {
+    expect(() => pickGachaOutcome(() => 0.5, -0.01)).toThrow(RangeError);
+    expect(() => pickGachaOutcome(() => 0.5, 1.01)).toThrow(RangeError);
+    expect(() => pickGachaOutcome(() => 0.5, Number.NaN)).toThrow(RangeError);
   });
 
   it("rejects RNG values outside the Math.random contract", () => {

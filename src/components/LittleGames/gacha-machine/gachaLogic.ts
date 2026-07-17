@@ -12,7 +12,7 @@ import {
 
 export type GachaRng = () => number;
 
-export const MISS_RATE = 0.5;
+export const DEFAULT_MISS_RATE = 0.5;
 
 export const EMPTY_GACHA_SAVE: GachaSaveV1 = Object.freeze({
   schemaVersion: 1,
@@ -91,15 +91,20 @@ export function assertGachaOutcome(
 
 export function pickGachaOutcome(
   rng: GachaRng = Math.random,
+  missRate: number = DEFAULT_MISS_RATE,
 ): GachaOutcome {
+  if (!Number.isFinite(missRate) || missRate < 0 || missRate > 1) {
+    throw new RangeError("Gacha miss rate must be in the range [0, 1].");
+  }
+
   const roll = rng();
   if (!Number.isFinite(roll) || roll < 0 || roll >= 1) {
     throw new RangeError("Gacha RNG must return a number in the range [0, 1).");
   }
 
-  if (roll < MISS_RATE) return { kind: "miss" };
+  if (roll < missRate) return { kind: "miss" };
 
-  const hitRoll = (roll - MISS_RATE) / (1 - MISS_RATE);
+  const hitRoll = (roll - missRate) / (1 - missRate);
   const characterIndex = Math.min(
     GACHA_CHARACTER_IDS.length - 1,
     Math.floor(hitRoll * GACHA_CHARACTER_IDS.length),

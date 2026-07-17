@@ -12,6 +12,7 @@ import {
   LogIn,
   RefreshCw,
   RotateCw,
+  SlidersHorizontal,
   Sparkles,
   Ticket,
   WifiOff,
@@ -23,6 +24,7 @@ import { playSound } from "../../../services/gameService";
 import { logger } from "../../../utils/logger";
 import { GACHA_CHARACTERS } from "./gachaData";
 import {
+  DEFAULT_MISS_RATE,
   EMPTY_GACHA_SAVE,
   canTransitionGachaPhase,
   pickGachaOutcome,
@@ -88,6 +90,30 @@ const DISPENSED_CAPSULE_STYLES = [
   "bg-gradient-to-b from-lime-100 from-50% to-green-400 to-50%",
 ] as const;
 
+const MISS_RATE_STORAGE_KEY = "ollie-gacha-machine-miss-rate-v1";
+
+function loadMissRatePercent(): number {
+  try {
+    const stored = window.localStorage.getItem(MISS_RATE_STORAGE_KEY);
+    if (stored === null) return DEFAULT_MISS_RATE * 100;
+    const parsed = Number(stored);
+    if (Number.isFinite(parsed) && parsed >= 0 && parsed <= 100) {
+      return parsed;
+    }
+  } catch {
+    // Storage may be unavailable in privacy-restricted browser contexts.
+  }
+  return DEFAULT_MISS_RATE * 100;
+}
+
+function saveMissRatePercent(value: number): void {
+  try {
+    window.localStorage.setItem(MISS_RATE_STORAGE_KEY, String(value));
+  } catch {
+    // The setting still applies for this session when storage is unavailable.
+  }
+}
+
 const CAPSULE_POSITIONS = [
   "left-[8%] bottom-[8%] -rotate-12",
   "left-[27%] bottom-[3%] rotate-6",
@@ -101,11 +127,6 @@ const CAPSULE_POSITIONS = [
 
 const GACHA_STEPS = [
   { number: "1", title: "投入免費代幣", description: "不會扣除任何遊戲金幣" },
-  {
-    number: "2",
-    title: "轉動機台把手",
-    description: `50% 命中角色、50% 空膠囊；命中後由 ${GACHA_CHARACTERS.length} 個圖鑑項目平分`,
-  },
   { number: "3", title: "點擊膠囊開獎", description: "結果成功存檔後才會掉出來" },
 ] as const;
 
@@ -178,6 +199,7 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
   const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
   const [isResettingCollection, setIsResettingCollection] = useState(false);
   const [resetError, setResetError] = useState<string | null>(null);
+  const [missRatePercent, setMissRatePercent] = useState(loadMissRatePercent);
   const phaseRef = useRef<GachaPhase>("idle");
   const saveRef = useRef<GachaSaveV1>(EMPTY_GACHA_SAVE);
   const pendingAttemptRef = useRef<AppliedGachaAttempt | null>(null);
@@ -469,7 +491,7 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
     }
 
     const uid = user.uid;
-    const outcome = pickGachaOutcome();
+    const outcome = pickGachaOutcome(Math.random, missRatePercent / 100);
     const expectedResetVersion = saveRef.current.resetVersion;
     const attemptToken = ++drawAttemptTokenRef.current;
     drawInFlightRef.current = true;
@@ -651,6 +673,12 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
     isOnline &&
     syncStatus === "cloud" &&
     !isResettingCollection;
+  const hitRatePercent = 100 - missRatePercent;
+
+  const handleMissRateChange = (value: number) => {
+    setMissRatePercent(value);
+    saveMissRatePercent(value);
+  };
 
   keyboardActionRef.current = () => {
     if (view !== "machine" || authLoading || !user) return false;
@@ -1099,12 +1127,56 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
 
             <aside className="space-y-4 lg:sticky lg:top-5" aria-label="扭蛋說明與收藏進度">
               <section className="rounded-[18px] border border-border-hairline bg-card p-5 shadow-sm">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex min-w-0 items-start gap-2">
+                    <SlidersHorizontal className="mt-0.5 size-5 shrink-0 text-accent" strokeWidth={1.8} aria-hidden="true" />
+                    <div>
+                      <h2 className="text-base font-bold tracking-tight">空膠囊機率</h2>
+                      <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                        儲存在這台裝置，下一次轉動把手時套用。
+                      </p>
+                    </div>
+                  </div>
+                  <output
+                    htmlFor="gacha-miss-rate"
+                    className="shrink-0 rounded-full bg-accent-tint px-2.5 py-1 text-sm font-black tabular-nums text-accent"
+                  >
+                    {missRatePercent}%
+                  </output>
+                </div>
+                <input
+                  id="gacha-miss-rate"
+                  type="range"
+                  min={0}
+                  max={100}
+                  step={5}
+                  value={missRatePercent}
+                  onChange={(event) => handleMissRateChange(Number(event.target.value))}
+                  className="range range-primary mt-4 w-full"
+                  aria-label="空膠囊機率"
+                  aria-valuetext={`${missRatePercent}%`}
+                />
+                <div className="mt-2 flex justify-between text-[11px] font-medium text-muted-foreground">
+                  <span>0%（必得角色）</span>
+                  <span>100%（必定為空）</span>
+                </div>
+              </section>
+
+              <section className="rounded-[18px] border border-border-hairline bg-card p-5 shadow-sm">
                 <div className="flex items-center gap-2">
                   <Info className="size-5 text-accent" strokeWidth={1.8} aria-hidden="true" />
                   <h2 className="text-lg font-bold tracking-tight">怎麼玩</h2>
                 </div>
                 <ol className="mt-4 space-y-3">
-                  {GACHA_STEPS.map(({ number, title, description }, index) => {
+                  {[
+                    GACHA_STEPS[0],
+                    {
+                      number: "2",
+                      title: "轉動機台把手",
+                      description: `${hitRatePercent}% 命中角色、${missRatePercent}% 空膠囊`,
+                    },
+                    GACHA_STEPS[1],
+                  ].map(({ number, title, description }, index) => {
                     const completed =
                       (index === 0 && phase !== "idle") ||
                       (index === 1 && ["turning", "capsuleReady", "revealed"].includes(phase)) ||
