@@ -335,6 +335,7 @@ npm install        # Install dependencies
 npm run dev        # Dev server at localhost:5173
 npm run build      # Type-check + production build
 npm run lint       # ESLint check
+npm run test       # Vitest suite (jsdom)
 ```
 
 ---
@@ -353,7 +354,7 @@ make desktop-release # publish the .dmg to GitHub Releases (desktop-v<version>)
 ```
 
 Notes for agents working in `desktop/`:
-- Run Python via `uv run --directory desktop ...`; the web app has no test runner, but `desktop/` uses `pytest`.
+- Run Python via `uv run --directory desktop ...`; the web app uses `vitest` (`npm run test`), while `desktop/` uses `pytest`.
 - Packaging/signing helpers live in `desktop/release/`; the build is **arm64-only**, code-signed and notarized.
 - `.env.package` (Apple credentials) and `desktop/models/` are gitignored — never commit them, and never bundle secrets into the `.app` (a security guard enforces this at build time).
 - See `desktop/README.md` for full details.

@@ -1,6 +1,5 @@
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback } from "react";
 import { useAuth } from "./useAuth";
-import { translateWithAI } from "../services/aiService";
 import {
   findExistingTranslation,
   addSentenceTranslation,
@@ -9,10 +8,10 @@ import {
   deleteAllSentenceTranslations,
 } from "../services/sentenceTranslationService";
 import type {
+  SentenceKeyWord,
   SentenceTranslation,
   SentenceTranslationFilters,
 } from "../types/sentenceTranslation";
-import { isAbortError } from "../utils/errorUtils";
 import { logger } from "../utils/logger";
 
 export const useSentenceTranslation = () => {
@@ -22,15 +21,6 @@ export const useSentenceTranslation = () => {
   const [hasMore, setHasMore] = useState(false);
   const [lastDocId, setLastDocId] = useState<string | undefined>();
   const [error, setError] = useState<string | null>(null);
-
-  const abortControllerRef = useRef<AbortController | null>(null);
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      abortControllerRef.current?.abort();
-    };
-  }, []);
 
   // Load sentence translations
   const loadSentences = useCallback(
@@ -81,55 +71,49 @@ export const useSentenceTranslation = () => {
     [user, hasMore, lastDocId]
   );
 
-  // Translate text with Firestore caching
-  const translateText = useCallback(
-    async (
-      english: string,
-      sourcePdfName?: string
-    ): Promise<{ chinese: string; fromCache: boolean } | null> => {
+  // Find a previously saved translation without calling AI
+  const findExistingSentence = useCallback(
+    async (english: string): Promise<SentenceTranslation | null> => {
       if (!user) return null;
 
       const trimmedEnglish = english.trim();
       if (!trimmedEnglish) return null;
 
-      // Abort previous request
-      abortControllerRef.current?.abort();
-      const controller = new AbortController();
-      abortControllerRef.current = controller;
+      try {
+        return await findExistingTranslation(user.uid, trimmedEnglish);
+      } catch (err) {
+        logger.error("Failed to check existing translation:", err);
+        return null;
+      }
+    },
+    [user]
+  );
+
+  // Save a translation computed elsewhere (e.g. by smartLookup)
+  const addTranslatedSentence = useCallback(
+    async (
+      english: string,
+      chinese: string,
+      keyWords?: SentenceKeyWord[]
+    ): Promise<SentenceTranslation | null> => {
+      if (!user) return null;
+
+      const trimmedEnglish = english.trim();
+      if (!trimmedEnglish || !chinese.trim()) return null;
 
       try {
-        // Check cache first
-        const existing = await findExistingTranslation(user.uid, trimmedEnglish);
-        if (existing) {
-          logger.info("Translation cache hit");
-          return { chinese: existing.chinese, fromCache: true };
-        }
-
-        if (controller.signal.aborted) return null;
-
-        // Call AI for translation
-        const chinese = await translateWithAI(trimmedEnglish, controller.signal);
-
-        if (controller.signal.aborted) return null;
-
-        if (!chinese) {
-          throw new Error("翻譯失敗");
-        }
-
-        // Save to Firestore
-        await addSentenceTranslation({
+        const sentence: Omit<SentenceTranslation, "id" | "createdAt"> = {
           userId: user.uid,
           english: trimmedEnglish,
           chinese,
-          sourcePdfName,
-        });
-
-        logger.info("Translation saved to cache");
-        return { chinese, fromCache: false };
+          keyWords: keyWords?.length ? keyWords : undefined,
+        };
+        const id = await addSentenceTranslation(sentence);
+        return { ...sentence, id, createdAt: new Date() };
       } catch (err) {
-        if (isAbortError(err)) return null;
-        logger.error("Translation error:", err);
-        throw err;
+        logger.error("Failed to save translated sentence:", err);
+        setError("儲存句子失敗");
+        return null;
       }
     },
     [user]
@@ -171,7 +155,8 @@ export const useSentenceTranslation = () => {
     error,
     loadSentences,
     loadMore,
-    translateText,
+    findExistingSentence,
+    addTranslatedSentence,
     deleteSentence,
     clearAll,
   };

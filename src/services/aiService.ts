@@ -3,6 +3,7 @@
  */
 import { geminiModel } from "../utils/firebaseUtil";
 import { isAbortError } from "../utils/errorUtils";
+import type { SentenceKeyWord } from "../types/sentenceTranslation";
 
 /**
  * Word details structure returned by generateWordDetails
@@ -20,6 +21,15 @@ export interface WordDetails {
   synonyms?: string[];
   antonyms?: string[];
 }
+
+/**
+ * Result of smartLookup: the AI classifies a multi-word input as either a
+ * phrase (dictionary-style word details) or a full sentence (translation
+ * plus difficult key words).
+ */
+export type SmartLookupResult =
+  | { kind: "word"; details: WordDetails }
+  | { kind: "sentence"; chinese: string; keyWords: SentenceKeyWord[] };
 
 /**
  * Parsed sentence structure for sentence practice
@@ -127,6 +137,103 @@ export async function translateWithAI(
   } catch (err) {
     if (isAbortError(err)) return null;
     console.error("Error translating with AI:", err);
+    return null;
+  }
+}
+
+const sanitizeKeyWords = (raw: unknown): SentenceKeyWord[] => {
+  if (!Array.isArray(raw)) return [];
+  const keyWords: SentenceKeyWord[] = [];
+  for (const entry of raw) {
+    if (keyWords.length >= 3) break;
+    if (!entry || typeof entry !== "object") continue;
+    const { word, meaning } = entry as { word?: unknown; meaning?: unknown };
+    if (typeof word !== "string" || typeof meaning !== "string") continue;
+    if (!word.trim() || !meaning.trim()) continue;
+    keyWords.push({ word: word.trim(), meaning: meaning.trim() });
+  }
+  return keyWords;
+};
+
+/**
+ * Classify a multi-word English input as a phrase or a full sentence and
+ * answer accordingly in a single Gemini call: phrases get dictionary-style
+ * word details, sentences get a kid-friendly translation plus key words.
+ * @param text - The multi-word English input
+ * @param signal - Optional AbortSignal for cancellation
+ * @returns Discriminated result, or null if aborted/failed/unusable
+ */
+export async function smartLookup(
+  text: string,
+  signal?: AbortSignal,
+): Promise<SmartLookupResult | null> {
+  try {
+    const prompt = `你是一個幫助國小學生學習英文的助手。請判斷以下英文輸入是「片語」還是「完整句子」，然後依類型回覆對應的 JSON。
+
+英文輸入：${text}
+
+判斷規則：
+- 片語：慣用語、複合詞或不成完整句子的詞組（例如 "give up"、"ice cream"、"look forward to"）。
+- 句子：有主詞和動詞、表達完整意思的句子（祈使句也算句子，例如 "Sit down."）。
+
+如果是「片語」，回覆：
+{"kind":"word","definitions":[{"partOfSpeech":"詞性","definition":"簡單清楚的英文對英文解釋","definitionChinese":"對應的繁體中文解釋"}],"examples":[{"sentence":"例句"}]}
+- "definition" 必須是英文對英文的解釋，像兒童英英字典那樣，使用簡單常見的英文單字（避免使用比原片語更難的字），完整的英文句子，10-20 個字內。
+- "definitionChinese" 是對應的繁體中文翻譯，給看不懂英文解釋時參考。
+- 提供 1-3 個常見定義，每個都要同時包含英文與中文解釋。
+- 提供 1 個簡短例句。
+
+如果是「句子」，回覆：
+{"kind":"sentence","chinese":"翻譯後的繁體中文","keyWords":[{"word":"較難的英文單字","meaning":"簡短的繁體中文意思"}]}
+- "chinese" 是整句的繁體中文翻譯，使用簡單易懂、適合小朋友理解的詞彙。翻譯要準確但用字要簡單，避免使用艱深的詞彙。
+- "keyWords" 從句子裡挑出 1-3 個對國小學生比較難的單字，每個附上簡短（5 個字以內）的繁體中文意思。如果沒有難字，回覆空陣列 []。
+
+只回覆 JSON，不要任何其他說明。`;
+
+    if (signal?.aborted) return null;
+
+    const result = await geminiModel.generateContent(prompt);
+
+    if (signal?.aborted) return null;
+
+    const responseText = result.response.text().trim();
+    const parsed = parseJsonResponse(responseText) as Record<string, unknown>;
+
+    if (
+      parsed.kind === "sentence" &&
+      typeof parsed.chinese === "string" &&
+      parsed.chinese.trim()
+    ) {
+      return {
+        kind: "sentence",
+        chinese: parsed.chinese.trim(),
+        keyWords: sanitizeKeyWords(parsed.keyWords),
+      };
+    }
+
+    if (Array.isArray(parsed.definitions)) {
+      const details: WordDetails = {
+        definitions: parsed.definitions as WordDetails["definitions"],
+        examples: (parsed.examples as WordDetails["examples"]) || [],
+      };
+      if (parsed.emoji) {
+        details.emoji = parsed.emoji as string;
+      }
+      const usable = details.definitions.some((definition) =>
+        Boolean(
+          definition?.definition?.trim() ||
+            definition?.definitionChinese?.trim(),
+        ),
+      );
+      if (usable) {
+        return { kind: "word", details };
+      }
+    }
+
+    return null;
+  } catch (err) {
+    if (isAbortError(err)) return null;
+    console.error("Error in smart lookup:", err);
     return null;
   }
 }

@@ -17,6 +17,7 @@ import {
 } from "firebase/firestore";
 import { db } from "../utils/firebaseUtil";
 import type {
+  SentenceKeyWord,
   SentenceTranslation,
   SentenceTranslationFilters,
   SentenceTranslationResult,
@@ -35,6 +36,9 @@ const convertToSentenceTranslation = (
     userId: data.userId,
     english: data.english,
     chinese: data.chinese,
+    keyWords: Array.isArray(data.keyWords)
+      ? (data.keyWords as SentenceKeyWord[])
+      : undefined,
     sourcePdfName: data.sourcePdfName,
     createdAt: data.createdAt?.toDate() || new Date(),
   };
@@ -74,6 +78,7 @@ export const addSentenceTranslation = async (
     userId: sentence.userId,
     english: sentence.english.trim(),
     chinese: sentence.chinese,
+    keyWords: sentence.keyWords?.length ? sentence.keyWords : undefined,
     sourcePdfName: sentence.sourcePdfName,
     createdAt: now,
   };

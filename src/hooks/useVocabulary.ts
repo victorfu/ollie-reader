@@ -327,6 +327,99 @@ export const useVocabulary = () => {
     [user],
   );
 
+  // Find a word already saved in the vocabulary without triggering AI
+  const findExistingWord = useCallback(
+    async (word: string): Promise<VocabularyWord | null> => {
+      if (!user) return null;
+
+      const trimmedWord = word.trim();
+      if (!trimmedWord) return null;
+
+      try {
+        return await checkWordExists(user.uid, trimmedWord.toLowerCase());
+      } catch (err) {
+        if (!isAbortError(err)) {
+          console.error("Failed to check existing word:", err);
+        }
+        return null;
+      }
+    },
+    [user],
+  );
+
+  // Save a word using precomputed details (no AI call here) — used when the
+  // details were already generated elsewhere, e.g. by smartLookup.
+  const addWordFromDetails = useCallback(
+    async (
+      word: string,
+      details: WordDetails,
+    ): Promise<{
+      success: boolean;
+      word?: VocabularyWord;
+      existing?: boolean;
+      message?: string;
+    }> => {
+      if (!user) {
+        return { success: false, message: "User not authenticated" };
+      }
+
+      const trimmedWord = word.trim();
+      if (!trimmedWord) {
+        return { success: false, message: "Word cannot be empty" };
+      }
+
+      try {
+        // Race guard: the word may have been added since the caller checked
+        const existingWord = await checkWordExists(
+          user.uid,
+          trimmedWord.toLowerCase(),
+        );
+        if (existingWord) {
+          return { success: true, word: existingWord, existing: true };
+        }
+
+        if (!hasUsableWordDetails(details)) {
+          return { success: false, message: AI_DETAILS_UNAVAILABLE_MESSAGE };
+        }
+
+        const newWord: Omit<
+          VocabularyWord,
+          "id" | "createdAt" | "updatedAt" | "reviewCount"
+        > = {
+          word: trimmedWord.toLowerCase(),
+          userId: user.uid,
+          ...(details.emoji && { emoji: details.emoji }),
+          definitions: details.definitions || [],
+          examples: details.examples || [],
+          synonyms: details.synonyms || [],
+          antonyms: details.antonyms || [],
+          tags: [],
+        };
+
+        const wordId = await addVocabularyWord(newWord);
+
+        const createdWord: VocabularyWord = {
+          ...newWord,
+          id: wordId,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          reviewCount: 0,
+        };
+
+        return { success: true, word: createdWord };
+      } catch (err) {
+        if (isAbortError(err)) {
+          return { success: false, message: "Request cancelled" };
+        }
+        const message =
+          err instanceof Error ? err.message : "Failed to add word";
+        setError(message);
+        return { success: false, message };
+      }
+    },
+    [user],
+  );
+
   // Load user's vocabulary with pagination
   const loadVocabulary = useCallback(
     async (filters?: VocabularyFilters) => {
@@ -622,6 +715,8 @@ export const useVocabulary = () => {
     hasMore,
     addWord,
     lookupOrAddWord,
+    findExistingWord,
+    addWordFromDetails,
     loadVocabulary,
     loadMore,
     getWord,
