@@ -47,19 +47,23 @@ export const SentenceDetailPanel = ({
 
   return (
     <div className="h-full">
-      {/* Header */}
-      <div className="mb-6 flex items-start gap-2">
-        <p className="min-w-0 flex-1 text-xl font-semibold leading-relaxed tracking-tight sm:text-2xl">
-          {sentence.english}
-        </p>
-        <button
-          type="button"
-          onClick={handleSpeak}
-          className="btn btn-circle btn-sm btn-ghost shrink-0"
-          title={isSpeaking ? "停止朗讀" : "朗讀句子"}
-        >
-          <SpeakerIcon />
-        </button>
+      {/* Header — mirrors WordDetailPanel: speak button hugs the text */}
+      <div className="flex items-start gap-3 mb-6">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-2">
+            <h2 className="text-3xl sm:text-4xl font-semibold tracking-tight">
+              {sentence.english}
+            </h2>
+            <button
+              type="button"
+              onClick={handleSpeak}
+              className="btn btn-circle btn-sm btn-ghost shrink-0"
+              title={isSpeaking ? "停止朗讀" : "朗讀句子"}
+            >
+              <SpeakerIcon />
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Translation */}
