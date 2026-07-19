@@ -128,14 +128,6 @@ export const SentenceDetailPanel = ({
             })}
           </div>
         </div>
-        {sentence.sourcePdfName && (
-          <div className="stat">
-            <div className="stat-title">來源</div>
-            <div className="stat-value truncate text-lg">
-              {sentence.sourcePdfName}
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );
