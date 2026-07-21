@@ -1,5 +1,10 @@
 @import "tailwindcss";
-@plugin "daisyui";
+/* exclude: DaisyUI's `glass` utility would win the cascade (utilities layer)
+   over our Liquid Glass `.glass` component below — over dark modal overlays it
+   renders as a transparent dark slab in light theme. */
+@plugin "daisyui" {
+  exclude: glass;
+}
 
 /* Drive Tailwind's `dark:` variant from the `.dark` class (set by ThemeContext)
    instead of the OS media query, so an explicit theme toggle flips everything. */
@@ -35,8 +40,10 @@
   --color-info-content: oklch(1 0 0);
   --color-success: oklch(0.65 0.2 145);
   --color-success-content: oklch(1 0 0);
-  --color-warning: oklch(0.72 0.18 75);
-  --color-warning-content: oklch(0.2 0.05 80);
+  /* Amber deep enough to read as text on white (soft badges/buttons,
+     text-warning) while staying warm as a solid background. */
+  --color-warning: oklch(0.68 0.17 70);
+  --color-warning-content: oklch(0.28 0.07 55);
   --color-error: oklch(0.577 0.245 27.325);
   --color-error-content: oklch(1 0 0);
 
@@ -111,7 +118,7 @@
 
     --destructive: oklch(0.577 0.245 27.325);
     --success: oklch(0.65 0.2 145);
-    --warning: oklch(0.72 0.18 75);
+    --warning: oklch(0.68 0.17 70);
 
     --shadow-soft: 0 1px 3px oklch(0 0 0 / 0.04), 0 1px 2px oklch(0 0 0 / 0.06);
     --shadow-elevated: 0 4px 16px oklch(0 0 0 / 0.08),

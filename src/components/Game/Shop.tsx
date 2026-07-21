@@ -49,7 +49,7 @@ export function Shop({ coins, onDraw, onBack }: ShopProps) {
           ← 回主選單
         </button>
         <span className="badge badge-soft badge-warning badge-lg gap-1 font-semibold">
-          🪙 {coins}
+          💰 {coins}
         </span>
       </div>
 
@@ -82,7 +82,7 @@ export function Shop({ coins, onDraw, onBack }: ShopProps) {
             disabled={!canAfford || drawing}
             className="btn btn-primary btn-lg w-full gap-2 disabled:opacity-50 active:scale-[0.98]"
           >
-            {drawing ? "轉呀轉…" : `抽一次（🪙 ${GACHA_COST}）`}
+            {drawing ? "轉呀轉…" : `抽一次（💰 ${GACHA_COST}）`}
           </motion.button>
           {!canAfford && (
             <p className="text-xs text-error mt-1">

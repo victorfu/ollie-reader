@@ -188,30 +188,31 @@ export const ACHIEVEMENTS: Achievement[] = [
   },
 ];
 
-// Rarity styles
+// Rarity styles（含 dark: 變體——淺色用粉彩底＋深色字，深色用半透明色調＋亮色字，
+// 避免固定粉彩在深色面板上變成刺眼色塊）
 export const RARITY_STYLES = {
   bronze: {
-    bg: "from-amber-200 to-orange-200",
-    border: "border-amber-400",
-    text: "text-amber-700",
-    glow: "shadow-amber-300/50",
+    bg: "from-amber-200 to-orange-200 dark:from-amber-400/25 dark:to-orange-400/15",
+    border: "border-amber-400 dark:border-amber-400/40",
+    text: "text-amber-700 dark:text-amber-300",
+    glow: "shadow-amber-300/50 dark:shadow-amber-500/20",
   },
   silver: {
-    bg: "from-slate-200 to-gray-300",
-    border: "border-slate-400",
-    text: "text-slate-700",
-    glow: "shadow-slate-300/50",
+    bg: "from-slate-200 to-gray-300 dark:from-slate-400/25 dark:to-gray-400/15",
+    border: "border-slate-400 dark:border-slate-400/40",
+    text: "text-slate-700 dark:text-slate-300",
+    glow: "shadow-slate-300/50 dark:shadow-slate-500/20",
   },
   gold: {
-    bg: "from-yellow-200 to-amber-300",
-    border: "border-yellow-500",
-    text: "text-yellow-700",
-    glow: "shadow-yellow-300/50",
+    bg: "from-yellow-200 to-amber-300 dark:from-yellow-400/25 dark:to-amber-400/20",
+    border: "border-yellow-500 dark:border-yellow-400/50",
+    text: "text-yellow-700 dark:text-yellow-300",
+    glow: "shadow-yellow-300/50 dark:shadow-yellow-500/25",
   },
   rainbow: {
-    bg: "from-pink-200 via-purple-200 to-cyan-200",
-    border: "border-purple-400",
-    text: "text-purple-700",
-    glow: "shadow-purple-300/50",
+    bg: "from-pink-200 via-purple-200 to-cyan-200 dark:from-pink-400/25 dark:via-purple-400/25 dark:to-cyan-400/25",
+    border: "border-purple-400 dark:border-purple-400/50",
+    text: "text-purple-700 dark:text-purple-300",
+    glow: "shadow-purple-300/50 dark:shadow-purple-500/25",
   },
 };

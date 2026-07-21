@@ -20,6 +20,7 @@ import {
 import { useSearchParams } from "react-router-dom";
 import { ConfirmModal } from "../../common/ConfirmModal";
 import { useAuth } from "../../../hooks/useAuth";
+import { useShowAllGachaEntries } from "../../../hooks/useShowAllGachaEntries";
 import { playSound } from "../../../services/gameService";
 import { logger } from "../../../utils/logger";
 import { GACHA_CHARACTERS } from "./gachaData";
@@ -179,6 +180,7 @@ export default function GachaMachine(props: GachaMachineProps) {
 
 function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
   const reduceMotion = useReducedMotion();
+  const { showAllGachaEntries } = useShowAllGachaEntries();
   const { user, loading: authLoading, authError, signInWithGoogle } = auth;
   const [searchParams, setSearchParams] = useSearchParams();
   const view: GachaView =
@@ -892,7 +894,7 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
                 ) : null}
               </div>
             ) : null}
-            {syncStatus === "offlineEmpty" ? (
+            {syncStatus === "offlineEmpty" && !showAllGachaEntries ? (
               <section className="mx-auto flex min-h-[55dvh] w-full max-w-xl items-center justify-center text-center">
                 <div className="rounded-[18px] border border-amber-400/30 bg-card p-6 shadow-sm sm:p-8">
                   <div className="mx-auto flex size-14 items-center justify-center rounded-full bg-amber-400/10 text-amber-700 dark:text-amber-300">
@@ -914,6 +916,7 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
                 syncLabel={syncLabel}
                 hasPendingCapsule={hasPendingCapsule}
                 canResetCollection={canResetCollection}
+                showAllEntries={showAllGachaEntries}
                 onOpenPendingCapsule={() => setView("machine")}
                 onRequestReset={handleRequestCollectionReset}
               />

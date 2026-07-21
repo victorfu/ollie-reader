@@ -6,10 +6,12 @@ import {
   Palette,
   Volume2,
   BookOpen,
+  Eye,
   SlidersHorizontal,
   Gamepad2,
 } from "lucide-react";
 import { useSettings } from "../../hooks/useSettings";
+import { useShowAllGachaEntries } from "../../hooks/useShowAllGachaEntries";
 import { useAuth } from "../../hooks/useAuth";
 import { useTheme } from "../../hooks/useTheme";
 import { resetGameProgress } from "../../services/gameProgressService";
@@ -38,6 +40,8 @@ type CategoryId = (typeof CATEGORIES)[number]["id"];
 export const Settings = () => {
   const { user } = useAuth();
   const { theme, setTheme } = useTheme();
+  const { showAllGachaEntries, updateShowAllGachaEntries } =
+    useShowAllGachaEntries();
   const {
     ttsMode,
     ttsEngine,
@@ -578,22 +582,56 @@ export const Settings = () => {
                     管理遊戲進度
                   </p>
 
-                  <div className="p-4 border border-error/30 rounded-lg bg-error/5">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="font-medium text-error">重置遊戲進度</div>
-                        <div className="text-sm text-muted-foreground">
-                          清除所有關卡進度、等級和收集的精靈（生詞本不受影響）
+                  <div className="space-y-4">
+                    <label className="flex min-h-20 cursor-pointer items-center justify-between gap-4 rounded-[10px] border border-border-hairline bg-background/45 p-4 transition-colors hover:bg-accent-tint">
+                      <span className="flex min-w-0 items-start gap-3">
+                        <span className="flex size-10 shrink-0 items-center justify-center rounded-[10px] bg-accent-tint text-accent">
+                          <Eye
+                            className="size-5"
+                            strokeWidth={1.8}
+                            aria-hidden="true"
+                          />
+                        </span>
+                        <span className="min-w-0">
+                          <span className="block font-medium">
+                            開啟全部扭蛋圖鑑
+                          </span>
+                          <span
+                            id="show-all-gacha-description"
+                            className="mt-1 block text-sm leading-5 text-muted-foreground"
+                          >
+                            可查看所有角色圖片，不會更改抽取紀錄或實際收集進度。此設定只儲存在這台裝置。
+                          </span>
+                        </span>
+                      </span>
+                      <input
+                        type="checkbox"
+                        className="toggle toggle-sm toggle-accent shrink-0"
+                        checked={showAllGachaEntries}
+                        onChange={(event) =>
+                          updateShowAllGachaEntries(event.target.checked)
+                        }
+                        aria-describedby="show-all-gacha-description"
+                      />
+                    </label>
+
+                    <div className="p-4 border border-error/30 rounded-lg bg-error/5">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="font-medium text-error">重置遊戲進度</div>
+                          <div className="text-sm text-muted-foreground">
+                            清除所有關卡進度、等級和收集的精靈（生詞本不受影響）
+                          </div>
                         </div>
+                        <button
+                          type="button"
+                          className="btn btn-error btn-outline"
+                          onClick={() => setShowResetModal(true)}
+                          disabled={!user}
+                        >
+                          重置
+                        </button>
                       </div>
-                      <button
-                        type="button"
-                        className="btn btn-error btn-outline"
-                        onClick={() => setShowResetModal(true)}
-                        disabled={!user}
-                      >
-                        重置
-                      </button>
                     </div>
                   </div>
                 </div>

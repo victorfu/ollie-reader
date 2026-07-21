@@ -1,7 +1,9 @@
+import { useState } from "react";
 import {
   BookOpen,
   Check,
   Cloud,
+  Eye,
   LockKeyhole,
   RotateCcw,
   Sparkles,
@@ -10,7 +12,8 @@ import {
 } from "lucide-react";
 import { motion, useReducedMotion } from "framer-motion";
 import { GACHA_CHARACTERS } from "./gachaData";
-import type { GachaSaveV1 } from "./gachaTypes";
+import type { GachaCharacter, GachaSaveV1 } from "./gachaTypes";
+import { GachaCollectionDialog } from "./GachaCollectionDialog";
 
 interface GachaCollectionProps {
   save: GachaSaveV1;
@@ -19,6 +22,7 @@ interface GachaCollectionProps {
   syncLabel?: string;
   hasPendingCapsule?: boolean;
   canResetCollection?: boolean;
+  showAllEntries?: boolean;
   onOpenPendingCapsule?: () => void;
   onRequestReset?: () => void;
 }
@@ -30,10 +34,13 @@ export function GachaCollection({
   syncLabel = "已與雲端同步",
   hasPendingCapsule = false,
   canResetCollection = false,
+  showAllEntries = false,
   onOpenPendingCapsule,
   onRequestReset,
 }: GachaCollectionProps) {
   const reduceMotion = useReducedMotion();
+  const [selectedCharacter, setSelectedCharacter] =
+    useState<GachaCharacter | null>(null);
   const unlockedCount = GACHA_CHARACTERS.reduce(
     (total, character) =>
       total + ((save.ownedCounts[character.id] ?? 0) > 0 ? 1 : 0),
@@ -47,6 +54,10 @@ export function GachaCollection({
     0,
   );
   const missCount = Math.max(0, save.totalDraws - ownedTotal);
+
+  const selectedOwnedCount = selectedCharacter
+    ? (save.ownedCounts[selectedCharacter.id] ?? 0)
+    : 0;
 
   return (
     <section
@@ -67,7 +78,7 @@ export function GachaCollection({
             我的角色圖鑑
           </h2>
           <p className="mt-1 max-w-lg text-sm leading-6 text-muted-foreground">
-            每次遇見新角色都會自動解鎖；重複扭到的角色也會留下相遇次數。
+            每次遇見新角色都會自動解鎖；重複扭到的角色也會留下相遇次數。點選角色即可查看大圖。
           </p>
         </div>
 
@@ -137,6 +148,23 @@ export function GachaCollection({
         </div>
       ) : null}
 
+      {showAllEntries ? (
+        <div
+          className="mb-5 flex items-start gap-3 rounded-[14px] border border-accent/20 bg-accent-tint px-4 py-3 text-sm text-foreground"
+          role="status"
+        >
+          <Eye
+            className="mt-0.5 size-5 shrink-0 text-accent"
+            strokeWidth={1.8}
+            aria-hidden="true"
+          />
+          <span>
+            <strong className="font-bold">完整圖鑑預覽已開啟。</strong>
+            尚未抽到的角色也可以查看圖片；收集進度仍只計算實際遇見的角色。
+          </span>
+        </div>
+      ) : null}
+
       {unlockedCount === GACHA_CHARACTERS.length ? (
         <div className="mb-5 flex items-center gap-3 rounded-[14px] border border-amber-300/35 bg-amber-300/10 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
           <Sparkles className="size-5 shrink-0" strokeWidth={1.8} aria-hidden="true" />
@@ -151,37 +179,52 @@ export function GachaCollection({
         {GACHA_CHARACTERS.map((character, index) => {
           const ownedCount = save.ownedCounts[character.id] ?? 0;
           const isUnlocked = ownedCount > 0;
+          const isVisible = isUnlocked || showAllEntries;
+          const isPreview = showAllEntries && !isUnlocked;
 
           return (
-            <motion.article
+            <motion.button
               key={character.id}
+              type="button"
+              onClick={() => {
+                if (isVisible) setSelectedCharacter(character);
+              }}
+              disabled={!isVisible}
+              aria-label={
+                isVisible
+                  ? `查看${character.name}角色圖片${isPreview ? "（尚未解鎖）" : `，已遇見 ${ownedCount} 次`}`
+                  : "尚未解鎖的角色"
+              }
               initial={reduceMotion ? false : { opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
+              whileTap={
+                isVisible && !reduceMotion ? { scale: 0.985 } : undefined
+              }
               transition={{
                 duration: reduceMotion ? 0 : 0.28,
                 delay: reduceMotion ? 0 : Math.min(index * 0.025, 0.2),
               }}
-              className={`group relative min-w-0 overflow-hidden rounded-[16px] border p-3 shadow-sm transition-all sm:p-4 ${
-                isUnlocked
-                  ? "border-border-hairline bg-card hover:-translate-y-0.5 hover:shadow-elevated"
-                  : "border-border-hairline bg-muted/45"
+              className={`group relative min-w-0 overflow-hidden rounded-[16px] border p-3 text-left shadow-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:p-4 ${
+                isVisible
+                  ? "cursor-zoom-in border-border-hairline bg-card hover:-translate-y-0.5 hover:shadow-elevated"
+                  : "cursor-default border-border-hairline bg-muted/45"
               }`}
             >
               <div
                 className={`relative aspect-square overflow-hidden rounded-[13px] border ${
-                  isUnlocked
+                  isVisible
                     ? "border-white/55 bg-gradient-to-br from-white/85 to-accent-tint dark:border-white/10 dark:from-white/10"
                     : "border-border-hairline bg-background/50"
                 }`}
               >
                 <img
                   src={character.imageUrl}
-                  alt={isUnlocked ? character.name : ""}
-                  aria-hidden={!isUnlocked}
+                  alt={isVisible ? character.name : ""}
+                  aria-hidden={!isVisible}
                   loading="lazy"
                   decoding="async"
                   className={`h-full w-full object-contain p-1 transition-transform duration-200 ${
-                    isUnlocked
+                    isVisible
                       ? "drop-shadow-[0_10px_12px_rgba(63,52,86,0.16)] group-hover:scale-[1.04]"
                       : "scale-[0.92] brightness-0 opacity-[0.12] dark:invert dark:opacity-[0.08]"
                   }`}
@@ -190,6 +233,11 @@ export function GachaCollection({
                 {isUnlocked ? (
                   <span className="absolute right-2 top-2 inline-flex min-h-7 min-w-7 items-center justify-center rounded-full border border-white/65 bg-background/85 px-2 text-xs font-bold text-foreground shadow-sm backdrop-blur-md dark:border-white/10">
                     ×{ownedCount}
+                  </span>
+                ) : isPreview ? (
+                  <span className="absolute right-2 top-2 inline-flex min-h-7 items-center justify-center gap-1 rounded-full border border-white/65 bg-background/85 px-2 text-[10px] font-bold text-accent shadow-sm backdrop-blur-md dark:border-white/10">
+                    <Eye className="size-3.5" strokeWidth={1.9} aria-hidden="true" />
+                    預覽
                   </span>
                 ) : (
                   <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 text-muted-foreground">
@@ -207,10 +255,10 @@ export function GachaCollection({
 
               <div className="mt-3 min-w-0 text-center">
                 <h3 className="truncate text-sm font-bold text-foreground">
-                  {isUnlocked ? character.name : "???"}
+                  {isVisible ? character.name : "???"}
                 </h3>
                 <p className="mt-0.5 truncate text-[11px] font-medium text-muted-foreground">
-                  {isUnlocked ? character.englishName : "尚未解鎖"}
+                  {isVisible ? character.englishName : "尚未解鎖"}
                 </p>
               </div>
 
@@ -222,7 +270,7 @@ export function GachaCollection({
                   <Check className="size-4" strokeWidth={2.4} aria-hidden="true" />
                 </span>
               ) : null}
-            </motion.article>
+            </motion.button>
           );
         })}
       </div>
@@ -263,6 +311,16 @@ export function GachaCollection({
           </button>
         </div>
       </section>
+      <GachaCollectionDialog
+        character={
+          selectedCharacter && (showAllEntries || selectedOwnedCount > 0)
+            ? selectedCharacter
+            : null
+        }
+        ownedCount={selectedOwnedCount}
+        reduceMotion={Boolean(reduceMotion)}
+        onClose={() => setSelectedCharacter(null)}
+      />
     </section>
   );
 }

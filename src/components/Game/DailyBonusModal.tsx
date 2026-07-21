@@ -37,7 +37,7 @@ export function DailyBonusModal({ bonus, onClaim }: DailyBonusModalProps) {
             </div>
           )}
           <div className="flex items-center gap-2 mt-4">
-            <span className="text-4xl">🪙</span>
+            <span className="text-4xl">💰</span>
             <span className="text-3xl font-bold text-warning">
               +{bonus.coins} 金幣
             </span>

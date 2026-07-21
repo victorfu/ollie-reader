@@ -154,7 +154,7 @@ export function RewardModal({ reward, onClaim }: RewardModalProps) {
               transition={{ delay: 0.5 }}
               className="flex items-center gap-2 mt-2"
             >
-              <span className="text-3xl">🪙</span>
+              <span className="text-3xl">💰</span>
               <span className="text-2xl font-bold text-warning">
                 +{reward.coinsGained} 金幣
               </span>

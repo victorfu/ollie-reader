@@ -2,6 +2,7 @@ import { act, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { SHOW_ALL_GACHA_ENTRIES_STORAGE_KEY } from "../../../services/gachaPreferences";
 import type { AppliedGachaAttempt, GachaSaveV1 } from "./gachaTypes";
 
 const authState = vi.hoisted(() => ({
@@ -244,6 +245,31 @@ describe("GachaMachine page states", () => {
     expect(container.textContent).toContain("我的角色圖鑑");
     expect(container.textContent).toContain("酷洛米");
     expect(buttonWithText("圖鑑").getAttribute("aria-current")).toBe("page");
+  });
+
+  it("applies the local full-collection preview without faking progress", async () => {
+    localStorage.setItem(SHOW_ALL_GACHA_ENTRIES_STORAGE_KEY, "true");
+
+    await renderAt("/games/gacha?view=collection");
+
+    expect(container.textContent).toContain("完整圖鑑預覽已開啟");
+    expect(container.textContent).toContain("0 / 57");
+    expect(container.querySelector('img[alt="Hello Kitty"]')).toBeTruthy();
+    expect(storageMocks.recordGachaAttempt).not.toHaveBeenCalled();
+
+    localStorage.setItem(SHOW_ALL_GACHA_ENTRIES_STORAGE_KEY, "false");
+    act(() => {
+      window.dispatchEvent(
+        new StorageEvent("storage", {
+          key: SHOW_ALL_GACHA_ENTRIES_STORAGE_KEY,
+          newValue: "false",
+        }),
+      );
+    });
+
+    expect(container.textContent).not.toContain("完整圖鑑預覽已開啟");
+    expect(container.querySelector('img[alt="Hello Kitty"]')).toBeNull();
+    expect(container.textContent).toContain("0 / 57");
   });
 
   it("renders popular cartoon characters as separate collection items", async () => {

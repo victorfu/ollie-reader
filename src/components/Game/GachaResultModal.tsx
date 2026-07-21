@@ -81,7 +81,7 @@ export function GachaResultModal({ result, onClose }: GachaResultModalProps) {
           {result.isDuplicate && (
             <div className="mt-4 p-3 bg-warning/15 rounded-xl">
               <span className="font-medium text-warning">
-                已經有囉！換成 {result.refundCoins} 金幣 🪙
+                已經有囉！換成 {result.refundCoins} 金幣 💰
               </span>
             </div>
           )}
