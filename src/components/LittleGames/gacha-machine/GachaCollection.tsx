@@ -116,7 +116,7 @@ export function GachaCollection({
             ) : (
               <Cloud className="size-3.5" strokeWidth={1.8} aria-hidden="true" />
             )}
-            {isOffline ? "離線快取 · 僅供查看" : syncLabel}
+            {syncLabel}
           </div>
           <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border-hairline pt-3 text-center">
             <div>

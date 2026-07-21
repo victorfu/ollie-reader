@@ -348,6 +348,18 @@ describe("GachaMachine page states", () => {
     expect(storageMocks.loadGachaCloud).not.toHaveBeenCalled();
   });
 
+  it("labels an offline full preview as uncached", async () => {
+    setOnline(false);
+    localStorage.setItem(SHOW_ALL_GACHA_ENTRIES_STORAGE_KEY, "true");
+
+    await renderAt("/games/gacha?view=collection");
+
+    expect(container.textContent).toContain("完整圖鑑預覽已開啟");
+    expect(container.textContent).toContain("這台裝置沒有離線快取");
+    expect(container.textContent).not.toContain("離線快取 · 僅供查看");
+    expect(storageMocks.loadGachaCloud).not.toHaveBeenCalled();
+  });
+
   it("never paints the previous user's collection after the uid changes", async () => {
     const userASave: GachaSaveV1 = {
       schemaVersion: 1,
