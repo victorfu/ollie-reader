@@ -10,14 +10,12 @@ interface AdventureHomeProps {
   progress: PlayerProgress;
   onStartAdventure: () => void;
   onOpenCollection: () => void;
-  onOpenShop: () => void;
 }
 
 export function AdventureHome({
   progress,
   onStartAdventure,
   onOpenCollection,
-  onOpenShop,
 }: AdventureHomeProps) {
   const [showAchievements, setShowAchievements] = useState(false);
 
@@ -31,8 +29,15 @@ export function AdventureHome({
     100,
   );
 
+  // 只計入目前圖鑑仍存在的精靈（容忍舊存檔裡已下架的扭蛋限定精靈 id）
+  const ownedCount = SPIRITS.filter((s) =>
+    progress.unlockedSpiritIds.includes(s.id),
+  ).length;
+
   // 取得隨機已解鎖的精靈來展示
-  const displaySpiritIds = progress.unlockedSpiritIds.slice(0, 3);
+  const displaySpiritIds = progress.unlockedSpiritIds
+    .filter((id) => SPIRIT_COMPONENTS[id])
+    .slice(0, 3);
 
   // 計算已解鎖成就數量
   const unlockedAchievements = ACHIEVEMENTS.filter((a) =>
@@ -131,7 +136,7 @@ export function AdventureHome({
             <div className="grid grid-cols-3 gap-2 mt-4 text-center">
               <div className="p-2 bg-base-100/70 rounded-lg border border-border-hairline">
                 <div className="text-lg font-bold text-primary">
-                  {progress.unlockedSpiritIds.length}
+                  {ownedCount}
                 </div>
                 <div className="text-xs text-muted-foreground">精靈</div>
               </div>
@@ -169,9 +174,9 @@ export function AdventureHome({
                   </motion.div>
                 );
               })}
-              {progress.unlockedSpiritIds.length > 3 && (
+              {ownedCount > 3 && (
                 <div className="w-12 h-12 rounded-full bg-base-200/70 border border-border-hairline flex items-center justify-center text-sm font-medium text-muted-foreground">
-                  +{progress.unlockedSpiritIds.length - 3}
+                  +{ownedCount - 3}
                 </div>
               )}
             </div>
@@ -199,7 +204,7 @@ export function AdventureHome({
                 <span className="text-lg">📖</span>
                 精靈圖鑑
                 <span className="badge badge-secondary badge-xs">
-                  {progress.unlockedSpiritIds.length}/{SPIRITS.length}
+                  {ownedCount}/{SPIRITS.length}
                 </span>
               </motion.button>
 
@@ -216,16 +221,6 @@ export function AdventureHome({
                 </span>
               </motion.button>
             </div>
-
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={onOpenShop}
-              className="btn btn-soft btn-warning w-full gap-2"
-            >
-              <span className="text-lg">🛒</span>
-              神秘商店（扭蛋）
-            </motion.button>
           </div>
         </div>
       </motion.div>

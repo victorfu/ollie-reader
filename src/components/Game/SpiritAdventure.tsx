@@ -8,7 +8,6 @@ import { QuizGame } from "./QuizGame";
 import { SpiritCollection } from "./SpiritCollection";
 import { RewardModal } from "./RewardModal";
 import { CompanionGuide } from "./CompanionGuide";
-import { Shop } from "./Shop";
 import { DailyBonusModal } from "./DailyBonusModal";
 import { BossBattle } from "./BossBattle";
 
@@ -28,14 +27,12 @@ export function SpiritAdventure() {
     quizState,
     bossState,
     pendingReward,
-    coins,
     pendingDailyBonus,
     startQuiz,
     submitAnswer,
     tickTimer,
     claimReward,
     claimDailyBonus,
-    drawGacha,
     goHome,
   } = useAdventure();
 
@@ -121,15 +118,6 @@ export function SpiritAdventure() {
           progress={progress}
           onStartAdventure={() => setGameView("map")}
           onOpenCollection={() => setGameView("collection")}
-          onOpenShop={() => setGameView("shop")}
-        />
-      )}
-
-      {gameView === "shop" && (
-        <Shop
-          coins={coins}
-          onDraw={drawGacha}
-          onBack={() => setGameView("home")}
         />
       )}
 

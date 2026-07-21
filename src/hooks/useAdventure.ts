@@ -30,11 +30,8 @@ import {
   coinsForAnswer,
   coinsForStageClear,
   computeDailyBonus,
-  canAffordGacha,
-  drawGacha,
   todayLocal,
   type DailyBonusResult,
-  type GachaResult,
 } from "../services/economyService";
 
 const QUIZ_TIME_LIMIT = 30; // 每題 30 秒
@@ -73,7 +70,6 @@ interface UseAdventureReturn {
   pendingReward: GameReward | null;
 
   // 經濟系統
-  coins: number;
   pendingDailyBonus: DailyBonusResult | null;
 
   // 動作
@@ -87,7 +83,6 @@ interface UseAdventureReturn {
   tickTimer: () => void;
   claimReward: () => Promise<void>;
   claimDailyBonus: () => Promise<void>;
-  drawGacha: () => Promise<GachaResult | null>;
   goHome: () => void;
 }
 
@@ -115,8 +110,6 @@ export function useAdventure(): UseAdventureReturn {
   const correctCountRef = useRef<number>(0);
   // 結算冪等旗標：避免 StrictMode 重複呼叫 / 競態造成雙重寫入與金幣灌水
   const quizEndedRef = useRef<boolean>(false);
-  // 扭蛋進行中旗標：避免連點造成一次扣款卻抽兩隻
-  const gachaInFlightRef = useRef<boolean>(false);
 
   // 每日獎勵（登入時計算，可領時由 UI 顯示）
   const [pendingDailyBonus, setPendingDailyBonus] =
@@ -628,44 +621,6 @@ export function useAdventure(): UseAdventureReturn {
     setPendingDailyBonus(null);
   }, [user, pendingDailyBonus]);
 
-  // 抽扭蛋：扣幣、解鎖新精靈（重複則退幣），回傳結果供 UI 演出
-  const drawGachaAction = useCallback(async (): Promise<GachaResult | null> => {
-    const cur = progressRef.current;
-    if (!user || !cur || !canAffordGacha(cur.coins)) return null;
-    // 連點保護：一次只跑一抽（避免扣一次款卻抽兩隻）
-    if (gachaInFlightRef.current) return null;
-    gachaInFlightRef.current = true;
-
-    try {
-      const result = drawGacha(cur.unlockedSpiritIds);
-      const willUnlock = !result.isDuplicate;
-      const newCoins = cur.coins - result.coinsSpent + result.refundCoins;
-
-      try {
-        await saveProgress(user.uid, { coins: newCoins });
-        if (willUnlock) await unlockSpirit(user.uid, result.spiritId);
-      } catch (e) {
-        console.error("扭蛋寫入失敗:", e);
-      }
-
-      setProgress((prev) =>
-        prev
-          ? {
-              ...prev,
-              coins: newCoins,
-              unlockedSpiritIds:
-                willUnlock && !prev.unlockedSpiritIds.includes(result.spiritId)
-                  ? [...prev.unlockedSpiritIds, result.spiritId]
-                  : prev.unlockedSpiritIds,
-            }
-          : prev,
-      );
-      return result;
-    } finally {
-      gachaInFlightRef.current = false;
-    }
-  }, [user]);
-
   // 檢查關卡是否完成
   const checkStageCompleted = useCallback(
     (stageIndex: number): boolean => {
@@ -701,7 +656,6 @@ export function useAdventure(): UseAdventureReturn {
     quizState,
     bossState,
     pendingReward,
-    coins: progress?.coins ?? 0,
     pendingDailyBonus,
     initializeGame,
     startQuiz,
@@ -709,7 +663,6 @@ export function useAdventure(): UseAdventureReturn {
     tickTimer,
     claimReward,
     claimDailyBonus,
-    drawGacha: drawGachaAction,
     goHome,
   };
 }

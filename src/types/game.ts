@@ -17,7 +17,6 @@ export interface Spirit {
   evolvesToId?: string; // 進化後的精靈 id
   evolvesFromId?: string; // 進化前的精靈 id
   evolveCondition?: EvolveCondition; // 進化條件（無 = 不可進化）
-  source?: "stage" | "gacha"; // 取得來源（undefined 視為 stage，不會被扭蛋抽到）
 }
 
 export interface PlayerProgress {
@@ -62,7 +61,6 @@ export type GameView =
   | "map"
   | "quiz"
   | "boss"
-  | "shop"
   | "collection"
   | "reward";
 

@@ -1,8 +1,3 @@
-import type { SpiritRarity } from "../types/game";
-import { pickWeighted } from "../components/LittleGames/wonder-academy/logic/weighted";
-import type { Rng } from "../components/LittleGames/wonder-academy/logic/rng";
-import { GACHA_POOL } from "../constants/gachaPool";
-
 // ============ 金幣規則 ============
 
 export const COIN_REWARDS = {
@@ -14,10 +9,7 @@ export const COIN_REWARDS = {
   dailyBase: 20, // 每日獎勵基本金幣
   dailyStreakStep: 5, // 每連續一天額外金幣
   dailyCap: 60, // 每日獎勵上限
-  dupeRefund: 15, // 扭蛋抽到重複退還金幣
 } as const;
-
-export const GACHA_COST = 50;
 
 /** 單題答對可得金幣（連擊越高越多，設上限） */
 export function coinsForAnswer(combo: number): number {
@@ -81,37 +73,4 @@ export function computeDailyBonus(
     COIN_REWARDS.dailyCap,
   );
   return { eligible: true, coins, streakDays };
-}
-
-// ============ 扭蛋 ============
-
-export interface GachaResult {
-  spiritId: string;
-  rarity: SpiritRarity;
-  isDuplicate: boolean;
-  refundCoins: number; // 重複時退還的金幣
-  coinsSpent: number;
-}
-
-export function canAffordGacha(coins: number): boolean {
-  return coins >= GACHA_COST;
-}
-
-/**
- * 抽一次扭蛋（純函式，rng 可注入以利測試）。
- * 抽到已擁有的精靈 → 退還 dupeRefund 金幣（非掠奪式設計）。
- */
-export function drawGacha(
-  ownedIds: string[],
-  rng: Rng = Math.random,
-): GachaResult {
-  const entry = pickWeighted(GACHA_POOL, rng);
-  const isDuplicate = ownedIds.includes(entry.id);
-  return {
-    spiritId: entry.id,
-    rarity: entry.rarity,
-    isDuplicate,
-    refundCoins: isDuplicate ? COIN_REWARDS.dupeRefund : 0,
-    coinsSpent: GACHA_COST,
-  };
 }

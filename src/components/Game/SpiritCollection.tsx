@@ -14,7 +14,10 @@ interface SpiritCollectionProps {
 }
 
 export function SpiritCollection({ progress, onBack }: SpiritCollectionProps) {
-  const unlockedCount = progress.unlockedSpiritIds.length;
+  // 只計入目前圖鑑仍存在的精靈（容忍舊存檔裡已下架的扭蛋限定精靈 id）
+  const unlockedCount = SPIRITS.filter((s) =>
+    progress.unlockedSpiritIds.includes(s.id),
+  ).length;
   const totalCount = SPIRITS.length;
 
   return (

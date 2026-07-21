@@ -1,16 +1,11 @@
 import { describe, it, expect } from "vitest";
 import {
   COIN_REWARDS,
-  GACHA_COST,
   coinsForAnswer,
   coinsForStageClear,
   computeDailyBonus,
-  canAffordGacha,
-  drawGacha,
   todayLocal,
 } from "./economyService";
-import { GACHA_POOL } from "../constants/gachaPool";
-import { createRng } from "../components/LittleGames/wonder-academy/logic/rng";
 
 describe("coinsForAnswer", () => {
   it("gives base coins at zero combo", () => {
@@ -76,34 +71,6 @@ describe("computeDailyBonus", () => {
   it("handles month rollover for the consecutive-day check", () => {
     const r = computeDailyBonus("2026-06-30", "2026-07-01", 2);
     expect(r.streakDays).toBe(3);
-  });
-});
-
-describe("gacha", () => {
-  it("knows when the player can afford a draw", () => {
-    expect(canAffordGacha(GACHA_COST)).toBe(true);
-    expect(canAffordGacha(GACHA_COST - 1)).toBe(false);
-  });
-
-  it("draws a spirit from the pool and charges the cost", () => {
-    const result = drawGacha([], createRng(123));
-    expect(GACHA_POOL.map((e) => e.id)).toContain(result.spiritId);
-    expect(result.coinsSpent).toBe(GACHA_COST);
-    expect(result.isDuplicate).toBe(false);
-    expect(result.refundCoins).toBe(0);
-  });
-
-  it("refunds coins when the drawn spirit is already owned", () => {
-    const allIds = GACHA_POOL.map((e) => e.id);
-    const result = drawGacha(allIds, createRng(7));
-    expect(result.isDuplicate).toBe(true);
-    expect(result.refundCoins).toBe(COIN_REWARDS.dupeRefund);
-  });
-
-  it("is deterministic for a fixed seed", () => {
-    expect(drawGacha([], createRng(42)).spiritId).toBe(
-      drawGacha([], createRng(42)).spiritId,
-    );
   });
 });
 

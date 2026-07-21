@@ -43,7 +43,8 @@ export const ACHIEVEMENTS: Achievement[] = [
     name: "傳說收藏家",
     description: "收集所有精靈",
     icon: "🏆",
-    requirement: (p) => p.unlockedSpiritIds.length >= SPIRITS.length,
+    // 逐一比對而非比數量：舊存檔可能含已下架的扭蛋限定精靈 id
+    requirement: (p) => SPIRITS.every((s) => p.unlockedSpiritIds.includes(s.id)),
     rarity: "rainbow",
   },
 
