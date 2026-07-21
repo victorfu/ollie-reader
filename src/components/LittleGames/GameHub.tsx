@@ -1,9 +1,10 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { getBestScore } from "./lib/game-utils";
 import { GACHA_CHARACTER_IDS } from "./gacha-machine/gachaTypes";
 
 const METEOR_BEST_KEY = "meteor-glider-best";
 const MUSHROOM_BEST_KEY = "mushroom-adventure-best";
+const gameTabs = new Map<string, Window>();
 
 type GameCard = {
   id:
@@ -107,10 +108,26 @@ export default function GameHub() {
     [bunnyBest, meteorBest, mushroomBest],
   );
 
-  // 所有遊戲一律新分頁開啟，遊戲頁面不受主視窗切換/返回影響
-  const openGame = (to: string) => {
-    window.open(to, "_blank", "noopener,noreferrer");
-  };
+  // 每個完整遊戲 URL 對應一個分頁；重複進入時保留遊戲狀態並聚焦既有分頁。
+  const openGame = useCallback((to: string) => {
+    const url = new URL(to, window.location.href);
+    if (url.origin !== window.location.origin) return;
+
+    const gameUrlKey = `${url.pathname}${url.search}${url.hash}`;
+    const existingTab = gameTabs.get(gameUrlKey);
+
+    if (existingTab && !existingTab.closed) {
+      existingTab.focus();
+      return;
+    }
+
+    const targetName = `ollie-game-${encodeURIComponent(gameUrlKey)}`;
+    const openedTab = window.open(url.href, targetName);
+    if (!openedTab) return;
+
+    gameTabs.set(gameUrlKey, openedTab);
+    openedTab.focus();
+  }, []);
 
   return (
     <div className="mx-auto max-w-5xl">

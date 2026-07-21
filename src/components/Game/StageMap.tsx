@@ -283,7 +283,7 @@ export function StageMap({
                             {stage.name}
                           </h3>
                           {isCurrent && (
-                            <span className="badge badge-primary badge-xs">
+                            <span className="badge badge-primary badge-xs shrink-0 whitespace-nowrap">
                               當前
                             </span>
                           )}
