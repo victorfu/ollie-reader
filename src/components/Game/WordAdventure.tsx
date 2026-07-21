@@ -1,19 +1,15 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useAdventure } from "../../hooks/useAdventure";
 import { useVocabulary } from "../../hooks/useVocabulary";
 import { useSpeechState } from "../../hooks/useSpeechState";
 import { AdventureHome } from "./AdventureHome";
 import { StageMap } from "./StageMap";
 import { QuizGame } from "./QuizGame";
-import { SpiritCollection } from "./SpiritCollection";
 import { RewardModal } from "./RewardModal";
-import { CompanionGuide } from "./CompanionGuide";
 import { DailyBonusModal } from "./DailyBonusModal";
 import { BossBattle } from "./BossBattle";
 
-export function SpiritAdventure() {
-  const [showCompanion, setShowCompanion] = useState(true);
-
+export function WordAdventure() {
   const {
     progress,
     isLoading,
@@ -28,11 +24,15 @@ export function SpiritAdventure() {
     bossState,
     pendingReward,
     pendingDailyBonus,
+    isClaimingDailyBonus,
+    dailyBonusError,
+    tokenSyncError,
     startQuiz,
     submitAnswer,
     tickTimer,
     claimReward,
     claimDailyBonus,
+    clearTokenSyncError,
     goHome,
   } = useAdventure();
 
@@ -94,13 +94,21 @@ export function SpiritAdventure() {
 
   return (
     <div className="relative">
-      {/* 可愛小幫手 - 只在首頁和地圖顯示 */}
-      {showCompanion && (gameView === "home" || gameView === "map") && (
-        <CompanionGuide
-          name="小星星"
-          onDismiss={() => setShowCompanion(false)}
-        />
-      )}
+      {tokenSyncError ? (
+        <div
+          className="mx-auto mb-4 flex max-w-3xl items-center justify-between gap-3 rounded-[10px] border border-error/25 bg-error/10 px-4 py-3 text-sm text-error"
+          role="alert"
+        >
+          <span>{tokenSyncError}</span>
+          <button
+            type="button"
+            onClick={clearTokenSyncError}
+            className="btn btn-ghost btn-sm min-h-11 shrink-0"
+          >
+            知道了
+          </button>
+        </div>
+      ) : null}
 
       {/* 獎勵彈窗 */}
       {pendingReward && (
@@ -109,7 +117,12 @@ export function SpiritAdventure() {
 
       {/* 每日獎勵彈窗 */}
       {pendingDailyBonus && (
-        <DailyBonusModal bonus={pendingDailyBonus} onClaim={claimDailyBonus} />
+        <DailyBonusModal
+          bonus={pendingDailyBonus}
+          onClaim={claimDailyBonus}
+          isClaiming={isClaimingDailyBonus}
+          error={dailyBonusError}
+        />
       )}
 
       {/* 主要內容根據 gameView 切換 */}
@@ -117,7 +130,6 @@ export function SpiritAdventure() {
         <AdventureHome
           progress={progress}
           onStartAdventure={() => setGameView("map")}
-          onOpenCollection={() => setGameView("collection")}
         />
       )}
 
@@ -153,10 +165,6 @@ export function SpiritAdventure() {
         />
       )}
 
-      {gameView === "collection" && (
-        <SpiritCollection progress={progress} onBack={goHome} />
-      )}
-
       {gameView === "reward" && (
         <div className="min-h-[calc(100vh-8rem)] flex items-center justify-center">
           <span className="loading loading-spinner loading-lg text-primary" />
@@ -166,4 +174,4 @@ export function SpiritAdventure() {
   );
 }
 
-export default SpiritAdventure;
+export default WordAdventure;

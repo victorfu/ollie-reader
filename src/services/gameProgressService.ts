@@ -3,7 +3,8 @@ import {
   getDoc,
   setDoc,
   updateDoc,
-  arrayUnion,
+  runTransaction,
+  deleteField,
   serverTimestamp,
   Timestamp,
 } from "firebase/firestore";
@@ -12,6 +13,35 @@ import type { PlayerProgress, Stage } from "../types/game";
 
 // Firestore 文件路徑
 const GAME_PROGRESS_PATH = "gameProgress";
+export const GAME_PROGRESS_RESET_CONFLICT = "GAME_PROGRESS_RESET_CONFLICT";
+
+export class GameProgressResetConflictError extends Error {
+  readonly code = GAME_PROGRESS_RESET_CONFLICT;
+
+  constructor() {
+    super("Game progress was reset in another tab.");
+    this.name = "GameProgressResetConflictError";
+  }
+}
+
+export function isGameProgressResetConflictError(
+  error: unknown,
+): error is GameProgressResetConflictError {
+  return error instanceof GameProgressResetConflictError || (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    error.code === GAME_PROGRESS_RESET_CONFLICT
+  );
+}
+
+function legacySpiritFieldDeletes() {
+  return {
+    unlockedSpiritIds: deleteField(),
+    evolvedSpiritIds: deleteField(),
+    elementProgress: deleteField(),
+  };
+}
 
 // 預設玩家進度
 export const DEFAULT_PLAYER_PROGRESS: Omit<
@@ -21,16 +51,14 @@ export const DEFAULT_PLAYER_PROGRESS: Omit<
   level: 1,
   exp: 0,
   expToNextLevel: 100,
-  unlockedSpiritIds: ["cloud-puff"], // 初始贈送一隻普通精靈
   currentStageIndex: 0,
   totalQuizCompleted: 0,
   totalBossDefeated: 0,
   highestCombo: 0,
-  // 進化系統
-  evolvedSpiritIds: [],
-  elementProgress: {},
+  resetVersion: 0,
   // 經濟系統
-  coins: 100, // 新手金幣
+  // 保留既有欄位名稱以相容舊存檔；UI 中統一稱為「扭蛋代幣」
+  coins: 0,
   streakDays: 0,
   lastLoginDate: "",
   lastDailyClaimDate: "",
@@ -45,7 +73,6 @@ export const STAGES: Stage[] = [
     isBoss: false,
     requiredLevel: 1,
     rewardExp: 50,
-    rewardSpiritId: "leaf-bunny",
     questionCount: 5,
   },
   {
@@ -55,7 +82,6 @@ export const STAGES: Stage[] = [
     isBoss: false,
     requiredLevel: 1,
     rewardExp: 60,
-    rewardSpiritId: "fire-slime",
     questionCount: 5,
   },
   {
@@ -65,7 +91,6 @@ export const STAGES: Stage[] = [
     isBoss: false,
     requiredLevel: 2,
     rewardExp: 70,
-    rewardSpiritId: "water-fox",
     questionCount: 5,
   },
   {
@@ -75,7 +100,6 @@ export const STAGES: Stage[] = [
     isBoss: true,
     requiredLevel: 2,
     rewardExp: 150,
-    rewardSpiritId: "thunder-mouse",
     bossHp: 5,
     questionCount: 5,
   },
@@ -86,7 +110,6 @@ export const STAGES: Stage[] = [
     isBoss: false,
     requiredLevel: 3,
     rewardExp: 80,
-    rewardSpiritId: "rock-turtle",
     questionCount: 5,
   },
   {
@@ -96,7 +119,6 @@ export const STAGES: Stage[] = [
     isBoss: false,
     requiredLevel: 3,
     rewardExp: 90,
-    rewardSpiritId: "flower-sprite",
     questionCount: 5,
   },
   {
@@ -106,7 +128,6 @@ export const STAGES: Stage[] = [
     isBoss: true,
     requiredLevel: 4,
     rewardExp: 200,
-    rewardSpiritId: "ice-wolf",
     bossHp: 8,
     questionCount: 8,
   },
@@ -117,7 +138,6 @@ export const STAGES: Stage[] = [
     isBoss: false,
     requiredLevel: 5,
     rewardExp: 100,
-    rewardSpiritId: "star-owl",
     questionCount: 5,
   },
   {
@@ -127,7 +147,6 @@ export const STAGES: Stage[] = [
     isBoss: true,
     requiredLevel: 6,
     rewardExp: 300,
-    rewardSpiritId: "fire-phoenix",
     bossHp: 10,
     questionCount: 10,
   },
@@ -138,7 +157,6 @@ export const STAGES: Stage[] = [
     isBoss: true,
     requiredLevel: 8,
     rewardExp: 500,
-    rewardSpiritId: "thunder-dragon",
     bossHp: 12,
     questionCount: 12,
   },
@@ -149,7 +167,6 @@ export const STAGES: Stage[] = [
     isBoss: false,
     requiredLevel: 9,
     rewardExp: 110,
-    rewardSpiritId: "shadow-cat",
     questionCount: 5,
   },
   {
@@ -159,7 +176,6 @@ export const STAGES: Stage[] = [
     isBoss: false,
     requiredLevel: 9,
     rewardExp: 120,
-    rewardSpiritId: "earth-golem",
     questionCount: 5,
   },
   {
@@ -169,7 +185,6 @@ export const STAGES: Stage[] = [
     isBoss: true,
     requiredLevel: 10,
     rewardExp: 600,
-    rewardSpiritId: "wind-eagle",
     bossHp: 15,
     questionCount: 15,
   },
@@ -183,7 +198,6 @@ export const STAGES: Stage[] = [
     requiredLevel: 10,
     rewardExp: 300,
     rewardCoins: 30,
-    rewardSpiritId: "candy-lamb",
     questionCount: 5,
     chapterId: "ch2",
     questionKinds: ["meaning", "listen"],
@@ -196,7 +210,6 @@ export const STAGES: Stage[] = [
     requiredLevel: 10,
     rewardExp: 340,
     rewardCoins: 30,
-    rewardSpiritId: "star-kitten",
     questionCount: 5,
     chapterId: "ch2",
     questionKinds: ["meaning", "emoji"],
@@ -209,7 +222,6 @@ export const STAGES: Stage[] = [
     requiredLevel: 10,
     rewardExp: 380,
     rewardCoins: 35,
-    rewardSpiritId: "pudding-pup",
     questionCount: 5,
     chapterId: "ch2",
     questionKinds: ["listen", "emoji"],
@@ -222,7 +234,6 @@ export const STAGES: Stage[] = [
     requiredLevel: 11,
     rewardExp: 800,
     rewardCoins: 60,
-    rewardSpiritId: "marsh-guardian",
     bossHp: 5,
     questionCount: 8,
     chapterId: "ch2",
@@ -236,7 +247,6 @@ export const STAGES: Stage[] = [
     requiredLevel: 11,
     rewardExp: 420,
     rewardCoins: 35,
-    rewardSpiritId: "cocoa-bear",
     questionCount: 5,
     chapterId: "ch2",
     questionKinds: ["reverse"],
@@ -249,7 +259,6 @@ export const STAGES: Stage[] = [
     requiredLevel: 12,
     rewardExp: 460,
     rewardCoins: 40,
-    rewardSpiritId: "dream-pony",
     questionCount: 5,
     chapterId: "ch2",
     questionKinds: ["spell"],
@@ -262,7 +271,6 @@ export const STAGES: Stage[] = [
     requiredLevel: 12,
     rewardExp: 900,
     rewardCoins: 70,
-    rewardSpiritId: "caramel-owl",
     bossHp: 7,
     questionCount: 10,
     chapterId: "ch2",
@@ -276,7 +284,6 @@ export const STAGES: Stage[] = [
     requiredLevel: 13,
     rewardExp: 500,
     rewardCoins: 40,
-    rewardSpiritId: "moon-bun",
     questionCount: 6,
     chapterId: "ch2",
     questionKinds: ["meaning", "listen", "reverse", "emoji", "spell"],
@@ -289,7 +296,6 @@ export const STAGES: Stage[] = [
     requiredLevel: 13,
     rewardExp: 540,
     rewardCoins: 45,
-    rewardSpiritId: "comet-fawn",
     questionCount: 6,
     chapterId: "ch2",
     questionKinds: ["meaning", "listen", "reverse", "emoji", "spell"],
@@ -302,7 +308,6 @@ export const STAGES: Stage[] = [
     requiredLevel: 14,
     rewardExp: 1400,
     rewardCoins: 120,
-    rewardSpiritId: "dream-queen",
     bossHp: 9,
     questionCount: 12,
     chapterId: "ch2",
@@ -341,6 +346,10 @@ export async function fetchProgress(
 
     if (docSnap.exists()) {
       const data = docSnap.data();
+      // 精靈系統已移除：略過舊存檔殘留的精靈欄位，避免它們混進型別
+      delete data.unlockedSpiritIds;
+      delete data.evolvedSpiritIds;
+      delete data.elementProgress;
       // 讀取時 backfill：舊存檔缺新欄位 → 先鋪預設值再蓋上存檔值（存檔值優先）
       const merged = {
         ...DEFAULT_PLAYER_PROGRESS,
@@ -354,6 +363,8 @@ export async function fetchProgress(
             ? data.updatedAt.toMillis()
             : data.updatedAt,
       } as PlayerProgress;
+      // 舊版欄位若缺失或遭破壞，與扭蛋端一致地視為 0 代幣
+      merged.coins = parseStoredTokenBalance(merged.coins);
       // 重算等級：被舊 L10 上限卡住的玩家，把累積的 exp 對到新的 15 級表
       // （只更新 expToNextLevel 會讓 level 停在 10、與 exp 不一致並卡住新章節）
       const recomputed = calculateLevelUp(merged.level, merged.exp, 0);
@@ -417,6 +428,7 @@ export async function saveProgress(
     const docRef = doc(db, GAME_PROGRESS_PATH, uid);
     await updateDoc(docRef, {
       ...data,
+      ...legacySpiritFieldDeletes(),
       updatedAt: serverTimestamp(),
     });
   } catch (error) {
@@ -426,43 +438,122 @@ export async function saveProgress(
 }
 
 /**
- * 解鎖新精靈
+ * 儲存冒險進度並原子增加扭蛋代幣。
+ *
+ * `coins` 是舊存檔沿用的欄位名稱。同一筆 Firestore transaction 會驗證
+ * 重設版本並從最新餘額加值，避免覆蓋另一分頁的抽卡扣款或復活舊進度。
  */
-export async function unlockSpirit(
+export async function saveProgressWithTokenReward(
   uid: string,
-  spiritId: string,
-): Promise<void> {
+  data: Partial<
+    Omit<
+      PlayerProgress,
+      "odl" | "createdAt" | "updatedAt" | "coins" | "resetVersion"
+    >
+  >,
+  tokensGained: number,
+  expectedResetVersion: number,
+): Promise<number> {
+  if (!Number.isSafeInteger(tokensGained) || tokensGained < 0) {
+    throw new RangeError("Token reward must be a non-negative safe integer.");
+  }
+  if (!Number.isSafeInteger(expectedResetVersion) || expectedResetVersion < 0) {
+    throw new RangeError("Reset version must be a non-negative safe integer.");
+  }
+
   try {
     const docRef = doc(db, GAME_PROGRESS_PATH, uid);
-    await updateDoc(docRef, {
-      unlockedSpiritIds: arrayUnion(spiritId),
-      updatedAt: serverTimestamp(),
+    return await runTransaction(db, async (transaction) => {
+      const snapshot = await transaction.get(docRef);
+      if (!snapshot.exists()) {
+        throw new GameProgressResetConflictError();
+      }
+
+      const stored = snapshot.data();
+      const resetVersion = parseStoredTokenBalance(stored.resetVersion);
+      if (resetVersion !== expectedResetVersion) {
+        throw new GameProgressResetConflictError();
+      }
+
+      const currentBalance = parseStoredTokenBalance(stored.coins);
+      if (currentBalance > Number.MAX_SAFE_INTEGER - tokensGained) {
+        throw new RangeError("Token balance exceeds the safe integer limit.");
+      }
+      const tokenBalance = currentBalance + tokensGained;
+      transaction.update(docRef, {
+        ...data,
+        ...legacySpiritFieldDeletes(),
+        coins: tokenBalance,
+        updatedAt: serverTimestamp(),
+      });
+      return tokenBalance;
     });
   } catch (error) {
-    console.error("Error unlocking spirit:", error);
+    console.error("Error saving game progress with token reward:", error);
     throw error;
   }
 }
 
+export interface DailyTokenClaimResult {
+  claimed: boolean;
+  tokenBalance: number;
+  streakDays: number;
+}
+
+function parseStoredTokenBalance(value: unknown): number {
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0
+    ? value
+    : 0;
+}
+
 /**
- * 精靈進化：把原始精靈記入 evolvedSpiritIds、進化後精靈加入 unlockedSpiritIds
+ * 每日獎勵以伺服器文件中的領取日期做冪等檢查，避免多分頁重複領取。
  */
-export async function evolveSpirit(
+export async function claimDailyTokenBonus(
   uid: string,
-  baseId: string,
-  evolvedId: string,
-): Promise<void> {
-  try {
-    const docRef = doc(db, GAME_PROGRESS_PATH, uid);
-    await updateDoc(docRef, {
-      evolvedSpiritIds: arrayUnion(baseId),
-      unlockedSpiritIds: arrayUnion(evolvedId),
+  claimDate: string,
+  tokens: number,
+  streakDays: number,
+): Promise<DailyTokenClaimResult> {
+  if (!claimDate) throw new RangeError("Claim date is required.");
+  if (!Number.isSafeInteger(tokens) || tokens < 0) {
+    throw new RangeError("Daily token reward must be a non-negative safe integer.");
+  }
+  if (!Number.isSafeInteger(streakDays) || streakDays < 0) {
+    throw new RangeError("Streak days must be a non-negative safe integer.");
+  }
+
+  const docRef = doc(db, GAME_PROGRESS_PATH, uid);
+  return runTransaction(db, async (transaction) => {
+    const snapshot = await transaction.get(docRef);
+    if (!snapshot.exists()) {
+      throw new Error("Player progress does not exist.");
+    }
+
+    const data = snapshot.data();
+    const currentBalance = parseStoredTokenBalance(data.coins);
+    if (data.lastDailyClaimDate === claimDate) {
+      return {
+        claimed: false,
+        tokenBalance: currentBalance,
+        streakDays: parseStoredTokenBalance(data.streakDays),
+      };
+    }
+    if (currentBalance > Number.MAX_SAFE_INTEGER - tokens) {
+      throw new RangeError("Token balance exceeds the safe integer limit.");
+    }
+
+    const tokenBalance = currentBalance + tokens;
+    transaction.update(docRef, {
+      coins: tokenBalance,
+      ...legacySpiritFieldDeletes(),
+      streakDays,
+      lastDailyClaimDate: claimDate,
+      lastLoginDate: claimDate,
       updatedAt: serverTimestamp(),
     });
-  } catch (error) {
-    console.error("Error evolving spirit:", error);
-    throw error;
-  }
+    return { claimed: true, tokenBalance, streakDays };
+  });
 }
 
 /**
@@ -471,11 +562,22 @@ export async function evolveSpirit(
 export async function resetGameProgress(uid: string): Promise<void> {
   try {
     const docRef = doc(db, GAME_PROGRESS_PATH, uid);
-    await setDoc(docRef, {
-      ...DEFAULT_PLAYER_PROGRESS,
-      odl: uid,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
+    await runTransaction(db, async (transaction) => {
+      const snapshot = await transaction.get(docRef);
+      const previousResetVersion = snapshot.exists()
+        ? parseStoredTokenBalance(snapshot.data().resetVersion)
+        : -1;
+      if (previousResetVersion >= Number.MAX_SAFE_INTEGER) {
+        throw new RangeError("Reset version exceeds the safe integer limit.");
+      }
+
+      transaction.set(docRef, {
+        ...DEFAULT_PLAYER_PROGRESS,
+        resetVersion: previousResetVersion + 1,
+        odl: uid,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
     });
   } catch (error) {
     console.error("Error resetting game progress:", error);

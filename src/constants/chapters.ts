@@ -9,7 +9,7 @@ export interface Chapter {
 export const CHAPTERS: Chapter[] = [
   {
     id: "ch1",
-    name: "第一章 · 精靈草原",
+    name: "第一章 · 陽光草原",
     subtitle: "從草原一路挑戰到風暴之巔",
     firstStageIndex: 0,
   },

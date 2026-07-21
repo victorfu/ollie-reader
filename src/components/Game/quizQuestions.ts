@@ -71,9 +71,8 @@ function buildOne(
   kind: QuizKind,
   word: GameWord,
   pool: GameWord[],
-  spiritId?: string,
 ): QuizQuestion {
-  const base = { word: word.word, spiritId } as const;
+  const base = { word: word.word } as const;
 
   if (kind === "spell") {
     const q: SpellQuestion = {
@@ -166,7 +165,7 @@ export function buildQuizQuestions(
     if (kind === "emoji" && (!word.emoji || word.emoji === DEFAULT_EMOJI)) {
       kind = "meaning";
     }
-    return buildOne(kind, word, pool, stage.rewardSpiritId);
+    return buildOne(kind, word, pool);
   });
 }
 

@@ -2,8 +2,11 @@ import { act, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { SHOW_ALL_GACHA_ENTRIES_STORAGE_KEY } from "../../../services/gachaPreferences";
-import type { AppliedGachaAttempt, GachaSaveV1 } from "./gachaTypes";
+import {
+  GACHA_MISS_RATE_STORAGE_KEY,
+  SHOW_ALL_GACHA_ENTRIES_STORAGE_KEY,
+} from "../../../services/gachaPreferences";
+import type { CommittedGachaAttempt, GachaSaveV1 } from "./gachaTypes";
 
 const authState = vi.hoisted(() => ({
   user: { uid: "player-1" } as { uid: string } | null,
@@ -25,8 +28,10 @@ const storageMocks = vi.hoisted(() => ({
   parseGachaCacheValue: vi.fn((raw: string | null) =>
     raw ? (JSON.parse(raw) as GachaSaveV1) : null,
   ),
+  isGachaInsufficientCoinsError: vi.fn(() => false),
   readGachaCache: vi.fn(),
   loadGachaCloud: vi.fn(),
+  loadPlayerCoins: vi.fn(),
   recordGachaAttempt: vi.fn(),
   resetGachaCollection: vi.fn(),
 }));
@@ -75,7 +80,7 @@ vi.mock("./GachaRevealDialog", () => ({
     onClose,
   }: {
     isOpen: boolean;
-    result: AppliedGachaAttempt["result"] | null;
+    result: CommittedGachaAttempt["result"] | null;
     onClose: () => void;
   }) =>
     isOpen ? (
@@ -169,9 +174,11 @@ beforeEach(() => {
   });
   storageMocks.readGachaCache.mockReset().mockReturnValue(null);
   storageMocks.loadGachaCloud.mockReset().mockResolvedValue(EMPTY_SAVE);
+  storageMocks.loadPlayerCoins.mockReset().mockResolvedValue(500);
   storageMocks.recordGachaAttempt.mockReset();
   storageMocks.resetGachaCollection.mockReset();
   storageMocks.isGachaResetConflictError.mockReset().mockReturnValue(false);
+  storageMocks.isGachaInsufficientCoinsError.mockReset().mockReturnValue(false);
   container = document.createElement("div");
   document.body.appendChild(container);
   root = createRoot(container);
@@ -183,9 +190,10 @@ afterEach(() => {
 });
 
 describe("GachaMachine page states", () => {
-  it("adjusts and persists the empty-capsule rate used by the next draw", async () => {
+  it("uses the configured empty-capsule rate without showing the control in the game", async () => {
     const randomSpy = vi.spyOn(Math, "random").mockReturnValue(0.5);
     storageMocks.recordGachaAttempt.mockResolvedValue({
+      coinsAfter: 450,
       save: {
         schemaVersion: 1,
         resetVersion: 0,
@@ -196,25 +204,24 @@ describe("GachaMachine page states", () => {
     });
     await renderAt("/games/gacha");
 
-    const slider = container.querySelector<HTMLInputElement>(
-      'input[aria-label="空膠囊機率"]',
-    );
-    expect(slider?.value).toBe("50");
+    expect(
+      container.querySelector('input[aria-label="空膠囊機率"]'),
+    ).toBeNull();
+    expect(container.textContent).toContain("50% 命中角色、50% 空膠囊");
 
     act(() => {
-      if (!slider) throw new Error("miss-rate slider not found");
-      const setter = Object.getOwnPropertyDescriptor(
-        window.HTMLInputElement.prototype,
-        "value",
-      )?.set;
-      setter?.call(slider, "75");
-      slider.dispatchEvent(new Event("input", { bubbles: true }));
+      localStorage.setItem(GACHA_MISS_RATE_STORAGE_KEY, "75");
+      window.dispatchEvent(
+        new StorageEvent("storage", {
+          key: GACHA_MISS_RATE_STORAGE_KEY,
+          newValue: "75",
+        }),
+      );
     });
 
     expect(container.textContent).toContain("25% 命中角色、75% 空膠囊");
-    expect(localStorage.getItem("ollie-gacha-machine-miss-rate-v1")).toBe("75");
 
-    act(() => buttonWithText("投入免費代幣").click());
+    act(() => buttonWithText("投入 50 代幣").click());
     await act(async () => {
       container
         .querySelector<HTMLButtonElement>('button[aria-label="轉動扭蛋機把手"]')
@@ -404,15 +411,15 @@ describe("GachaMachine draw guard", () => {
   });
 
   it("records only one draw when the handle is clicked repeatedly", async () => {
-    let finishDraw: ((result: AppliedGachaAttempt) => void) | undefined;
+    let finishDraw: ((result: CommittedGachaAttempt) => void) | undefined;
     storageMocks.recordGachaAttempt.mockReturnValue(
-      new Promise<AppliedGachaAttempt>((resolve) => {
+      new Promise<CommittedGachaAttempt>((resolve) => {
         finishDraw = resolve;
       }),
     );
     await renderAt("/games/gacha");
 
-    const coinButton = buttonWithText("投入免費代幣");
+    const coinButton = buttonWithText("投入 50 代幣");
     expect(coinButton.disabled).toBe(false);
     act(() => coinButton.click());
 
@@ -434,6 +441,7 @@ describe("GachaMachine draw guard", () => {
 
     await act(async () => {
       finishDraw?.({
+        coinsAfter: 450,
         save: {
           schemaVersion: 1,
           resetVersion: 0,
@@ -461,13 +469,13 @@ describe("GachaMachine draw guard", () => {
   it("buffers same-generation storage updates until a failed draw finishes", async () => {
     let failDraw: ((reason?: unknown) => void) | undefined;
     storageMocks.recordGachaAttempt.mockReturnValue(
-      new Promise<AppliedGachaAttempt>((_resolve, reject) => {
+      new Promise<CommittedGachaAttempt>((_resolve, reject) => {
         failDraw = reject;
       }),
     );
     await renderAt("/games/gacha");
 
-    act(() => buttonWithText("投入免費代幣").click());
+    act(() => buttonWithText("投入 50 代幣").click());
     act(() => {
       container
         .querySelector<HTMLButtonElement>('button[aria-label="轉動扭蛋機把手"]')
@@ -502,15 +510,15 @@ describe("GachaMachine draw guard", () => {
   });
 
   it("keeps a buffered successful draw hidden until its capsule is opened", async () => {
-    let finishDraw: ((result: AppliedGachaAttempt) => void) | undefined;
+    let finishDraw: ((result: CommittedGachaAttempt) => void) | undefined;
     storageMocks.recordGachaAttempt.mockReturnValue(
-      new Promise<AppliedGachaAttempt>((resolve) => {
+      new Promise<CommittedGachaAttempt>((resolve) => {
         finishDraw = resolve;
       }),
     );
     await renderAt("/games/gacha");
 
-    act(() => buttonWithText("投入免費代幣").click());
+    act(() => buttonWithText("投入 50 代幣").click());
     act(() => {
       container
         .querySelector<HTMLButtonElement>('button[aria-label="轉動扭蛋機把手"]')
@@ -534,6 +542,7 @@ describe("GachaMachine draw guard", () => {
 
     await act(async () => {
       finishDraw?.({
+        coinsAfter: 450,
         save: {
           schemaVersion: 1,
           resetVersion: 0,
@@ -566,6 +575,7 @@ describe("GachaMachine draw guard", () => {
 
   it("keeps a committed character hidden until the capsule is opened", async () => {
     storageMocks.recordGachaAttempt.mockResolvedValue({
+      coinsAfter: 450,
       save: {
         schemaVersion: 1,
         resetVersion: 0,
@@ -582,7 +592,7 @@ describe("GachaMachine draw guard", () => {
     });
     await renderAt("/games/gacha");
 
-    act(() => buttonWithText("投入免費代幣").click());
+    act(() => buttonWithText("投入 50 代幣").click());
     await act(async () => {
       container
         .querySelector<HTMLButtonElement>('button[aria-label="轉動扭蛋機把手"]')
@@ -614,6 +624,7 @@ describe("GachaMachine draw guard", () => {
 
   it("reveals an empty capsule only after it is opened", async () => {
     storageMocks.recordGachaAttempt.mockResolvedValue({
+      coinsAfter: 450,
       save: {
         schemaVersion: 1,
         resetVersion: 0,
@@ -624,7 +635,7 @@ describe("GachaMachine draw guard", () => {
     });
     await renderAt("/games/gacha");
 
-    act(() => buttonWithText("投入免費代幣").click());
+    act(() => buttonWithText("投入 50 代幣").click());
     await act(async () => {
       container
         .querySelector<HTMLButtonElement>('button[aria-label="轉動扭蛋機把手"]')
@@ -658,7 +669,7 @@ describe("GachaMachine draw guard", () => {
       });
     await renderAt("/games/gacha");
 
-    act(() => buttonWithText("投入免費代幣").click());
+    act(() => buttonWithText("投入 50 代幣").click());
     await act(async () => {
       container
         .querySelector<HTMLButtonElement>('button[aria-label="轉動扭蛋機把手"]')
@@ -671,25 +682,35 @@ describe("GachaMachine draw guard", () => {
     expect(
       container.querySelector('button[aria-label="膠囊已經出來，點擊開獎"]'),
     ).toBeNull();
+
+    storageMocks.loadPlayerCoins.mockResolvedValueOnce(80);
+    await act(async () => {
+      window.dispatchEvent(new Event("focus"));
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).toContain("代幣 80");
+    expect(container.textContent).not.toContain("沒有開獎也沒有扣款");
+    expect(buttonWithText("投入 50 代幣").disabled).toBe(false);
   });
 
   it("immediately cancels a turning draw after a newer reset event", async () => {
-    let finishFirstDraw: ((result: AppliedGachaAttempt) => void) | undefined;
-    let finishSecondDraw: ((result: AppliedGachaAttempt) => void) | undefined;
+    let finishFirstDraw: ((result: CommittedGachaAttempt) => void) | undefined;
+    let finishSecondDraw: ((result: CommittedGachaAttempt) => void) | undefined;
     storageMocks.recordGachaAttempt
       .mockReturnValueOnce(
-        new Promise<AppliedGachaAttempt>((resolve) => {
+        new Promise<CommittedGachaAttempt>((resolve) => {
           finishFirstDraw = resolve;
         }),
       )
       .mockReturnValueOnce(
-        new Promise<AppliedGachaAttempt>((resolve) => {
+        new Promise<CommittedGachaAttempt>((resolve) => {
           finishSecondDraw = resolve;
         }),
       );
     await renderAt("/games/gacha");
 
-    act(() => buttonWithText("投入免費代幣").click());
+    act(() => buttonWithText("投入 50 代幣").click());
     act(() => {
       container
         .querySelector<HTMLButtonElement>('button[aria-label="轉動扭蛋機把手"]')
@@ -711,10 +732,10 @@ describe("GachaMachine draw guard", () => {
       await Promise.resolve();
     });
 
-    expect(buttonWithText("投入免費代幣").disabled).toBe(false);
+    expect(buttonWithText("投入 50 代幣").disabled).toBe(false);
     expect(container.textContent).toContain("另一個分頁重設");
 
-    act(() => buttonWithText("投入免費代幣").click());
+    act(() => buttonWithText("投入 50 代幣").click());
     act(() => {
       container
         .querySelector<HTMLButtonElement>('button[aria-label="轉動扭蛋機把手"]')
@@ -730,6 +751,7 @@ describe("GachaMachine draw guard", () => {
 
     await act(async () => {
       finishFirstDraw?.({
+        coinsAfter: 450,
         save: {
           schemaVersion: 1,
           resetVersion: 0,
@@ -754,6 +776,7 @@ describe("GachaMachine draw guard", () => {
 
     await act(async () => {
       finishSecondDraw?.({
+        coinsAfter: 450,
         save: {
           schemaVersion: 1,
           resetVersion: 1,
@@ -780,12 +803,12 @@ describe("GachaMachine draw guard", () => {
   it("ignores a rejected draw after switching to another uid", async () => {
     let failDraw: ((reason?: unknown) => void) | undefined;
     storageMocks.recordGachaAttempt.mockReturnValue(
-      new Promise<AppliedGachaAttempt>((_resolve, reject) => {
+      new Promise<CommittedGachaAttempt>((_resolve, reject) => {
         failDraw = reject;
       }),
     );
     await renderAt("/games/gacha");
-    act(() => buttonWithText("投入免費代幣").click());
+    act(() => buttonWithText("投入 50 代幣").click());
     act(() => {
       container
         .querySelector<HTMLButtonElement>('button[aria-label="轉動扭蛋機把手"]')
@@ -814,6 +837,7 @@ describe("GachaMachine draw guard", () => {
   it("changes the generic capsule color for each completed draw", async () => {
     storageMocks.recordGachaAttempt
       .mockResolvedValueOnce({
+        coinsAfter: 450,
         save: {
           schemaVersion: 1,
           resetVersion: 0,
@@ -829,6 +853,7 @@ describe("GachaMachine draw guard", () => {
         },
       })
       .mockResolvedValueOnce({
+        coinsAfter: 450,
         save: {
           schemaVersion: 1,
           resetVersion: 0,
@@ -846,7 +871,7 @@ describe("GachaMachine draw guard", () => {
     await renderAt("/games/gacha");
 
     const completeDraw = async (): Promise<string | null> => {
-      act(() => buttonWithText("投入免費代幣").click());
+      act(() => buttonWithText("投入 50 代幣").click());
       await act(async () => {
         container
           .querySelector<HTMLButtonElement>('button[aria-label="轉動扭蛋機把手"]')
@@ -883,6 +908,7 @@ describe("GachaMachine keyboard controls", () => {
     ["Enter", "Enter" as const],
   ])("uses %s to complete the machine flow", async (_label, code) => {
     storageMocks.recordGachaAttempt.mockResolvedValue({
+      coinsAfter: 450,
       save: {
         schemaVersion: 1,
         resetVersion: 0,
@@ -934,6 +960,7 @@ describe("GachaMachine keyboard controls", () => {
       for (const callback of animationFrames.splice(0)) callback(0);
     };
     storageMocks.recordGachaAttempt.mockResolvedValue({
+      coinsAfter: 450,
       save: {
         schemaVersion: 1,
         resetVersion: 0,
@@ -984,7 +1011,7 @@ describe("GachaMachine keyboard controls", () => {
       expect(repeatEvent.defaultPrevented).toBe(false);
       expect(modifiedEvent.defaultPrevented).toBe(false);
       expect(dialogEvent.defaultPrevented).toBe(false);
-      expect(container.textContent).toContain("準備好了！先投入免費代幣");
+      expect(container.textContent).toContain("準備好了！投入 50 代幣");
       expect(storageMocks.recordGachaAttempt).not.toHaveBeenCalled();
     } finally {
       input.remove();
@@ -1001,6 +1028,81 @@ describe("GachaMachine keyboard controls", () => {
     expect(spaceEvent.defaultPrevented).toBe(false);
     expect(enterEvent.defaultPrevented).toBe(false);
     expect(storageMocks.recordGachaAttempt).not.toHaveBeenCalled();
+  });
+});
+
+describe("GachaMachine coin economy", () => {
+  it("shows the coin balance and updates it after a paid draw", async () => {
+    storageMocks.loadPlayerCoins.mockResolvedValue(120);
+    storageMocks.recordGachaAttempt.mockResolvedValue({
+      coinsAfter: 70,
+      save: {
+        schemaVersion: 1,
+        resetVersion: 0,
+        totalDraws: 1,
+        ownedCounts: {},
+      },
+      result: { kind: "miss", totalDraws: 1 },
+    });
+    await renderAt("/games/gacha");
+
+    expect(storageMocks.loadPlayerCoins).toHaveBeenCalledWith("player-1");
+    expect(container.textContent).toContain("代幣 120");
+    expect(container.textContent).toContain("投入 50 代幣");
+
+    act(() => buttonWithText("投入 50 代幣").click());
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>('button[aria-label="轉動扭蛋機把手"]')
+        ?.click();
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).toContain("代幣 70");
+  });
+
+  it("blocks inserting a coin when the balance is insufficient", async () => {
+    storageMocks.loadPlayerCoins.mockResolvedValue(20);
+    await renderAt("/games/gacha");
+
+    expect(container.textContent).toContain("代幣 20");
+    expect(buttonWithText("投入 50 代幣").disabled).toBe(true);
+    expect(container.textContent).toContain("代幣不足");
+    const earnTokensLink = container.querySelector<HTMLAnchorElement>(
+      'a[href="/games/spirit"]',
+    );
+    expect(earnTokensLink).toBeTruthy();
+    expect(earnTokensLink?.target).toBe(
+      `ollie-game-${encodeURIComponent("/games/spirit")}`,
+    );
+
+    const shortcut = dispatchShortcut("Space");
+    expect(shortcut.defaultPrevented).toBe(false);
+    expect(storageMocks.recordGachaAttempt).not.toHaveBeenCalled();
+  });
+
+  it("recovers when the transaction rejects for insufficient coins", async () => {
+    storageMocks.loadPlayerCoins.mockResolvedValue(60);
+    storageMocks.recordGachaAttempt.mockRejectedValue({
+      code: "GACHA_INSUFFICIENT_COINS",
+      availableCoins: 10,
+    });
+    storageMocks.isGachaInsufficientCoinsError.mockReturnValue(true);
+    await renderAt("/games/gacha");
+
+    act(() => buttonWithText("投入 50 代幣").click());
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>('button[aria-label="轉動扭蛋機把手"]')
+        ?.click();
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).toContain("沒有開獎也沒有扣款");
+    expect(container.textContent).toContain("代幣 10");
+    expect(
+      container.querySelector('button[aria-label="膠囊已經出來，點擊開獎"]'),
+    ).toBeNull();
   });
 });
 
@@ -1208,5 +1310,65 @@ describe("GachaMachine collection reset", () => {
 
     expect(container.textContent).not.toContain("酷洛米");
     expect(container.textContent).toContain("另一個分頁重設");
+  });
+
+  it("shows a retryable error when the token balance cannot be loaded", async () => {
+    storageMocks.loadPlayerCoins
+      .mockRejectedValueOnce(new Error("network unavailable"))
+      .mockResolvedValueOnce(75);
+
+    await renderAt("/games/gacha");
+
+    expect(container.textContent).toContain("無法載入代幣餘額");
+    expect(container.textContent).not.toContain("代幣不足");
+    expect(buttonWithText("投入 50 代幣").disabled).toBe(true);
+
+    await act(async () => {
+      buttonWithText("重試").click();
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).toContain("代幣 75");
+    expect(container.textContent).not.toContain("無法載入代幣餘額");
+    expect(buttonWithText("投入 50 代幣").disabled).toBe(false);
+  });
+
+  it("does not let a stale focus refresh overwrite a committed draw balance", async () => {
+    storageMocks.loadPlayerCoins.mockResolvedValue(100);
+    storageMocks.recordGachaAttempt.mockResolvedValue({
+      coinsAfter: 50,
+      save: {
+        schemaVersion: 1,
+        resetVersion: 0,
+        totalDraws: 1,
+        ownedCounts: {},
+      },
+      result: { kind: "miss", totalDraws: 1 },
+    });
+    await renderAt("/games/gacha");
+
+    let finishRefresh: ((balance: number) => void) | undefined;
+    storageMocks.loadPlayerCoins.mockReturnValueOnce(
+      new Promise<number>((resolve) => {
+        finishRefresh = resolve;
+      }),
+    );
+    act(() => window.dispatchEvent(new Event("focus")));
+
+    act(() => buttonWithText("投入 50 代幣").click());
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>('button[aria-label="轉動扭蛋機把手"]')
+        ?.click();
+      await Promise.resolve();
+    });
+    expect(container.textContent).toContain("代幣 50");
+
+    await act(async () => {
+      finishRefresh?.(100);
+      await Promise.resolve();
+    });
+    expect(container.textContent).toContain("代幣 50");
+    expect(container.textContent).not.toContain("代幣 100");
   });
 });

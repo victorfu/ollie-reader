@@ -1,22 +1,10 @@
 import { describe, it, expect } from "vitest";
 import { STAGES, LEVEL_EXP_TABLE } from "./gameProgressService";
 import { CHAPTERS, getChapterForStageIndex } from "../constants/chapters";
-import { getSpiritById } from "../assets/spirits";
 
 const QUIZ_KINDS = ["meaning", "listen", "spell", "reverse", "emoji"];
 
 describe("STAGES data integrity", () => {
-  it("every reward spirit id resolves to a real spirit", () => {
-    for (const stage of STAGES) {
-      if (stage.rewardSpiritId) {
-        expect(
-          getSpiritById(stage.rewardSpiritId),
-          `${stage.id} → ${stage.rewardSpiritId}`,
-        ).toBeDefined();
-      }
-    }
-  });
-
   it("stage numbers are strictly increasing", () => {
     for (let i = 1; i < STAGES.length; i++) {
       expect(STAGES[i].stageNumber).toBeGreaterThan(STAGES[i - 1].stageNumber);

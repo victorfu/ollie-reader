@@ -37,7 +37,7 @@ It is designed for Chinese-speaking learners of English, so AI content (definiti
 | 📝 | **Sentence Practice** (英文演講) | AI-parsed, translated sentences with drag-to-reorder, tap-any-word definitions, and per-sentence TTS. |
 | 📺 | **Show Subtitles** (影集字幕) | Browse shows by season and episode and read along with transcripts, using the same lookup / translate / speak / save toolbar as the reader. |
 | 🎵 | **Audio Library** (音訊庫) | Upload, organize, and play audio learning materials via Firebase Storage. |
-| 🎮 | **Spirit Adventure** (精靈探險) | An RPG-style quiz battler that drills words from your own vocabulary book — stage map, spirit collection, achievements, and confetti rewards. |
+| 🎮 | **Word Adventure** (單字大冒險) | An RPG-style quiz battler that drills words from your own vocabulary book — clear stages, earn gacha tokens, unlock achievements, and spend tokens in the Popular Character Gacha. |
 | 🕹️ | **Little Games** (小遊戲) | A hub of quick arcade games — Bunny Jumper, Meteor Glider, and Mushroom Adventure. |
 | 🖥️ | **Desktop Companion** | An optional native macOS app that runs a local sidecar for **fully-offline** text-to-speech (Piper + Kokoro via ONNX Runtime — no cloud, no API key). See [Desktop App](#-desktop-app-optional). |
 
@@ -108,7 +108,7 @@ ollie-reader/
 │   ├── components/          # React components, by feature
 │   │   ├── AudioUploads/        # Audio library
 │   │   ├── Auth/                # Authentication screens
-│   │   ├── Game/                # Spirit Adventure
+│   │   ├── Game/                # Word Adventure
 │   │   ├── LittleGames/         # Bunny Jumper, Meteor Glider, Mushroom Adventure
 │   │   ├── PdfReader/           # PDF viewer & AI lookup panel
 │   │   ├── SentencePractice/    # Sentence practice

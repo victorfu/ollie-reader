@@ -12,15 +12,18 @@ const mockDb = vi.hoisted(() => ({ kind: "mock-firestore" }));
 vi.mock("firebase/firestore", () => firestoreMocks);
 vi.mock("../../../utils/firebaseUtil", () => ({ db: mockDb }));
 
-import { createEmptyGachaSave } from "./gachaLogic";
+import { GACHA_DRAW_COST, createEmptyGachaSave } from "./gachaLogic";
 import {
   compareGachaSaveVersions,
   GACHA_CACHE_PREFIX,
   GACHA_CLOUD_DOC,
+  GachaInsufficientCoinsError,
   GachaResetConflictError,
   getGachaCacheKey,
+  isGachaInsufficientCoinsError,
   isGachaResetConflictError,
   loadGachaCloud,
+  loadPlayerCoins,
   parseGachaCacheValue,
   readGachaCache,
   recordGachaAttempt,
@@ -30,6 +33,7 @@ import {
 } from "./gachaStorage";
 
 const documentRef = { kind: "gacha-document" };
+const progressRef = { kind: "progress-document" };
 const serverTimestamp = { kind: "server-timestamp" };
 
 function snapshot(data: unknown | null) {
@@ -39,9 +43,17 @@ function snapshot(data: unknown | null) {
   };
 }
 
-function transactionFor(data: unknown | null) {
+// 抽獎交易會讀兩個文件：扭蛋子文件 + 玩家進度（代幣）文件
+function transactionFor(
+  data: unknown | null,
+  progressData: unknown | null = { coins: 500 },
+) {
   return {
-    get: vi.fn().mockResolvedValue(snapshot(data)),
+    get: vi.fn().mockImplementation((ref: unknown) =>
+      Promise.resolve(
+        ref === progressRef ? snapshot(progressData) : snapshot(data),
+      ),
+    ),
     set: vi.fn(),
     update: vi.fn(),
   };
@@ -50,7 +62,11 @@ function transactionFor(data: unknown | null) {
 beforeEach(() => {
   localStorage.clear();
   vi.clearAllMocks();
-  firestoreMocks.doc.mockReturnValue(documentRef);
+  // doc(db, "gameProgress", uid) → 進度文件；再深的路徑 → 扭蛋子文件
+  firestoreMocks.doc.mockImplementation(
+    (_db: unknown, ...segments: string[]) =>
+      segments.length > 2 ? documentRef : progressRef,
+  );
   firestoreMocks.serverTimestamp.mockReturnValue(serverTimestamp);
 });
 
@@ -340,6 +356,37 @@ describe("loadGachaCloud", () => {
   });
 });
 
+describe("loadPlayerCoins", () => {
+  it("reads the coin balance from the player's progress document", async () => {
+    firestoreMocks.getDocFromServer.mockResolvedValue(
+      snapshot({ coins: 123, level: 5 }),
+    );
+
+    await expect(loadPlayerCoins("player-1")).resolves.toBe(123);
+    expect(firestoreMocks.doc).toHaveBeenCalledWith(
+      mockDb,
+      "gameProgress",
+      "player-1",
+    );
+    expect(firestoreMocks.getDocFromServer).toHaveBeenCalledWith(progressRef);
+  });
+
+  it("returns 0 when the progress document is missing or malformed", async () => {
+    firestoreMocks.getDocFromServer.mockResolvedValueOnce(snapshot(null));
+    await expect(loadPlayerCoins("new-player")).resolves.toBe(0);
+
+    firestoreMocks.getDocFromServer.mockResolvedValueOnce(
+      snapshot({ coins: "many" }),
+    );
+    await expect(loadPlayerCoins("weird-player")).resolves.toBe(0);
+
+    firestoreMocks.getDocFromServer.mockResolvedValueOnce(
+      snapshot({ coins: -12 }),
+    );
+    await expect(loadPlayerCoins("negative-player")).resolves.toBe(0);
+  });
+});
+
 describe("recordGachaAttempt", () => {
   it("creates character progress and caches only after the transaction commits", async () => {
     const transaction = transactionFor(null);
@@ -367,6 +414,7 @@ describe("recordGachaAttempt", () => {
         ownedCount: 1,
         totalDraws: 1,
       },
+      coinsAfter: 500 - GACHA_DRAW_COST,
     });
     expect(transaction.set).toHaveBeenCalledWith(
       documentRef,
@@ -379,7 +427,86 @@ describe("recordGachaAttempt", () => {
         updatedAt: serverTimestamp,
       }),
     );
+    expect(transaction.update).toHaveBeenCalledWith(progressRef, {
+      coins: 500 - GACHA_DRAW_COST,
+      updatedAt: serverTimestamp,
+    });
     expect(readGachaCache("new-player")).toEqual(applied.save);
+  });
+
+  it("debits exactly one draw cost from the player's coins", async () => {
+    const transaction = transactionFor(
+      {
+        schemaVersion: 1,
+        resetVersion: 0,
+        totalDraws: 3,
+        ownedCounts: { kuromi: 1 },
+        createdAt: "original-created-at",
+      },
+      { coins: GACHA_DRAW_COST },
+    );
+    firestoreMocks.runTransaction.mockImplementation(
+      async (_database, update) => update(transaction),
+    );
+
+    const applied = await recordGachaAttempt(
+      "exact-coins-player",
+      { kind: "miss" },
+      0,
+    );
+
+    expect(applied.coinsAfter).toBe(0);
+    expect(transaction.update).toHaveBeenCalledWith(progressRef, {
+      coins: 0,
+      updatedAt: serverTimestamp,
+    });
+  });
+
+  it("throws a typed error and writes nothing when coins are insufficient", async () => {
+    const transaction = transactionFor(
+      {
+        schemaVersion: 1,
+        resetVersion: 0,
+        totalDraws: 3,
+        ownedCounts: { kuromi: 1 },
+      },
+      { coins: GACHA_DRAW_COST - 1 },
+    );
+    firestoreMocks.runTransaction.mockImplementation(
+      async (_database, update) => update(transaction),
+    );
+
+    const promise = recordGachaAttempt(
+      "poor-player",
+      { kind: "character", characterId: "kuromi" },
+      0,
+    );
+
+    await expect(promise).rejects.toBeInstanceOf(GachaInsufficientCoinsError);
+    await promise.catch((error: unknown) => {
+      expect(isGachaInsufficientCoinsError(error)).toBe(true);
+      expect(error).toMatchObject({
+        code: "GACHA_INSUFFICIENT_COINS",
+        requiredCoins: GACHA_DRAW_COST,
+        availableCoins: GACHA_DRAW_COST - 1,
+      });
+    });
+    expect(transaction.set).not.toHaveBeenCalled();
+    expect(transaction.update).not.toHaveBeenCalled();
+    expect(readGachaCache("poor-player")).toBeNull();
+  });
+
+  it("treats a missing progress document as zero coins", async () => {
+    const transaction = transactionFor(null, null);
+    firestoreMocks.runTransaction.mockImplementation(
+      async (_database, update) => update(transaction),
+    );
+
+    await expect(
+      recordGachaAttempt("no-progress-player", { kind: "miss" }, 0),
+    ).rejects.toMatchObject({ availableCoins: 0 });
+    expect(transaction.set).not.toHaveBeenCalled();
+    expect(transaction.update).not.toHaveBeenCalled();
   });
 
   it("merges only the selected count for existing documents", async () => {

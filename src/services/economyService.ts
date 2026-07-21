@@ -1,23 +1,23 @@
-// ============ 金幣規則 ============
+// ============ 扭蛋代幣規則（coins 為舊存檔欄位名稱） ============
 
 export const COIN_REWARDS = {
-  correct: 5, // 每題答對基本金幣
-  comboStep: 2, // 每層連擊額外金幣
+  correct: 5, // 每題答對基本代幣
+  comboStep: 2, // 每層連擊額外代幣
   comboCap: 8, // 連擊加成上限（避免爆量）
-  stageClear: 20, // 過關基本金幣（stage.rewardCoins 未設時）
-  bossClearBonus: 40, // 魔王額外金幣
-  dailyBase: 20, // 每日獎勵基本金幣
-  dailyStreakStep: 5, // 每連續一天額外金幣
+  stageClear: 20, // 過關基本代幣（stage.rewardCoins 未設時）
+  bossClearBonus: 40, // 魔王額外代幣
+  dailyBase: 20, // 每日獎勵基本代幣
+  dailyStreakStep: 5, // 每連續一天額外代幣
   dailyCap: 60, // 每日獎勵上限
 } as const;
 
-/** 單題答對可得金幣（連擊越高越多，設上限） */
+/** 單題答對可得代幣（連擊越高越多，設上限） */
 export function coinsForAnswer(combo: number): number {
   const bonus = Math.min(Math.max(combo, 0), COIN_REWARDS.comboCap);
   return COIN_REWARDS.correct + bonus * COIN_REWARDS.comboStep;
 }
 
-/** 過關可得金幣：優先用關卡設定，否則用公式（魔王加成） */
+/** 過關可得代幣：優先用關卡設定，否則用公式（魔王加成） */
 export function coinsForStageClear(
   rewardCoins: number | undefined,
   isBoss: boolean,
@@ -32,7 +32,7 @@ export function coinsForStageClear(
 
 export interface DailyBonusResult {
   eligible: boolean; // 今天是否還可領取
-  coins: number; // 可領金幣
+  coins: number; // 可領代幣（沿用欄位名稱）
   streakDays: number; // 更新後的連續天數
 }
 

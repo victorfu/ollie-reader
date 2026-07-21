@@ -11,6 +11,7 @@ import {
   Gamepad2,
 } from "lucide-react";
 import { useSettings } from "../../hooks/useSettings";
+import { useGachaMissRate } from "../../hooks/useGachaMissRate";
 import { useShowAllGachaEntries } from "../../hooks/useShowAllGachaEntries";
 import { useAuth } from "../../hooks/useAuth";
 import { useTheme } from "../../hooks/useTheme";
@@ -42,6 +43,8 @@ export const Settings = () => {
   const { theme, setTheme } = useTheme();
   const { showAllGachaEntries, updateShowAllGachaEntries } =
     useShowAllGachaEntries();
+  const { gachaMissRatePercent, updateGachaMissRatePercent } =
+    useGachaMissRate();
   const {
     ttsMode,
     ttsEngine,
@@ -579,10 +582,58 @@ export const Settings = () => {
                 <div>
                   <h3 className="text-lg font-semibold mb-3">🎮 遊戲設定</h3>
                   <p className="text-sm text-muted-foreground mb-4">
-                    管理遊戲進度
+                    管理遊戲偏好與進度
                   </p>
 
                   <div className="space-y-4">
+                    <div className="rounded-[10px] border border-border-hairline bg-background/45 p-4">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex min-w-0 items-start gap-3">
+                          <span className="flex size-10 shrink-0 items-center justify-center rounded-[10px] bg-accent-tint text-accent">
+                            <SlidersHorizontal
+                              className="size-5"
+                              strokeWidth={1.8}
+                              aria-hidden="true"
+                            />
+                          </span>
+                          <span className="min-w-0">
+                            <span className="block font-medium">空膠囊機率</span>
+                            <span
+                              id="gacha-miss-rate-description"
+                              className="mt-1 block text-sm leading-5 text-muted-foreground"
+                            >
+                              儲存在這台裝置，下一次轉動扭蛋機把手時套用。
+                            </span>
+                          </span>
+                        </div>
+                        <output
+                          htmlFor="settings-gacha-miss-rate"
+                          className="shrink-0 rounded-full bg-accent-tint px-2.5 py-1 text-sm font-black tabular-nums text-accent"
+                        >
+                          {gachaMissRatePercent}%
+                        </output>
+                      </div>
+                      <input
+                        id="settings-gacha-miss-rate"
+                        type="range"
+                        min={0}
+                        max={100}
+                        step={5}
+                        value={gachaMissRatePercent}
+                        onChange={(event) =>
+                          updateGachaMissRatePercent(Number(event.target.value))
+                        }
+                        className="range range-primary mt-4 w-full"
+                        aria-label="空膠囊機率"
+                        aria-describedby="gacha-miss-rate-description"
+                        aria-valuetext={`${gachaMissRatePercent}%`}
+                      />
+                      <div className="mt-2 flex justify-between text-[11px] font-medium text-muted-foreground">
+                        <span>0%（必得角色）</span>
+                        <span>100%（必定為空）</span>
+                      </div>
+                    </div>
+
                     <label className="flex min-h-20 cursor-pointer items-center justify-between gap-4 rounded-[10px] border border-border-hairline bg-background/45 p-4 transition-colors hover:bg-accent-tint">
                       <span className="flex min-w-0 items-start gap-3">
                         <span className="flex size-10 shrink-0 items-center justify-center rounded-[10px] bg-accent-tint text-accent">
@@ -620,7 +671,7 @@ export const Settings = () => {
                         <div>
                           <div className="font-medium text-error">重置遊戲進度</div>
                           <div className="text-sm text-muted-foreground">
-                            清除所有關卡進度、等級和收集的精靈（生詞本不受影響）
+                            清除所有關卡進度、等級和扭蛋代幣（生詞本不受影響）
                           </div>
                         </div>
                         <button
@@ -662,7 +713,7 @@ export const Settings = () => {
       <ConfirmModal
         isOpen={showResetModal}
         title="確定要重置遊戲進度？"
-        message="這將清除所有關卡進度、等級和收集的精靈。此操作無法復原，但生詞本不會受到影響。"
+        message="這將清除所有關卡進度、等級和扭蛋代幣。此操作無法復原，但生詞本不會受到影響。"
         confirmText="重置"
         cancelText="取消"
         confirmVariant="error"

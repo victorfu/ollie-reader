@@ -1,21 +1,19 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { SPIRIT_COMPONENTS, SPIRITS } from "../../assets/spirits";
 import type { PlayerProgress } from "../../types/game";
 import { LEVEL_EXP_TABLE } from "../../services/gameProgressService";
+import { getGameTabTargetName } from "../../utils/gameTabs";
 import { AchievementsPanel } from "./AchievementsPanel";
 import { ACHIEVEMENTS } from "../../constants/achievements";
 
 interface AdventureHomeProps {
   progress: PlayerProgress;
   onStartAdventure: () => void;
-  onOpenCollection: () => void;
 }
 
 export function AdventureHome({
   progress,
   onStartAdventure,
-  onOpenCollection,
 }: AdventureHomeProps) {
   const [showAchievements, setShowAchievements] = useState(false);
 
@@ -28,16 +26,6 @@ export function AdventureHome({
     (expInCurrentLevel / expNeededForLevel) * 100,
     100,
   );
-
-  // 只計入目前圖鑑仍存在的精靈（容忍舊存檔裡已下架的扭蛋限定精靈 id）
-  const ownedCount = SPIRITS.filter((s) =>
-    progress.unlockedSpiritIds.includes(s.id),
-  ).length;
-
-  // 取得隨機已解鎖的精靈來展示
-  const displaySpiritIds = progress.unlockedSpiritIds
-    .filter((id) => SPIRIT_COMPONENTS[id])
-    .slice(0, 3);
 
   // 計算已解鎖成就數量
   const unlockedAchievements = ACHIEVEMENTS.filter((a) =>
@@ -95,10 +83,10 @@ export function AdventureHome({
         <div className="card-body items-center text-center">
           {/* 標題 */}
           <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
-            ✨ 精靈探險 ✨
+            ✨ 單字大冒險 ✨
           </h1>
           <p className="text-muted-foreground text-sm">
-            收集單字精靈，成為最強的語言大師！
+            闖關答題賺扭蛋代幣，去扭蛋機收集人氣角色！
           </p>
 
           {/* 玩家資訊 */}
@@ -120,10 +108,10 @@ export function AdventureHome({
               />
             </div>
 
-            {/* 金幣與連勝 */}
+            {/* 扭蛋代幣與連勝 */}
             <div className="flex items-center justify-center gap-2 mt-3">
               <span className="badge badge-soft badge-warning gap-1 font-semibold">
-                💰 {progress.coins}
+                🪙 {progress.coins} 代幣
               </span>
               {progress.streakDays > 0 && (
                 <span className="badge badge-soft badge-error gap-1 font-semibold">
@@ -136,9 +124,9 @@ export function AdventureHome({
             <div className="grid grid-cols-3 gap-2 mt-4 text-center">
               <div className="p-2 bg-base-100/70 rounded-lg border border-border-hairline">
                 <div className="text-lg font-bold text-primary">
-                  {ownedCount}
+                  {progress.totalBossDefeated}
                 </div>
-                <div className="text-xs text-muted-foreground">精靈</div>
+                <div className="text-xs text-muted-foreground">擊敗魔王</div>
               </div>
               <div className="p-2 bg-base-100/70 rounded-lg border border-border-hairline">
                 <div className="text-lg font-bold text-secondary">
@@ -155,33 +143,6 @@ export function AdventureHome({
             </div>
           </div>
 
-          {/* 精靈展示 */}
-          {displaySpiritIds.length > 0 && (
-            <div className="flex items-center justify-center gap-2 mt-4">
-              {displaySpiritIds.map((spiritId, index) => {
-                const SpiritComponent = SPIRIT_COMPONENTS[spiritId];
-                if (!SpiritComponent) return null;
-
-                return (
-                  <motion.div
-                    key={spiritId}
-                    initial={{ opacity: 0, scale: 0 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: index * 0.1 }}
-                    className="relative"
-                  >
-                    <SpiritComponent size={60} animate />
-                  </motion.div>
-                );
-              })}
-              {ownedCount > 3 && (
-                <div className="w-12 h-12 rounded-full bg-base-200/70 border border-border-hairline flex items-center justify-center text-sm font-medium text-muted-foreground">
-                  +{ownedCount - 3}
-                </div>
-              )}
-            </div>
-          )}
-
           {/* 按鈕區 */}
           <div className="card-actions w-full mt-6 flex-col gap-3">
             <motion.button
@@ -194,33 +155,27 @@ export function AdventureHome({
               開始冒險
             </motion.button>
 
-            <div className="grid grid-cols-2 gap-2 w-full">
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={onOpenCollection}
-                className="btn btn-outline btn-secondary gap-1"
-              >
-                <span className="text-lg">📖</span>
-                精靈圖鑑
-                <span className="badge badge-secondary badge-xs">
-                  {ownedCount}/{SPIRITS.length}
-                </span>
-              </motion.button>
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => setShowAchievements(true)}
+              className="btn btn-outline btn-accent w-full gap-1"
+            >
+              <span className="text-lg">🏅</span>
+              成就
+              <span className="badge badge-accent badge-xs">
+                {unlockedAchievements}/{ACHIEVEMENTS.length}
+              </span>
+            </motion.button>
 
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => setShowAchievements(true)}
-                className="btn btn-outline btn-accent gap-1"
-              >
-                <span className="text-lg">🏅</span>
-                成就
-                <span className="badge badge-accent badge-xs">
-                  {unlockedAchievements}/{ACHIEVEMENTS.length}
-                </span>
-              </motion.button>
-            </div>
+            <a
+              href="/games/gacha"
+              target={getGameTabTargetName("/games/gacha")}
+              className="btn btn-soft btn-warning w-full gap-2 hover:text-white"
+            >
+              <span className="text-lg">🎀</span>
+              去扭蛋機收集人氣角色
+            </a>
           </div>
         </div>
       </motion.div>
@@ -232,7 +187,7 @@ export function AdventureHome({
         transition={{ delay: 0.5 }}
         className="text-center text-sm text-muted-foreground mt-6"
       >
-        💡 完成關卡可獲得經驗值和新精靈！
+        💡 完成關卡可獲得經驗值和扭蛋代幣，代幣可拿去抽人氣角色！
       </motion.p>
     </div>
   );

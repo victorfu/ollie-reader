@@ -1,14 +1,14 @@
 import { useCallback, useMemo, useState } from "react";
 import { getBestScore } from "./lib/game-utils";
 import { GACHA_CHARACTER_IDS } from "./gacha-machine/gachaTypes";
+import { openGameTab } from "../../utils/gameTabs";
 
 const METEOR_BEST_KEY = "meteor-glider-best";
 const MUSHROOM_BEST_KEY = "mushroom-adventure-best";
-const gameTabs = new Map<string, Window>();
 
 type GameCard = {
   id:
-    | "spirit-adventure"
+    | "word-adventure"
     | "gacha-machine"
     | "bunny"
     | "meteor"
@@ -43,20 +43,20 @@ export default function GameHub() {
   const cards: GameCard[] = useMemo(
     () => [
       {
-        id: "spirit-adventure",
+        id: "word-adventure",
         to: "/games/spirit",
-        title: "精靈探險",
+        title: "單字大冒險",
         blurb:
-          "用生詞本的單字闖關，答對詞彙小測驗、收集可愛精靈夥伴。",
+          "用生詞本的單字闖關，答對詞彙小測驗、賺扭蛋代幣抽人氣角色。",
         tag: "Quiz",
-        emoji: "🧚",
+        emoji: "🗺️",
         best: null,
       },
       {
         id: "gacha-machine",
         to: "/games/gacha",
         title: "人氣角色扭蛋機",
-        blurb: `投入代幣、轉動把手，收集 ${GACHA_CHARACTER_IDS.length} 個人氣角色圖鑑項目。`,
+        blurb: `用「單字大冒險」賺的代幣扭蛋，收集 ${GACHA_CHARACTER_IDS.length} 個人氣角色圖鑑項目。`,
         tag: "Collection",
         emoji: "🎀",
         best: null,
@@ -110,23 +110,7 @@ export default function GameHub() {
 
   // 每個完整遊戲 URL 對應一個分頁；重複進入時保留遊戲狀態並聚焦既有分頁。
   const openGame = useCallback((to: string) => {
-    const url = new URL(to, window.location.href);
-    if (url.origin !== window.location.origin) return;
-
-    const gameUrlKey = `${url.pathname}${url.search}${url.hash}`;
-    const existingTab = gameTabs.get(gameUrlKey);
-
-    if (existingTab && !existingTab.closed) {
-      existingTab.focus();
-      return;
-    }
-
-    const targetName = `ollie-game-${encodeURIComponent(gameUrlKey)}`;
-    const openedTab = window.open(url.href, targetName);
-    if (!openedTab) return;
-
-    gameTabs.set(gameUrlKey, openedTab);
-    openedTab.focus();
+    openGameTab(to);
   }, []);
 
   return (
@@ -168,7 +152,7 @@ export default function GameHub() {
                   ? `最高星星 ${card.best}`
                   : card.id === "wonder-academy"
                     ? "Firestore 雲端存檔"
-                    : card.id === "spirit-adventure"
+                    : card.id === "word-adventure"
                       ? "雲端存檔進度"
                       : "尚無紀錄")}
               </span>

@@ -9,10 +9,14 @@ import {
   GACHA_CHARACTER_IDS,
   isGachaCharacterId,
 } from "./gachaTypes";
+import { DEFAULT_GACHA_MISS_RATE_PERCENT } from "../../../services/gachaPreferences";
 
 export type GachaRng = () => number;
 
-export const DEFAULT_MISS_RATE = 0.5;
+export const DEFAULT_MISS_RATE = DEFAULT_GACHA_MISS_RATE_PERCENT / 100;
+
+/** 每抽一次消耗的代幣（在「單字大冒險」/games/spirit 闖關賺取） */
+export const GACHA_DRAW_COST = 50;
 
 export const EMPTY_GACHA_SAVE: GachaSaveV1 = Object.freeze({
   schemaVersion: 1,

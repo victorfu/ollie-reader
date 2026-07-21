@@ -1,7 +1,7 @@
 import { Fragment } from "react";
 import { motion } from "framer-motion";
 import type { Stage, PlayerProgress } from "../../types/game";
-import { SPIRIT_COMPONENTS, getSpiritById } from "../../assets/spirits";
+import { coinsForStageClear } from "../../services/economyService";
 import {
   CHAPTERS,
   getChapterForStageIndex,
@@ -86,7 +86,7 @@ export function StageMap({
             <div className="flex-1">
               <h1 className="text-lg font-semibold tracking-tight">選擇關卡</h1>
               <p className="text-sm text-muted-foreground">
-                挑戰關卡，收集精靈！
+                挑戰關卡，賺扭蛋代幣抽人氣角色！
               </p>
             </div>
             <div className="badge badge-primary badge-lg gap-1">
@@ -130,14 +130,6 @@ export function StageMap({
             const playable = isStagePlayable(index);
             const locked = !playable && !completed;
             const isCurrent = index === progress.currentStageIndex;
-
-            // 獲取關卡獎勵精靈
-            const rewardSpirit = stage.rewardSpiritId
-              ? getSpiritById(stage.rewardSpiritId)
-              : null;
-            const SpiritComponent = stage.rewardSpiritId
-              ? SPIRIT_COMPONENTS[stage.rewardSpiritId]
-              : null;
 
             // 章節分隔 + 鎖定章節 teaser
             const chapterStart = CHAPTERS.find(
@@ -307,20 +299,12 @@ export function StageMap({
                             +{stage.rewardExp} EXP
                           </span>
 
-                          {/* 精靈獎勵預覽 */}
-                          {rewardSpirit &&
-                            SpiritComponent &&
-                            !completed &&
-                            !locked && (
-                              <span className="inline-flex items-center gap-1 text-muted-foreground">
-                                <div className="w-5 h-5">
-                                  <SpiritComponent size={20} animate={false} />
-                                </div>
-                                <span className="text-xs">
-                                  {rewardSpirit.name}
-                                </span>
-                              </span>
-                            )}
+                          {/* 扭蛋代幣獎勵預覽 */}
+                          {!completed && !locked && (
+                            <span className="inline-flex items-center gap-1 text-xs font-medium text-warning">
+                              🪙 +{coinsForStageClear(stage.rewardCoins, stage.isBoss)} 代幣
+                            </span>
+                          )}
                         </div>
 
                         {/* 等級需求 */}

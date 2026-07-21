@@ -4,9 +4,16 @@ import type { DailyBonusResult } from "../../services/economyService";
 interface DailyBonusModalProps {
   bonus: DailyBonusResult;
   onClaim: () => void;
+  isClaiming?: boolean;
+  error?: string | null;
 }
 
-export function DailyBonusModal({ bonus, onClaim }: DailyBonusModalProps) {
+export function DailyBonusModal({
+  bonus,
+  onClaim,
+  isClaiming = false,
+  error = null,
+}: DailyBonusModalProps) {
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -37,18 +44,27 @@ export function DailyBonusModal({ bonus, onClaim }: DailyBonusModalProps) {
             </div>
           )}
           <div className="flex items-center gap-2 mt-4">
-            <span className="text-4xl">💰</span>
+            <span className="text-4xl">🪙</span>
             <span className="text-3xl font-bold text-warning">
-              +{bonus.coins} 金幣
+              +{bonus.coins} 扭蛋代幣
             </span>
           </div>
+          {error ? (
+            <div
+              className="mt-3 w-full rounded-[10px] border border-error/25 bg-error/10 px-3 py-2 text-sm text-error"
+              role="alert"
+            >
+              {error}
+            </div>
+          ) : null}
           <motion.button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             onClick={onClaim}
-            className="btn btn-primary btn-lg w-full mt-6 active:scale-[0.98]"
+            disabled={isClaiming}
+            className="btn btn-primary btn-lg w-full mt-6 active:scale-[0.98] disabled:cursor-not-allowed"
           >
-            開心收下！
+            {isClaiming ? "入帳中…" : error ? "重新領取" : "開心收下！"}
           </motion.button>
         </div>
       </motion.div>

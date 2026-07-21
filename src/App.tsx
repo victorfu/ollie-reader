@@ -59,8 +59,8 @@ const SentencePractice = lazyWithReload(
 const AudioUploads = lazyWithReload(
   () => import("./components/AudioUploads/AudioUploads"),
 );
-const SpiritAdventure = lazyWithReload(
-  () => import("./components/Game/SpiritAdventure"),
+const WordAdventure = lazyWithReload(
+  () => import("./components/Game/WordAdventure"),
 );
 const ShowSubtitlesPage = lazyWithReload(() =>
   import("./components/ShowSubtitles/ShowSubtitlesPage").then((module) => ({
@@ -694,7 +694,7 @@ function AppContent() {
                       <Route path="/games" element={<LittleGamesHub />} />
                       <Route
                         path="/games/spirit"
-                        element={<SpiritAdventure />}
+                        element={<WordAdventure />}
                       />
                       <Route path="/travel" element={<TravelEnglishPage />} />
                       <Route path="/settings" element={<Settings />} />

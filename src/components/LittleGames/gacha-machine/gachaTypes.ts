@@ -110,3 +110,8 @@ export type AppliedGachaAttempt = {
   save: GachaSaveV1;
   result: GachaDrawResult;
 };
+
+/** 交易成功後的回傳：抽獎結果 + 扣款後的代幣餘額 */
+export type CommittedGachaAttempt = AppliedGachaAttempt & {
+  coinsAfter: number;
+};

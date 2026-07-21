@@ -1,7 +1,6 @@
 import { useEffect } from "react";
 import { motion } from "framer-motion";
 import type { QuizState, Stage } from "../../types/game";
-import { SPIRIT_COMPONENTS } from "../../assets/spirits";
 import { SceneBackground } from "./SceneBackground";
 import { QuizCard } from "./QuizCard";
 import { useSpeechState } from "../../hooks/useSpeechState";
@@ -24,10 +23,6 @@ export function QuizGame({
   const currentQuestion = quizState.questions[quizState.currentIndex];
   const progressPercentage =
     ((quizState.currentIndex + 1) / quizState.questions.length) * 100;
-
-  // 取得關卡精靈
-  const spiritId = stage.rewardSpiritId;
-  const SpiritComponent = spiritId ? SPIRIT_COMPONENTS[spiritId] : null;
 
   const { speak } = useSpeechState();
 
@@ -100,30 +95,6 @@ export function QuizGame({
 
         {/* 主遊戲區 */}
         <div className="flex-1 flex flex-col items-center justify-center">
-          {/* 精靈展示 */}
-          {SpiritComponent && (
-            <motion.div
-              animate={{
-                y: [0, -10, 0],
-                rotate:
-                  quizState.lastAnswerCorrect === false ? [-5, 5, -5, 5, 0] : 0,
-              }}
-              transition={{
-                y: { duration: 2, repeat: Infinity },
-                rotate: { duration: 0.5 },
-              }}
-              className="mb-4 relative"
-            >
-              {/* 精靈光環 */}
-              <motion.div
-                className="absolute inset-0 bg-white/30 rounded-full blur-2xl"
-                animate={{ scale: [1, 1.2, 1], opacity: [0.3, 0.5, 0.3] }}
-                transition={{ duration: 2, repeat: Infinity }}
-              />
-              <SpiritComponent size={100} animate />
-            </motion.div>
-          )}
-
           {/* 題目卡（每題重新掛載以重置拚字/自動唸狀態） */}
           <motion.div
             key={quizState.currentIndex}

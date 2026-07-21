@@ -2,15 +2,15 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { useAuth } from "./useAuth";
 import {
   getOrCreateProgress,
-  saveProgress,
-  unlockSpirit,
-  evolveSpirit,
+  fetchProgress,
+  saveProgressWithTokenReward,
+  claimDailyTokenBonus,
+  isGameProgressResetConflictError,
   calculateLevelUp,
   STAGES,
   isStageCompleted,
   isStagePlayable,
 } from "../services/gameProgressService";
-import { checkPendingEvolution } from "../services/spiritEvolution";
 import { prepareGamePool, type GameWord } from "../services/gameService";
 import {
   buildQuizQuestions,
@@ -22,10 +22,8 @@ import type {
   QuizState,
   Stage,
   GameReward,
-  Spirit,
 } from "../types/game";
 import type { VocabularyWord } from "../types/vocabulary";
-import { getSpiritById } from "../assets/spirits";
 import {
   coinsForAnswer,
   coinsForStageClear,
@@ -71,6 +69,9 @@ interface UseAdventureReturn {
 
   // 經濟系統
   pendingDailyBonus: DailyBonusResult | null;
+  isClaimingDailyBonus: boolean;
+  dailyBonusError: string | null;
+  tokenSyncError: string | null;
 
   // 動作
   initializeGame: () => Promise<void>;
@@ -83,6 +84,7 @@ interface UseAdventureReturn {
   tickTimer: () => void;
   claimReward: () => Promise<void>;
   claimDailyBonus: () => Promise<void>;
+  clearTokenSyncError: () => void;
   goHome: () => void;
 }
 
@@ -104,16 +106,20 @@ export function useAdventure(): UseAdventureReturn {
   // 題目池
   const wordPoolRef = useRef<GameWord[]>([]);
 
-  // 本輪快問快答累積的金幣（每題答對即累加，關卡結束一次寫入）
+  // 本輪快問快答累積的扭蛋代幣（每題答對即累加，關卡結束一次寫入）
   const coinsEarnedRef = useRef<number>(0);
-  // 本輪答對題數（用於元素訓練 → 進化）
-  const correctCountRef = useRef<number>(0);
-  // 結算冪等旗標：避免 StrictMode 重複呼叫 / 競態造成雙重寫入與金幣灌水
+  // 同一題只允許結算一次，避免快速連點在 React 狀態更新前重複發代幣
+  const answeredQuestionIndexRef = useRef<number | null>(null);
+  const dailyClaimInFlightRef = useRef(false);
+  // 結算冪等旗標：避免 StrictMode 重複呼叫 / 競態造成雙重寫入與代幣灌水
   const quizEndedRef = useRef<boolean>(false);
 
   // 每日獎勵（登入時計算，可領時由 UI 顯示）
   const [pendingDailyBonus, setPendingDailyBonus] =
     useState<DailyBonusResult | null>(null);
+  const [isClaimingDailyBonus, setIsClaimingDailyBonus] = useState(false);
+  const [dailyBonusError, setDailyBonusError] = useState<string | null>(null);
+  const [tokenSyncError, setTokenSyncError] = useState<string | null>(null);
 
   // 用於在 callbacks 內引用最新狀態的 refs
   const progressRef = useRef<PlayerProgress | null>(null);
@@ -139,6 +145,39 @@ export function useAdventure(): UseAdventureReturn {
   useEffect(() => {
     currentStageIndexRef.current = currentStageIndex;
   }, [currentStageIndex]);
+
+  // 從扭蛋分頁切回冒險時，只刷新共用代幣餘額，不干擾進行中的關卡狀態
+  useEffect(() => {
+    if (!user) return;
+
+    let cancelled = false;
+    const refreshTokenBalance = () => {
+      void fetchProgress(user.uid)
+        .then((latest) => {
+          if (cancelled || !latest) return;
+          setProgress((current) => {
+            if (!current) return current;
+            return current.resetVersion === latest.resetVersion
+              ? { ...current, coins: latest.coins }
+              : latest;
+          });
+        })
+        .catch((refreshError: unknown) => {
+          console.error("Failed to refresh gacha token balance:", refreshError);
+        });
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") refreshTokenBalance();
+    };
+
+    window.addEventListener("focus", refreshTokenBalance);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("focus", refreshTokenBalance);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [user]);
 
   // 快問快答狀態
   const [quizState, setQuizState] = useState<QuizState | null>(null);
@@ -207,8 +246,8 @@ export function useAdventure(): UseAdventureReturn {
         // 準備題目池
         const wordPool = await prepareGamePool(vocabularyWords);
         wordPoolRef.current = wordPool;
-        coinsEarnedRef.current = 0; // 重置本輪金幣
-        correctCountRef.current = 0; // 重置本輪答對數
+        coinsEarnedRef.current = 0; // 重置本輪扭蛋代幣
+        answeredQuestionIndexRef.current = null;
         quizEndedRef.current = false; // 重置結算旗標
 
         // 魔王關題數 = bossHp + buffer，確保一次失誤不會變不可過
@@ -281,20 +320,6 @@ export function useAdventure(): UseAdventureReturn {
             expGained,
           );
 
-        // 檢查是否解鎖新精靈
-        let newSpirit: Spirit | undefined;
-        if (
-          stage.rewardSpiritId &&
-          !currentProgress.unlockedSpiritIds.includes(stage.rewardSpiritId)
-        ) {
-          newSpirit = getSpiritById(stage.rewardSpiritId);
-          try {
-            await unlockSpirit(user.uid, stage.rewardSpiritId);
-          } catch (e) {
-            console.error("解鎖精靈寫入失敗:", e);
-          }
-        }
-
         // 更新進度
         const newStageIndex = Math.max(
           currentProgress.currentStageIndex,
@@ -305,135 +330,131 @@ export function useAdventure(): UseAdventureReturn {
           maxCombo,
         );
 
-        // 金幣：答題累積 + 過關獎勵
+        // 扭蛋代幣：答題累積 + 過關獎勵
         coinsEarnedRef.current += coinsForStageClear(
           stage.rewardCoins,
           stage.isBoss,
         );
         const coinsGained = coinsEarnedRef.current;
-        const newCoins = currentProgress.coins + coinsGained;
+        let creditedTokenBalance: number | null = null;
         const newTotalBossDefeated = stage.isBoss
           ? currentProgress.totalBossDefeated + 1
           : currentProgress.totalBossDefeated;
 
-        // 元素訓練：本關獎勵精靈的元素 += 本輪答對數
-        const stageElement = stage.rewardSpiritId
-          ? getSpiritById(stage.rewardSpiritId)?.element
-          : undefined;
-        const newElementProgress = { ...currentProgress.elementProgress };
-        if (stageElement && correctCountRef.current > 0) {
-          newElementProgress[stageElement] =
-            (newElementProgress[stageElement] ?? 0) + correctCountRef.current;
-        }
-
-        // 進化檢查（含本關剛解鎖的精靈）
-        const ownedAfterUnlock = newSpirit
-          ? [...currentProgress.unlockedSpiritIds, stage.rewardSpiritId!]
-          : currentProgress.unlockedSpiritIds;
-        const evolution = checkPendingEvolution({
-          unlockedSpiritIds: ownedAfterUnlock,
-          evolvedSpiritIds: currentProgress.evolvedSpiritIds,
-          elementProgress: newElementProgress,
-          level: newLevel,
-        });
         try {
-          if (evolution) {
-            await evolveSpirit(user.uid, evolution.from.id, evolution.to.id);
-          }
-          await saveProgress(user.uid, {
-            level: newLevel,
-            exp: newExp,
-            expToNextLevel,
-            currentStageIndex: newStageIndex,
-            totalQuizCompleted: currentProgress.totalQuizCompleted + 1,
-            highestCombo: newHighestCombo,
-            coins: newCoins,
-            elementProgress: newElementProgress,
-            totalBossDefeated: newTotalBossDefeated,
-          });
+          creditedTokenBalance = await saveProgressWithTokenReward(
+            user.uid,
+            {
+              level: newLevel,
+              exp: newExp,
+              expToNextLevel,
+              currentStageIndex: newStageIndex,
+              totalQuizCompleted: currentProgress.totalQuizCompleted + 1,
+              highestCombo: newHighestCombo,
+              totalBossDefeated: newTotalBossDefeated,
+            },
+            coinsGained,
+            currentProgress.resetVersion,
+          );
+          setTokenSyncError(null);
         } catch (e) {
+          if (isGameProgressResetConflictError(e)) {
+            try {
+              const latest = await fetchProgress(user.uid);
+              if (latest) setProgress(latest);
+            } catch (refreshError) {
+              console.error("重設後重新載入進度失敗:", refreshError);
+            }
+            setTokenSyncError("遊戲進度已在其他分頁重設，本輪結果未寫入。");
+            setPendingReward(null);
+            setGameView("home");
+            coinsEarnedRef.current = 0;
+            bossHpRef.current = 0;
+            setBossState(null);
+            setQuizState(null);
+            answeredQuestionIndexRef.current = null;
+            return;
+          }
           // 雲端寫入失敗不阻斷畫面：本地已樂觀更新，玩家不會卡關
           console.error("進度寫入失敗:", e);
+          setTokenSyncError("本輪扭蛋代幣未能入帳，請確認連線後再挑戰一次。");
         }
 
         // 更新本地狀態
-        setProgress((prev) => {
-          if (!prev) return prev;
-          let unlockedSpiritIds = newSpirit
-            ? [...prev.unlockedSpiritIds, stage.rewardSpiritId!]
-            : prev.unlockedSpiritIds;
-          let evolvedSpiritIds = prev.evolvedSpiritIds;
-          if (evolution) {
-            if (!evolvedSpiritIds.includes(evolution.from.id)) {
-              evolvedSpiritIds = [...evolvedSpiritIds, evolution.from.id];
-            }
-            if (!unlockedSpiritIds.includes(evolution.to.id)) {
-              unlockedSpiritIds = [...unlockedSpiritIds, evolution.to.id];
-            }
-          }
-          return {
-            ...prev,
-            level: newLevel,
-            exp: newExp,
-            expToNextLevel,
-            currentStageIndex: newStageIndex,
-            totalQuizCompleted: prev.totalQuizCompleted + 1,
-            highestCombo: newHighestCombo,
-            coins: newCoins,
-            elementProgress: newElementProgress,
-            totalBossDefeated: newTotalBossDefeated,
-            unlockedSpiritIds,
-            evolvedSpiritIds,
-          };
-        });
+        setProgress((prev) =>
+          prev
+            ? {
+                ...prev,
+                level: newLevel,
+                exp: newExp,
+                expToNextLevel,
+                currentStageIndex: newStageIndex,
+                totalQuizCompleted: prev.totalQuizCompleted + 1,
+                highestCombo: newHighestCombo,
+                coins: creditedTokenBalance ?? prev.coins,
+                totalBossDefeated: newTotalBossDefeated,
+              }
+            : prev,
+        );
 
         // 設定獎勵
         setPendingReward({
           expGained,
           newLevel: didLevelUp ? newLevel : undefined,
-          newSpirit,
           isNewHighScore: maxCombo > currentProgress.highestCombo,
-          coinsGained,
-          evolvedSpirit: evolution
-            ? { from: evolution.from, to: evolution.to }
-            : undefined,
+          coinsGained:
+            creditedTokenBalance !== null ? coinsGained : undefined,
+          tokenSyncFailed: creditedTokenBalance === null,
           isBossVictory: stage.isBoss,
         });
 
         setGameView("reward");
       } else {
-        // 失敗：仍保留本輪金幣與元素訓練進度（不懲罰），再回地圖
+        // 失敗：仍保留本輪扭蛋代幣（不懲罰），再回地圖
         const coinsGained = coinsEarnedRef.current;
-        const stageElement = stage.rewardSpiritId
-          ? getSpiritById(stage.rewardSpiritId)?.element
-          : undefined;
-        const newElementProgress = { ...currentProgress.elementProgress };
-        if (stageElement && correctCountRef.current > 0) {
-          newElementProgress[stageElement] =
-            (newElementProgress[stageElement] ?? 0) + correctCountRef.current;
-        }
-        const newCoins = currentProgress.coins + coinsGained;
+        let creditedTokenBalance: number | null = null;
         try {
-          await saveProgress(user.uid, {
-            coins: newCoins,
-            elementProgress: newElementProgress,
-          });
+          creditedTokenBalance = await saveProgressWithTokenReward(
+            user.uid,
+            {},
+            coinsGained,
+            currentProgress.resetVersion,
+          );
+          setTokenSyncError(null);
         } catch (e) {
+          if (isGameProgressResetConflictError(e)) {
+            try {
+              const latest = await fetchProgress(user.uid);
+              if (latest) setProgress(latest);
+            } catch (refreshError) {
+              console.error("重設後重新載入進度失敗:", refreshError);
+            }
+            setTokenSyncError("遊戲進度已在其他分頁重設，本輪結果未寫入。");
+            setPendingReward(null);
+            setGameView("home");
+            coinsEarnedRef.current = 0;
+            bossHpRef.current = 0;
+            setBossState(null);
+            setQuizState(null);
+            answeredQuestionIndexRef.current = null;
+            return;
+          }
           console.error("進度寫入失敗:", e);
+          setTokenSyncError("本輪扭蛋代幣未能入帳，請確認連線後再挑戰一次。");
         }
         setProgress((prev) =>
           prev
-            ? { ...prev, coins: newCoins, elementProgress: newElementProgress }
+            ? { ...prev, coins: creditedTokenBalance ?? prev.coins }
             : prev,
         );
         setGameView("map");
       }
 
       coinsEarnedRef.current = 0;
-      correctCountRef.current = 0;
       bossHpRef.current = 0;
       setBossState(null);
       setQuizState(null);
+      answeredQuestionIndexRef.current = null;
     },
     [user],
   );
@@ -443,15 +464,17 @@ export function useAdventure(): UseAdventureReturn {
     (answer: number | string) => {
       if (!quizState || quizState.isAnswered) return;
 
+      if (answeredQuestionIndexRef.current === quizState.currentIndex) return;
+      answeredQuestionIndexRef.current = quizState.currentIndex;
+
       const currentQuestion = quizState.questions[quizState.currentIndex];
       const isCorrect = isQuestionCorrect(currentQuestion, answer);
 
       const inBoss = bossStateRef.current !== null;
 
-      // 答對即累積金幣與答對數 — 在 updater 外累加，避免 StrictMode 重複
+      // 答對即累積扭蛋代幣 — 以題號 ref 防止快速連點重複發放
       if (isCorrect) {
         coinsEarnedRef.current += coinsForAnswer(quizState.combo + 1);
-        correctCountRef.current += 1;
         // 魔王扣血（連擊 ≥3 爆擊 -2）
         if (inBoss) {
           const crit = quizState.combo + 1 >= 3;
@@ -530,6 +553,7 @@ export function useAdventure(): UseAdventureReturn {
       const newTimeLeft = prev.timeLeft - 1;
 
       if (newTimeLeft <= 0) {
+        answeredQuestionIndexRef.current = prev.currentIndex;
         // 時間到，視為答錯
         const newLives = prev.lives - 1;
 
@@ -609,17 +633,43 @@ export function useAdventure(): UseAdventureReturn {
       setPendingDailyBonus(null);
       return;
     }
-    const today = todayLocal();
-    const patch = {
-      coins: cur.coins + bonus.coins,
-      streakDays: bonus.streakDays,
-      lastDailyClaimDate: today,
-      lastLoginDate: today,
-    };
-    await saveProgress(user.uid, patch);
-    setProgress((prev) => (prev ? { ...prev, ...patch } : prev));
-    setPendingDailyBonus(null);
+    if (dailyClaimInFlightRef.current) return;
+
+    dailyClaimInFlightRef.current = true;
+    setIsClaimingDailyBonus(true);
+    setDailyBonusError(null);
+    try {
+      const today = todayLocal();
+      const result = await claimDailyTokenBonus(
+        user.uid,
+        today,
+        bonus.coins,
+        bonus.streakDays,
+      );
+      setProgress((prev) =>
+        prev
+          ? {
+              ...prev,
+              coins: result.tokenBalance,
+              streakDays: result.streakDays,
+              lastDailyClaimDate: today,
+              lastLoginDate: today,
+            }
+          : prev,
+      );
+      setPendingDailyBonus(null);
+    } catch (claimError) {
+      console.error("每日代幣領取失敗:", claimError);
+      setDailyBonusError("每日代幣尚未入帳，請確認連線後重試。");
+    } finally {
+      dailyClaimInFlightRef.current = false;
+      setIsClaimingDailyBonus(false);
+    }
   }, [user, pendingDailyBonus]);
+
+  const clearTokenSyncError = useCallback(() => {
+    setTokenSyncError(null);
+  }, []);
 
   // 檢查關卡是否完成
   const checkStageCompleted = useCallback(
@@ -657,12 +707,16 @@ export function useAdventure(): UseAdventureReturn {
     bossState,
     pendingReward,
     pendingDailyBonus,
+    isClaimingDailyBonus,
+    dailyBonusError,
+    tokenSyncError,
     initializeGame,
     startQuiz,
     submitAnswer,
     tickTimer,
     claimReward,
     claimDailyBonus,
+    clearTokenSyncError,
     goHome,
   };
 }

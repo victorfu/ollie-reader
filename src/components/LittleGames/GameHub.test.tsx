@@ -60,7 +60,7 @@ describe("GameHub single-tab game launcher", () => {
     renderGameHub();
 
     const entries = [
-      ["精靈探險", "開始遊戲", "/games/spirit"],
+      ["單字大冒險", "開始遊戲", "/games/spirit"],
       ["人氣角色扭蛋機", "開始扭蛋", "/games/gacha"],
       ["人氣角色扭蛋機", "查看圖鑑", "/games/gacha?view=collection"],
       ["Wonder Academy", "開始遊戲", "/games/wonder-academy"],
@@ -144,7 +144,7 @@ describe("GameHub single-tab game launcher", () => {
     const openMock = vi.spyOn(window, "open").mockReturnValue(null);
     renderGameHub();
 
-    const button = cardButton("精靈探險", "開始遊戲");
+    const button = cardButton("單字大冒險", "開始遊戲");
     expect(() => {
       act(() => button.click());
       act(() => button.click());

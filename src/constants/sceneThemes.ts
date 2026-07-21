@@ -1,4 +1,4 @@
-// Scene themes for each stage in Spirit Adventure
+// Scene themes for each stage in Word Adventure
 // Each scene has unique visual elements and atmosphere
 
 export interface SceneTheme {

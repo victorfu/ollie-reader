@@ -1,11 +1,12 @@
 import {
+  GACHA_DRAW_COST,
   applyGachaAttempt,
   assertGachaOutcome,
   createEmptyGachaSave,
   normalizeGachaSave,
 } from "./gachaLogic";
 import type {
-  AppliedGachaAttempt,
+  CommittedGachaAttempt,
   GachaOutcome,
   GachaSaveV1,
 } from "./gachaTypes";
@@ -13,6 +14,7 @@ import type {
 export const GACHA_CACHE_PREFIX = "ollie-gacha-machine-cache-v1:";
 export const GACHA_CLOUD_DOC = "gachaMachine";
 export const GACHA_RESET_CONFLICT = "GACHA_RESET_CONFLICT";
+export const GACHA_INSUFFICIENT_COINS = "GACHA_INSUFFICIENT_COINS";
 
 export type GachaCacheStorage = Pick<Storage, "getItem" | "setItem">;
 export type GachaCacheLockManager = {
@@ -34,6 +36,21 @@ export class GachaResetConflictError extends Error {
     this.name = "GachaResetConflictError";
     this.expectedResetVersion = expectedResetVersion;
     this.actualResetVersion = actualResetVersion;
+  }
+}
+
+export class GachaInsufficientCoinsError extends Error {
+  readonly code = GACHA_INSUFFICIENT_COINS;
+  readonly requiredCoins: number;
+  readonly availableCoins: number;
+
+  constructor(requiredCoins: number, availableCoins: number) {
+    super(
+      `Not enough coins for a gacha draw (need ${requiredCoins}, have ${availableCoins}).`,
+    );
+    this.name = "GachaInsufficientCoinsError";
+    this.requiredCoins = requiredCoins;
+    this.availableCoins = availableCoins;
   }
 }
 
@@ -72,6 +89,22 @@ export function isGachaResetConflictError(
 ): error is GachaResetConflictError {
   return error instanceof GachaResetConflictError
     || (isRecord(error) && error.code === GACHA_RESET_CONFLICT);
+}
+
+export function isGachaInsufficientCoinsError(
+  error: unknown,
+): error is GachaInsufficientCoinsError {
+  return error instanceof GachaInsufficientCoinsError
+    || (isRecord(error) && error.code === GACHA_INSUFFICIENT_COINS);
+}
+
+/** 從 Firestore 舊版 coins 欄位讀出代幣餘額（缺欄位/壞資料一律視為 0） */
+function parseCoins(data: unknown): number {
+  if (!isRecord(data)) return 0;
+  const coins = data.coins;
+  if (typeof coins !== "number" || !Number.isFinite(coins)) return 0;
+  const normalized = Math.floor(coins);
+  return Number.isSafeInteger(normalized) && normalized >= 0 ? normalized : 0;
 }
 
 export function getGachaCacheKey(uid: string): string {
@@ -181,12 +214,27 @@ export async function loadGachaCloud(
   return readGachaCache(uid, storage) ?? save;
 }
 
+/**
+ * 讀取玩家目前的代幣餘額（來源：單字大冒險的 gameProgress/{uid}）。
+ * 文件不存在或欄位缺漏一律回傳 0。
+ */
+export async function loadPlayerCoins(uid: string): Promise<number> {
+  assertUid(uid);
+  const [{ doc, getDocFromServer }, { db }] = await Promise.all([
+    import("firebase/firestore"),
+    import("../../../utils/firebaseUtil"),
+  ]);
+  const progressRef = doc(db, "gameProgress", uid);
+  const snapshot = await getDocFromServer(progressRef);
+  return snapshot.exists() ? parseCoins(snapshot.data()) : 0;
+}
+
 export async function recordGachaAttempt(
   uid: string,
   outcome: GachaOutcome,
   expectedResetVersion: number,
   storage: GachaCacheStorage | null = defaultStorage(),
-): Promise<AppliedGachaAttempt> {
+): Promise<CommittedGachaAttempt> {
   assertUid(uid);
   assertGachaOutcome(outcome);
   assertResetVersion(expectedResetVersion);
@@ -196,9 +244,14 @@ export async function recordGachaAttempt(
     import("../../../utils/firebaseUtil"),
   ]);
   const ref = doc(db, "gameProgress", uid, "littleGames", GACHA_CLOUD_DOC);
+  const progressRef = doc(db, "gameProgress", uid);
 
   const committed = await runTransaction(db, async (transaction) => {
-    const snapshot = await transaction.get(ref);
+    // 扣款與抽獎結果在同一筆交易：付了款一定有結果，沒付款就不會有結果
+    const [snapshot, progressSnapshot] = await Promise.all([
+      transaction.get(ref),
+      transaction.get(progressRef),
+    ]);
     const rawData = snapshot.exists() ? snapshot.data() : null;
     const currentSave = snapshot.exists()
       ? normalizeGachaSave(rawData)
@@ -210,6 +263,14 @@ export async function recordGachaAttempt(
         currentSave.resetVersion,
       );
     }
+
+    const availableCoins = progressSnapshot.exists()
+      ? parseCoins(progressSnapshot.data())
+      : 0;
+    if (availableCoins < GACHA_DRAW_COST) {
+      throw new GachaInsufficientCoinsError(GACHA_DRAW_COST, availableCoins);
+    }
+    const coinsAfter = availableCoins - GACHA_DRAW_COST;
 
     const applied = applyGachaAttempt(currentSave, outcome);
     const timestamp = serverTimestamp();
@@ -238,7 +299,11 @@ export async function recordGachaAttempt(
     } else {
       transaction.set(ref, writeData);
     }
-    return applied;
+    transaction.update(progressRef, {
+      coins: coinsAfter,
+      updatedAt: timestamp,
+    });
+    return { ...applied, coinsAfter };
   });
 
   await writeGachaCache(uid, committed.save, storage);

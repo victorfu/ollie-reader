@@ -2,11 +2,6 @@ import { useEffect } from "react";
 import { motion } from "framer-motion";
 import confetti from "canvas-confetti";
 import type { GameReward } from "../../types/game";
-import {
-  SPIRIT_COMPONENTS,
-  RARITY_NAMES,
-  ELEMENT_INFO,
-} from "../../assets/spirits";
 import { playSound } from "../../services/gameService";
 
 interface RewardModalProps {
@@ -24,32 +19,6 @@ export function RewardModal({ reward, onClaim }: RewardModalProps) {
       origin: { y: 0.6 },
       colors: ["#ffd700", "#ff6b6b", "#4ecdc4", "#45b7d1", "#96ceb4"],
     });
-
-    // 如果獲得新精靈，再放一波並播放解鎖音效
-    if (reward.newSpirit) {
-      playSound("unlock");
-      setTimeout(() => {
-        confetti({
-          particleCount: 150,
-          spread: 100,
-          origin: { y: 0.5 },
-          colors: ["#ffd700", "#ff69b4", "#00ff00"],
-        });
-      }, 500);
-    }
-
-    // 精靈進化：慶祝一波
-    if (reward.evolvedSpirit) {
-      playSound("levelup");
-      setTimeout(() => {
-        confetti({
-          particleCount: 120,
-          spread: 90,
-          origin: { y: 0.5 },
-          colors: ["#c4b5fd", "#f0abfc", "#fbcfe8", "#ffd700"],
-        });
-      }, 300);
-    }
 
     // 如果升級，放煙火雨並播放升級音效
     if (reward.newLevel) {
@@ -75,16 +44,6 @@ export function RewardModal({ reward, onClaim }: RewardModalProps) {
       return () => clearInterval(interval);
     }
   }, [reward]);
-
-  const SpiritComponent = reward.newSpirit
-    ? SPIRIT_COMPONENTS[reward.newSpirit.id]
-    : null;
-  const EvolveFromComp = reward.evolvedSpirit
-    ? SPIRIT_COMPONENTS[reward.evolvedSpirit.from.id]
-    : null;
-  const EvolveToComp = reward.evolvedSpirit
-    ? SPIRIT_COMPONENTS[reward.evolvedSpirit.to.id]
-    : null;
 
   return (
     <motion.div
@@ -146,7 +105,7 @@ export function RewardModal({ reward, onClaim }: RewardModalProps) {
             </span>
           </motion.div>
 
-          {/* 金幣獎勵 */}
+          {/* 扭蛋代幣獎勵 */}
           {reward.coinsGained ? (
             <motion.div
               initial={{ y: 20, opacity: 0 }}
@@ -154,11 +113,20 @@ export function RewardModal({ reward, onClaim }: RewardModalProps) {
               transition={{ delay: 0.5 }}
               className="flex items-center gap-2 mt-2"
             >
-              <span className="text-3xl">💰</span>
+              <span className="text-3xl">🪙</span>
               <span className="text-2xl font-bold text-warning">
-                +{reward.coinsGained} 金幣
+                +{reward.coinsGained} 扭蛋代幣
               </span>
             </motion.div>
+          ) : null}
+
+          {reward.tokenSyncFailed ? (
+            <div
+              className="mt-3 w-full rounded-[10px] border border-error/25 bg-error/10 px-3 py-2 text-sm text-error"
+              role="alert"
+            >
+              扭蛋代幣尚未入帳，請確認連線後再挑戰一次。
+            </div>
           ) : null}
 
           {/* 升級提示 */}
@@ -174,73 +142,6 @@ export function RewardModal({ reward, onClaim }: RewardModalProps) {
               <p className="text-lg font-medium">
                 等級 {reward.newLevel - 1} → {reward.newLevel}
               </p>
-            </motion.div>
-          )}
-
-          {/* 新精靈 */}
-          {reward.newSpirit && SpiritComponent && (
-            <motion.div
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              transition={{ delay: 0.8, type: "spring" }}
-              className="mt-4 p-6 bg-gradient-to-r from-secondary/20 to-primary/10 rounded-xl w-full"
-            >
-              <span className="text-xl">✨ 獲得新精靈！</span>
-
-              <motion.div
-                animate={{ y: [-5, 5, -5] }}
-                transition={{ duration: 2, repeat: Infinity }}
-                className="my-4 flex justify-center"
-              >
-                <SpiritComponent size={100} animate />
-              </motion.div>
-
-              <h3 className="text-xl font-bold text-secondary">
-                {reward.newSpirit.name}
-              </h3>
-
-              <div className="flex items-center justify-center gap-2 mt-2">
-                <span className="badge badge-outline">
-                  {ELEMENT_INFO[reward.newSpirit.element].icon}{" "}
-                  {ELEMENT_INFO[reward.newSpirit.element].name}
-                </span>
-                <span className="badge badge-outline">
-                  {RARITY_NAMES[reward.newSpirit.rarity]}
-                </span>
-              </div>
-
-              <p className="text-sm text-muted-foreground mt-3">
-                {reward.newSpirit.description}
-              </p>
-            </motion.div>
-          )}
-
-          {/* 精靈進化 */}
-          {reward.evolvedSpirit && EvolveToComp && (
-            <motion.div
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              transition={{ delay: 0.9, type: "spring" }}
-              className="mt-4 p-6 bg-gradient-to-r from-accent/20 to-secondary/10 rounded-xl w-full"
-            >
-              <span className="text-xl">🌟 精靈進化了！</span>
-              <div className="my-4 flex items-center justify-center gap-3">
-                {EvolveFromComp && (
-                  <div className="opacity-60">
-                    <EvolveFromComp size={64} animate={false} />
-                  </div>
-                )}
-                <span className="text-3xl text-accent">→</span>
-                <motion.div
-                  animate={{ y: [-5, 5, -5] }}
-                  transition={{ duration: 2, repeat: Infinity }}
-                >
-                  <EvolveToComp size={96} animate />
-                </motion.div>
-              </div>
-              <h3 className="text-lg font-bold text-accent">
-                {reward.evolvedSpirit.from.name} → {reward.evolvedSpirit.to.name}
-              </h3>
             </motion.div>
           )}
 

@@ -1,5 +1,4 @@
 import type { PlayerProgress } from "../types/game";
-import { SPIRITS } from "../assets/spirits";
 import { STAGES } from "../services/gameProgressService";
 
 // Achievement definitions
@@ -13,41 +12,6 @@ export interface Achievement {
 }
 
 export const ACHIEVEMENTS: Achievement[] = [
-  // Spirit Collection Achievements
-  {
-    id: "first-spirit",
-    name: "初次相遇",
-    description: "收集第一隻精靈",
-    icon: "🌟",
-    requirement: (p) => p.unlockedSpiritIds.length >= 1,
-    rarity: "bronze",
-  },
-  {
-    id: "spirit-collector",
-    name: "精靈收藏家",
-    description: "收集 5 隻精靈",
-    icon: "✨",
-    requirement: (p) => p.unlockedSpiritIds.length >= 5,
-    rarity: "silver",
-  },
-  {
-    id: "spirit-master",
-    name: "精靈大師",
-    description: "收集 10 隻精靈",
-    icon: "👑",
-    requirement: (p) => p.unlockedSpiritIds.length >= 10,
-    rarity: "gold",
-  },
-  {
-    id: "spirit-legend",
-    name: "傳說收藏家",
-    description: "收集所有精靈",
-    icon: "🏆",
-    // 逐一比對而非比數量：舊存檔可能含已下架的扭蛋限定精靈 id
-    requirement: (p) => SPIRITS.every((s) => p.unlockedSpiritIds.includes(s.id)),
-    rarity: "rainbow",
-  },
-
   // Level Achievements
   {
     id: "level-2",
@@ -131,24 +95,6 @@ export const ACHIEVEMENTS: Achievement[] = [
     description: "達成 15 連擊",
     icon: "⚡",
     requirement: (p) => p.highestCombo >= 15,
-    rarity: "gold",
-  },
-
-  // Evolution Achievements
-  {
-    id: "first-evolution",
-    name: "初次進化",
-    description: "讓一隻精靈進化",
-    icon: "🦋",
-    requirement: (p) => p.evolvedSpiritIds.length >= 1,
-    rarity: "silver",
-  },
-  {
-    id: "evolution-master",
-    name: "進化大師",
-    description: "讓 3 隻精靈進化",
-    icon: "🌈",
-    requirement: (p) => p.evolvedSpiritIds.length >= 3,
     rarity: "gold",
   },
 
