@@ -43,9 +43,20 @@ describe("normalizeSettings", () => {
     expect(normalizeSettings({ music: -1 }).music).toBe(0);
   });
 
-  it("only treats an explicit true as muted", () => {
-    expect(normalizeSettings({ muted: true }).muted).toBe(true);
-    expect(normalizeSettings({ muted: "yes" }).muted).toBe(false);
-    expect(normalizeSettings({}).muted).toBe(false);
+  it("starts muted so the game never blurts out music on its own", () => {
+    expect(DEFAULT_AUDIO_SETTINGS.muted).toBe(true);
+    expect(normalizeSettings({}).muted).toBe(true);
+    expect(normalizeSettings({ muted: "yes" }).muted).toBe(true);
+  });
+
+  it("remembers that the player turned sound on", () => {
+    // 這條最重要：明確存成 false 代表玩家自己開過聲音，不能被預設值蓋回去。
+    expect(normalizeSettings({ muted: false }).muted).toBe(false);
+  });
+
+  it("keeps the volumes usable so unmuting is a single tap", () => {
+    // 預設靜音但音量是 0 的話，打開聲音還是沒聲音——那就等於壞掉。
+    expect(DEFAULT_AUDIO_SETTINGS.music).toBeGreaterThan(0);
+    expect(DEFAULT_AUDIO_SETTINGS.sfx).toBeGreaterThan(0);
   });
 });

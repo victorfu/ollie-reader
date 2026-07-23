@@ -35,10 +35,16 @@ export type AudioSettings = {
   muted: boolean;
 };
 
+/**
+ * 預設是靜音的。
+ *
+ * 這個遊戲會在瀏覽器分頁裡被打開，突然冒出音樂很擾人（在學校、在別人旁邊、
+ * 或只是想安靜玩）。音量值照樣留著，所以按下開關就是正常大小聲，不用再調。
+ */
 export const DEFAULT_AUDIO_SETTINGS: AudioSettings = {
   music: 0.4,
   sfx: 0.7,
-  muted: false,
+  muted: true,
 };
 
 /**
@@ -104,7 +110,12 @@ export function normalizeSettings(raw: unknown): AudioSettings {
   return {
     music: clampVolume(record.music, DEFAULT_AUDIO_SETTINGS.music),
     sfx: clampVolume(record.sfx, DEFAULT_AUDIO_SETTINGS.sfx),
-    muted: record.muted === true,
+    // 明確存成 false 代表玩家自己開過聲音，那要留住；缺欄位或亂七八糟的值
+    // 才回預設（靜音）。
+    muted:
+      typeof record.muted === "boolean"
+        ? record.muted
+        : DEFAULT_AUDIO_SETTINGS.muted,
   };
 }
 
@@ -119,13 +130,17 @@ export function applyAudioSettings(next: AudioSettings): void {
     }
   }
 
-  if (!musicElement) return;
-
   if (next.muted) {
-    musicElement.pause();
+    musicElement?.pause();
+    return;
+  }
+
+  // 靜音時根本沒開始放，所以解除靜音要從頭把曲子接起來。
+  if (!currentMusicId) return;
+  if (!musicElement || musicElement.paused || !musicElement.src) {
+    startTrack(currentMusicId);
   } else {
     musicElement.volume = next.music;
-    void musicElement.play().catch(() => queueUnlock(currentMusicId));
   }
 }
 
@@ -165,25 +180,33 @@ export function playMusic(id: MusicId | null): void {
     return;
   }
 
-  const start = () => {
-    if (!musicElement) {
-      musicElement = new Audio();
-      musicElement.loop = true;
-    }
-    musicElement.src = MUSIC_SOURCE[id];
-    musicElement.volume = 0;
-    void musicElement
-      .play()
-      .then(() => fadeTo(settings.muted ? 0 : settings.music))
-      .catch(() => queueUnlock(id));
-  };
+  // 靜音時連載都不要載——背景音樂是整包資源裡最大的，預設靜音的人不該
+  // 為了他不會聽到的東西付下載成本。
+  if (settings.muted) return;
 
   // 已經在放別的曲子就先淡出，換曲不會啪一聲。
   if (musicElement && !musicElement.paused) {
-    fadeTo(0, start);
+    fadeTo(0, () => startTrack(id));
   } else {
-    start();
+    startTrack(id);
   }
+}
+
+function startTrack(id: MusicId): void {
+  if (!musicElement) {
+    musicElement = new Audio();
+    musicElement.loop = true;
+  }
+
+  if (musicElement.src !== MUSIC_SOURCE[id]) {
+    musicElement.src = MUSIC_SOURCE[id];
+  }
+  musicElement.volume = 0;
+
+  void musicElement
+    .play()
+    .then(() => fadeTo(settings.music))
+    .catch(() => queueUnlock(id));
 }
 
 export function stopMusic(): void {

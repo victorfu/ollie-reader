@@ -1,16 +1,28 @@
 import type { AudioControls as Controls } from "../useAudioSettings";
 
-/** HUD 上的靜音鍵：戰鬥中只需要一鍵切換，不用整組滑桿。 */
+/**
+ * 聲音開關。
+ *
+ * 刻意用「有沒有聲音」而不是「靜不靜音」來描述：預設是靜音，所以按鈕大部分
+ * 時候顯示的是關閉狀態，用否定詞的否定（「取消靜音」）對小孩太繞。亮起來
+ * 代表「現在有聲音」，符合直覺。
+ */
 export function MuteButton({ settings, setMuted }: Controls) {
+  const soundOn = !settings.muted;
+
   return (
     <button
       type="button"
-      onClick={() => setMuted(!settings.muted)}
-      aria-pressed={settings.muted}
-      aria-label={settings.muted ? "開啟音效" : "關閉音效"}
-      className="min-h-11 rounded-[8px] border border-black/5 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+      onClick={() => setMuted(soundOn)}
+      aria-pressed={soundOn}
+      aria-label={soundOn ? "關閉聲音" : "開啟聲音"}
+      className={`min-h-11 rounded-[8px] border px-3 text-sm font-semibold shadow-sm transition ${
+        soundOn
+          ? "border-[#ff6f9f] bg-[#ff6f9f] text-white"
+          : "border-black/5 bg-white text-slate-700 hover:bg-slate-50"
+      }`}
     >
-      {settings.muted ? "🔇" : "🔊"}
+      {soundOn ? "🔊" : "🔇"}
     </button>
   );
 }
@@ -22,38 +34,44 @@ export function AudioSettingsPanel({
   setMusicVolume,
   setSfxVolume,
 }: Controls) {
+  const soundOn = !settings.muted;
+
   return (
     <section className="mt-3 w-full max-w-xl rounded-[14px] border border-black/5 bg-white/85 p-3 shadow-sm">
       <div className="flex items-center justify-between gap-3">
-        <h2 className="text-sm font-semibold text-slate-800">音量</h2>
+        <div className="min-w-0">
+          <h2 className="text-sm font-semibold text-slate-800">聲音</h2>
+          {!soundOn && (
+            <p className="mt-0.5 text-xs text-slate-500">
+              預設是靜音的，點右邊就會有音樂和音效。
+            </p>
+          )}
+        </div>
+
         <button
           type="button"
-          onClick={() => setMuted(!settings.muted)}
-          aria-pressed={settings.muted}
-          className={`min-h-11 rounded-[10px] border px-3 text-sm font-semibold shadow-sm transition ${
-            settings.muted
+          onClick={() => setMuted(soundOn)}
+          aria-pressed={soundOn}
+          className={`min-h-11 shrink-0 rounded-[10px] border px-4 text-sm font-semibold shadow-sm transition ${
+            soundOn
               ? "border-[#ff6f9f] bg-[#ff6f9f] text-white"
-              : "border-black/5 bg-white text-slate-700 hover:bg-slate-50"
+              : "border-[#ff6f9f]/40 bg-white text-[#d94f7d] hover:bg-rose-50"
           }`}
         >
-          {settings.muted ? "🔇 已靜音" : "🔊 有聲音"}
+          {soundOn ? "🔊 有聲音" : "🔇 打開聲音"}
         </button>
       </div>
 
-      <div className="mt-2 space-y-2">
-        <VolumeSlider
-          label="音樂"
-          value={settings.music}
-          disabled={settings.muted}
-          onChange={setMusicVolume}
-        />
-        <VolumeSlider
-          label="音效"
-          value={settings.sfx}
-          disabled={settings.muted}
-          onChange={setSfxVolume}
-        />
-      </div>
+      {soundOn && (
+        <div className="mt-2 space-y-2">
+          <VolumeSlider
+            label="音樂"
+            value={settings.music}
+            onChange={setMusicVolume}
+          />
+          <VolumeSlider label="音效" value={settings.sfx} onChange={setSfxVolume} />
+        </div>
+      )}
     </section>
   );
 }
@@ -61,20 +79,14 @@ export function AudioSettingsPanel({
 function VolumeSlider({
   label,
   value,
-  disabled,
   onChange,
 }: {
   label: string;
   value: number;
-  disabled: boolean;
   onChange: (value: number) => void;
 }) {
   return (
-    <label
-      className={`flex items-center gap-3 text-xs ${
-        disabled ? "opacity-45" : ""
-      }`}
-    >
+    <label className="flex items-center gap-3 text-xs">
       <span className="w-8 shrink-0 font-medium text-slate-600">{label}</span>
       <input
         type="range"
@@ -82,7 +94,6 @@ function VolumeSlider({
         max={1}
         step={0.05}
         value={value}
-        disabled={disabled}
         onChange={(event) => onChange(Number(event.target.value))}
         className="h-2 flex-1 cursor-pointer accent-[#ff6f9f]"
       />
