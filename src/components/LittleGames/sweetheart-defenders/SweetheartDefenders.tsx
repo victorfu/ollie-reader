@@ -1,14 +1,9 @@
 import { useCallback, useState } from "react";
 import { LEVELS } from "./data/levels";
-import { STARTER_PET_IDS } from "./data/pets";
-import { petsUnlockedBy } from "./data/unlocks";
-import {
-  applyRunResult,
-  type CampaignProgress,
-  type RunOutcome,
-} from "./engine/progress";
 import { BattleScreen } from "./ui/BattleScreen";
+import { PetDex } from "./ui/PetDex";
 import { TitleScreen } from "./ui/TitleScreen";
+import { useCampaignSave } from "./useCampaignSave";
 import type { Difficulty } from "./types";
 
 type Props = {
@@ -17,22 +12,20 @@ type Props = {
 
 type Screen =
   | { kind: "title" }
+  | { kind: "dex" }
   | { kind: "battle"; levelId: string; difficulty: Difficulty; runId: number };
 
 /**
  * 甜心防衛隊 — 全螢幕塔防遊戲。
  *
- * 進度目前只活在這個 state 裡（關掉分頁就沒了）；M4 會把它換成 local-first +
- * Firestore 的存檔，介面不用動。
+ * 進度由 useCampaignSave 負責（本機 + Firestore），這裡只管畫面切換。
  */
 export default function SweetheartDefenders({ onExit }: Props) {
   const [screen, setScreen] = useState<Screen>({ kind: "title" });
-  const [progress, setProgress] = useState<CampaignProgress>({
-    levelStars: {},
-    unlockedPetIds: STARTER_PET_IDS,
-  });
+  const { save, status, isSignedIn, recordResult } = useCampaignSave();
 
   const backToTitle = useCallback(() => setScreen({ kind: "title" }), []);
+  const openDex = useCallback(() => setScreen({ kind: "dex" }), []);
 
   const startLevel = useCallback((levelId: string, difficulty: Difficulty) => {
     setScreen({ kind: "battle", levelId, difficulty, runId: 0 });
@@ -47,30 +40,26 @@ export default function SweetheartDefenders({ onExit }: Props) {
     );
   }, []);
 
-  const recordResult = useCallback((levelId: string, outcome: RunOutcome) => {
-    setProgress((current) =>
-      applyRunResult(current, levelId, outcome, petsUnlockedBy),
-    );
-  }, []);
+  const level =
+    screen.kind === "battle"
+      ? LEVELS.find((candidate) => candidate.id === screen.levelId)
+      : undefined;
 
-  if (screen.kind === "title") {
-    return (
-      <TitleScreen
-        levelStars={progress.levelStars}
-        unlockedPetIds={progress.unlockedPetIds}
-        onStart={startLevel}
-        onExit={onExit}
-      />
-    );
+  if (screen.kind === "dex") {
+    return <PetDex unlockedPetIds={save.unlockedPetIds} onBack={backToTitle} />;
   }
 
-  const level = LEVELS.find((candidate) => candidate.id === screen.levelId);
-  if (!level) {
+  // 找不到關卡（例如舊存檔指到已移除的圖）就退回路線頁，不要卡在空畫面。
+  if (screen.kind === "title" || !level) {
     return (
       <TitleScreen
-        levelStars={progress.levelStars}
-        unlockedPetIds={progress.unlockedPetIds}
+        levelStars={save.levelStars}
+        bestWave={save.bestWave}
+        unlockedPetIds={save.unlockedPetIds}
+        syncStatus={status}
+        isSignedIn={isSignedIn}
         onStart={startLevel}
+        onOpenDex={openDex}
         onExit={onExit}
       />
     );
@@ -88,7 +77,7 @@ export default function SweetheartDefenders({ onExit }: Props) {
         key={`${screen.levelId}-${screen.difficulty}-${screen.runId}`}
         level={level}
         difficulty={screen.difficulty}
-        unlockedPetIds={progress.unlockedPetIds}
+        unlockedPetIds={save.unlockedPetIds}
         onExit={backToTitle}
         onRetry={retry}
         onFinished={(outcome) => recordResult(level.id, outcome)}

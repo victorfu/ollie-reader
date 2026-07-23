@@ -28,6 +28,11 @@ function petIdFromFilename(filename) {
   return path.basename(filename, ".png").replace(/-portrait$/, "");
 }
 
+async function hasAlpha(file) {
+  const { stdout } = await execFileAsync("sips", ["-g", "hasAlpha", file]);
+  return /hasAlpha:\s*yes/.test(stdout);
+}
+
 async function main() {
   if (process.platform !== "darwin") {
     console.error("這個腳本需要 macOS 的 sips 指令。");
@@ -47,19 +52,36 @@ async function main() {
     return;
   }
 
+  const suspicious = [];
+
   for (const file of files) {
     const petId = petIdFromFilename(file);
+    const source = path.join(SOURCE_DIR, file);
+
     await execFileAsync("sips", [
       "-Z",
       String(MAX_EDGE),
-      path.join(SOURCE_DIR, file),
+      source,
       "--out",
       path.join(OUTPUT_DIR, `${petId}.png`),
     ]);
+
+    // 寵物圖應該是去背的。沒有 alpha 通道通常代表放錯檔案（例如整張聯絡表
+    // 而不是單隻寵物），而且圖鑑把未解鎖的寵物壓成剪影時會變成一塊黑方塊。
+    if (!(await hasAlpha(source))) suspicious.push(file);
+
     console.log(`  ${file} -> pets/${petId}.png`);
   }
 
   console.log(`\n完成：${files.length} 張，最長邊 ${MAX_EDGE}px`);
+
+  if (suspicious.length > 0) {
+    console.warn(
+      `\n⚠️  下列原圖沒有透明背景，請確認不是放錯檔案：\n${suspicious
+        .map((file) => `   - ${file}`)
+        .join("\n")}`,
+    );
+  }
 }
 
 await main();

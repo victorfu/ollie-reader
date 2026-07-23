@@ -78,7 +78,7 @@ describe("summariseRun", () => {
 });
 
 describe("applyRunResult", () => {
-  const EMPTY = { levelStars: {}, unlockedPetIds: ["starter"] };
+  const EMPTY = { levelStars: {}, unlockedPetIds: ["starter"], bestWave: {} };
   // 假的解鎖表：拿越多星送越多隻。
   const unlocks = (levelId: string, stars: number) =>
     stars >= 3 ? [`${levelId}-a`, `${levelId}-b`] : [`${levelId}-a`];
@@ -107,15 +107,61 @@ describe("applyRunResult", () => {
     expect(next.unlockedPetIds).toContain("starter");
   });
 
-  it("changes nothing when the run was lost", () => {
+  it("hands out no stars or pets when the run was lost", () => {
     const next = applyRunResult(
       EMPTY,
       "shop-path",
-      makeState({ phase: "lost", cakes: 0 }),
+      makeState({ phase: "lost", cakes: 0, waveIndex: 7 }),
       unlocks,
     );
 
-    expect(next).toBe(EMPTY);
+    expect(next.levelStars["shop-path"]).toBeUndefined();
+    expect(next.unlockedPetIds).toEqual(["starter"]);
+  });
+
+  it("still records how far a losing run got", () => {
+    const next = applyRunResult(
+      EMPTY,
+      "shop-path",
+      makeState({ phase: "lost", cakes: 0, waveIndex: 7 }),
+      unlocks,
+    );
+
+    expect(next.bestWave["shop-path"]).toBe(8);
+  });
+
+  it("keeps the furthest wave rather than the latest one", () => {
+    const far = applyRunResult(
+      EMPTY,
+      "shop-path",
+      makeState({ phase: "lost", cakes: 0, waveIndex: 11 }),
+      unlocks,
+    );
+    const nearer = applyRunResult(
+      far,
+      "shop-path",
+      makeState({ phase: "lost", cakes: 0, waveIndex: 2 }),
+      unlocks,
+    );
+
+    expect(nearer.bestWave["shop-path"]).toBe(12);
+  });
+
+  it("returns the same object when nothing improved", () => {
+    const once = applyRunResult(
+      EMPTY,
+      "shop-path",
+      makeState({ cakes: 10, maxCakes: 10, waveIndex: 14 }),
+      unlocks,
+    );
+    const again = applyRunResult(
+      once,
+      "shop-path",
+      makeState({ cakes: 10, maxCakes: 10, waveIndex: 14 }),
+      unlocks,
+    );
+
+    expect(again).toBe(once);
   });
 
   it("never downgrades a level that was already played better", () => {

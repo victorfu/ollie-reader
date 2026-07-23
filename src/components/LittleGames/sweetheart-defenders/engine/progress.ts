@@ -34,14 +34,17 @@ export type CampaignProgress = {
   /** 每關拿過的最高星數 */
   levelStars: Record<string, Stars>;
   unlockedPetIds: string[];
+  /** 每關撐到過的最遠波次（1-based）。輸掉的場次也算，那正是要拿來比的紀錄。 */
+  bestWave: Record<string, number>;
 };
 
 /**
  * 把一場的結果併進進度。
  *
- * 星數只進不退（第二次打得比較差不該把三顆星洗掉），解鎖也只加不減。
- * 回傳新物件而不是就地改，這樣 React 的 setState 直接吃得下，之後接存檔也
- * 只是把回傳值寫出去。
+ * 星數只進不退（第二次打得比較差不該把三顆星洗掉），解鎖也只加不減，
+ * 最遠波次只會更遠。回傳新物件而不是就地改，這樣 React 的 setState 直接吃得
+ * 下，存檔也只是把回傳值寫出去。沒有任何改變時回傳原本那個物件，省下一次
+ * 重繪與一次寫入。
  */
 export function applyRunResult(
   progress: CampaignProgress,
@@ -49,18 +52,29 @@ export function applyRunResult(
   outcome: RunOutcome,
   petsUnlockedBy: (levelId: string, stars: Stars) => string[],
 ): CampaignProgress {
-  const stars = starsForRun(outcome);
-  if (stars === 0) return progress;
+  const reachedWave = outcome.waveIndex + 1;
+  const bestWave = Math.max(progress.bestWave[levelId] ?? 0, reachedWave);
+  const waveImproved = bestWave !== (progress.bestWave[levelId] ?? 0);
 
-  const best = Math.max(progress.levelStars[levelId] ?? 0, stars) as Stars;
-  if (best === progress.levelStars[levelId]) return progress;
+  const stars = starsForRun(outcome);
+  const bestStars = Math.max(progress.levelStars[levelId] ?? 0, stars) as Stars;
+  const starsImproved = bestStars !== (progress.levelStars[levelId] ?? 0);
+
+  if (!waveImproved && !starsImproved) return progress;
 
   const unlocked = new Set(progress.unlockedPetIds);
-  for (const petId of petsUnlockedBy(levelId, best)) unlocked.add(petId);
+  if (starsImproved) {
+    for (const petId of petsUnlockedBy(levelId, bestStars)) unlocked.add(petId);
+  }
 
   return {
-    levelStars: { ...progress.levelStars, [levelId]: best },
+    levelStars: starsImproved
+      ? { ...progress.levelStars, [levelId]: bestStars }
+      : progress.levelStars,
     unlockedPetIds: [...unlocked],
+    bestWave: waveImproved
+      ? { ...progress.bestWave, [levelId]: bestWave }
+      : progress.bestWave,
   };
 }
 

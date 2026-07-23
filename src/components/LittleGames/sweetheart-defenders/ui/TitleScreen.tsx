@@ -5,6 +5,7 @@ import { getEnemy } from "../data/enemies";
 import { isLevelUnlocked, nextPlayableLevelId } from "../data/unlocks";
 import { previewWave } from "../engine/waves";
 import type { Stars } from "../engine/progress";
+import type { SyncStatus } from "../storage";
 import type { Difficulty } from "../types";
 
 const DIFFICULTIES: { id: Difficulty; label: string; hint: string }[] = [
@@ -15,8 +16,13 @@ const DIFFICULTIES: { id: Difficulty; label: string; hint: string }[] = [
 
 type Props = {
   levelStars: Record<string, Stars>;
+  /** 每關撐到過的最遠波次，還沒通關的關卡拿來顯示紀錄 */
+  bestWave: Record<string, number>;
   unlockedPetIds: string[];
+  syncStatus: SyncStatus;
+  isSignedIn: boolean;
   onStart: (levelId: string, difficulty: Difficulty) => void;
+  onOpenDex: () => void;
   onExit?: () => void;
 };
 
@@ -29,8 +35,12 @@ type Props = {
  */
 export function TitleScreen({
   levelStars,
+  bestWave,
   unlockedPetIds,
+  syncStatus,
+  isSignedIn,
   onStart,
+  onOpenDex,
   onExit,
 }: Props) {
   const [difficulty, setDifficulty] = useState<Difficulty>("normal");
@@ -68,6 +78,7 @@ export function TitleScreen({
         <p className="mt-2 text-sm text-slate-600">
           闖關進度 {clearedCount} / {LEVELS.length}
         </p>
+        <SyncBadge status={syncStatus} isSignedIn={isSignedIn} />
       </header>
 
       <fieldset className="mt-6 flex flex-col items-center">
@@ -161,6 +172,12 @@ export function TitleScreen({
                         新怪物：{newEnemyNames(index).join("、")}
                       </span>
                     )}
+
+                    {stars === 0 && (bestWave[level.id] ?? 0) > 0 && (
+                      <span className="mt-1.5 text-[11px] font-medium text-slate-400">
+                        最佳紀錄：撐到第 {bestWave[level.id]} 波
+                      </span>
+                    )}
                   </>
                 ) : (
                   <span className="mt-0.5 text-xs text-slate-400">
@@ -174,31 +191,75 @@ export function TitleScreen({
       </ol>
 
       <section className="mt-7 w-full max-w-xl">
-        <h2 className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-          已解鎖的夥伴 {unlockedPets.length} / {PETS.length}
-        </h2>
-        <div className="flex flex-wrap gap-2">
-          {unlockedPets.map((pet) => (
-            <figure
-              key={pet.id}
-              className="flex w-[72px] flex-col items-center rounded-[12px] border border-black/5 bg-white/70 p-1.5 shadow-sm backdrop-blur"
-            >
+        <button
+          type="button"
+          onClick={onOpenDex}
+          className="flex w-full items-center gap-3 rounded-[14px] border border-black/5 bg-white/85 p-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg"
+        >
+          <span className="text-2xl" aria-hidden="true">
+            📖
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-semibold text-slate-800">
+              寵物圖鑑
+            </span>
+            <span className="block text-xs text-slate-500">
+              已收集 {unlockedPets.length} / {PETS.length} · 通關解鎖新夥伴，三顆星再多送兩隻
+            </span>
+          </span>
+          <span className="flex -space-x-3">
+            {unlockedPets.slice(-4).map((pet) => (
               <img
+                key={pet.id}
                 src={pet.sprite}
-                alt={pet.name}
-                className="h-10 w-10 object-contain"
+                alt=""
+                className="size-9 rounded-full bg-white object-contain ring-2 ring-white"
               />
-              <figcaption className="mt-0.5 text-center text-[10px] font-medium leading-tight text-slate-600">
-                {pet.nameZh}
-              </figcaption>
-            </figure>
-          ))}
-        </div>
-        <p className="mt-2 text-xs text-slate-400">
-          通關解鎖新夥伴，拿到三顆星還會多送兩隻。
-        </p>
+            ))}
+          </span>
+        </button>
       </section>
+
     </div>
+  );
+}
+
+/** 存檔狀態。沒登入時講清楚進度只留在這台裝置。 */
+function SyncBadge({
+  status,
+  isSignedIn,
+}: {
+  status: SyncStatus;
+  isSignedIn: boolean;
+}) {
+  if (!isSignedIn) {
+    return (
+      <span className="mt-1.5 rounded-full bg-amber-100/80 px-2.5 py-1 text-[11px] font-medium text-amber-700">
+        未登入 · 進度只存在這台裝置
+      </span>
+    );
+  }
+
+  const label: Record<SyncStatus, string> = {
+    idle: "",
+    loading: "讀取雲端進度…",
+    saving: "儲存中…",
+    saved: "進度已存到雲端",
+    offline: "連不上雲端 · 進度先存在這台裝置",
+  };
+
+  if (!label[status]) return null;
+
+  return (
+    <span
+      className={`mt-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium ${
+        status === "offline"
+          ? "bg-amber-100/80 text-amber-700"
+          : "bg-white/70 text-slate-500"
+      }`}
+    >
+      {label[status]}
+    </span>
   );
 }
 
