@@ -13,7 +13,7 @@ type GameCard = {
     | "bunny"
     | "meteor"
     | "mushroom"
-    | "wonder-academy";
+    | "sweetheart";
   to: string;
   title: string;
   blurb: string;
@@ -96,16 +96,16 @@ export default function GameHub() {
         best: meteorBest,
       },
       {
-        id: "wonder-academy",
-        to: "/games/wonder-academy",
-        title: "Wonder Academy",
+        id: "sweetheart",
+        to: "/games/sweetheart",
+        title: "甜心防衛隊",
         blurb:
-          "全螢幕 cozy RPG：選擇 Wonderling 夥伴、探索 Sparkleaf Grove、用 Attune 建立連結。",
-        tag: "RPG",
-        emoji: "✨",
+          "甜點店保衛戰：把寵物放上塔位攔下偷糖果的怪物，守住櫃檯上的蛋糕。",
+        tag: "Tower Defense",
+        emoji: "🍰",
         best: null,
         inDevelopment: true,
-        statusLabel: "開發中 · Firestore 雲端存檔",
+        statusLabel: "開發中 · 雲端存檔",
       },
     ],
     [bunnyBest, meteorBest, mushroomBest],

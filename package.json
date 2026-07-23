@@ -9,7 +9,6 @@
     "lint": "eslint . --ignore-pattern 'desktop/.venv/**' --ignore-pattern 'desktop/dist/**' --ignore-pattern 'desktop/build/**'",
     "preview": "vite preview",
     "test": "vitest run --passWithNoTests",
-    "smoke:wonder-academy": "node scripts/smoke-wonder-academy.mjs",
     "fetch-transcripts": "node scripts/fetch-transcripts.mjs"
   },
   "dependencies": {
@@ -20,7 +19,6 @@
     "daisyui": "^5.5.18",
     "firebase": "^12.9.0",
     "framer-motion": "^12.34.0",
-    "kaplay": "^3001.0.19",
     "lucide-react": "^0.575.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",

@@ -87,8 +87,11 @@ const MeteorGlider = lazyWithReload(
 const MushroomAdventure = lazyWithReload(
   () => import("./components/LittleGames/mushroom/MushroomAdventure"),
 );
-const WonderAcademyGame = lazyWithReload(
-  () => import("./components/LittleGames/wonder-academy/WonderAcademyCollector"),
+const SweetheartDefenders = lazyWithReload(
+  () =>
+    import(
+      "./components/LittleGames/sweetheart-defenders/SweetheartDefenders"
+    ),
 );
 const GachaMachine = lazyWithReload(
   () => import("./components/LittleGames/gacha-machine/GachaMachine"),
@@ -304,30 +307,26 @@ function AppContent() {
   }, [isMobileMenuOpen]);
 
   const normalizedPathname = location.pathname.replace(/\/+$/, "") || "/";
-  const isStandaloneWonderAcademy =
-    normalizedPathname === "/games/wonder-academy";
+  const isStandaloneSweetheart = normalizedPathname === "/games/sweetheart";
   const isStandaloneMushroom = normalizedPathname === "/games/mushroom";
   const isStandaloneBunny = normalizedPathname === "/games/bunny";
   const isStandaloneMeteor = normalizedPathname === "/games/meteor";
   const isStandaloneGacha = normalizedPathname === "/games/gacha";
-  const isLegacyMonsterAcademy =
+  // 甜心防衛隊取代了 Wonder Academy / Monster Academy，舊網址（含已開著的分頁
+  // 與書籤）一律導到新遊戲。
+  const isRetiredAcademyGame =
+    normalizedPathname === "/games/wonder-academy" ||
     normalizedPathname === "/games/monster-academy";
 
-  if (isLegacyMonsterAcademy) {
-    return <Navigate to="/games/wonder-academy" replace />;
+  if (isRetiredAcademyGame) {
+    return <Navigate to="/games/sweetheart" replace />;
   }
 
-  if (isStandaloneWonderAcademy) {
+  if (isStandaloneSweetheart) {
     return (
-      <SettingsProvider>
-        <SpeechProvider>
-          <PdfProvider>
-            <Suspense fallback={<RouteLoadingFallback />}>
-              <WonderAcademyGame onExit={() => navigate("/games")} />
-            </Suspense>
-          </PdfProvider>
-        </SpeechProvider>
-      </SettingsProvider>
+      <Suspense fallback={<RouteLoadingFallback />}>
+        <SweetheartDefenders onExit={() => navigate("/games")} />
+      </Suspense>
     );
   }
 

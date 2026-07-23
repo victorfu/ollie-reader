@@ -53,14 +53,14 @@ afterEach(() => {
 });
 
 describe("GameHub card layout", () => {
-  it("lists Wonder Academy last and flags it as in development", () => {
+  it("lists 甜心防衛隊 last and flags it as in development", () => {
     renderGameHub();
 
     const cards = [...container.querySelectorAll("article")];
     expect(cards).toHaveLength(6);
 
     const last = cards.at(-1);
-    expect(last?.querySelector("h2")?.textContent).toBe("Wonder Academy");
+    expect(last?.querySelector("h2")?.textContent).toBe("甜心防衛隊");
     expect(last?.textContent).toContain("開發中");
 
     const flagged = cards.filter((card) => card.textContent?.includes("開發中"));
@@ -82,7 +82,7 @@ describe("GameHub single-tab game launcher", () => {
       ["Bunny Jumper", "開始遊戲", "/games/bunny"],
       ["森林蘑菇冒險", "開始遊戲", "/games/mushroom"],
       ["Meteor Glider", "開始遊戲", "/games/meteor"],
-      ["Wonder Academy", "開始遊戲", "/games/wonder-academy"],
+      ["甜心防衛隊", "開始遊戲", "/games/sweetheart"],
     ] as const;
 
     for (const [title, label] of entries) {
