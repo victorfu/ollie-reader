@@ -1,3 +1,4 @@
+import { CakeSlice, Star, Trophy } from "lucide-react";
 import { starsForRun, summariseRun, type RunOutcome } from "../engine/progress";
 
 type Props = {
@@ -15,8 +16,12 @@ export function ResultDialog({ outcome, totalWaves, onRetry, onExit }: Props) {
   return (
     <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/25 p-4 backdrop-blur-sm">
       <div className="w-full max-w-sm rounded-[16px] border border-black/5 bg-white/95 p-6 text-center shadow-2xl backdrop-blur-2xl">
-        <p className="text-4xl" aria-hidden="true">
-          {cleared ? "🎉" : "🍰"}
+        <p className="flex justify-center text-[#ff6f9f]" aria-hidden="true">
+          {cleared ? (
+            <Trophy size={44} strokeWidth={1.5} />
+          ) : (
+            <CakeSlice size={44} strokeWidth={1.5} className="text-slate-300" />
+          )}
         </p>
 
         <h2 className="mt-2 text-xl font-semibold tracking-tight text-slate-900">
@@ -26,11 +31,22 @@ export function ResultDialog({ outcome, totalWaves, onRetry, onExit }: Props) {
 
         {cleared && (
           <p
-            className="mt-3 text-2xl tracking-[0.2em]"
+            className="mt-3 flex justify-center gap-1"
             aria-label={`獲得 ${stars} 顆星`}
           >
-            {"★".repeat(stars)}
-            <span className="text-slate-300">{"★".repeat(3 - stars)}</span>
+            {[0, 1, 2].map((index) => (
+              <Star
+                key={index}
+                size={26}
+                strokeWidth={1.5}
+                aria-hidden="true"
+                className={
+                  index < stars
+                    ? "fill-amber-400 text-amber-400"
+                    : "fill-slate-200 text-slate-200"
+                }
+              />
+            ))}
           </p>
         )}
 

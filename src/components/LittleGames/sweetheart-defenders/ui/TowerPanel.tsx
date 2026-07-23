@@ -8,6 +8,7 @@ import {
 import { TRAIT_DESC_ZH, TRAIT_LABEL_ZH } from "../data/traits";
 import { getTowerStats, getTrait } from "../engine/combat";
 import { getPlaceCost, getSellRefund, getUpgradeCost } from "../engine/economy";
+import { Candy, X } from "lucide-react";
 import { playSfx } from "../audio";
 import type { LiveTower, Pet } from "../types";
 
@@ -223,11 +224,12 @@ function EmptySlot({
                 <PetTags pet={candidate} />
               </div>
               <span
-                className={`mt-1 text-[11px] font-semibold ${
+                className={`mt-1 flex items-center gap-0.5 text-[11px] font-semibold ${
                   affordable ? "text-amber-600" : "text-slate-400"
                 }`}
               >
-                🍬 {cost}
+                <Candy size={12} strokeWidth={2} aria-hidden="true" />
+                {cost}
               </span>
             </button>
           );
@@ -243,9 +245,13 @@ function EmptySlot({
             disabled={frosting < getPlaceCost(preview)}
             className="mt-2 min-h-11 w-full rounded-[10px] bg-[#ff6f9f] text-sm font-semibold text-white shadow-sm transition hover:brightness-105 active:scale-[0.99] disabled:opacity-45"
           >
-            {frosting < getPlaceCost(preview)
-              ? `還差 🍬 ${getPlaceCost(preview) - frosting}`
-              : `放上 ${preview.nameZh}（🍬 ${getPlaceCost(preview)}）`}
+            <span className="flex items-center justify-center gap-1">
+              {frosting < getPlaceCost(preview) ? "還差" : `放上 ${preview.nameZh}`}
+              <Candy size={14} strokeWidth={2} aria-hidden="true" />
+              {frosting < getPlaceCost(preview)
+                ? getPlaceCost(preview) - frosting
+                : getPlaceCost(preview)}
+            </span>
           </button>
         </>
       )}
@@ -293,10 +299,10 @@ function OccupiedSlot({
         <button
           type="button"
           onClick={onClose}
-          className="min-h-11 shrink-0 rounded-[8px] px-2 text-sm font-medium text-slate-500 transition hover:bg-black/5"
+          className="flex min-h-11 shrink-0 items-center rounded-[8px] px-2 text-slate-500 transition hover:bg-black/5"
           aria-label="關閉"
         >
-          ✕
+          <X size={18} strokeWidth={2} aria-hidden="true" />
         </button>
       </div>
 
@@ -309,7 +315,15 @@ function OccupiedSlot({
           disabled={maxed || frosting < upgradeCost}
           className="min-h-11 flex-1 rounded-[10px] bg-[#ff6f9f] px-4 text-sm font-semibold text-white shadow-sm transition hover:brightness-105 active:scale-[0.98] disabled:opacity-45"
         >
-          {maxed ? "已滿級" : `升級（🍬 ${upgradeCost}）`}
+          {maxed ? (
+            "已滿級"
+          ) : (
+            <span className="flex items-center justify-center gap-1">
+              升級
+              <Candy size={14} strokeWidth={2} aria-hidden="true" />
+              {upgradeCost}
+            </span>
+          )}
         </button>
         <button
           type="button"

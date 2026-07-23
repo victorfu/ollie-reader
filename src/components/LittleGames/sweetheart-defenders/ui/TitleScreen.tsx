@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { ArrowLeft, BookOpen, CakeSlice, Lock, Star } from "lucide-react";
 import { LEVELS } from "../data/levels";
 import { PETS } from "../data/pets";
 import { getEnemy } from "../data/enemies";
@@ -7,7 +8,7 @@ import { previewWave } from "../engine/waves";
 import type { Stars } from "../engine/progress";
 import type { SyncStatus } from "../storage";
 import type { AudioControls } from "../useAudioSettings";
-import { AudioSettingsPanel } from "./AudioControls";
+import { AudioButton } from "./AudioControls";
 import type { Difficulty } from "../types";
 
 const DIFFICULTIES: { id: Difficulty; label: string; hint: string }[] = [
@@ -66,18 +67,30 @@ export function TitleScreen({
         <button
           type="button"
           onClick={onExit}
-          className="absolute left-4 top-4 z-20 min-h-11 rounded-full bg-white/90 px-4 py-2 text-sm font-semibold text-slate-900 shadow-lg backdrop-blur transition hover:-translate-y-0.5 hover:shadow-xl sm:left-6 sm:top-6"
+          className="absolute left-4 top-4 z-20 flex min-h-11 items-center gap-1.5 rounded-full bg-white/90 px-4 py-2 text-sm font-semibold text-slate-900 shadow-lg backdrop-blur transition hover:-translate-y-0.5 hover:shadow-xl sm:left-6 sm:top-6"
         >
-          ← 回遊戲列表
+          <ArrowLeft size={16} strokeWidth={2} aria-hidden="true" />
+          回遊戲列表
         </button>
       )}
+
+      {/* 聲音收成右上角一顆按鈕，音量藏在彈出面板裡，不再佔一整列版面。 */}
+      <div className="absolute right-4 top-4 z-30 sm:right-6 sm:top-6">
+        <AudioButton {...audio} align="right" />
+      </div>
 
       <header className="mt-10 flex flex-col items-center sm:mt-2">
         <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500">
           Sweetheart Defenders
         </p>
-        <h1 className="mt-2 text-center text-4xl font-semibold tracking-tight text-slate-900 sm:text-5xl">
-          🍰 甜心防衛隊
+        <h1 className="mt-2 flex items-center gap-2 text-center text-4xl font-semibold tracking-tight text-slate-900 sm:text-5xl">
+          <CakeSlice
+            size={40}
+            strokeWidth={1.5}
+            className="text-[#ff6f9f]"
+            aria-hidden="true"
+          />
+          甜心防衛隊
         </h1>
         <p className="mt-2 text-sm text-slate-600">
           闖關進度 {clearedCount} / {LEVELS.length}
@@ -160,7 +173,12 @@ export function TitleScreen({
                       {stars > 0 ? "再挑戰" : "開始"}
                     </span>
                   ) : (
-                    <span className="shrink-0 text-sm text-slate-400">🔒</span>
+                    <Lock
+                      size={16}
+                      strokeWidth={2}
+                      className="shrink-0 text-slate-400"
+                      aria-label="尚未開放"
+                    />
                   )}
                 </div>
 
@@ -200,9 +218,12 @@ export function TitleScreen({
           onClick={onOpenDex}
           className="flex w-full items-center gap-3 rounded-[14px] border border-black/5 bg-white/85 p-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg"
         >
-          <span className="text-2xl" aria-hidden="true">
-            📖
-          </span>
+          <BookOpen
+            size={22}
+            strokeWidth={1.75}
+            className="shrink-0 text-[#ff6f9f]"
+            aria-hidden="true"
+          />
           <span className="min-w-0 flex-1">
             <span className="block text-sm font-semibold text-slate-800">
               寵物圖鑑
@@ -223,8 +244,6 @@ export function TitleScreen({
           </span>
         </button>
       </section>
-
-      <AudioSettingsPanel {...audio} />
 
       <div className="h-6 shrink-0" />
     </div>
@@ -297,9 +316,19 @@ function StageBadge({
       </span>
 
       {cleared && (
-        <span className="mt-0.5 text-[10px] leading-none tracking-tight text-amber-400">
-          {"★".repeat(stars)}
-          <span className="text-slate-200">{"★".repeat(3 - stars)}</span>
+        <span
+          className="mt-0.5 flex gap-px"
+          aria-label={`${stars} 顆星`}
+        >
+          {[0, 1, 2].map((index) => (
+            <Star
+              key={index}
+              size={9}
+              strokeWidth={0}
+              aria-hidden="true"
+              className={index < stars ? "fill-amber-400" : "fill-slate-200"}
+            />
+          ))}
         </span>
       )}
     </div>

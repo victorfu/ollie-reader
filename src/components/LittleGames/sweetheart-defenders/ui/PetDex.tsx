@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { ArrowLeft, Candy } from "lucide-react";
 import {
   ARCHETYPE_BY_ELEMENT,
   ARCHETYPE_LABEL_ZH,
@@ -55,9 +56,10 @@ export function PetDex({ unlockedPetIds, onBack }: Props) {
       <button
         type="button"
         onClick={onBack}
-        className="absolute left-4 top-4 z-20 min-h-11 rounded-full bg-white/90 px-4 py-2 text-sm font-semibold text-slate-900 shadow-lg backdrop-blur transition hover:-translate-y-0.5 hover:shadow-xl sm:left-6 sm:top-6"
+        className="absolute left-4 top-4 z-20 flex min-h-11 items-center gap-1.5 rounded-full bg-white/90 px-4 py-2 text-sm font-semibold text-slate-900 shadow-lg backdrop-blur transition hover:-translate-y-0.5 hover:shadow-xl sm:left-6 sm:top-6"
       >
-        ← 回闖關路線
+        <ArrowLeft size={16} strokeWidth={2} aria-hidden="true" />
+        回闖關路線
       </button>
 
       <header className="mt-10 flex flex-col items-center sm:mt-2">
@@ -190,7 +192,12 @@ function PetDetail({ pet, unlocked }: { pet: Pet; unlocked: boolean }) {
               </p>
 
               <dl className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
-                <Metric label="造價">🍬 {RARITY_TIERS[pet.rarity].cost}</Metric>
+                <Metric label="造價">
+                  <span className="flex items-center gap-0.5">
+                    <Candy size={12} strokeWidth={2} aria-hidden="true" />
+                    {RARITY_TIERS[pet.rarity].cost}
+                  </span>
+                </Metric>
                 <Metric label="射程">{Math.round(stats.range)}</Metric>
                 {stats.damage > 0 && (
                   <Metric label="攻擊">{stats.damage.toFixed(1)}</Metric>
