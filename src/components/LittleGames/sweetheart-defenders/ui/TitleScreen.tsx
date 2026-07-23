@@ -6,6 +6,8 @@ import { isLevelUnlocked, nextPlayableLevelId } from "../data/unlocks";
 import { previewWave } from "../engine/waves";
 import type { Stars } from "../engine/progress";
 import type { SyncStatus } from "../storage";
+import type { AudioControls } from "../useAudioSettings";
+import { AudioSettingsPanel } from "./AudioControls";
 import type { Difficulty } from "../types";
 
 const DIFFICULTIES: { id: Difficulty; label: string; hint: string }[] = [
@@ -21,6 +23,7 @@ type Props = {
   unlockedPetIds: string[];
   syncStatus: SyncStatus;
   isSignedIn: boolean;
+  audio: AudioControls;
   onStart: (levelId: string, difficulty: Difficulty) => void;
   onOpenDex: () => void;
   onExit?: () => void;
@@ -39,6 +42,7 @@ export function TitleScreen({
   unlockedPetIds,
   syncStatus,
   isSignedIn,
+  audio,
   onStart,
   onOpenDex,
   onExit,
@@ -220,6 +224,9 @@ export function TitleScreen({
         </button>
       </section>
 
+      <AudioSettingsPanel {...audio} />
+
+      <div className="h-6 shrink-0" />
     </div>
   );
 }

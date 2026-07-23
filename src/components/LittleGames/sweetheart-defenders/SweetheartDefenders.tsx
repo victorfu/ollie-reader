@@ -1,9 +1,11 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { LEVELS } from "./data/levels";
 import { BattleScreen } from "./ui/BattleScreen";
 import { PetDex } from "./ui/PetDex";
 import { TitleScreen } from "./ui/TitleScreen";
 import { useCampaignSave } from "./useCampaignSave";
+import { useAudioSettings } from "./useAudioSettings";
+import { playMusic, playSfx } from "./audio";
 import type { Difficulty } from "./types";
 
 type Props = {
@@ -23,11 +25,22 @@ type Screen =
 export default function SweetheartDefenders({ onExit }: Props) {
   const [screen, setScreen] = useState<Screen>({ kind: "title" });
   const { save, status, isSignedIn, recordResult } = useCampaignSave();
+  const audio = useAudioSettings();
 
   const backToTitle = useCallback(() => setScreen({ kind: "title" }), []);
-  const openDex = useCallback(() => setScreen({ kind: "dex" }), []);
+  const openDex = useCallback(() => {
+    playSfx("select");
+    setScreen({ kind: "dex" });
+  }, []);
+
+  // 不在戰鬥裡就放選單音樂；戰鬥的曲子由 BattleScreen 自己接手。
+  const inBattle = screen.kind === "battle";
+  useEffect(() => {
+    if (!inBattle) playMusic("menu");
+  }, [inBattle]);
 
   const startLevel = useCallback((levelId: string, difficulty: Difficulty) => {
+    playSfx("place");
     setScreen({ kind: "battle", levelId, difficulty, runId: 0 });
   }, []);
 
@@ -58,6 +71,7 @@ export default function SweetheartDefenders({ onExit }: Props) {
         unlockedPetIds={save.unlockedPetIds}
         syncStatus={status}
         isSignedIn={isSignedIn}
+        audio={audio}
         onStart={startLevel}
         onOpenDex={openDex}
         onExit={onExit}
@@ -78,6 +92,7 @@ export default function SweetheartDefenders({ onExit }: Props) {
         level={level}
         difficulty={screen.difficulty}
         unlockedPetIds={save.unlockedPetIds}
+        audio={audio}
         onExit={backToTitle}
         onRetry={retry}
         onFinished={(outcome) => recordResult(level.id, outcome)}

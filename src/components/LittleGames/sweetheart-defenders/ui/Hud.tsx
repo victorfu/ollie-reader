@@ -1,4 +1,6 @@
 import type { WaveSpec } from "../types";
+import type { AudioControls } from "../useAudioSettings";
+import { MuteButton } from "./AudioControls";
 import type { HudSnapshot } from "./BattleScreen";
 import { WavePreview } from "./WavePreview";
 
@@ -7,6 +9,7 @@ type Props = {
   levelName: string;
   nextWave: WaveSpec | undefined;
   paused: boolean;
+  audio: AudioControls;
   onStartWave: () => void;
   onToggleSpeed: () => void;
   onTogglePause: () => void;
@@ -18,6 +21,7 @@ export function Hud({
   levelName,
   nextWave,
   paused,
+  audio,
   onStartWave,
   onToggleSpeed,
   onTogglePause,
@@ -53,6 +57,8 @@ export function Hud({
         </Stat>
 
         <div className="ml-auto flex items-center gap-2">
+          <MuteButton {...audio} />
+
           {!finished && (
             <button
               type="button"

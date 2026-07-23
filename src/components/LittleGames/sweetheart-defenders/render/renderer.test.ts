@@ -216,3 +216,114 @@ describe("drawSpawnHint", () => {
     expect(ctx.calls.length).toBeGreaterThan(0);
   });
 });
+
+/**
+ * 糖果碎屑刻意不佔模擬狀態——位置全部由 effect 的 uid 推導。
+ * 好處是存檔小、測試不用管；代價是這段推導只有繪製時才跑得到，所以要測。
+ */
+describe("candy crumbs on a defeated enemy", () => {
+  function stateWithPop(uid: number, ageMs: number): BattleState {
+    return {
+      ...createBattle(LEVEL, "normal", 1),
+      effects: [
+        {
+          uid,
+          kind: "pop",
+          x: 300,
+          y: 200,
+          radius: 24,
+          ageMs,
+          lifeMs: 350,
+          color: "#a8e06a",
+        },
+      ],
+    };
+  }
+
+  it("draws several crumbs rather than one blob", () => {
+    const ctx = createRecordingContext();
+    renderBattle(ctx, stateWithPop(1, 100), LEVEL, emptyView());
+
+    const arcs = ctx.calls.filter((call) => call.startsWith("arc(")).length;
+    const bare = createRecordingContext();
+    renderBattle(bare, createBattle(LEVEL, "normal", 1), LEVEL, emptyView());
+    const baseArcs = bare.calls.filter((call) => call.startsWith("arc(")).length;
+
+    expect(arcs - baseArcs).toBeGreaterThanOrEqual(5);
+  });
+
+  it("stays deterministic for the same effect", () => {
+    const first = createRecordingContext();
+    const second = createRecordingContext();
+
+    renderBattle(first, stateWithPop(42, 120), LEVEL, emptyView());
+    renderBattle(second, stateWithPop(42, 120), LEVEL, emptyView());
+
+    expect(second.calls).toEqual(first.calls);
+  });
+
+  it("survives the whole lifetime of the effect without throwing", () => {
+    for (const ageMs of [0, 1, 175, 349]) {
+      const ctx = createRecordingContext();
+      expect(() =>
+        renderBattle(ctx, stateWithPop(7, ageMs), LEVEL, emptyView()),
+      ).not.toThrow();
+    }
+  });
+});
+
+describe("beams", () => {
+  it("draws a sniper shot and a chain without throwing", () => {
+    const ctx = createRecordingContext();
+    const state: BattleState = {
+      ...createBattle(LEVEL, "normal", 1),
+      beams: [
+        {
+          uid: 1,
+          points: [
+            { x: 100, y: 100 },
+            { x: 240, y: 160 },
+          ],
+          color: "#ffe8a3",
+          width: 3.5,
+          ageMs: 40,
+          lifeMs: 160,
+        },
+        {
+          uid: 2,
+          points: [
+            { x: 100, y: 100 },
+            { x: 240, y: 160 },
+            { x: 300, y: 210 },
+            { x: 350, y: 190 },
+          ],
+          color: "#f7c948",
+          width: 2.5,
+          ageMs: 10,
+          lifeMs: 160,
+        },
+      ],
+    };
+
+    expect(() => renderBattle(ctx, state, LEVEL, emptyView())).not.toThrow();
+  });
+
+  it("ignores a beam with too few points to draw a line", () => {
+    const ctx = createRecordingContext();
+    const state: BattleState = {
+      ...createBattle(LEVEL, "normal", 1),
+      beams: [
+        {
+          uid: 1,
+          points: [{ x: 100, y: 100 }],
+          color: "#fff",
+          width: 3,
+          ageMs: 0,
+          lifeMs: 160,
+        },
+      ],
+    };
+
+    expect(() => renderBattle(ctx, state, LEVEL, emptyView())).not.toThrow();
+  });
+});

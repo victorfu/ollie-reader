@@ -8,6 +8,7 @@ import {
 import { TRAIT_DESC_ZH, TRAIT_LABEL_ZH } from "../data/traits";
 import { getTowerStats, getTrait } from "../engine/combat";
 import { getPlaceCost, getSellRefund, getUpgradeCost } from "../engine/economy";
+import { playSfx } from "../audio";
 import type { LiveTower, Pet } from "../types";
 
 /** TowerPanel 只需要知道塔的等級，不需要冷卻、傷害那些每幀都在動的欄位。 */
@@ -191,17 +192,24 @@ function EmptySlot({
             <button
               key={candidate.id}
               type="button"
-              disabled={!affordable}
+              // 買不起的也要能點開來看——不然玩家在存到錢之前根本不知道這隻
+              // 是幹嘛的，也就無從決定要不要存。只有「放上去」才擋。
+              aria-disabled={!affordable}
               onPointerEnter={() => onPreviewPet(candidate.id)}
               onFocus={() => onPreviewPet(candidate.id)}
-              onClick={() =>
-                isPreviewing ? onPlace(candidate.id) : onPreviewPet(candidate.id)
-              }
+              onClick={() => {
+                if (!isPreviewing) {
+                  onPreviewPet(candidate.id);
+                  return;
+                }
+                if (affordable) onPlace(candidate.id);
+                else playSfx("denied");
+              }}
               className={`flex w-[88px] shrink-0 flex-col items-center rounded-[12px] border p-1.5 transition ${
                 isPreviewing
                   ? "border-[#ff6f9f] bg-rose-50 shadow-sm"
                   : "border-black/5 bg-white hover:bg-slate-50"
-              } ${affordable ? "" : "cursor-not-allowed opacity-45"}`}
+              } ${affordable ? "" : "opacity-55"}`}
             >
               <img
                 src={candidate.sprite}
@@ -214,7 +222,11 @@ function EmptySlot({
               <div className="mt-1">
                 <PetTags pet={candidate} />
               </div>
-              <span className="mt-1 text-[11px] font-semibold text-amber-600">
+              <span
+                className={`mt-1 text-[11px] font-semibold ${
+                  affordable ? "text-amber-600" : "text-slate-400"
+                }`}
+              >
                 🍬 {cost}
               </span>
             </button>
@@ -231,7 +243,9 @@ function EmptySlot({
             disabled={frosting < getPlaceCost(preview)}
             className="mt-2 min-h-11 w-full rounded-[10px] bg-[#ff6f9f] text-sm font-semibold text-white shadow-sm transition hover:brightness-105 active:scale-[0.99] disabled:opacity-45"
           >
-            放上 {preview.nameZh}（🍬 {getPlaceCost(preview)}）
+            {frosting < getPlaceCost(preview)
+              ? `還差 🍬 ${getPlaceCost(preview) - frosting}`
+              : `放上 ${preview.nameZh}（🍬 ${getPlaceCost(preview)}）`}
           </button>
         </>
       )}

@@ -542,13 +542,60 @@ function drawEffects(
       continue;
     }
 
-    ctx.globalAlpha = (1 - progress) * (kind === "splash" ? 0.35 : 0.7);
+    if (kind === "pop") {
+      drawCrumbs(ctx, effect, progress);
+      continue;
+    }
+
+    ctx.globalAlpha = (1 - progress) * 0.35;
     ctx.fillStyle = effect.color;
     ctx.beginPath();
     ctx.arc(effect.x, effect.y, effect.radius * (0.5 + progress * 0.6), 0, Math.PI * 2);
     ctx.fill();
     ctx.globalAlpha = 1;
   }
+}
+
+const CRUMB_COUNT = 7;
+
+/**
+ * 糖果碎屑。
+ *
+ * 位置完全由 effect 的 uid 推導出來，所以不需要在 BattleState 裡養一份粒子
+ * 陣列——模擬層乾淨、存檔小、測試也不用管它。每隻怪的 uid 不同，噴出來的
+ * 方向自然就不一樣。
+ */
+function drawCrumbs(
+  ctx: CanvasRenderingContext2D,
+  effect: BattleState["effects"][number],
+  progress: number,
+): void {
+  // 先快後慢，像真的被彈飛出去。
+  const eased = 1 - (1 - progress) * (1 - progress);
+  const fade = 1 - progress;
+
+  ctx.save();
+  ctx.fillStyle = effect.color;
+  ctx.globalAlpha = fade;
+
+  for (let i = 0; i < CRUMB_COUNT; i += 1) {
+    // uid 當亂數種子：同一個爆點每幀算出來都一樣，不同爆點又各自不同。
+    const seed = effect.uid * 37 + i * 61;
+    const angle = ((seed % 360) / 360) * Math.PI * 2;
+    const reach = effect.radius * (0.7 + ((seed % 7) / 7) * 0.8);
+    const size = 1.6 + ((seed % 5) / 5) * 2.2;
+
+    const x = effect.x + Math.cos(angle) * reach * eased;
+    // 加一點重力，碎屑會往下掉而不是平平散開。
+    const y =
+      effect.y + Math.sin(angle) * reach * eased + progress * progress * 14;
+
+    ctx.beginPath();
+    ctx.arc(x, y, size * fade, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  ctx.restore();
 }
 
 /** 選到某個塔位時畫出射程圈：已有塔就看塔的，還沒放就預覽要放的那隻。 */

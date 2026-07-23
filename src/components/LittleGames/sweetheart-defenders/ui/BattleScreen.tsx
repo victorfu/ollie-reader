@@ -7,6 +7,10 @@ import {
   WIDTH,
 } from "../constants";
 import { PETS, getPet } from "../data/pets";
+import { playMusic, playSfx, stopMusic } from "../audio";
+import { getEnemy } from "../data/enemies";
+import { previewWave } from "../engine/waves";
+import { celebrateClear } from "../render/celebrate";
 import type { RunOutcome } from "../engine/progress";
 import {
   compileLevel,
@@ -17,6 +21,7 @@ import {
 import { drawSpawnHint, renderBattle, type ViewState } from "../render/renderer";
 import { preloadSprites } from "../render/sprites";
 import type { BattleState, Command, Difficulty, LevelSpec } from "../types";
+import type { AudioControls } from "../useAudioSettings";
 import { Hud } from "./Hud";
 import { ResultDialog } from "./ResultDialog";
 import { TowerPanel } from "./TowerPanel";
@@ -82,10 +87,18 @@ function sameSnapshot(a: HudSnapshot, b: HudSnapshot): boolean {
   );
 }
 
+/** 這一波有沒有 Boss；用來決定要放哪一首曲子。 */
+function isBossWave(level: LevelSpec, waveIndex: number): boolean {
+  const wave = level.waves[waveIndex];
+  if (!wave) return false;
+  return previewWave(wave).some((entry) => getEnemy(entry.kind).boss === true);
+}
+
 type Props = {
   level: LevelSpec;
   difficulty: Difficulty;
   unlockedPetIds: string[];
+  audio: AudioControls;
   onExit: () => void;
   onRetry: () => void;
   onFinished: (outcome: RunOutcome) => void;
@@ -99,6 +112,7 @@ export function BattleScreen({
   level,
   difficulty,
   unlockedPetIds,
+  audio,
   onExit,
   onRetry,
   onFinished,
@@ -153,6 +167,12 @@ export function BattleScreen({
     commandQueue.current.push(command);
   }, []);
 
+  // 進關卡就放戰鬥音樂，離開畫面停掉；波次之間的換曲在主迴圈裡處理。
+  useEffect(() => {
+    playMusic(isBossWave(level, 0) ? "boss" : "battle");
+    return () => stopMusic();
+  }, [level]);
+
   // 依容器大小等比縮放 canvas（letterbox）；模擬與繪製維持 960×540 邏輯座標。
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -197,6 +217,9 @@ export function BattleScreen({
     let previous = performance.now();
     let accumulator = 0;
     let reported = false;
+    // 音效靠比對前後幀的狀態觸發——模擬層不知道有喇叭這回事，也不該知道。
+    let lastPhase = battle.phase;
+    let lastCakes = battle.cakes;
 
     const loop = (now: number) => {
       frame = requestAnimationFrame(loop);
@@ -234,6 +257,19 @@ export function BattleScreen({
         if (battle.phase === "prep") drawSpawnHint(ctx, compiled, battle.timeMs);
       }
 
+      if (battle.cakes < lastCakes) playSfx("cakeLost");
+      lastCakes = battle.cakes;
+
+      if (battle.phase !== lastPhase) {
+        if (battle.phase === "wave") {
+          playSfx("waveStart");
+          // Boss 波換成比較緊張的曲子。
+          playMusic(isBossWave(level, battle.waveIndex) ? "boss" : "battle");
+          if (isBossWave(level, battle.waveIndex)) playSfx("bossWarn");
+        }
+        lastPhase = battle.phase;
+      }
+
       const next = snapshotOf(battle, level.waves.length);
       setHud((current) => (sameSnapshot(current, next) ? current : next));
 
@@ -248,12 +284,22 @@ export function BattleScreen({
         };
         setOutcome(result);
         onFinished(result);
+
+        stopMusic();
+        if (battle.phase === "cleared") {
+          playSfx("cleared");
+          celebrateClear();
+        } else {
+          playSfx("lost");
+        }
       }
     };
 
     frame = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(frame);
-  }, [battle, compiled, level.waves.length, onFinished]);
+    // level 是整個 prop 而不是 level.waves.length：迴圈現在也要靠它判斷這一波
+    // 是不是 Boss 波。呼叫端用 key 綁定關卡，所以它在元件的生命週期內不會變。
+  }, [battle, compiled, level, onFinished]);
 
   const toLogicalPoint = useCallback((clientX: number, clientY: number) => {
     const canvas = canvasRef.current;
@@ -287,7 +333,9 @@ export function BattleScreen({
 
   const handlePointerDown = useCallback(
     (event: React.PointerEvent<HTMLCanvasElement>) => {
-      setSelectedSlotId(slotAt(event.clientX, event.clientY));
+      const slotId = slotAt(event.clientX, event.clientY);
+      if (slotId) playSfx("select");
+      setSelectedSlotId(slotId);
       setPreviewPetId(null);
     },
     [slotAt],
@@ -317,6 +365,7 @@ export function BattleScreen({
         levelName={level.nameZh}
         nextWave={level.waves[hud.waveNumber - 1]}
         paused={paused}
+        audio={audio}
         onStartWave={() => enqueue({ kind: "startWave" })}
         onToggleSpeed={() =>
           enqueue({ kind: "setSpeed", multiplier: hud.speed === 1 ? 2 : 1 })
@@ -348,11 +397,16 @@ export function BattleScreen({
             previewPetId={previewPetId}
             onPreviewPet={setPreviewPetId}
             onPlace={(petId) => {
+              playSfx("place");
               enqueue({ kind: "placeTower", slotId: selectedSlotId, petId });
               closePanel();
             }}
-            onUpgrade={() => enqueue({ kind: "upgradeTower", slotId: selectedSlotId })}
+            onUpgrade={() => {
+              playSfx("upgrade");
+              enqueue({ kind: "upgradeTower", slotId: selectedSlotId });
+            }}
             onSell={() => {
+              playSfx("sell");
               enqueue({ kind: "sellTower", slotId: selectedSlotId });
               closePanel();
             }}
