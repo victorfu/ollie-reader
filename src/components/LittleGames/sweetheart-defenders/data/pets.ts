@@ -444,5 +444,17 @@ export function getPet(id: string): Pet | undefined {
   return PETS_BY_ID.get(id);
 }
 
-/** 開場就能用的寵物，其餘靠通關解鎖。 */
-export const STARTER_PET_IDS = ["lumi", "momo", "pico", "nibi"];
+/**
+ * 開場就能用的寵物，其餘靠通關解鎖。
+ *
+ * 六隻剛好涵蓋六種打法（狙擊 / 催眠 / 應援 / 爆裂 / 藤蔓 / 速射），
+ * 缺的糖漿與重砲留給第一關的解鎖獎勵，讓第一次通關就有明顯的新東西可以玩。
+ */
+export const STARTER_PET_IDS = [
+  "lumi", // light + spark → 狙擊 · 連鎖
+  "momo", // dream + tide → 催眠 · 冰霜
+  "pico", // star + leaf → 應援 · 毒液
+  "nibi", // ember + crystal → 爆裂 · 碎甲
+  "mossmew", // leaf → 藤蔓 · 純粹
+  "ticktock-sparrow", // spark + star → 速射 · 連擊
+];

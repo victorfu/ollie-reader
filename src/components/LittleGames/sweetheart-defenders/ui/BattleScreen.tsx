@@ -117,10 +117,12 @@ export function BattleScreen({
     snapshotOf(battle, level.waves.length),
   );
   const [outcome, setOutcome] = useState<RunOutcome | null>(null);
+  const [paused, setPaused] = useState(false);
   const [selectedSlotId, setSelectedSlotId] = useState<string | null>(null);
   const [previewPetId, setPreviewPetId] = useState<string | null>(null);
 
   const commandQueue = useRef<Command[]>([]);
+  const pausedRef = useRef(false);
   const viewRef = useRef<ViewState>({
     selectedSlotId: null,
     hoveredSlotId: null,
@@ -141,6 +143,11 @@ export function BattleScreen({
     viewRef.current.selectedSlotId = selectedSlotId;
     viewRef.current.previewPetId = previewPetId;
   }, [selectedSlotId, previewPetId]);
+
+  // 迴圈跑在 rAF 裡，不能靠 props 重新綁定；用 ref 把暫停狀態遞進去。
+  useEffect(() => {
+    pausedRef.current = paused;
+  }, [paused]);
 
   const enqueue = useCallback((command: Command) => {
     commandQueue.current.push(command);
@@ -197,17 +204,29 @@ export function BattleScreen({
       // 分頁切回來時 elapsed 會很大，夾住避免一次補上千步。
       const elapsed = Math.min(250, now - previous);
       previous = now;
-      accumulator += elapsed * battle.speed;
 
-      let steps = 0;
-      while (accumulator >= STEP_MS && steps < MAX_STEPS_PER_FRAME) {
-        const commands = commandQueue.current;
-        commandQueue.current = [];
-        stepSimulation(battle, compiled, commands, STEP_MS);
-        accumulator -= STEP_MS;
-        steps += 1;
+      if (pausedRef.current) {
+        // 暫停時時間不走，但指令照樣生效——塔防暫停中還能佈塔是標準做法，
+        // 對還在想的小孩尤其重要。dtMs 傳 0 就是「只處理指令，不推進世界」。
+        accumulator = 0;
+        if (commandQueue.current.length > 0) {
+          const commands = commandQueue.current;
+          commandQueue.current = [];
+          stepSimulation(battle, compiled, commands, 0);
+        }
+      } else {
+        accumulator += elapsed * battle.speed;
+
+        let steps = 0;
+        while (accumulator >= STEP_MS && steps < MAX_STEPS_PER_FRAME) {
+          const commands = commandQueue.current;
+          commandQueue.current = [];
+          stepSimulation(battle, compiled, commands, STEP_MS);
+          accumulator -= STEP_MS;
+          steps += 1;
+        }
+        if (steps === MAX_STEPS_PER_FRAME) accumulator = 0;
       }
-      if (steps === MAX_STEPS_PER_FRAME) accumulator = 0;
 
       const ctx = canvas.getContext("2d");
       if (ctx) {
@@ -296,45 +315,51 @@ export function BattleScreen({
       <Hud
         hud={hud}
         levelName={level.nameZh}
+        nextWave={level.waves[hud.waveNumber - 1]}
+        paused={paused}
         onStartWave={() => enqueue({ kind: "startWave" })}
         onToggleSpeed={() =>
           enqueue({ kind: "setSpeed", multiplier: hud.speed === 1 ? 2 : 1 })
         }
+        onTogglePause={() => setPaused((current) => !current)}
         onExit={onExit}
       />
 
-      <div
-        ref={stageRef}
-        className="flex min-h-0 flex-1 items-center justify-center p-2"
-      >
-        <canvas
-          ref={canvasRef}
-          onPointerDown={handlePointerDown}
-          onPointerMove={handlePointerMove}
-          className="touch-manipulation rounded-[16px] shadow-[0_18px_50px_rgba(180,120,150,0.28)] ring-1 ring-black/5"
-        />
-      </div>
+      {/* 面板定位在畫布這一層，不是整個畫面，才不會蓋到上面的 HUD 按鈕。 */}
+      <div className="relative flex min-h-0 flex-1 flex-col">
+        <div
+          ref={stageRef}
+          className="flex min-h-0 flex-1 items-center justify-center p-2"
+        >
+          <canvas
+            ref={canvasRef}
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            className="touch-manipulation rounded-[16px] shadow-[0_18px_50px_rgba(180,120,150,0.28)] ring-1 ring-black/5"
+          />
+        </div>
 
-      {selectedSlotId && !outcome && (
-        <TowerPanel
-          tower={selectedTower}
-          pet={selectedPet}
-          frosting={hud.frosting}
-          availablePets={unlockedPets}
-          previewPetId={previewPetId}
-          onPreviewPet={setPreviewPetId}
-          onPlace={(petId) => {
-            enqueue({ kind: "placeTower", slotId: selectedSlotId, petId });
-            closePanel();
-          }}
-          onUpgrade={() => enqueue({ kind: "upgradeTower", slotId: selectedSlotId })}
-          onSell={() => {
-            enqueue({ kind: "sellTower", slotId: selectedSlotId });
-            closePanel();
-          }}
-          onClose={closePanel}
-        />
-      )}
+        {selectedSlotId && !outcome && (
+          <TowerPanel
+            tower={selectedTower}
+            pet={selectedPet}
+            frosting={hud.frosting}
+            availablePets={unlockedPets}
+            previewPetId={previewPetId}
+            onPreviewPet={setPreviewPetId}
+            onPlace={(petId) => {
+              enqueue({ kind: "placeTower", slotId: selectedSlotId, petId });
+              closePanel();
+            }}
+            onUpgrade={() => enqueue({ kind: "upgradeTower", slotId: selectedSlotId })}
+            onSell={() => {
+              enqueue({ kind: "sellTower", slotId: selectedSlotId });
+              closePanel();
+            }}
+            onClose={closePanel}
+          />
+        )}
+      </div>
 
       {outcome && (
         <ResultDialog

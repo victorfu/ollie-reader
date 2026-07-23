@@ -34,6 +34,32 @@ export type TowerArchetype =
   | "cannon" // 重砲：高傷慢速、破甲
   | "cheer"; // 應援：不攻擊，加速周圍塔
 
+/**
+ * 副元素帶來的特性。單一元素的寵物拿 "pure"（純傷害加成）。
+ * 打法 × 特性 = 每隻寵物的實際手感，詳見 data/traits.ts。
+ */
+export type TowerTrait =
+  | "pure"
+  | "chain"
+  | "chill"
+  | "toxin"
+  | "focus"
+  | "daze"
+  | "scorch"
+  | "shred"
+  | "encore";
+
+/** 攻擊的視覺樣式。每種打法長得不一樣，不是全部都射一顆彩色球。 */
+export type AttackStyle =
+  | "bolt" // 速射：又小又快的電光
+  | "syrupBlob" // 糖漿：會晃的黏稠球
+  | "groundPulse" // 藤蔓：腳邊擴散的波紋，沒有飛行物
+  | "beam" // 狙擊：瞬間的光束線
+  | "note" // 催眠：飄上去的音符
+  | "mortar" // 爆裂：拋物線砲彈
+  | "shard" // 重砲：又大又鈍的晶石
+  | "aura"; // 應援：脈動的光環，沒有飛行物
+
 export type Vec2 = { x: number; y: number };
 
 // === 寵物（塔） ===
@@ -54,7 +80,12 @@ export type Pet = {
 /** 一座塔在某個等級下的實際數值（由 pet + level 算出來）。 */
 export type TowerStats = {
   archetype: TowerArchetype;
+  attackStyle: AttackStyle;
   element: Element;
+  /** 副元素帶來的特性；單元素為 "pure" */
+  trait: TowerTrait;
+  /** 特性強度，隨稀有度與等級成長（1 = 基準值） */
+  traitPower: number;
   /** 射程（邏輯座標 px） */
   range: number;
   /** 每次攻擊的傷害 */
@@ -200,6 +231,13 @@ export type LiveEnemy = {
   slowFactor: number;
   /** 暈眩殘餘時間（毫秒） */
   stunMs: number;
+  /** 持續傷害：每秒扣多少血，還會扣多久 */
+  dotDps: number;
+  dotMs: number;
+  /** 持續傷害的來源顏色，讓毒和灼燒在畫面上分得出來 */
+  dotColor: string;
+  /** 被碎甲削掉的護甲比例，會累積到上限 */
+  armorShred: number;
   nextSummonMs: number;
   nextShieldMs: number;
   /** 受擊閃白殘餘時間（毫秒），純視覺 */
@@ -216,11 +254,15 @@ export type LiveTower = {
   totalDamage: number;
   /** 開火動畫殘餘時間（毫秒），純視覺 */
   recoilMs: number;
+  /** 連擊特性用：連續打同一隻目標幾次了 */
+  comboHits: number;
+  comboTargetUid: number;
 };
 
 /** 飛行道具，純視覺；傷害在開火當下就結算了。 */
 export type Projectile = {
   uid: number;
+  style: AttackStyle;
   x: number;
   y: number;
   targetX: number;
@@ -229,6 +271,21 @@ export type Projectile = {
   speed: number;
   color: string;
   radius: number;
+  /** 拋物線的高度，只有 mortar 用得到 */
+  arc: number;
+};
+
+/**
+ * 瞬間出現、然後淡掉的折線——狙擊的光束和連鎖的跳彈都用它。
+ * 跟 Projectile 分開是因為它不會飛，只是畫一下就消失。
+ */
+export type Beam = {
+  uid: number;
+  points: Vec2[];
+  color: string;
+  width: number;
+  ageMs: number;
+  lifeMs: number;
 };
 
 /** 爆炸、命中特效，純視覺。 */
@@ -261,6 +318,7 @@ export type BattleState = {
   enemies: LiveEnemy[];
   towers: LiveTower[];
   projectiles: Projectile[];
+  beams: Beam[];
   effects: Effect[];
   /** 本波還沒生出來的敵人 */
   spawnQueue: { atMs: number; kind: EnemyKind; pathIndex: number }[];

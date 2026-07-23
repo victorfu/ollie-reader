@@ -16,11 +16,16 @@ export const CAKES_BY_DIFFICULTY = {
   hard: 8,
 } as const;
 
-/** 敵人血量倍率。 */
+/**
+ * 敵人血量倍率。
+ *
+ * 挑戰難度拉到 1.9 是因為副元素特性上線後，一組像樣的塔在 1.4 倍下可以零失血
+ * 通關——那就不叫挑戰了。輕鬆維持在 0.7，讓隨便亂放也過得去。
+ */
 export const HP_SCALE_BY_DIFFICULTY = {
   easy: 0.7,
   normal: 1,
-  hard: 1.4,
+  hard: 1.9,
 } as const;
 
 /** 波次之間的準備時間。 */

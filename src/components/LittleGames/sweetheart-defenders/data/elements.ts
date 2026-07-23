@@ -1,4 +1,4 @@
-import type { Element, TowerArchetype } from "../types";
+import type { AttackStyle, Element, TowerArchetype } from "../types";
 
 // 元素克制環（沿用 Wonder Academy 的設定）：
 // spark -> tide -> ember -> leaf -> crystal -> dream -> star -> light -> (spark)
@@ -55,6 +55,18 @@ export const ELEMENT_COLOR: Record<Element, string> = {
   ember: "#f58a6b",
   crystal: "#8fd8d2",
   star: "#f79fc4",
+};
+
+/** 每種打法的攻擊視覺。讓 8 種塔在畫面上一眼就分得出來。 */
+export const ATTACK_STYLE_BY_ARCHETYPE: Record<TowerArchetype, AttackStyle> = {
+  rapid: "bolt",
+  syrup: "syrupBlob",
+  vine: "groundPulse",
+  sniper: "beam",
+  lullaby: "note",
+  burst: "mortar",
+  cannon: "shard",
+  cheer: "aura",
 };
 
 export const ARCHETYPE_LABEL_ZH: Record<TowerArchetype, string> = {

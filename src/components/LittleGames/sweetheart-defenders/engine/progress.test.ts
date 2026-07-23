@@ -16,6 +16,7 @@ function makeState(overrides: Partial<BattleState> = {}): BattleState {
     enemies: [],
     towers: [],
     projectiles: [],
+    beams: [],
     effects: [],
     spawnQueue: [],
     kills: 200,

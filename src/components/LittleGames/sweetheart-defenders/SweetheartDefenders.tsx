@@ -1,6 +1,8 @@
 import { useCallback, useState } from "react";
 import { LEVELS } from "./data/levels";
 import { STARTER_PET_IDS } from "./data/pets";
+import { petsUnlockedBy } from "./data/unlocks";
+import { starsForRun, type RunOutcome, type Stars } from "./engine/progress";
 import { BattleScreen } from "./ui/BattleScreen";
 import { TitleScreen } from "./ui/TitleScreen";
 import type { Difficulty } from "./types";
@@ -13,9 +15,24 @@ type Screen =
   | { kind: "title" }
   | { kind: "battle"; levelId: string; difficulty: Difficulty; runId: number };
 
-/** 甜心防衛隊 — 全螢幕塔防遊戲。 */
+type Progress = {
+  /** 每關拿過的最高星數 */
+  levelStars: Record<string, Stars>;
+  unlockedPetIds: string[];
+};
+
+/**
+ * 甜心防衛隊 — 全螢幕塔防遊戲。
+ *
+ * 進度目前只活在這個 state 裡（關掉分頁就沒了）；M4 會把它換成 local-first +
+ * Firestore 的存檔，介面不用動。
+ */
 export default function SweetheartDefenders({ onExit }: Props) {
   const [screen, setScreen] = useState<Screen>({ kind: "title" });
+  const [progress, setProgress] = useState<Progress>({
+    levelStars: {},
+    unlockedPetIds: STARTER_PET_IDS,
+  });
 
   const backToTitle = useCallback(() => setScreen({ kind: "title" }), []);
 
@@ -32,12 +49,44 @@ export default function SweetheartDefenders({ onExit }: Props) {
     );
   }, []);
 
+  const recordResult = useCallback((levelId: string, outcome: RunOutcome) => {
+    const stars = starsForRun(outcome);
+    if (stars === 0) return;
+
+    setProgress((current) => {
+      const best = Math.max(current.levelStars[levelId] ?? 0, stars) as Stars;
+      const unlocked = new Set(current.unlockedPetIds);
+      for (const petId of petsUnlockedBy(levelId, best)) unlocked.add(petId);
+
+      return {
+        levelStars: { ...current.levelStars, [levelId]: best },
+        unlockedPetIds: [...unlocked],
+      };
+    });
+  }, []);
+
   if (screen.kind === "title") {
-    return <TitleScreen onStart={startLevel} onExit={onExit} />;
+    return (
+      <TitleScreen
+        levelStars={progress.levelStars}
+        unlockedPetIds={progress.unlockedPetIds}
+        onStart={startLevel}
+        onExit={onExit}
+      />
+    );
   }
 
   const level = LEVELS.find((candidate) => candidate.id === screen.levelId);
-  if (!level) return <TitleScreen onStart={startLevel} onExit={onExit} />;
+  if (!level) {
+    return (
+      <TitleScreen
+        levelStars={progress.levelStars}
+        unlockedPetIds={progress.unlockedPetIds}
+        onStart={startLevel}
+        onExit={onExit}
+      />
+    );
+  }
 
   return (
     <div
@@ -51,10 +100,10 @@ export default function SweetheartDefenders({ onExit }: Props) {
         key={`${screen.levelId}-${screen.difficulty}-${screen.runId}`}
         level={level}
         difficulty={screen.difficulty}
-        unlockedPetIds={STARTER_PET_IDS}
+        unlockedPetIds={progress.unlockedPetIds}
         onExit={backToTitle}
         onRetry={retry}
-        onFinished={() => {}}
+        onFinished={(outcome) => recordResult(level.id, outcome)}
       />
     </div>
   );

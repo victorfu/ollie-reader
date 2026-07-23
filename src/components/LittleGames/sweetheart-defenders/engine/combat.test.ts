@@ -1,15 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { computeDamage, getTowerStats } from "./combat";
+import { computeDamage, getTowerStats, getTrait } from "./combat";
 import { ARCHETYPE_BASE } from "../data/elements";
+import { TRAIT_BASE } from "../data/traits";
 import { LEVEL_POWER, RARITY_TIERS } from "../constants";
-import type { Pet } from "../types";
+import { ELEMENTS, type Pet } from "../types";
 
 function makePet(overrides: Partial<Pet> = {}): Pet {
   return {
     id: "test-pet",
     name: "Test Pet",
     nameZh: "測試寵物",
-    elements: ["spark"],
+    // 預設給雙元素，副元素選 crystal（碎甲）——碎甲只在命中時生效，不會動到
+    // 基礎數值，所以數值測試不用扣掉特性加成。
+    elements: ["spark", "crystal"],
     rarity: "common",
     sprite: "test.png",
     ...overrides,
@@ -76,6 +79,71 @@ describe("getTowerStats", () => {
     expect(rapid.stunChance).toBe(0);
     expect(rapid.armorPierce).toBe(0);
     expect(rapid.splashRadius).toBe(0);
+  });
+});
+
+describe("traits from the secondary element", () => {
+  it("gives each secondary element its own trait", () => {
+    expect(getTrait(makePet({ elements: ["spark", "tide"] }))).toBe("chill");
+    expect(getTrait(makePet({ elements: ["spark", "leaf"] }))).toBe("toxin");
+    expect(getTrait(makePet({ elements: ["spark", "crystal"] }))).toBe("shred");
+    expect(getTrait(makePet({ elements: ["crystal", "spark"] }))).toBe("chain");
+  });
+
+  it("falls back to 純粹 for single-element pets", () => {
+    expect(getTrait(makePet({ elements: ["spark"] }))).toBe("pure");
+  });
+
+  it("pays single-element pets back with extra damage", () => {
+    const pure = getTowerStats(makePet({ elements: ["spark"] }), 1);
+    const dual = getTowerStats(makePet({ elements: ["spark", "crystal"] }), 1);
+
+    expect(pure.trait).toBe("pure");
+    expect(pure.damage).toBeCloseTo(
+      dual.damage * (1 + TRAIT_BASE.pure.damageBonus),
+      6,
+    );
+  });
+
+  it("extends range for 專注 but not for other traits", () => {
+    const focus = getTowerStats(makePet({ elements: ["spark", "light"] }), 1);
+    const plain = getTowerStats(makePet({ elements: ["spark", "crystal"] }), 1);
+
+    expect(focus.trait).toBe("focus");
+    expect(focus.range).toBeCloseTo(
+      plain.range * (1 + TRAIT_BASE.focus.rangeBonus),
+      6,
+    );
+  });
+
+  it("scales trait strength with rarity and level", () => {
+    const common1 = getTowerStats(
+      makePet({ elements: ["spark", "leaf"], rarity: "common" }),
+      1,
+    );
+    const common3 = getTowerStats(
+      makePet({ elements: ["spark", "leaf"], rarity: "common" }),
+      3,
+    );
+    const rare1 = getTowerStats(
+      makePet({ elements: ["spark", "leaf"], rarity: "rare" }),
+      1,
+    );
+
+    expect(common1.traitPower).toBe(1);
+    expect(common3.traitPower).toBeGreaterThan(common1.traitPower);
+    expect(rare1.traitPower).toBeGreaterThan(common1.traitPower);
+  });
+
+  it("pairs every archetype with its own attack style", () => {
+    const styles = new Set(
+      ELEMENTS.map(
+        (element) => getTowerStats(makePet({ elements: [element] }), 1).attackStyle,
+      ),
+    );
+
+    // 8 種打法就該有 8 種看得出差別的攻擊視覺。
+    expect(styles.size).toBe(8);
   });
 });
 

@@ -60,6 +60,36 @@ export function distance(a: Vec2, b: Vec2): number {
   return Math.hypot(b.x - a.x, b.y - a.y);
 }
 
+/**
+ * 一個點離整條路徑最近有多遠。
+ *
+ * 拿來檢查塔位有沒有壓在路面上——塔位如果太靠近路徑，畫面上會看起來像蓋在
+ * 路中間，而且怪會從塔身上穿過去。
+ */
+export function distanceToPath(point: Vec2, points: Vec2[]): number {
+  let best = Infinity;
+  for (let i = 1; i < points.length; i += 1) {
+    best = Math.min(best, distanceToSegment(point, points[i - 1], points[i]));
+  }
+  return best;
+}
+
+function distanceToSegment(point: Vec2, from: Vec2, to: Vec2): number {
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  const lengthSquared = dx * dx + dy * dy;
+
+  if (lengthSquared === 0) return distance(point, from);
+
+  // 把點投影到線段上，再夾回 [0, 1] 之間，就是線段上最近的位置。
+  const t = Math.max(
+    0,
+    Math.min(1, ((point.x - from.x) * dx + (point.y - from.y) * dy) / lengthSquared),
+  );
+
+  return distance(point, { x: from.x + t * dx, y: from.y + t * dy });
+}
+
 export function distanceSquared(a: Vec2, b: Vec2): number {
   const dx = b.x - a.x;
   const dy = b.y - a.y;

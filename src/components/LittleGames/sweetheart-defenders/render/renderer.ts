@@ -5,7 +5,7 @@ import { getPet } from "../data/pets";
 import { getTowerStats } from "../engine/combat";
 import type { CompiledLevel } from "../engine/simulation";
 import { pointAtDistance } from "../engine/path";
-import type { BattleState, LiveEnemy } from "../types";
+import type { BattleState, LiveEnemy, Vec2 } from "../types";
 import { drawEnemyShape, roundedRect } from "./shapes";
 import { getSprite } from "./sprites";
 
@@ -32,10 +32,12 @@ export function renderBattle(
   drawPaths(ctx, level, theme.path, theme.pathEdge);
   drawCounter(ctx, level, state);
   drawSlots(ctx, state, level, view);
+  drawEffects(ctx, state, "heal");
   drawEffects(ctx, state, "splash");
   drawEnemies(ctx, state);
   drawTowers(ctx, state, level);
   drawProjectiles(ctx, state);
+  drawBeams(ctx, state);
   drawEffects(ctx, state, "pop");
   drawEffects(ctx, state, "steal");
   drawRangePreview(ctx, state, level, view);
@@ -308,6 +310,23 @@ function drawStatusRing(
     ctx.stroke();
   }
 
+  if (enemy.dotMs > 0) {
+    // 中毒 / 燒傷：沿著身體邊緣點一圈小點
+    ctx.fillStyle = enemy.dotColor;
+    for (let i = 0; i < 6; i += 1) {
+      const angle = (i / 6) * Math.PI * 2;
+      ctx.beginPath();
+      ctx.arc(
+        Math.cos(angle) * radius * 1.1,
+        Math.sin(angle) * radius * 1.1,
+        radius * 0.13,
+        0,
+        Math.PI * 2,
+      );
+      ctx.fill();
+    }
+  }
+
   if (enemy.stunMs > 0) {
     ctx.strokeStyle = "rgba(195,156,240,0.95)";
     ctx.lineWidth = 2.5;
@@ -354,24 +373,146 @@ function drawProjectiles(
   for (const projectile of state.projectiles) {
     const t = Math.min(1, projectile.progress);
     const x = projectile.x + (projectile.targetX - projectile.x) * t;
-    const y = projectile.y + (projectile.targetY - projectile.y) * t;
+    // 拋物線：飛到一半時最高。
+    const lift = projectile.arc * Math.sin(Math.PI * t);
+    const y = projectile.y + (projectile.targetY - projectile.y) * t - lift;
 
+    ctx.save();
     ctx.fillStyle = projectile.color;
-    ctx.beginPath();
-    ctx.arc(x, y, projectile.radius, 0, Math.PI * 2);
-    ctx.fill();
 
-    ctx.fillStyle = "rgba(255,255,255,0.7)";
-    ctx.beginPath();
-    ctx.arc(x - projectile.radius * 0.3, y - projectile.radius * 0.3, projectile.radius * 0.35, 0, Math.PI * 2);
-    ctx.fill();
+    switch (projectile.style) {
+      case "bolt": {
+        // 又細又快的電光，帶一小段拖尾
+        const tailX = x - (projectile.targetX - projectile.x) * 0.05;
+        const tailY = y - (projectile.targetY - projectile.y) * 0.05;
+        ctx.strokeStyle = projectile.color;
+        ctx.lineWidth = projectile.radius * 0.9;
+        ctx.lineCap = "round";
+        ctx.beginPath();
+        ctx.moveTo(tailX, tailY);
+        ctx.lineTo(x, y);
+        ctx.stroke();
+        break;
+      }
+
+      case "syrupBlob": {
+        // 黏稠的球，飛行時上下晃
+        const wobble = Math.sin(t * Math.PI * 4) * projectile.radius * 0.35;
+        ctx.beginPath();
+        ctx.ellipse(
+          x,
+          y,
+          projectile.radius * 1.2,
+          projectile.radius + wobble,
+          0,
+          0,
+          Math.PI * 2,
+        );
+        ctx.fill();
+        break;
+      }
+
+      case "note": {
+        // 飄上去的音符：一個實心頭 + 一根桿子
+        ctx.globalAlpha = 1 - t * 0.4;
+        ctx.beginPath();
+        ctx.ellipse(x, y, projectile.radius, projectile.radius * 0.8, -0.4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = projectile.color;
+        ctx.lineWidth = 1.8;
+        ctx.beginPath();
+        ctx.moveTo(x + projectile.radius * 0.8, y);
+        ctx.lineTo(x + projectile.radius * 0.8, y - projectile.radius * 2.4);
+        ctx.stroke();
+        break;
+      }
+
+      case "mortar": {
+        // 砲彈本體 + 地面上的落點影子
+        ctx.globalAlpha = 0.18;
+        ctx.beginPath();
+        ctx.ellipse(
+          projectile.x + (projectile.targetX - projectile.x) * t,
+          projectile.y + (projectile.targetY - projectile.y) * t,
+          projectile.radius * 1.1,
+          projectile.radius * 0.4,
+          0,
+          0,
+          Math.PI * 2,
+        );
+        ctx.fill();
+        ctx.globalAlpha = 1;
+        ctx.beginPath();
+        ctx.arc(x, y, projectile.radius, 0, Math.PI * 2);
+        ctx.fill();
+        break;
+      }
+
+      case "shard": {
+        // 又大又鈍的晶石，邊飛邊轉
+        ctx.translate(x, y);
+        ctx.rotate(t * Math.PI * 2);
+        ctx.beginPath();
+        ctx.moveTo(0, -projectile.radius);
+        ctx.lineTo(projectile.radius * 0.7, 0);
+        ctx.lineTo(0, projectile.radius);
+        ctx.lineTo(-projectile.radius * 0.7, 0);
+        ctx.closePath();
+        ctx.fill();
+        break;
+      }
+
+      default: {
+        ctx.beginPath();
+        ctx.arc(x, y, projectile.radius, 0, Math.PI * 2);
+        ctx.fill();
+        break;
+      }
+    }
+
+    ctx.restore();
   }
+}
+
+/** 狙擊的光束與連鎖的跳彈：瞬間畫一條折線，然後很快淡掉。 */
+function drawBeams(ctx: CanvasRenderingContext2D, state: BattleState): void {
+  for (const beam of state.beams) {
+    if (beam.points.length < 2) continue;
+
+    const fade = 1 - beam.ageMs / beam.lifeMs;
+
+    ctx.save();
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+
+    // 外層寬一點、比較透明，內層細一點、接近白色，看起來才會亮。
+    ctx.globalAlpha = fade * 0.55;
+    ctx.strokeStyle = beam.color;
+    ctx.lineWidth = beam.width * 2.4;
+    strokePolyline(ctx, beam.points);
+
+    ctx.globalAlpha = fade;
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = beam.width;
+    strokePolyline(ctx, beam.points);
+
+    ctx.restore();
+  }
+}
+
+function strokePolyline(ctx: CanvasRenderingContext2D, points: Vec2[]): void {
+  ctx.beginPath();
+  points.forEach((point, index) => {
+    if (index === 0) ctx.moveTo(point.x, point.y);
+    else ctx.lineTo(point.x, point.y);
+  });
+  ctx.stroke();
 }
 
 function drawEffects(
   ctx: CanvasRenderingContext2D,
   state: BattleState,
-  kind: "splash" | "pop" | "steal",
+  kind: "splash" | "pop" | "steal" | "heal",
 ): void {
   for (const effect of state.effects) {
     if (effect.kind !== kind) continue;
@@ -385,6 +526,18 @@ function drawEffects(
       ctx.font = "bold 20px system-ui, sans-serif";
       ctx.textAlign = "center";
       ctx.fillText("🍰", effect.x, effect.y - progress * 26);
+      ctx.globalAlpha = 1;
+      continue;
+    }
+
+    if (kind === "heal") {
+      // 應援塔的光環：一圈往外擴的細環，不要用實心蓋住底下的塔
+      ctx.globalAlpha = (1 - progress) * 0.5;
+      ctx.strokeStyle = effect.color;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(effect.x, effect.y, effect.radius * (0.35 + progress * 0.65), 0, Math.PI * 2);
+      ctx.stroke();
       ctx.globalAlpha = 1;
       continue;
     }

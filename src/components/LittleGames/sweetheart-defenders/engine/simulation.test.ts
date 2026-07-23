@@ -6,9 +6,10 @@ import {
   type CompiledLevel,
 } from "./simulation";
 import { getPlaceCost } from "./economy";
-import { getPet } from "../data/pets";
+import { getPet, STARTER_PET_IDS } from "../data/pets";
 import { LEVELS } from "../data/levels";
 import { CAKES_BY_DIFFICULTY, FIRST_PREP_MS, STEP_MS } from "../constants";
+import { TRAIT_BASE } from "../data/traits";
 import type { BattleState, Command, Difficulty, LevelSpec } from "../types";
 
 const SHOP_PATH = compileLevel(LEVELS[0]);
@@ -353,18 +354,28 @@ describe("determinism", () => {
  * 這同時是平衡回歸測試——之後調整數值時，如果這關突然變成過不了或輕鬆全清，
  * 這個測試就會先叫出來。
  */
+/**
+ * 無渲染快跑：用固定 seed 把地圖 1 的 15 波從頭跑到尾，同時模擬兩種玩家。
+ *
+ * 這裡鎖的是難度的「形狀」，不是某個數字：一個懂遊戲的組合在普通難度應該零
+ * 失血通關（拿三星），一個隨便亂放的組合在普通難度也要過得去（不然小孩會被
+ * 卡住），但在挑戰難度就該輸。之後調任何數值只要破壞其中一條，這裡就會叫。
+ */
 describe("full 15-wave run on 店門小徑", () => {
-  // 只用開場就有的四隻 starter，混搭幾種打法。
-  const LOADOUT: { slotId: string; petId: string }[] = [
-    { slotId: "s1", petId: "nibi" }, // ember 爆裂，剋軟糖
-    { slotId: "s2", petId: "nibi" },
-    { slotId: "s4", petId: "lumi" }, // light 狙擊
-    { slotId: "s5", petId: "nibi" },
-    { slotId: "s6", petId: "momo" }, // dream 催眠
-    { slotId: "s7", petId: "lumi" },
-    { slotId: "s8", petId: "nibi" },
-    { slotId: "s3", petId: "pico" }, // star 應援，幫旁邊的塔加速
+  /** 懂遊戲的人會蓋的組合：主力輸出 + 一座應援 + 一座控場。 */
+  const GOOD_BUILD = [
+    "nibi",
+    "lumi",
+    "ticktock-sparrow",
+    "nibi",
+    "pico",
+    "lumi",
+    "nibi",
+    "momo",
   ];
+
+  /** 小孩隨便放：每個塔位換一隻沒玩過的。 */
+  const NAIVE_BUILD = STARTER_PET_IDS;
 
   type PlaythroughResult = {
     state: BattleState;
@@ -372,9 +383,17 @@ describe("full 15-wave run on 店門小徑", () => {
     maxedAtWave: number | null;
   };
 
-  function playThrough(difficulty: Difficulty): PlaythroughResult {
+  /**
+   * 模擬一個會做基本功的玩家：有錢就補塔位，塔位滿了就輪流升級，
+   * 每一波都提早出發。
+   */
+  function playThrough(
+    difficulty: Difficulty,
+    build: string[],
+  ): PlaythroughResult {
     const level = compileLevel(LEVELS[0]);
     const state = createBattle(level, difficulty, 99);
+    const slotIds = LEVELS[0].slots.map((slot) => slot.id);
     let placed = 0;
     let upgradeCursor = 0;
     let maxedAtWave: number | null = null;
@@ -382,12 +401,11 @@ describe("full 15-wave run on 店門小徑", () => {
     for (let step = 0; step < secondsToSteps(1200); step += 1) {
       const commands: Command[] = [];
 
-      // 先把塔位補滿，之後把多的糖霜輪流投在升級上——真人也是這樣玩。
-      if (placed < LOADOUT.length) {
-        const next = LOADOUT[placed];
-        const pet = getPet(next.petId)!;
+      if (placed < slotIds.length) {
+        const petId = build[placed % build.length];
+        const pet = getPet(petId)!;
         if (state.frosting >= getPlaceCost(pet)) {
-          commands.push({ kind: "placeTower", ...next });
+          commands.push({ kind: "placeTower", slotId: slotIds[placed], petId });
           placed += 1;
         }
       } else if (state.towers.length > 0) {
@@ -406,7 +424,7 @@ describe("full 15-wave run on 店門小徑", () => {
 
       if (
         maxedAtWave === null &&
-        state.towers.length === LOADOUT.length &&
+        state.towers.length === slotIds.length &&
         state.towers.every((tower) => tower.level === 3)
       ) {
         maxedAtWave = state.waveIndex + 1;
@@ -418,8 +436,8 @@ describe("full 15-wave run on 店門小徑", () => {
     return { state, maxedAtWave };
   }
 
-  it("rewards flawless play on normal with every cake intact", () => {
-    const { state } = playThrough("normal");
+  it("rewards a sensible build on normal with every cake intact", () => {
+    const { state } = playThrough("normal", GOOD_BUILD);
 
     expect(state.phase).toBe("cleared");
     expect(state.waveIndex).toBe(LEVELS[0].waves.length - 1);
@@ -427,22 +445,30 @@ describe("full 15-wave run on 店門小徑", () => {
     expect(state.kills).toBeGreaterThan(100);
   });
 
+  it("still lets a scattershot build clear normal", () => {
+    // 防挫折：第一關的普通難度不該因為「亂選寵物」就過不了。
+    const { state } = playThrough("normal", NAIVE_BUILD);
+
+    expect(state.phase).toBe("cleared");
+  });
+
+  it("makes hard actually punish a scattershot build", () => {
+    const { state } = playThrough("hard", NAIVE_BUILD);
+
+    expect(state.phase).toBe("lost");
+    // 但也不能一開場就結束——要撐得夠久才有再試一次的動力。
+    expect(state.waveIndex).toBeGreaterThanOrEqual(8);
+  });
+
   it("finishes every wave rather than stalling", () => {
-    const { state } = playThrough("normal");
+    const { state } = playThrough("normal", GOOD_BUILD);
 
     expect(state.enemies).toHaveLength(0);
     expect(state.spawnQueue).toHaveLength(0);
   });
 
-  it("is harder on hard than on easy", () => {
-    const easy = playThrough("easy");
-    const hard = playThrough("hard");
-
-    expect(hard.state.leaked).toBeGreaterThan(easy.state.leaked);
-  });
-
   it("keeps upgrades worth buying deep into the level", () => {
-    const { maxedAtWave } = playThrough("normal");
+    const { maxedAtWave } = playThrough("normal", GOOD_BUILD);
 
     // 全部點滿發生得太早，代表中後段沒東西可花，錢就失去意義了。
     expect(maxedAtWave).not.toBeNull();
@@ -450,8 +476,188 @@ describe("full 15-wave run on 店門小徑", () => {
   });
 
   it("leaves some frosting unspent rather than starving the player", () => {
-    const { state } = playThrough("normal");
+    const { state } = playThrough("normal", GOOD_BUILD);
 
     expect(state.frosting).toBeGreaterThan(0);
+  });
+});
+
+/**
+ * 副元素特性是「48 隻寵物手感不重複」的來源，所以每一種都要確認它真的有作用，
+ * 不是只寫在說明文字裡。
+ */
+describe("secondary-element traits in battle", () => {
+  /** 一條直線路徑 + 一個塔位，讓效果單獨顯現。 */
+  function traitLevel(enemyCount: number, gapMs: number): CompiledLevel {
+    return makeTestLevel({
+      waves: [
+        {
+          groups: [{ kind: "gumdrop", count: enemyCount, gapMs, delayMs: 0 }],
+          bonus: 0,
+        },
+      ],
+    });
+  }
+
+  /** 跑到塔至少開過一次火，回傳當下的狀態。 */
+  function runUntilFirstHit(petId: string, level: CompiledLevel): BattleState {
+    const state = createBattle(level, "normal", 1);
+    run(state, level, 1, [
+      { kind: "placeTower", slotId: "a", petId },
+      { kind: "startWave" },
+    ]);
+
+    for (let step = 0; step < secondsToSteps(20); step += 1) {
+      stepSimulation(state, level, [], STEP_MS);
+      if (state.enemies.some((enemy) => enemy.hp < enemy.maxHp)) break;
+    }
+    return state;
+  }
+
+  it("毒液: leaves damage over time ticking after the shot lands", () => {
+    // embercap-salamander = ember + leaf → 爆裂 · 毒液
+    const level = traitLevel(1, 0);
+    const state = runUntilFirstHit("embercap-salamander", level);
+
+    const poisoned = state.enemies[0];
+    expect(poisoned.dotDps).toBeGreaterThan(0);
+    expect(poisoned.dotMs).toBeGreaterThan(0);
+
+    // 塔沒再開火的那幾幀，血依然在掉。
+    const before = poisoned.hp;
+    for (let i = 0; i < 10; i += 1) {
+      stepSimulation(state, level, [], STEP_MS);
+    }
+    expect(state.enemies[0]?.hp ?? 0).toBeLessThan(before);
+  });
+
+  it("冰霜: slows the target even though the tower is not a syrup tower", () => {
+    // momo = dream + tide → 催眠 · 冰霜
+    const level = traitLevel(1, 0);
+    const state = runUntilFirstHit("momo", level);
+
+    const chilled = state.enemies[0];
+    expect(chilled.slowMs).toBeGreaterThan(0);
+    expect(chilled.slowFactor).toBeGreaterThan(0);
+  });
+
+  it("碎甲: strips armour a little at a time, up to a cap", () => {
+    // nibi = ember + crystal → 爆裂 · 碎甲
+    const level = makeTestLevel({
+      waves: [
+        {
+          groups: [{ kind: "chocolate", count: 1, gapMs: 0, delayMs: 0 }],
+          bonus: 0,
+        },
+      ],
+    });
+    const state = runUntilFirstHit("nibi", level);
+
+    expect(state.enemies[0].armorShred).toBeGreaterThan(0);
+
+    for (let step = 0; step < secondsToSteps(20); step += 1) {
+      stepSimulation(state, level, [], STEP_MS);
+      if (state.enemies.length === 0) break;
+    }
+
+    for (const enemy of state.enemies) {
+      expect(enemy.armorShred).toBeLessThanOrEqual(TRAIT_BASE.shred.max);
+    }
+  });
+
+  it("連鎖: jumps the shot to a nearby enemy", () => {
+    // lumi = light + spark → 狙擊 · 連鎖
+    const level = traitLevel(4, 250);
+    const state = createBattle(level, "normal", 1);
+    run(state, level, 1, [
+      { kind: "placeTower", slotId: "a", petId: "lumi" },
+      { kind: "startWave" },
+    ]);
+
+    let jumped = false;
+    for (let step = 0; step < secondsToSteps(25); step += 1) {
+      stepSimulation(state, level, [], STEP_MS);
+      // 起點 + 第一個目標 = 2 個點；有第三個點就代表電流跳過去了。
+      if (state.beams.some((beam) => beam.points.length > 2)) {
+        jumped = true;
+        break;
+      }
+    }
+
+    expect(jumped).toBe(true);
+  });
+
+  it("連鎖: never hits the same enemy twice in one chain", () => {
+    const level = traitLevel(4, 250);
+    const state = createBattle(level, "normal", 1);
+    run(state, level, 1, [
+      { kind: "placeTower", slotId: "a", petId: "lumi" },
+      { kind: "startWave" },
+    ]);
+
+    for (let step = 0; step < secondsToSteps(25); step += 1) {
+      stepSimulation(state, level, [], STEP_MS);
+
+      for (const beam of state.beams) {
+        // 跳過起點（塔的位置），其餘每個點都該是不同的敵人座標。
+        const targets = beam.points.slice(1).map((p) => `${p.x},${p.y}`);
+        expect(new Set(targets).size).toBe(targets.length);
+      }
+    }
+  });
+
+  it("連擊: speeds the tower up while it keeps hitting the same target", () => {
+    // ticktock-sparrow = spark + star → 速射 · 連擊
+    const level = makeTestLevel({
+      waves: [
+        {
+          groups: [{ kind: "chocolate", count: 1, gapMs: 0, delayMs: 0 }],
+          bonus: 0,
+        },
+      ],
+    });
+    const state = runUntilFirstHit("ticktock-sparrow", level);
+
+    // 記錄連段的最高點——目標一被打死連段就歸零，所以不能等跑完再看。
+    let peakCombo = 0;
+    for (let step = 0; step < secondsToSteps(10); step += 1) {
+      stepSimulation(state, level, [], STEP_MS);
+      peakCombo = Math.max(peakCombo, state.towers[0].comboHits);
+      if (state.phase !== "wave") break;
+    }
+
+    expect(peakCombo).toBeGreaterThan(3);
+  });
+
+  it("連擊: does not carry a streak over into the next wave", () => {
+    const level = makeTestLevel({
+      waves: [
+        { groups: [{ kind: "gumdrop", count: 1, gapMs: 0, delayMs: 0 }], bonus: 0 },
+        { groups: [{ kind: "gumdrop", count: 1, gapMs: 0, delayMs: 0 }], bonus: 0 },
+      ],
+    });
+    const state = runUntilFirstHit("ticktock-sparrow", level);
+
+    expect(state.towers[0].comboHits).toBeGreaterThan(0);
+
+    // 跑到這一波清空、進入下一波的準備階段。
+    for (let step = 0; step < secondsToSteps(30); step += 1) {
+      stepSimulation(state, level, [], STEP_MS);
+      if (state.phase === "prep") break;
+    }
+
+    expect(state.phase).toBe("prep");
+    expect(state.towers[0].comboHits).toBe(0);
+  });
+
+  it("純粹: single-element pets trade the trait for raw damage", () => {
+    // mossmew 只有 leaf，所以拿不到特性，改吃傷害加成。
+    const level = traitLevel(1, 0);
+    const state = runUntilFirstHit("mossmew", level);
+
+    const hit = state.enemies[0];
+    expect(hit.hp).toBeLessThan(hit.maxHp);
+    expect(hit.dotDps).toBe(0);
+    expect(hit.armorShred).toBe(0);
   });
 });
