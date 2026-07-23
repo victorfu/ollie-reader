@@ -2,7 +2,11 @@ import { useCallback, useState } from "react";
 import { LEVELS } from "./data/levels";
 import { STARTER_PET_IDS } from "./data/pets";
 import { petsUnlockedBy } from "./data/unlocks";
-import { starsForRun, type RunOutcome, type Stars } from "./engine/progress";
+import {
+  applyRunResult,
+  type CampaignProgress,
+  type RunOutcome,
+} from "./engine/progress";
 import { BattleScreen } from "./ui/BattleScreen";
 import { TitleScreen } from "./ui/TitleScreen";
 import type { Difficulty } from "./types";
@@ -15,12 +19,6 @@ type Screen =
   | { kind: "title" }
   | { kind: "battle"; levelId: string; difficulty: Difficulty; runId: number };
 
-type Progress = {
-  /** 每關拿過的最高星數 */
-  levelStars: Record<string, Stars>;
-  unlockedPetIds: string[];
-};
-
 /**
  * 甜心防衛隊 — 全螢幕塔防遊戲。
  *
@@ -29,7 +27,7 @@ type Progress = {
  */
 export default function SweetheartDefenders({ onExit }: Props) {
   const [screen, setScreen] = useState<Screen>({ kind: "title" });
-  const [progress, setProgress] = useState<Progress>({
+  const [progress, setProgress] = useState<CampaignProgress>({
     levelStars: {},
     unlockedPetIds: STARTER_PET_IDS,
   });
@@ -50,19 +48,9 @@ export default function SweetheartDefenders({ onExit }: Props) {
   }, []);
 
   const recordResult = useCallback((levelId: string, outcome: RunOutcome) => {
-    const stars = starsForRun(outcome);
-    if (stars === 0) return;
-
-    setProgress((current) => {
-      const best = Math.max(current.levelStars[levelId] ?? 0, stars) as Stars;
-      const unlocked = new Set(current.unlockedPetIds);
-      for (const petId of petsUnlockedBy(levelId, best)) unlocked.add(petId);
-
-      return {
-        levelStars: { ...current.levelStars, [levelId]: best },
-        unlockedPetIds: [...unlocked],
-      };
-    });
+    setProgress((current) =>
+      applyRunResult(current, levelId, outcome, petsUnlockedBy),
+    );
   }, []);
 
   if (screen.kind === "title") {

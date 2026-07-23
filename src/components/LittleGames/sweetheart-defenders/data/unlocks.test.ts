@@ -3,6 +3,8 @@ import {
   allObtainablePetIds,
   describeUnlockSource,
   findBrokenUnlockIds,
+  isLevelUnlocked,
+  nextPlayableLevelId,
   petsUnlockedBy,
   unlockSourceFor,
 } from "./unlocks";
@@ -106,5 +108,67 @@ describe("the pets a player can actually reach", () => {
     );
 
     expect(traits.size).toBeGreaterThanOrEqual(5);
+  });
+});
+
+/**
+ * 關卡是一條線：一次只開放下一關，不是一整片任你挑。
+ * 規則寫在這裡而不是畫面裡，才測得到。
+ */
+describe("level gating", () => {
+  const [first, second, third] = LEVELS;
+
+  it("always leaves the first level open", () => {
+    expect(isLevelUnlocked(first.id, {})).toBe(true);
+  });
+
+  it("keeps every later level shut until the one before it is cleared", () => {
+    expect(isLevelUnlocked(second.id, {})).toBe(false);
+    expect(isLevelUnlocked(third.id, {})).toBe(false);
+  });
+
+  it("opens exactly one more level per clear", () => {
+    const afterFirst = { [first.id]: 1 as const };
+
+    expect(isLevelUnlocked(second.id, afterFirst)).toBe(true);
+    expect(isLevelUnlocked(third.id, afterFirst)).toBe(false);
+  });
+
+  it("treats a failed run as not cleared", () => {
+    expect(isLevelUnlocked(second.id, { [first.id]: 0 })).toBe(false);
+  });
+
+  it("does not need three stars to move on", () => {
+    expect(isLevelUnlocked(second.id, { [first.id]: 1 })).toBe(true);
+  });
+
+  it("refuses to unlock a level that does not exist", () => {
+    expect(isLevelUnlocked("not-a-level", {})).toBe(false);
+  });
+});
+
+describe("nextPlayableLevelId", () => {
+  it("points at the first level on a fresh save", () => {
+    expect(nextPlayableLevelId({})).toBe(LEVELS[0].id);
+  });
+
+  it("moves on as levels get cleared", () => {
+    expect(nextPlayableLevelId({ [LEVELS[0].id]: 2 })).toBe(LEVELS[1].id);
+  });
+
+  it("skips ahead past levels already beaten", () => {
+    const stars = Object.fromEntries(
+      LEVELS.slice(0, 3).map((level) => [level.id, 3 as const]),
+    );
+
+    expect(nextPlayableLevelId(stars)).toBe(LEVELS[3].id);
+  });
+
+  it("stays on the last level once everything is beaten", () => {
+    const stars = Object.fromEntries(
+      LEVELS.map((level) => [level.id, 3 as const]),
+    );
+
+    expect(nextPlayableLevelId(stars)).toBe(LEVELS[LEVELS.length - 1].id);
   });
 });

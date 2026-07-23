@@ -29,6 +29,41 @@ export function starsForRun(state: RunOutcome): Stars {
   return 1;
 }
 
+/** 玩家的闖關進度。 */
+export type CampaignProgress = {
+  /** 每關拿過的最高星數 */
+  levelStars: Record<string, Stars>;
+  unlockedPetIds: string[];
+};
+
+/**
+ * 把一場的結果併進進度。
+ *
+ * 星數只進不退（第二次打得比較差不該把三顆星洗掉），解鎖也只加不減。
+ * 回傳新物件而不是就地改，這樣 React 的 setState 直接吃得下，之後接存檔也
+ * 只是把回傳值寫出去。
+ */
+export function applyRunResult(
+  progress: CampaignProgress,
+  levelId: string,
+  outcome: RunOutcome,
+  petsUnlockedBy: (levelId: string, stars: Stars) => string[],
+): CampaignProgress {
+  const stars = starsForRun(outcome);
+  if (stars === 0) return progress;
+
+  const best = Math.max(progress.levelStars[levelId] ?? 0, stars) as Stars;
+  if (best === progress.levelStars[levelId]) return progress;
+
+  const unlocked = new Set(progress.unlockedPetIds);
+  for (const petId of petsUnlockedBy(levelId, best)) unlocked.add(petId);
+
+  return {
+    levelStars: { ...progress.levelStars, [levelId]: best },
+    unlockedPetIds: [...unlocked],
+  };
+}
+
 /**
  * 失敗時給的鼓勵訊息。刻意不寫 Game Over——寫「撐到第幾波」比較容易讓人
  * 想再試一次。

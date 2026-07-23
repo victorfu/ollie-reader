@@ -34,6 +34,29 @@ export function allObtainablePetIds(): string[] {
   return [...ids];
 }
 
+/**
+ * 關卡是一條線，不是一張任你挑的地圖清單：第一關永遠開著，之後每一關都要
+ * 前一關先通關（至少一顆星）才會開。
+ */
+export function isLevelUnlocked(
+  levelId: string,
+  levelStars: Record<string, Stars>,
+): boolean {
+  const index = LEVELS.findIndex((level) => level.id === levelId);
+  if (index < 0) return false;
+  if (index === 0) return true;
+
+  return (levelStars[LEVELS[index - 1].id] ?? 0) > 0;
+}
+
+/** 玩家接下來該打哪一關：第一個還沒通關的。全破的話回最後一關。 */
+export function nextPlayableLevelId(
+  levelStars: Record<string, Stars>,
+): string {
+  const next = LEVELS.find((level) => (levelStars[level.id] ?? 0) === 0);
+  return (next ?? LEVELS[LEVELS.length - 1]).id;
+}
+
 /** 圖鑑用：這隻寵物要怎麼拿到。 */
 export function unlockSourceFor(petId: string): UnlockSource {
   if (STARTER_PET_IDS.includes(petId)) return { kind: "starter" };

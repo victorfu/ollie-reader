@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { starsForRun, summariseRun } from "./progress";
+import { applyRunResult, starsForRun, summariseRun } from "./progress";
 import type { BattleState } from "../types";
 
 function makeState(overrides: Partial<BattleState> = {}): BattleState {
@@ -74,5 +74,103 @@ describe("summariseRun", () => {
     );
 
     expect(summary.detail).toContain("只差 2 波");
+  });
+});
+
+describe("applyRunResult", () => {
+  const EMPTY = { levelStars: {}, unlockedPetIds: ["starter"] };
+  // 假的解鎖表：拿越多星送越多隻。
+  const unlocks = (levelId: string, stars: number) =>
+    stars >= 3 ? [`${levelId}-a`, `${levelId}-b`] : [`${levelId}-a`];
+
+  it("records the stars and hands over the unlocks", () => {
+    const next = applyRunResult(
+      EMPTY,
+      "shop-path",
+      makeState({ cakes: 10, maxCakes: 10 }),
+      unlocks,
+    );
+
+    expect(next.levelStars["shop-path"]).toBe(3);
+    expect(next.unlockedPetIds).toContain("shop-path-a");
+    expect(next.unlockedPetIds).toContain("shop-path-b");
+  });
+
+  it("keeps the starters that were already unlocked", () => {
+    const next = applyRunResult(
+      EMPTY,
+      "shop-path",
+      makeState({ cakes: 8, maxCakes: 10 }),
+      unlocks,
+    );
+
+    expect(next.unlockedPetIds).toContain("starter");
+  });
+
+  it("changes nothing when the run was lost", () => {
+    const next = applyRunResult(
+      EMPTY,
+      "shop-path",
+      makeState({ phase: "lost", cakes: 0 }),
+      unlocks,
+    );
+
+    expect(next).toBe(EMPTY);
+  });
+
+  it("never downgrades a level that was already played better", () => {
+    const threeStars = applyRunResult(
+      EMPTY,
+      "shop-path",
+      makeState({ cakes: 10, maxCakes: 10 }),
+      unlocks,
+    );
+    const afterSloppyReplay = applyRunResult(
+      threeStars,
+      "shop-path",
+      makeState({ cakes: 2, maxCakes: 10 }),
+      unlocks,
+    );
+
+    expect(afterSloppyReplay.levelStars["shop-path"]).toBe(3);
+    expect(afterSloppyReplay.unlockedPetIds).toContain("shop-path-b");
+  });
+
+  it("upgrades the record when a replay does better", () => {
+    const oneStar = applyRunResult(
+      EMPTY,
+      "shop-path",
+      makeState({ cakes: 2, maxCakes: 10 }),
+      unlocks,
+    );
+    expect(oneStar.unlockedPetIds).not.toContain("shop-path-b");
+
+    const perfect = applyRunResult(
+      oneStar,
+      "shop-path",
+      makeState({ cakes: 10, maxCakes: 10 }),
+      unlocks,
+    );
+
+    expect(perfect.levelStars["shop-path"]).toBe(3);
+    expect(perfect.unlockedPetIds).toContain("shop-path-b");
+  });
+
+  it("keeps progress from other levels intact", () => {
+    const first = applyRunResult(
+      EMPTY,
+      "shop-path",
+      makeState({ cakes: 10, maxCakes: 10 }),
+      unlocks,
+    );
+    const second = applyRunResult(
+      first,
+      "kitchen-cross",
+      makeState({ cakes: 7, maxCakes: 10 }),
+      unlocks,
+    );
+
+    expect(second.levelStars["shop-path"]).toBe(3);
+    expect(second.levelStars["kitchen-cross"]).toBe(2);
   });
 });
