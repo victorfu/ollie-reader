@@ -54,8 +54,7 @@ const SHOP_PATH: LevelSpec = {
     accent: "#ff9ec4",
   },
   // 通關補齊剩下兩種打法（糖漿、重砲），三星再送兩隻換個特性玩玩。
-  unlocksOnClear: ["snowdrift-penguin", "frostbell-hare", "glimmerbun"],
-  unlocksOnThreeStars: ["sparkleaf-fawn", "dewdrop-sprout"],
+  coinReward: { clear: 60, threeStars: 40 },
 };
 
 /** 地圖 2「廚房十字」——兩條平行走道同時進怪，開始出會分裂的汽水泡泡。 */
@@ -111,8 +110,7 @@ const KITCHEN_CROSS: LevelSpec = {
     pathEdge: "#a6c1cd",
     accent: "#5bb8e8",
   },
-  unlocksOnClear: ["bubblefin-pony", "lantern-newt", "gearpaw-cub"],
-  unlocksOnThreeStars: ["coralpuff-turtle", "acorn-sprite"],
+  coinReward: { clear: 70, threeStars: 45 },
 };
 
 /** 地圖 3「冰淇淋長廊」——超長折返路線，並且開始出會飛的糖霜幽靈。 */
@@ -162,8 +160,7 @@ const PARLOUR_HALL: LevelSpec = {
     pathEdge: "#d9a6bd",
     accent: "#ff6f9f",
   },
-  unlocksOnClear: ["moonpaper-crane", "crystalmoth", "syrupwing-bat"],
-  unlocksOnThreeStars: ["prismbell-gryphon", "cloverwhirl-snail"],
+  coinReward: { clear: 80, threeStars: 50 },
 };
 
 /** 地圖 4「倉庫迴圈」——路線自己繞回來交叉，並且開始出免疫減速的棒棒糖。 */
@@ -214,8 +211,7 @@ const STOCKROOM_LOOP: LevelSpec = {
     pathEdge: "#b6ab84",
     accent: "#f7c948",
   },
-  unlocksOnClear: ["keyring-ferret", "brassbutton-mole", "pillowmoon-ram"],
-  unlocksOnThreeStars: ["mirrorpaw-cat", "stardial-tortoise"],
+  coinReward: { clear: 90, threeStars: 55 },
 };
 
 /** 地圖 5「糖果工廠」——三個入口匯流，全怪種登場，最後是蛋糕巨人。 */
@@ -276,8 +272,7 @@ const CANDY_FACTORY: LevelSpec = {
     pathEdge: "#b79cd6",
     accent: "#c39cf0",
   },
-  unlocksOnClear: ["comet-kitsune", "nebula-lynx", "cocoa-yak"],
-  unlocksOnThreeStars: ["chimewing-swan", "silent-bellheart"],
+  coinReward: { clear: 100, threeStars: 60 },
 };
 
 export const LEVELS: LevelSpec[] = [

@@ -10,7 +10,6 @@ import {
   type SweetheartSaveV1,
 } from "./storage";
 import { LEVELS } from "./data/levels";
-import { PETS, STARTER_PET_IDS } from "./data/pets";
 
 function makeStorage(): SaveStorage & { data: Map<string, string> } {
   const data = new Map<string, string>();
@@ -29,15 +28,20 @@ function makeSave(overrides: Partial<SweetheartSaveV1> = {}): SweetheartSaveV1 {
 
 const LEVEL_A = LEVELS[0].id;
 const LEVEL_B = LEVELS[1].id;
-const REWARD_PET = LEVELS[0].unlocksOnClear[0];
 
 describe("createEmptySave", () => {
-  it("starts with the starter pets and nothing else", () => {
+  it("starts with nothing cleared and nothing claimed", () => {
     const save = createEmptySave();
 
-    expect(save.unlockedPetIds).toEqual(STARTER_PET_IDS);
     expect(save.levelStars).toEqual({});
     expect(save.bestWave).toEqual({});
+    expect(save.claimedClear).toEqual([]);
+    expect(save.claimedThreeStars).toEqual([]);
+  });
+
+  it("does not carry a character list any more", () => {
+    // 能用哪些角色由扭蛋收藏決定（useTowerRoster），不再存在這份存檔裡。
+    expect(createEmptySave()).not.toHaveProperty("availableCharacterIds");
   });
 });
 
@@ -63,22 +67,7 @@ describe("normalizeSave", () => {
     expect(save.levelStars["deleted-level"]).toBeUndefined();
   });
 
-  it("drops pets that no longer exist but keeps the real ones", () => {
-    const save = normalizeSave({
-      unlockedPetIds: [REWARD_PET, "ghost-pet", 7, null],
-    });
 
-    expect(save.unlockedPetIds).toContain(REWARD_PET);
-    expect(save.unlockedPetIds).not.toContain("ghost-pet");
-  });
-
-  it("always re-adds the starters, even if the save dropped them", () => {
-    const save = normalizeSave({ unlockedPetIds: [] });
-
-    for (const starter of STARTER_PET_IDS) {
-      expect(save.unlockedPetIds).toContain(starter);
-    }
-  });
 
   it("clamps a best wave to the number of waves the level actually has", () => {
     const save = normalizeSave({ bestWave: { [LEVEL_A]: 9999 } });
@@ -95,16 +84,6 @@ describe("normalizeSave", () => {
     expect(save.bestWave[LEVEL_B]).toBeUndefined();
   });
 
-  it("survives a save whose fields are all the wrong type", () => {
-    const save = normalizeSave({
-      levelStars: "nope",
-      unlockedPetIds: "nope",
-      bestWave: 5,
-      updatedAt: "yesterday",
-    });
-
-    expect(save).toEqual(createEmptySave());
-  });
 });
 
 /**
@@ -122,27 +101,7 @@ describe("mergeSaves", () => {
     expect(merged.levelStars[LEVEL_B]).toBe(2);
   });
 
-  it("unions the unlocked pets so neither device loses one", () => {
-    const laptop = makeSave({
-      unlockedPetIds: [...STARTER_PET_IDS, REWARD_PET],
-    });
-    const tablet = makeSave({
-      unlockedPetIds: [...STARTER_PET_IDS, PETS[20].id],
-    });
 
-    const merged = mergeSaves(laptop, tablet);
-
-    expect(merged.unlockedPetIds).toContain(REWARD_PET);
-    expect(merged.unlockedPetIds).toContain(PETS[20].id);
-  });
-
-  it("never duplicates a pet that both sides had", () => {
-    const merged = mergeSaves(createEmptySave(), createEmptySave());
-
-    expect(merged.unlockedPetIds).toHaveLength(
-      new Set(merged.unlockedPetIds).size,
-    );
-  });
 
   it("keeps the furthest wave from either side", () => {
     const merged = mergeSaves(
@@ -154,27 +113,58 @@ describe("mergeSaves", () => {
     expect(merged.bestWave[LEVEL_B]).toBe(6);
   });
 
-  it("does not care which way round the two saves are given", () => {
-    const a = makeSave({
-      levelStars: { [LEVEL_A]: 3 },
-      bestWave: { [LEVEL_B]: 9 },
-    });
-    const b = makeSave({
-      levelStars: { [LEVEL_B]: 2 },
-      unlockedPetIds: [...STARTER_PET_IDS, REWARD_PET],
-    });
 
-    expect(mergeSaves(a, b)).toEqual(mergeSaves(b, a));
+});
+
+/**
+ * 領獎紀錄決定「這一關的代幣還能不能再拿」，所以它的合併與清洗
+ * 跟星數一樣重要——弄錯就是重複發錢或該給沒給。
+ */
+describe("claimed reward records", () => {
+  it("starts empty", () => {
+    const save = createEmptySave();
+
+    expect(save.claimedClear).toEqual([]);
+    expect(save.claimedThreeStars).toEqual([]);
   });
 
-  it("changes nothing when a save is merged with itself", () => {
-    const save = makeSave({
-      levelStars: { [LEVEL_A]: 2 },
-      bestWave: { [LEVEL_A]: 7 },
-      unlockedPetIds: [...STARTER_PET_IDS, REWARD_PET],
+  it("keeps records for levels that still exist", () => {
+    const save = normalizeSave({
+      claimedClear: [LEVEL_A, LEVEL_B],
+      claimedThreeStars: [LEVEL_A],
     });
 
-    expect(mergeSaves(save, save)).toEqual(save);
+    expect(save.claimedClear).toEqual([LEVEL_A, LEVEL_B]);
+    expect(save.claimedThreeStars).toEqual([LEVEL_A]);
+  });
+
+  it("drops records for levels that no longer exist", () => {
+    const save = normalizeSave({ claimedClear: ["deleted-level", LEVEL_A] });
+
+    expect(save.claimedClear).toEqual([LEVEL_A]);
+  });
+
+  it("ignores junk instead of throwing", () => {
+    const save = normalizeSave({ claimedClear: "nope", claimedThreeStars: [7, null] });
+
+    expect(save.claimedClear).toEqual([]);
+    expect(save.claimedThreeStars).toEqual([]);
+  });
+
+  it("never lists the same level twice", () => {
+    const save = normalizeSave({ claimedClear: [LEVEL_A, LEVEL_A] });
+
+    expect(save.claimedClear).toEqual([LEVEL_A]);
+  });
+
+  it("unions on merge, so a reward stays claimed on every device", () => {
+    const merged = mergeSaves(
+      makeSave({ claimedClear: [LEVEL_A] }),
+      makeSave({ claimedClear: [LEVEL_B], claimedThreeStars: [LEVEL_A] }),
+    );
+
+    expect(merged.claimedClear.sort()).toEqual([LEVEL_A, LEVEL_B].sort());
+    expect(merged.claimedThreeStars).toEqual([LEVEL_A]);
   });
 });
 

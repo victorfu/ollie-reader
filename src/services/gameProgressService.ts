@@ -667,3 +667,41 @@ export function isStagePlayable(
   if (stageIndex > currentStageIndex) return false;
   return true;
 }
+
+/**
+ * 原子地加扭蛋代幣，不動其他欄位。
+ *
+ * 給單字大冒險以外的遊戲用（目前是甜心防衛隊的通關獎勵）。刻意不沿用
+ * `saveProgressWithTokenReward`——那支綁著冒險進度的欄位與 resetVersion 驗證，
+ * 對「只是想加錢」的呼叫端來說是不相干的耦合，而且會在文件不存在時直接丟錯。
+ *
+ * 用 transaction 從最新餘額加值，才不會蓋掉另一個分頁剛扣掉的抽卡費用。
+ */
+export async function awardGameCoins(
+  uid: string,
+  amount: number,
+): Promise<number> {
+  if (!Number.isSafeInteger(amount) || amount < 0) {
+    throw new RangeError("Coin reward must be a non-negative safe integer.");
+  }
+  if (amount === 0) return fetchProgress(uid).then((p) => p?.coins ?? 0);
+
+  // 沒玩過單字大冒險的人還沒有進度文件，先建一份再加值。
+  await getOrCreateProgress(uid);
+
+  const docRef = doc(db, GAME_PROGRESS_PATH, uid);
+  return runTransaction(db, async (transaction) => {
+    const snapshot = await transaction.get(docRef);
+    const current = snapshot.exists()
+      ? parseStoredTokenBalance(snapshot.data().coins)
+      : 0;
+
+    if (current > Number.MAX_SAFE_INTEGER - amount) {
+      throw new RangeError("Token balance exceeds the safe integer limit.");
+    }
+
+    const balance = current + amount;
+    transaction.update(docRef, { coins: balance, updatedAt: serverTimestamp() });
+    return balance;
+  });
+}

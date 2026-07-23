@@ -7,13 +7,13 @@ import {
   getUpgradeCost,
 } from "./economy";
 import { EARLY_START_BONUS_PER_SECOND, RARITY_TIERS } from "../constants";
-import type { Pet } from "../types";
+import type { TowerCharacter } from "../types";
 
-function makePet(rarity: Pet["rarity"]): Pet {
+function makeCharacter(rarity: TowerCharacter["rarity"]): TowerCharacter {
   return {
-    id: "test-pet",
-    name: "Test Pet",
-    nameZh: "測試寵物",
+    id: "test-character",
+    name: "Test Character",
+    nameZh: "測試角色",
     elements: ["spark"],
     rarity,
     sprite: "test.png",
@@ -22,18 +22,18 @@ function makePet(rarity: Pet["rarity"]): Pet {
 
 describe("tower costs", () => {
   it("charges the rarity tier price to place a tower", () => {
-    expect(getPlaceCost(makePet("common"))).toBe(RARITY_TIERS.common.cost);
-    expect(getPlaceCost(makePet("warden"))).toBe(RARITY_TIERS.warden.cost);
+    expect(getPlaceCost(makeCharacter("common"))).toBe(RARITY_TIERS.common.cost);
+    expect(getPlaceCost(makeCharacter("warden"))).toBe(RARITY_TIERS.warden.cost);
   });
 
   it("makes each upgrade step cost more than the last", () => {
-    const pet = makePet("uncommon");
+    const pet = makeCharacter("uncommon");
 
     expect(getUpgradeCost(pet, 2)).toBeGreaterThan(getUpgradeCost(pet, 1));
   });
 
   it("sums placement plus every upgrade into the invested cost", () => {
-    const pet = makePet("rare");
+    const pet = makeCharacter("rare");
 
     expect(getInvestedCost(pet, 1)).toBe(getPlaceCost(pet));
     expect(getInvestedCost(pet, 2)).toBe(
@@ -47,7 +47,7 @@ describe("tower costs", () => {
 
 describe("getSellRefund", () => {
   it("refunds a fraction of what was invested, never all of it", () => {
-    const pet = makePet("rare");
+    const pet = makeCharacter("rare");
 
     for (const level of [1, 2, 3] as const) {
       const invested = getInvestedCost(pet, level);
@@ -59,13 +59,13 @@ describe("getSellRefund", () => {
   });
 
   it("refunds more for a more upgraded tower", () => {
-    const pet = makePet("common");
+    const pet = makeCharacter("common");
 
     expect(getSellRefund(pet, 3)).toBeGreaterThan(getSellRefund(pet, 1));
   });
 
   it("returns a whole number of frosting", () => {
-    expect(Number.isInteger(getSellRefund(makePet("mythling"), 2))).toBe(true);
+    expect(Number.isInteger(getSellRefund(makeCharacter("mythling"), 2))).toBe(true);
   });
 });
 

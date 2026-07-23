@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "../../../hooks/useAuth";
 import { logger } from "../../../utils/logger";
-import { petsUnlockedBy } from "./data/unlocks";
+import { getLevel } from "./data/levels";
 import { applyRunResult, type RunOutcome } from "./engine/progress";
+import { awardGameCoins } from "../../../services/gameProgressService";
 import {
   createEmptySave,
   loadCloud,
@@ -19,7 +20,8 @@ export type CampaignSave = {
   status: SyncStatus;
   /** 有登入才會同步到雲端；沒登入就只存這台裝置。 */
   isSignedIn: boolean;
-  recordResult: (levelId: string, outcome: RunOutcome) => void;
+  /** 回傳這一場賺到的扭蛋代幣，讓結算頁顯示出來。 */
+  recordResult: (levelId: string, outcome: RunOutcome) => number;
 };
 
 /**
@@ -86,18 +88,19 @@ export function useCampaignSave(): CampaignSave {
   }, [uid]);
 
   const recordResult = useCallback(
-    (levelId: string, outcome: RunOutcome) => {
-      const updated = applyRunResult(
+    (levelId: string, outcome: RunOutcome): number => {
+      const reward = getLevel(levelId)?.coinReward ?? { clear: 0, threeStars: 0 };
+      const { progress, coinsEarned } = applyRunResult(
         saveRef.current,
         levelId,
         outcome,
-        petsUnlockedBy,
+        reward,
       );
-      if (updated === saveRef.current) return;
+      if (progress === saveRef.current) return 0;
 
       const next: SweetheartSaveV1 = {
         ...saveRef.current,
-        ...updated,
+        ...progress,
         updatedAt: Date.now(),
       };
 
@@ -105,7 +108,7 @@ export function useCampaignSave(): CampaignSave {
       const persisted = writeCache(uid, next);
       setSave(persisted);
 
-      if (!uid) return;
+      if (!uid) return coinsEarned;
 
       setCloudStatus("saving");
       saveCloud(uid, persisted)
@@ -114,6 +117,17 @@ export function useCampaignSave(): CampaignSave {
           logger.warn("甜心防衛隊：寫入雲端存檔失敗，進度留在本機", error);
           setCloudStatus("offline");
         });
+
+      // 代幣寫在共用的 gameProgress 文件，跟塔防存檔是兩筆不同的寫入。
+      // 存檔已經記下「領過了」，所以就算這筆失敗也不會重複發——代價是那次的
+      // 代幣就沒了，比起可能重複發錢，這個方向的錯誤比較不傷。
+      if (coinsEarned > 0) {
+        void awardGameCoins(uid, coinsEarned).catch((error) => {
+          logger.warn("甜心防衛隊：發放扭蛋代幣失敗", error);
+        });
+      }
+
+      return coinsEarned;
     },
     [uid],
   );

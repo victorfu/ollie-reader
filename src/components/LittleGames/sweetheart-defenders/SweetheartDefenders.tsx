@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { LEVELS } from "./data/levels";
 import { BattleScreen } from "./ui/BattleScreen";
-import { PetDex } from "./ui/PetDex";
+import { CharacterDex } from "./ui/CharacterDex";
 import { TitleScreen } from "./ui/TitleScreen";
 import { useCampaignSave } from "./useCampaignSave";
+import { useTowerRoster } from "./useTowerRoster";
+import { DEFAULT_ROSTER_IDS } from "./data/characters";
 import { useAudioSettings } from "./useAudioSettings";
 import { playMusic, playSfx } from "./audio";
 import type { Difficulty } from "./types";
@@ -25,7 +27,10 @@ type Screen =
 export default function SweetheartDefenders({ onExit }: Props) {
   const [screen, setScreen] = useState<Screen>({ kind: "title" });
   const { save, status, isSignedIn, recordResult } = useCampaignSave();
+  // 能放上塔位的角色來自扭蛋機的收藏，不是這個遊戲自己的解鎖表。
+  const roster = useTowerRoster();
   const audio = useAudioSettings();
+  const [lastCoinsEarned, setLastCoinsEarned] = useState(0);
 
   const backToTitle = useCallback(() => setScreen({ kind: "title" }), []);
   const openDex = useCallback(() => {
@@ -59,7 +64,13 @@ export default function SweetheartDefenders({ onExit }: Props) {
       : undefined;
 
   if (screen.kind === "dex") {
-    return <PetDex unlockedPetIds={save.unlockedPetIds} onBack={backToTitle} />;
+    return (
+      <CharacterDex
+        availableCharacterIds={roster.availableIds}
+        defaultRosterIds={DEFAULT_ROSTER_IDS}
+        onBack={backToTitle}
+      />
+    );
   }
 
   // 找不到關卡（例如舊存檔指到已移除的圖）就退回路線頁，不要卡在空畫面。
@@ -68,7 +79,8 @@ export default function SweetheartDefenders({ onExit }: Props) {
       <TitleScreen
         levelStars={save.levelStars}
         bestWave={save.bestWave}
-        unlockedPetIds={save.unlockedPetIds}
+        availableCharacters={roster.available}
+        ownedCount={roster.ownedCount}
         syncStatus={status}
         isSignedIn={isSignedIn}
         audio={audio}
@@ -91,11 +103,12 @@ export default function SweetheartDefenders({ onExit }: Props) {
         key={`${screen.levelId}-${screen.difficulty}-${screen.runId}`}
         level={level}
         difficulty={screen.difficulty}
-        unlockedPetIds={save.unlockedPetIds}
+        availableCharacters={roster.available}
         audio={audio}
+        coinsEarned={lastCoinsEarned}
         onExit={backToTitle}
         onRetry={retry}
-        onFinished={(outcome) => recordResult(level.id, outcome)}
+        onFinished={(outcome) => setLastCoinsEarned(recordResult(level.id, outcome))}
       />
     </div>
   );

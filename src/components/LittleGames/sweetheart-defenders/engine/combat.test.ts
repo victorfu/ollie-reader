@@ -3,13 +3,13 @@ import { computeDamage, getTowerStats, getTrait } from "./combat";
 import { ARCHETYPE_BASE } from "../data/elements";
 import { TRAIT_BASE } from "../data/traits";
 import { LEVEL_POWER, RARITY_TIERS } from "../constants";
-import { ELEMENTS, type Pet } from "../types";
+import { ELEMENTS, type TowerCharacter } from "../types";
 
-function makePet(overrides: Partial<Pet> = {}): Pet {
+function makeCharacter(overrides: Partial<TowerCharacter> = {}): TowerCharacter {
   return {
-    id: "test-pet",
-    name: "Test Pet",
-    nameZh: "測試寵物",
+    id: "test-character",
+    name: "Test Character",
+    nameZh: "測試角色",
     // 預設給雙元素，副元素選 crystal（碎甲）——碎甲只在命中時生效，不會動到
     // 基礎數值，所以數值測試不用扣掉特性加成。
     elements: ["spark", "crystal"],
@@ -21,17 +21,17 @@ function makePet(overrides: Partial<Pet> = {}): Pet {
 
 describe("getTowerStats", () => {
   it("picks the archetype from the primary element", () => {
-    expect(getTowerStats(makePet({ elements: ["crystal", "spark"] }), 1).archetype).toBe(
+    expect(getTowerStats(makeCharacter({ elements: ["crystal", "spark"] }), 1).archetype).toBe(
       "cannon",
     );
-    expect(getTowerStats(makePet({ elements: ["star"] }), 1).archetype).toBe(
+    expect(getTowerStats(makeCharacter({ elements: ["star"] }), 1).archetype).toBe(
       "cheer",
     );
   });
 
   it("scales damage by rarity at level 1", () => {
-    const common = getTowerStats(makePet({ rarity: "common" }), 1);
-    const mythling = getTowerStats(makePet({ rarity: "mythling" }), 1);
+    const common = getTowerStats(makeCharacter({ rarity: "common" }), 1);
+    const mythling = getTowerStats(makeCharacter({ rarity: "mythling" }), 1);
 
     expect(common.damage).toBeCloseTo(ARCHETYPE_BASE.rapid.damage, 6);
     expect(mythling.damage).toBeCloseTo(
@@ -41,7 +41,7 @@ describe("getTowerStats", () => {
   });
 
   it("scales damage by level on top of rarity", () => {
-    const level3 = getTowerStats(makePet({ rarity: "rare" }), 3);
+    const level3 = getTowerStats(makeCharacter({ rarity: "rare" }), 3);
 
     expect(level3.damage).toBeCloseTo(
       ARCHETYPE_BASE.rapid.damage * RARITY_TIERS.rare.power * LEVEL_POWER[2],
@@ -50,14 +50,14 @@ describe("getTowerStats", () => {
   });
 
   it("shortens the cooldown as the tower levels up", () => {
-    const level1 = getTowerStats(makePet(), 1);
-    const level3 = getTowerStats(makePet(), 3);
+    const level1 = getTowerStats(makeCharacter(), 1);
+    const level3 = getTowerStats(makeCharacter(), 3);
 
     expect(level3.cooldownMs).toBeLessThan(level1.cooldownMs);
   });
 
   it("keeps cheer towers at zero cooldown instead of dividing by zero", () => {
-    const cheer = getTowerStats(makePet({ elements: ["star"] }), 3);
+    const cheer = getTowerStats(makeCharacter({ elements: ["star"] }), 3);
 
     expect(cheer.cooldownMs).toBe(0);
     expect(cheer.damage).toBe(0);
@@ -65,15 +65,15 @@ describe("getTowerStats", () => {
   });
 
   it("never lets a special effect run away with levels", () => {
-    const syrup = getTowerStats(makePet({ elements: ["tide"] }), 3);
-    const cannon = getTowerStats(makePet({ elements: ["crystal"] }), 3);
+    const syrup = getTowerStats(makeCharacter({ elements: ["tide"] }), 3);
+    const cannon = getTowerStats(makeCharacter({ elements: ["crystal"] }), 3);
 
     expect(syrup.slowFactor).toBeLessThanOrEqual(0.6);
     expect(cannon.armorPierce).toBeLessThanOrEqual(0.9);
   });
 
   it("leaves effects at zero for archetypes that do not have them", () => {
-    const rapid = getTowerStats(makePet({ elements: ["spark"] }), 3);
+    const rapid = getTowerStats(makeCharacter({ elements: ["spark"] }), 3);
 
     expect(rapid.slowFactor).toBe(0);
     expect(rapid.stunChance).toBe(0);
@@ -84,19 +84,19 @@ describe("getTowerStats", () => {
 
 describe("traits from the secondary element", () => {
   it("gives each secondary element its own trait", () => {
-    expect(getTrait(makePet({ elements: ["spark", "tide"] }))).toBe("chill");
-    expect(getTrait(makePet({ elements: ["spark", "leaf"] }))).toBe("toxin");
-    expect(getTrait(makePet({ elements: ["spark", "crystal"] }))).toBe("shred");
-    expect(getTrait(makePet({ elements: ["crystal", "spark"] }))).toBe("chain");
+    expect(getTrait(makeCharacter({ elements: ["spark", "tide"] }))).toBe("chill");
+    expect(getTrait(makeCharacter({ elements: ["spark", "leaf"] }))).toBe("toxin");
+    expect(getTrait(makeCharacter({ elements: ["spark", "crystal"] }))).toBe("shred");
+    expect(getTrait(makeCharacter({ elements: ["crystal", "spark"] }))).toBe("chain");
   });
 
   it("falls back to 純粹 for single-element pets", () => {
-    expect(getTrait(makePet({ elements: ["spark"] }))).toBe("pure");
+    expect(getTrait(makeCharacter({ elements: ["spark"] }))).toBe("pure");
   });
 
   it("pays single-element pets back with extra damage", () => {
-    const pure = getTowerStats(makePet({ elements: ["spark"] }), 1);
-    const dual = getTowerStats(makePet({ elements: ["spark", "crystal"] }), 1);
+    const pure = getTowerStats(makeCharacter({ elements: ["spark"] }), 1);
+    const dual = getTowerStats(makeCharacter({ elements: ["spark", "crystal"] }), 1);
 
     expect(pure.trait).toBe("pure");
     expect(pure.damage).toBeCloseTo(
@@ -106,8 +106,8 @@ describe("traits from the secondary element", () => {
   });
 
   it("extends range for 專注 but not for other traits", () => {
-    const focus = getTowerStats(makePet({ elements: ["spark", "light"] }), 1);
-    const plain = getTowerStats(makePet({ elements: ["spark", "crystal"] }), 1);
+    const focus = getTowerStats(makeCharacter({ elements: ["spark", "light"] }), 1);
+    const plain = getTowerStats(makeCharacter({ elements: ["spark", "crystal"] }), 1);
 
     expect(focus.trait).toBe("focus");
     expect(focus.range).toBeCloseTo(
@@ -118,15 +118,15 @@ describe("traits from the secondary element", () => {
 
   it("scales trait strength with rarity and level", () => {
     const common1 = getTowerStats(
-      makePet({ elements: ["spark", "leaf"], rarity: "common" }),
+      makeCharacter({ elements: ["spark", "leaf"], rarity: "common" }),
       1,
     );
     const common3 = getTowerStats(
-      makePet({ elements: ["spark", "leaf"], rarity: "common" }),
+      makeCharacter({ elements: ["spark", "leaf"], rarity: "common" }),
       3,
     );
     const rare1 = getTowerStats(
-      makePet({ elements: ["spark", "leaf"], rarity: "rare" }),
+      makeCharacter({ elements: ["spark", "leaf"], rarity: "rare" }),
       1,
     );
 
@@ -138,7 +138,7 @@ describe("traits from the secondary element", () => {
   it("pairs every archetype with its own attack style", () => {
     const styles = new Set(
       ELEMENTS.map(
-        (element) => getTowerStats(makePet({ elements: [element] }), 1).attackStyle,
+        (element) => getTowerStats(makeCharacter({ elements: [element] }), 1).attackStyle,
       ),
     );
 
@@ -148,7 +148,7 @@ describe("traits from the secondary element", () => {
 });
 
 describe("computeDamage", () => {
-  const stats = getTowerStats(makePet({ elements: ["spark"] }), 1);
+  const stats = getTowerStats(makeCharacter({ elements: ["spark"] }), 1);
 
   it("doubles damage against an element the tower counters", () => {
     // spark 剋 tide
@@ -222,7 +222,7 @@ describe("computeDamage", () => {
   });
 
   it("lets armor piercing cut through most of the armor", () => {
-    const cannon = getTowerStats(makePet({ elements: ["crystal"] }), 1);
+    const cannon = getTowerStats(makeCharacter({ elements: ["crystal"] }), 1);
     const damage = computeDamage({
       stats: cannon,
       secondaryElements: [],

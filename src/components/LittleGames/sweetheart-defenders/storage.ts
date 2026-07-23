@@ -1,4 +1,3 @@
-import { STARTER_PET_IDS, getPet } from "./data/pets";
 import { getLevel } from "./data/levels";
 import type { CampaignProgress, Stars } from "./engine/progress";
 
@@ -21,8 +20,9 @@ export function createEmptySave(): SweetheartSaveV1 {
   return {
     schemaVersion: SWEETHEART_SCHEMA_VERSION,
     levelStars: {},
-    unlockedPetIds: [...STARTER_PET_IDS],
     bestWave: {},
+    claimedClear: [],
+    claimedThreeStars: [],
     updatedAt: 0,
   };
 }
@@ -31,7 +31,7 @@ export function createEmptySave(): SweetheartSaveV1 {
  * 把任何來源的資料整理成合法的存檔。
  *
  * 雲端的資料可能是舊版本、被手動改過、或欄位缺一半；壞掉的欄位一律回退成
- * 預設值，不讓遊戲因為存檔髒掉就開不起來。指到不存在的關卡或寵物的紀錄會被
+ * 預設值，不讓遊戲因為存檔髒掉就開不起來。指到不存在的關卡或角色的紀錄會被
  * 丟掉——那通常代表資料是更新前的版本留下來的。
  */
 export function normalizeSave(raw: unknown): SweetheartSaveV1 {
@@ -58,18 +58,12 @@ export function normalizeSave(raw: unknown): SweetheartSaveV1 {
     }
   }
 
-  const unlocked = new Set(STARTER_PET_IDS);
-  if (Array.isArray(raw.unlockedPetIds)) {
-    for (const petId of raw.unlockedPetIds) {
-      if (typeof petId === "string" && getPet(petId)) unlocked.add(petId);
-    }
-  }
-
   return {
     schemaVersion: SWEETHEART_SCHEMA_VERSION,
     levelStars,
     bestWave,
-    unlockedPetIds: [...unlocked],
+    claimedClear: claimedLevelIds(raw.claimedClear),
+    claimedThreeStars: claimedLevelIds(raw.claimedThreeStars),
     updatedAt:
       typeof raw.updatedAt === "number" && Number.isFinite(raw.updatedAt)
         ? raw.updatedAt
@@ -80,9 +74,9 @@ export function normalizeSave(raw: unknown): SweetheartSaveV1 {
 /**
  * 合併兩份存檔。
  *
- * 這個遊戲的進度只會往前走——星數只增不減、寵物只解不鎖回去、最遠波次只會
- * 更遠。所以兩台裝置的存檔不需要「誰比較新誰贏」，直接逐欄取較好的那個就
- * 好，兩邊的進度都不會不見。順帶讓寫入變成冪等的，也就不需要上鎖。
+ * 這個遊戲的進度只會往前走——星數只增不減、領過的獎勵不會退回去、最遠波次
+ * 只會更遠。所以兩台裝置的存檔不需要「誰比較新誰贏」，直接逐欄取較好的那個
+ * 就好，兩邊的進度都不會不見。順帶讓寫入變成冪等的，也就不需要上鎖。
  */
 export function mergeSaves(
   left: SweetheartSaveV1,
@@ -102,8 +96,9 @@ export function mergeSaves(
     schemaVersion: SWEETHEART_SCHEMA_VERSION,
     levelStars,
     bestWave,
-    unlockedPetIds: [
-      ...new Set([...left.unlockedPetIds, ...right.unlockedPetIds]),
+    claimedClear: [...new Set([...left.claimedClear, ...right.claimedClear])],
+    claimedThreeStars: [
+      ...new Set([...left.claimedThreeStars, ...right.claimedThreeStars]),
     ],
     updatedAt: Math.max(left.updatedAt, right.updatedAt),
   };
@@ -199,6 +194,18 @@ export async function saveCloud(
   ]);
 
   await setDoc(ref, normalizeSave(save), { merge: true });
+}
+
+/** 領獎紀錄只留還存在的關卡 id，順便濾掉髒資料。 */
+function claimedLevelIds(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return [
+    ...new Set(
+      value.filter(
+        (id): id is string => typeof id === "string" && getLevel(id) !== undefined,
+      ),
+    ),
+  ];
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

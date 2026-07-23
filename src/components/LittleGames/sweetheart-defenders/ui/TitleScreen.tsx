@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { ArrowLeft, BookOpen, CakeSlice, Lock, Star } from "lucide-react";
 import { LEVELS } from "../data/levels";
-import { PETS } from "../data/pets";
+import { CHARACTERS } from "../data/characters";
+import type { TowerCharacter } from "../types";
 import { getEnemy } from "../data/enemies";
 import { isLevelUnlocked, nextPlayableLevelId } from "../data/unlocks";
 import { previewWave } from "../engine/waves";
@@ -21,7 +22,9 @@ type Props = {
   levelStars: Record<string, Stars>;
   /** 每關撐到過的最遠波次，還沒通關的關卡拿來顯示紀錄 */
   bestWave: Record<string, number>;
-  unlockedPetIds: string[];
+  availableCharacters: TowerCharacter[];
+  /** 扭蛋抽到的數量（不含預設班底） */
+  ownedCount: number;
   syncStatus: SyncStatus;
   isSignedIn: boolean;
   audio: AudioControls;
@@ -40,7 +43,8 @@ type Props = {
 export function TitleScreen({
   levelStars,
   bestWave,
-  unlockedPetIds,
+  availableCharacters,
+  ownedCount,
   syncStatus,
   isSignedIn,
   audio,
@@ -49,7 +53,6 @@ export function TitleScreen({
   onExit,
 }: Props) {
   const [difficulty, setDifficulty] = useState<Difficulty>("normal");
-  const unlockedPets = PETS.filter((pet) => unlockedPetIds.includes(pet.id));
   const nextLevelId = nextPlayableLevelId(levelStars);
   const clearedCount = LEVELS.filter(
     (level) => (levelStars[level.id] ?? 0) > 0,
@@ -226,14 +229,14 @@ export function TitleScreen({
           />
           <span className="min-w-0 flex-1">
             <span className="block text-sm font-semibold text-slate-800">
-              寵物圖鑑
+              角色圖鑑
             </span>
             <span className="block text-xs text-slate-500">
-              已收集 {unlockedPets.length} / {PETS.length} · 通關解鎖新夥伴，三顆星再多送兩隻
+              扭蛋收藏 {ownedCount} / {CHARACTERS.length} · 抽到的角色都能放上塔位
             </span>
           </span>
           <span className="flex -space-x-3">
-            {unlockedPets.slice(-4).map((pet) => (
+            {availableCharacters.slice(-4).map((pet) => (
               <img
                 key={pet.id}
                 src={pet.sprite}

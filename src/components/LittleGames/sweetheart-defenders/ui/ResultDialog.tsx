@@ -1,14 +1,23 @@
-import { CakeSlice, Star, Trophy } from "lucide-react";
+import { CakeSlice, Coins, Star, Trophy } from "lucide-react";
 import { starsForRun, summariseRun, type RunOutcome } from "../engine/progress";
+import { GACHA_DRAW_COST } from "../../gacha-machine/gachaLogic";
 
 type Props = {
   outcome: RunOutcome;
+  /** 這一場賺到的扭蛋代幣；0 表示這關的獎勵早就領過了 */
+  coinsEarned: number;
   totalWaves: number;
   onRetry: () => void;
   onExit: () => void;
 };
 
-export function ResultDialog({ outcome, totalWaves, onRetry, onExit }: Props) {
+export function ResultDialog({
+  outcome,
+  coinsEarned,
+  totalWaves,
+  onRetry,
+  onExit,
+}: Props) {
   const stars = starsForRun(outcome);
   const { title, detail } = summariseRun(outcome, totalWaves);
   const cleared = outcome.phase === "cleared";
@@ -47,6 +56,16 @@ export function ResultDialog({ outcome, totalWaves, onRetry, onExit }: Props) {
                 }
               />
             ))}
+          </p>
+        )}
+
+        {coinsEarned > 0 && (
+          <p className="mt-3 flex items-center justify-center gap-1.5 rounded-[10px] bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-700">
+            <Coins size={16} strokeWidth={2} aria-hidden="true" />
+            +{coinsEarned} 扭蛋代幣
+            <span className="font-normal text-amber-600/80">
+              （可以抽 {Math.floor(coinsEarned / GACHA_DRAW_COST)} 次）
+            </span>
           </p>
         )}
 

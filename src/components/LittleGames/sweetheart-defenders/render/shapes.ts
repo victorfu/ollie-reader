@@ -4,7 +4,7 @@ import type { EnemyShape, EnemySpec } from "../types";
  * 用 canvas 把糖果怪畫出來。
  *
  * 這是「等 AI 生圖之前的佔位」，但刻意畫成看得出是故意的風格，而不是灰色方塊：
- * 圓滑的糖果外型 + 大眼睛 + 腮紅，跟寵物圖的粉彩調性搭得起來。之後只要在
+ * 圓滑的糖果外型 + 大眼睛 + 腮紅，跟角色圖的粉彩調性搭得起來。之後只要在
  * EnemySpec 填上 sprite，renderer 就會改畫圖片，這裡整包可以留著當退路。
  */
 export function drawEnemyShape(

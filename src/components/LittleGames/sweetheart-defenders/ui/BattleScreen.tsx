@@ -6,7 +6,7 @@ import {
   STEP_MS,
   WIDTH,
 } from "../constants";
-import { PETS, getPet } from "../data/pets";
+import { getCharacter } from "../data/characters";
 import { playMusic, playSfx, stopMusic } from "../audio";
 import { getEnemy } from "../data/enemies";
 import { previewWave } from "../engine/waves";
@@ -20,13 +20,19 @@ import {
 } from "../engine/simulation";
 import { drawSpawnHint, renderBattle, type ViewState } from "../render/renderer";
 import { preloadSprites } from "../render/sprites";
-import type { BattleState, Command, Difficulty, LevelSpec } from "../types";
+import type {
+  BattleState,
+  Command,
+  Difficulty,
+  LevelSpec,
+  TowerCharacter,
+} from "../types";
 import type { AudioControls } from "../useAudioSettings";
 import { Hud } from "./Hud";
 import { ResultDialog } from "./ResultDialog";
 import { TowerPanel } from "./TowerPanel";
 
-type TowerSummary = { slotId: string; petId: string; level: 1 | 2 | 3 };
+type TowerSummary = { slotId: string; characterId: string; level: 1 | 2 | 3 };
 
 /**
  * React 這一層只看得到這份快照。
@@ -60,7 +66,7 @@ function snapshotOf(state: BattleState, waveCount: number): HudSnapshot {
     speed: state.speed,
     towers: state.towers.map((tower) => ({
       slotId: tower.slotId,
-      petId: tower.petId,
+      characterId: tower.characterId,
       level: tower.level,
     })),
   };
@@ -80,7 +86,7 @@ function sameSnapshot(a: HudSnapshot, b: HudSnapshot): boolean {
       const other = b.towers[index];
       return (
         tower.slotId === other.slotId &&
-        tower.petId === other.petId &&
+        tower.characterId === other.characterId &&
         tower.level === other.level
       );
     })
@@ -97,8 +103,10 @@ function isBossWave(level: LevelSpec, waveIndex: number): boolean {
 type Props = {
   level: LevelSpec;
   difficulty: Difficulty;
-  unlockedPetIds: string[];
+  availableCharacters: TowerCharacter[];
   audio: AudioControls;
+  /** 這一場賺到的扭蛋代幣，結算頁顯示用 */
+  coinsEarned: number;
   onExit: () => void;
   onRetry: () => void;
   onFinished: (outcome: RunOutcome) => void;
@@ -111,8 +119,9 @@ type Props = {
 export function BattleScreen({
   level,
   difficulty,
-  unlockedPetIds,
+  availableCharacters,
   audio,
+  coinsEarned,
   onExit,
   onRetry,
   onFinished,
@@ -133,30 +142,25 @@ export function BattleScreen({
   const [outcome, setOutcome] = useState<RunOutcome | null>(null);
   const [paused, setPaused] = useState(false);
   const [selectedSlotId, setSelectedSlotId] = useState<string | null>(null);
-  const [previewPetId, setPreviewPetId] = useState<string | null>(null);
+  const [previewCharacterId, setPreviewPetId] = useState<string | null>(null);
 
   const commandQueue = useRef<Command[]>([]);
   const pausedRef = useRef(false);
   const viewRef = useRef<ViewState>({
     selectedSlotId: null,
     hoveredSlotId: null,
-    previewPetId: null,
+    previewCharacterId: null,
   });
 
-  const unlockedPets = useMemo(
-    () => PETS.filter((pet) => unlockedPetIds.includes(pet.id)),
-    [unlockedPetIds],
-  );
-
-  // 這一關會用到的寵物圖先排進載入佇列，免得放塔的當下才開始抓圖。
+  // 這一關會用到的角色圖先排進載入佇列，免得放塔的當下才開始抓圖。
   useEffect(() => {
-    preloadSprites(unlockedPets.map((pet) => pet.sprite));
-  }, [unlockedPets]);
+    preloadSprites(availableCharacters.map((character) => character.sprite));
+  }, [availableCharacters]);
 
   useEffect(() => {
     viewRef.current.selectedSlotId = selectedSlotId;
-    viewRef.current.previewPetId = previewPetId;
-  }, [selectedSlotId, previewPetId]);
+    viewRef.current.previewCharacterId = previewCharacterId;
+  }, [selectedSlotId, previewCharacterId]);
 
   // 迴圈跑在 rAF 裡，不能靠 props 重新綁定；用 ref 把暫停狀態遞進去。
   useEffect(() => {
@@ -356,7 +360,7 @@ export function BattleScreen({
   const selectedTower = hud.towers.find(
     (tower) => tower.slotId === selectedSlotId,
   );
-  const selectedPet = selectedTower ? getPet(selectedTower.petId) : undefined;
+  const selectedCharacter = selectedTower ? getCharacter(selectedTower.characterId) : undefined;
 
   return (
     <div className="relative flex h-full w-full flex-col">
@@ -391,14 +395,14 @@ export function BattleScreen({
         {selectedSlotId && !outcome && (
           <TowerPanel
             tower={selectedTower}
-            pet={selectedPet}
+            pet={selectedCharacter}
             frosting={hud.frosting}
-            availablePets={unlockedPets}
-            previewPetId={previewPetId}
-            onPreviewPet={setPreviewPetId}
-            onPlace={(petId) => {
+            availableCharacters={availableCharacters}
+            previewCharacterId={previewCharacterId}
+            onPreviewCharacter={setPreviewPetId}
+            onPlace={(characterId) => {
               playSfx("place");
-              enqueue({ kind: "placeTower", slotId: selectedSlotId, petId });
+              enqueue({ kind: "placeTower", slotId: selectedSlotId, characterId });
               closePanel();
             }}
             onUpgrade={() => {
@@ -418,6 +422,7 @@ export function BattleScreen({
       {outcome && (
         <ResultDialog
           outcome={outcome}
+          coinsEarned={coinsEarned}
           totalWaves={level.waves.length}
           onRetry={onRetry}
           onExit={onExit}

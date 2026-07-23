@@ -5,7 +5,7 @@ import {
   STUN_DURATION_MS,
 } from "../data/elements";
 import { getEnemy } from "../data/enemies";
-import { getPet } from "../data/pets";
+import { getCharacter } from "../data/characters";
 import { DOT_COLOR, TRAIT_BASE } from "../data/traits";
 import { computeDamage, getTowerStats } from "./combat";
 import {
@@ -34,7 +34,7 @@ import type {
   LevelSpec,
   LiveEnemy,
   LiveTower,
-  Pet,
+  TowerCharacter,
   TowerStats,
   Vec2,
 } from "../types";
@@ -162,7 +162,7 @@ function applyCommand(
   switch (command.kind) {
     case "placeTower": {
       const slot = level.slotById.get(command.slotId);
-      const pet = getPet(command.petId);
+      const pet = getCharacter(command.characterId);
       if (!slot || !pet) return;
       if (state.towers.some((tower) => tower.slotId === slot.id)) return;
 
@@ -172,7 +172,7 @@ function applyCommand(
       state.frosting -= cost;
       state.towers.push({
         slotId: slot.id,
-        petId: pet.id,
+        characterId: pet.id,
         level: 1,
         cooldownMs: 0,
         totalDamage: 0,
@@ -185,7 +185,7 @@ function applyCommand(
 
     case "upgradeTower": {
       const tower = state.towers.find((t) => t.slotId === command.slotId);
-      const pet = tower ? getPet(tower.petId) : undefined;
+      const pet = tower ? getCharacter(tower.characterId) : undefined;
       if (!tower || !pet || tower.level === 3) return;
 
       const cost = getUpgradeCost(pet, tower.level);
@@ -201,7 +201,7 @@ function applyCommand(
       if (index === -1) return;
 
       const tower = state.towers[index];
-      const pet = getPet(tower.petId);
+      const pet = getCharacter(tower.characterId);
       if (pet) state.frosting += getSellRefund(pet, tower.level);
       state.towers.splice(index, 1);
       return;
@@ -386,7 +386,7 @@ function updateTowers(
   const cheerBonusBySlot = computeCheerBonuses(state, level);
 
   for (const tower of state.towers) {
-    const pet = getPet(tower.petId);
+    const pet = getCharacter(tower.characterId);
     const slot = level.slotById.get(tower.slotId);
     if (!pet || !slot) continue;
 
@@ -436,7 +436,7 @@ function computeCheerBonuses(
   const bonuses = new Map<string, number>();
 
   for (const cheerTower of state.towers) {
-    const pet = getPet(cheerTower.petId);
+    const pet = getCharacter(cheerTower.characterId);
     const origin = level.slotById.get(cheerTower.slotId);
     if (!pet || !origin) continue;
 
@@ -461,7 +461,7 @@ function fireTower(
   state: BattleState,
   level: CompiledLevel,
   tower: LiveTower,
-  pet: Pet,
+  pet: TowerCharacter,
   stats: TowerStats,
   slot: Vec2,
 ): boolean {

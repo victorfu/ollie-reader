@@ -1,7 +1,7 @@
 import { HEIGHT, SLOT_RADIUS, TOWER_SPRITE_SIZE, WIDTH } from "../constants";
 import { ELEMENT_COLOR } from "../data/elements";
 import { getEnemy } from "../data/enemies";
-import { getPet } from "../data/pets";
+import { getCharacter } from "../data/characters";
 import { getTowerStats } from "../engine/combat";
 import type { CompiledLevel } from "../engine/simulation";
 import { pointAtDistance } from "../engine/path";
@@ -16,8 +16,8 @@ export type ViewState = {
   selectedSlotId: string | null;
   /** 滑鼠停在哪個塔位 */
   hoveredSlotId: string | null;
-  /** 正在挑選要放的寵物；用來預覽射程 */
-  previewPetId: string | null;
+  /** 正在挑選要放的角色；用來預覽射程 */
+  previewCharacterId: string | null;
 };
 
 export function renderBattle(
@@ -198,7 +198,7 @@ function drawTowers(
 ): void {
   for (const tower of state.towers) {
     const slot = level.slotById.get(tower.slotId);
-    const pet = getPet(tower.petId);
+    const pet = getCharacter(tower.characterId);
     if (!slot || !pet) continue;
 
     const element = pet.elements[0];
@@ -612,9 +612,9 @@ function drawRangePreview(
 
   const tower = state.towers.find((t) => t.slotId === view.selectedSlotId);
   const pet = tower
-    ? getPet(tower.petId)
-    : view.previewPetId
-      ? getPet(view.previewPetId)
+    ? getCharacter(tower.characterId)
+    : view.previewCharacterId
+      ? getCharacter(view.previewCharacterId)
       : null;
   if (!pet) return;
 

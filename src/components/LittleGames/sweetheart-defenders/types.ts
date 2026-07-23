@@ -35,8 +35,8 @@ export type TowerArchetype =
   | "cheer"; // 應援：不攻擊，加速周圍塔
 
 /**
- * 副元素帶來的特性。單一元素的寵物拿 "pure"（純傷害加成）。
- * 打法 × 特性 = 每隻寵物的實際手感，詳見 data/traits.ts。
+ * 副元素帶來的特性。單一元素的角色拿 "pure"（純傷害加成）。
+ * 打法 × 特性 = 每隻角色的實際手感，詳見 data/traits.ts。
  */
 export type TowerTrait =
   | "pure"
@@ -62,18 +62,20 @@ export type AttackStyle =
 
 export type Vec2 = { x: number; y: number };
 
-// === 寵物（塔） ===
+// === 角色（塔） ===
 
-export type Pet = {
+/** 一個可以放上塔位的角色。資料來自扭蛋機，見 data/characters.ts。 */
+export type TowerCharacter = {
+  /** 對應扭蛋機的角色 id */
   id: string;
-  /** 英文名，例：Sparkleaf Fawn */
+  /** 英文名，例：Cinnamoroll */
   name: string;
-  /** 中文名，例：星葉小鹿 */
+  /** 中文名，例：大耳狗喜拿 */
   nameZh: string;
   /** 第一個是主元素，決定塔的攻擊原型 */
   elements: [Element, ...Element[]];
   rarity: Rarity;
-  /** 由 scripts/make-sweetheart-sprites.mjs 產生的 192px 小圖 */
+  /** 直接沿用扭蛋機的角色圖 */
   sprite: string;
 };
 
@@ -200,10 +202,11 @@ export type LevelSpec = {
     pathEdge: string;
     accent: string;
   };
-  /** 通關解鎖的寵物 id */
-  unlocksOnClear: string[];
-  /** 三星額外解鎖的寵物 id */
-  unlocksOnThreeStars: string[];
+  /**
+   * 通關給的扭蛋代幣。角色改由扭蛋機解鎖之後，關卡給的是錢，
+   * 讓玩家自己去抽想要的角色。
+   */
+  coinReward: { clear: number; threeStars: number };
 };
 
 export type Difficulty = "easy" | "normal" | "hard";
@@ -246,7 +249,7 @@ export type LiveEnemy = {
 
 export type LiveTower = {
   slotId: string;
-  petId: string;
+  characterId: string;
   level: 1 | 2 | 3;
   /** 距離下次可攻擊還要多久（毫秒） */
   cooldownMs: number;
@@ -336,7 +339,7 @@ export type BattleState = {
  * 只要把對方的指令塞進同一個陣列就好。
  */
 export type Command =
-  | { kind: "placeTower"; slotId: string; petId: string }
+  | { kind: "placeTower"; slotId: string; characterId: string }
   | { kind: "upgradeTower"; slotId: string }
   | { kind: "sellTower"; slotId: string }
   | { kind: "startWave" }

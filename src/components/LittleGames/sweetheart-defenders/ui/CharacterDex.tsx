@@ -6,12 +6,11 @@ import {
   ELEMENT_COLOR,
   ELEMENT_LABEL_ZH,
 } from "../data/elements";
-import { PETS } from "../data/pets";
+import { CHARACTERS } from "../data/characters";
 import { TRAIT_DESC_ZH, TRAIT_LABEL_ZH } from "../data/traits";
-import { describeUnlockSource, unlockSourceFor } from "../data/unlocks";
 import { getTowerStats, getTrait } from "../engine/combat";
 import { RARITY_TIERS } from "../constants";
-import type { Pet, Rarity } from "../types";
+import type { TowerCharacter, Rarity } from "../types";
 
 const RARITY_LABEL_ZH: Record<Rarity, string> = {
   common: "普通",
@@ -30,20 +29,31 @@ const RARITY_STYLE: Record<Rarity, string> = {
 };
 
 type Props = {
-  unlockedPetIds: string[];
+  availableCharacterIds: string[];
+  /** 預設班底的 id，用來區分「抽到的」與「本來就有的」 */
+  defaultRosterIds: string[];
   onBack: () => void;
 };
 
 /**
- * 寵物圖鑑。
+ * 角色圖鑑。
  *
- * 全部 48 隻都列出來，還沒拿到的顯示成剪影並寫清楚「怎麼拿」——看得到但還沒
- * 有，才會想去把那一關的三顆星補起來。
+ * 57 個扭蛋角色全部列出來，還沒收集到的顯示成剪影——看得到但還沒有，才會想
+ * 去扭蛋機碰運氣。已收集的顯示打法、特性與數值，那是扭蛋機的收藏頁沒有、
+ * 但決定「這場要放誰」時真正需要的資訊。
  */
-export function PetDex({ unlockedPetIds, onBack }: Props) {
+export function CharacterDex({
+  availableCharacterIds,
+  defaultRosterIds,
+  onBack,
+}: Props) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const unlocked = useMemo(() => new Set(unlockedPetIds), [unlockedPetIds]);
-  const selected = PETS.find((pet) => pet.id === selectedId);
+  const unlocked = useMemo(
+    () => new Set(availableCharacterIds),
+    [availableCharacterIds],
+  );
+  const defaults = useMemo(() => new Set(defaultRosterIds), [defaultRosterIds]);
+  const selected = CHARACTERS.find((character) => character.id === selectedId);
 
   return (
     <div
@@ -64,28 +74,32 @@ export function PetDex({ unlockedPetIds, onBack }: Props) {
 
       <header className="mt-10 flex flex-col items-center sm:mt-2">
         <h1 className="text-3xl font-semibold tracking-tight text-slate-900">
-          寵物圖鑑
+          角色圖鑑
         </h1>
         <p className="mt-1 text-sm text-slate-600">
-          已收集 {unlocked.size} / {PETS.length}
+          已收集 {unlocked.size} / {CHARACTERS.length}
         </p>
       </header>
 
       <div className="mx-auto mt-6 grid w-full max-w-4xl grid-cols-3 gap-2 sm:grid-cols-5 lg:grid-cols-6">
-        {PETS.map((pet) => (
+        {CHARACTERS.map((character) => (
           <DexCard
-            key={pet.id}
-            pet={pet}
-            unlocked={unlocked.has(pet.id)}
-            selected={pet.id === selectedId}
-            onSelect={() => setSelectedId(pet.id === selectedId ? null : pet.id)}
+            key={character.id}
+            character={character}
+            unlocked={unlocked.has(character.id)}
+            selected={character.id === selectedId}
+            onSelect={() => setSelectedId(character.id === selectedId ? null : character.id)}
           />
         ))}
       </div>
 
       {selected && (
         <div className="mx-auto mt-4 w-full max-w-4xl">
-          <PetDetail pet={selected} unlocked={unlocked.has(selected.id)} />
+          <CharacterDetail
+            character={selected}
+            unlocked={unlocked.has(selected.id)}
+            isDefault={defaults.has(selected.id)}
+          />
         </div>
       )}
 
@@ -95,12 +109,12 @@ export function PetDex({ unlockedPetIds, onBack }: Props) {
 }
 
 function DexCard({
-  pet,
+  character,
   unlocked,
   selected,
   onSelect,
 }: {
-  pet: Pet;
+  character: TowerCharacter;
   unlocked: boolean;
   selected: boolean;
   onSelect: () => void;
@@ -116,8 +130,8 @@ function DexCard({
       }`}
     >
       <img
-        src={pet.sprite}
-        alt={unlocked ? pet.name : "還沒收集到的寵物"}
+        src={character.sprite}
+        alt={unlocked ? character.name : "還沒收集到的角色"}
         className={`h-12 w-12 object-contain transition ${
           // 還沒拿到就壓成剪影：看得出輪廓，但看不出是誰。
           unlocked ? "" : "opacity-35 brightness-0"
@@ -128,24 +142,32 @@ function DexCard({
           unlocked ? "text-slate-700" : "text-slate-400"
         }`}
       >
-        {unlocked ? pet.nameZh : "？？？"}
+        {unlocked ? character.nameZh : "？？？"}
       </span>
     </button>
   );
 }
 
-function PetDetail({ pet, unlocked }: { pet: Pet; unlocked: boolean }) {
-  const element = pet.elements[0];
+function CharacterDetail({
+  character,
+  unlocked,
+  isDefault,
+}: {
+  character: TowerCharacter;
+  unlocked: boolean;
+  isDefault: boolean;
+}) {
+  const element = character.elements[0];
   const archetype = ARCHETYPE_BY_ELEMENT[element];
-  const trait = getTrait(pet);
-  const stats = getTowerStats(pet, 1);
+  const trait = getTrait(character);
+  const stats = getTowerStats(character, 1);
 
   return (
     <section className="rounded-[16px] border border-black/5 bg-white/90 p-4 shadow-lg backdrop-blur">
       <div className="flex items-start gap-4">
         <img
-          src={pet.sprite}
-          alt={unlocked ? pet.name : "還沒收集到的寵物"}
+          src={character.sprite}
+          alt={unlocked ? character.name : "還沒收集到的角色"}
           className={`h-20 w-20 shrink-0 object-contain ${
             unlocked ? "" : "opacity-35 brightness-0"
           }`}
@@ -154,18 +176,23 @@ function PetDetail({ pet, unlocked }: { pet: Pet; unlocked: boolean }) {
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="text-lg font-semibold tracking-tight text-slate-900">
-              {unlocked ? pet.nameZh : "？？？"}
+              {unlocked ? character.nameZh : "？？？"}
             </h2>
             {unlocked && (
               <span className="text-xs font-medium text-slate-400">
-                {pet.name}
+                {character.name}
               </span>
             )}
             <span
-              className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${RARITY_STYLE[pet.rarity]}`}
+              className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${RARITY_STYLE[character.rarity]}`}
             >
-              {RARITY_LABEL_ZH[pet.rarity]}
+              {RARITY_LABEL_ZH[character.rarity]}
             </span>
+            {unlocked && (
+              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-500">
+                {isDefault ? "預設班底" : "扭蛋抽到的"}
+              </span>
+            )}
           </div>
 
           {unlocked ? (
@@ -180,7 +207,7 @@ function PetDetail({ pet, unlocked }: { pet: Pet; unlocked: boolean }) {
                 <span
                   className="rounded-full px-2 py-0.5 text-[11px] font-semibold text-slate-700 ring-1 ring-inset ring-black/5"
                   style={{
-                    backgroundColor: `${ELEMENT_COLOR[pet.elements[1] ?? element]}55`,
+                    backgroundColor: `${ELEMENT_COLOR[character.elements[1] ?? element]}55`,
                   }}
                 >
                   {TRAIT_LABEL_ZH[trait]}
@@ -195,7 +222,7 @@ function PetDetail({ pet, unlocked }: { pet: Pet; unlocked: boolean }) {
                 <Metric label="造價">
                   <span className="flex items-center gap-0.5">
                     <Candy size={12} strokeWidth={2} aria-hidden="true" />
-                    {RARITY_TIERS[pet.rarity].cost}
+                    {RARITY_TIERS[character.rarity].cost}
                   </span>
                 </Metric>
                 <Metric label="射程">{Math.round(stats.range)}</Metric>
@@ -211,7 +238,7 @@ function PetDetail({ pet, unlocked }: { pet: Pet; unlocked: boolean }) {
             </>
           ) : (
             <p className="mt-2 text-sm text-slate-500">
-              取得方式：{describeUnlockSource(unlockSourceFor(pet.id))}
+              去「人氣角色扭蛋機」抽抽看，抽到就能放上塔位。
             </p>
           )}
         </div>

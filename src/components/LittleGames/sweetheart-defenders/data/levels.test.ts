@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { LEVELS, getLevel } from "./levels";
 import { getEnemy } from "./enemies";
-import { getPet, STARTER_PET_IDS } from "./pets";
+import { getCharacter, DEFAULT_ROSTER_IDS } from "./characters";
 import { HEIGHT, SLOT_RADIUS, STEP_MS, WIDTH } from "../constants";
 import { distanceToPath } from "../engine/path";
 import { getPlaceCost } from "../engine/economy";
@@ -102,7 +102,7 @@ describe("level wave tables", () => {
 
   it("lets the player afford at least two towers per path at the start", () => {
     const cheapest = Math.min(
-      ...STARTER_PET_IDS.map((id) => getPlaceCost(getPet(id)!)),
+      ...DEFAULT_ROSTER_IDS.map((id) => getPlaceCost(getCharacter(id)!)),
     );
 
     for (const level of LEVELS) {
@@ -129,15 +129,22 @@ describe("getLevel", () => {
  * 調出來的關卡真的能玩，所以直接跑。
  */
 describe("every level is actually beatable", () => {
+  /**
+   * 「懂遊戲、而且有在抽扭蛋的玩家」會蓋的組合。
+   *
+   * 角色改由扭蛋解鎖之後，能打到後段的人一定抽過幾隻好的，所以這裡刻意混進
+   * 幾個高稀有度的——只用預設班底（全 common）當基準，會把難度標準訂得比
+   * 真實情況低太多。
+   */
   const GOOD_BUILD = [
-    "nibi",
-    "lumi",
-    "ticktock-sparrow",
-    "nibi",
-    "pico",
-    "lumi",
-    "nibi",
-    "momo",
+    "hiroshi-nohara", // ember 爆裂 · 碎甲（rare）
+    "dorami", // light 狙擊 · 碎甲（warden）
+    "minna-no-tabo", // ember 爆裂 · 連鎖（common）
+    "takeshi-goda", // crystal 重砲 · 恍神（warden）
+    "usahana", // star 應援 · 毒液（common）
+    "shiro", // light 狙擊 · 毒液（common）
+    "aggretsuko", // ember 爆裂 · 連鎖（rare）
+    "kuromi", // dream 催眠 · 碎甲（warden）
   ];
 
   function playThrough(
@@ -156,9 +163,9 @@ describe("every level is actually beatable", () => {
       const commands: Command[] = [];
 
       if (placed < slotIds.length) {
-        const petId = build[placed % build.length];
-        if (state.frosting >= getPlaceCost(getPet(petId)!)) {
-          commands.push({ kind: "placeTower", slotId: slotIds[placed], petId });
+        const characterId = build[placed % build.length];
+        if (state.frosting >= getPlaceCost(getCharacter(characterId)!)) {
+          commands.push({ kind: "placeTower", slotId: slotIds[placed], characterId });
           placed += 1;
         }
       } else if (state.towers.length > 0) {
@@ -191,7 +198,7 @@ describe("every level is actually beatable", () => {
   it.each(LEVELS.map((level) => [level.nameZh, level] as const))(
     "%s can be cleared on easy even when the pets are picked at random",
     (_name, level) => {
-      const state = playThrough(level, "easy", STARTER_PET_IDS);
+      const state = playThrough(level, "easy", DEFAULT_ROSTER_IDS);
 
       expect(state.phase).toBe("cleared");
     },
@@ -201,7 +208,7 @@ describe("every level is actually beatable", () => {
     // 最後一隻怪同時「離場」與「打穿櫃檯」時，結果必須算輸。
     for (const level of LEVELS) {
       for (const difficulty of ["easy", "normal", "hard"] as Difficulty[]) {
-        const state = playThrough(level, difficulty, STARTER_PET_IDS);
+        const state = playThrough(level, difficulty, DEFAULT_ROSTER_IDS);
         if (state.phase === "cleared") {
           expect(
             state.cakes,

@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { applyRunResult, starsForRun, summariseRun } from "./progress";
+import {
+  applyRunResult,
+  starsForRun,
+  summariseRun,
+  type CampaignProgress,
+} from "./progress";
 import type { BattleState } from "../types";
 
 function makeState(overrides: Partial<BattleState> = {}): BattleState {
@@ -78,56 +83,100 @@ describe("summariseRun", () => {
 });
 
 describe("applyRunResult", () => {
-  const EMPTY = { levelStars: {}, unlockedPetIds: ["starter"], bestWave: {} };
-  // 假的解鎖表：拿越多星送越多隻。
-  const unlocks = (levelId: string, stars: number) =>
-    stars >= 3 ? [`${levelId}-a`, `${levelId}-b`] : [`${levelId}-a`];
+  const EMPTY: CampaignProgress = {
+    levelStars: {},
+    bestWave: {},
+    claimedClear: [],
+    claimedThreeStars: [],
+  };
+  const REWARD = { clear: 60, threeStars: 40 };
 
-  it("records the stars and hands over the unlocks", () => {
-    const next = applyRunResult(
-      EMPTY,
-      "shop-path",
-      makeState({ cakes: 10, maxCakes: 10 }),
-      unlocks,
-    );
-
-    expect(next.levelStars["shop-path"]).toBe(3);
-    expect(next.unlockedPetIds).toContain("shop-path-a");
-    expect(next.unlockedPetIds).toContain("shop-path-b");
-  });
-
-  it("keeps the starters that were already unlocked", () => {
-    const next = applyRunResult(
+  it("records the stars and pays the clear reward", () => {
+    const { progress, coinsEarned } = applyRunResult(
       EMPTY,
       "shop-path",
       makeState({ cakes: 8, maxCakes: 10 }),
-      unlocks,
+      REWARD,
     );
 
-    expect(next.unlockedPetIds).toContain("starter");
+    expect(progress.levelStars["shop-path"]).toBe(2);
+    expect(coinsEarned).toBe(REWARD.clear);
   });
 
-  it("hands out no stars or pets when the run was lost", () => {
-    const next = applyRunResult(
+  it("pays both rewards at once for a first-try three star", () => {
+    const { coinsEarned } = applyRunResult(
+      EMPTY,
+      "shop-path",
+      makeState({ cakes: 10, maxCakes: 10 }),
+      REWARD,
+    );
+
+    expect(coinsEarned).toBe(REWARD.clear + REWARD.threeStars);
+  });
+
+  /**
+   * 這條是重點：不擋重複領的話，一直重打第一關會比往後打划算，
+   * 整個「打塔防 → 賺代幣」的循環就爛掉了。
+   */
+  it("never pays for the same level twice", () => {
+    const first = applyRunResult(
+      EMPTY,
+      "shop-path",
+      makeState({ cakes: 10, maxCakes: 10 }),
+      REWARD,
+    );
+    const replay = applyRunResult(
+      first.progress,
+      "shop-path",
+      makeState({ cakes: 10, maxCakes: 10 }),
+      REWARD,
+    );
+
+    expect(replay.coinsEarned).toBe(0);
+  });
+
+  it("still pays the three-star bonus when a replay finally earns it", () => {
+    const oneStar = applyRunResult(
+      EMPTY,
+      "shop-path",
+      makeState({ cakes: 2, maxCakes: 10 }),
+      REWARD,
+    );
+    expect(oneStar.coinsEarned).toBe(REWARD.clear);
+
+    const perfect = applyRunResult(
+      oneStar.progress,
+      "shop-path",
+      makeState({ cakes: 10, maxCakes: 10 }),
+      REWARD,
+    );
+
+    // 通關獎已經領過，這次只補三星那一份。
+    expect(perfect.coinsEarned).toBe(REWARD.threeStars);
+    expect(perfect.progress.levelStars["shop-path"]).toBe(3);
+  });
+
+  it("pays nothing and records no stars when the run was lost", () => {
+    const { progress, coinsEarned } = applyRunResult(
       EMPTY,
       "shop-path",
       makeState({ phase: "lost", cakes: 0, waveIndex: 7 }),
-      unlocks,
+      REWARD,
     );
 
-    expect(next.levelStars["shop-path"]).toBeUndefined();
-    expect(next.unlockedPetIds).toEqual(["starter"]);
+    expect(coinsEarned).toBe(0);
+    expect(progress.levelStars["shop-path"]).toBeUndefined();
   });
 
   it("still records how far a losing run got", () => {
-    const next = applyRunResult(
+    const { progress } = applyRunResult(
       EMPTY,
       "shop-path",
       makeState({ phase: "lost", cakes: 0, waveIndex: 7 }),
-      unlocks,
+      REWARD,
     );
 
-    expect(next.bestWave["shop-path"]).toBe(8);
+    expect(progress.bestWave["shop-path"]).toBe(8);
   });
 
   it("keeps the furthest wave rather than the latest one", () => {
@@ -135,33 +184,16 @@ describe("applyRunResult", () => {
       EMPTY,
       "shop-path",
       makeState({ phase: "lost", cakes: 0, waveIndex: 11 }),
-      unlocks,
+      REWARD,
     );
     const nearer = applyRunResult(
-      far,
+      far.progress,
       "shop-path",
       makeState({ phase: "lost", cakes: 0, waveIndex: 2 }),
-      unlocks,
+      REWARD,
     );
 
-    expect(nearer.bestWave["shop-path"]).toBe(12);
-  });
-
-  it("returns the same object when nothing improved", () => {
-    const once = applyRunResult(
-      EMPTY,
-      "shop-path",
-      makeState({ cakes: 10, maxCakes: 10, waveIndex: 14 }),
-      unlocks,
-    );
-    const again = applyRunResult(
-      once,
-      "shop-path",
-      makeState({ cakes: 10, maxCakes: 10, waveIndex: 14 }),
-      unlocks,
-    );
-
-    expect(again).toBe(once);
+    expect(nearer.progress.bestWave["shop-path"]).toBe(12);
   });
 
   it("never downgrades a level that was already played better", () => {
@@ -169,37 +201,33 @@ describe("applyRunResult", () => {
       EMPTY,
       "shop-path",
       makeState({ cakes: 10, maxCakes: 10 }),
-      unlocks,
+      REWARD,
     );
-    const afterSloppyReplay = applyRunResult(
-      threeStars,
+    const sloppyReplay = applyRunResult(
+      threeStars.progress,
       "shop-path",
       makeState({ cakes: 2, maxCakes: 10 }),
-      unlocks,
+      REWARD,
     );
 
-    expect(afterSloppyReplay.levelStars["shop-path"]).toBe(3);
-    expect(afterSloppyReplay.unlockedPetIds).toContain("shop-path-b");
+    expect(sloppyReplay.progress.levelStars["shop-path"]).toBe(3);
   });
 
-  it("upgrades the record when a replay does better", () => {
-    const oneStar = applyRunResult(
+  it("returns the same object when nothing improved", () => {
+    const once = applyRunResult(
       EMPTY,
       "shop-path",
-      makeState({ cakes: 2, maxCakes: 10 }),
-      unlocks,
+      makeState({ cakes: 10, maxCakes: 10, waveIndex: 14 }),
+      REWARD,
     );
-    expect(oneStar.unlockedPetIds).not.toContain("shop-path-b");
-
-    const perfect = applyRunResult(
-      oneStar,
+    const again = applyRunResult(
+      once.progress,
       "shop-path",
-      makeState({ cakes: 10, maxCakes: 10 }),
-      unlocks,
+      makeState({ cakes: 10, maxCakes: 10, waveIndex: 14 }),
+      REWARD,
     );
 
-    expect(perfect.levelStars["shop-path"]).toBe(3);
-    expect(perfect.unlockedPetIds).toContain("shop-path-b");
+    expect(again.progress).toBe(once.progress);
   });
 
   it("keeps progress from other levels intact", () => {
@@ -207,16 +235,17 @@ describe("applyRunResult", () => {
       EMPTY,
       "shop-path",
       makeState({ cakes: 10, maxCakes: 10 }),
-      unlocks,
+      REWARD,
     );
     const second = applyRunResult(
-      first,
+      first.progress,
       "kitchen-cross",
       makeState({ cakes: 7, maxCakes: 10 }),
-      unlocks,
+      REWARD,
     );
 
-    expect(second.levelStars["shop-path"]).toBe(3);
-    expect(second.levelStars["kitchen-cross"]).toBe(2);
+    expect(second.progress.levelStars["shop-path"]).toBe(3);
+    expect(second.progress.levelStars["kitchen-cross"]).toBe(2);
+    expect(second.coinsEarned).toBe(REWARD.clear);
   });
 });

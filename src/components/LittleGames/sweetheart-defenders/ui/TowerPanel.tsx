@@ -10,19 +10,19 @@ import { getTowerStats, getTrait } from "../engine/combat";
 import { getPlaceCost, getSellRefund, getUpgradeCost } from "../engine/economy";
 import { Candy, X } from "lucide-react";
 import { playSfx } from "../audio";
-import type { LiveTower, Pet } from "../types";
+import type { LiveTower, TowerCharacter } from "../types";
 
 /** TowerPanel 只需要知道塔的等級，不需要冷卻、傷害那些每幀都在動的欄位。 */
-type TowerSummary = Pick<LiveTower, "slotId" | "petId" | "level">;
+type TowerSummary = Pick<LiveTower, "slotId" | "characterId" | "level">;
 
 type Props = {
   tower: TowerSummary | undefined;
-  pet: Pet | undefined;
+  pet: TowerCharacter | undefined;
   frosting: number;
-  availablePets: Pet[];
-  previewPetId: string | null;
-  onPreviewPet: (petId: string | null) => void;
-  onPlace: (petId: string) => void;
+  availableCharacters: TowerCharacter[];
+  previewCharacterId: string | null;
+  onPreviewCharacter: (characterId: string | null) => void;
+  onPlace: (characterId: string) => void;
   onUpgrade: () => void;
   onSell: () => void;
   onClose: () => void;
@@ -38,9 +38,9 @@ export function TowerPanel({
   tower,
   pet,
   frosting,
-  availablePets,
-  previewPetId,
-  onPreviewPet,
+  availableCharacters,
+  previewCharacterId,
+  onPreviewCharacter,
   onPlace,
   onUpgrade,
   onSell,
@@ -61,9 +61,9 @@ export function TowerPanel({
         ) : (
           <EmptySlot
             frosting={frosting}
-            availablePets={availablePets}
-            previewPetId={previewPetId}
-            onPreviewPet={onPreviewPet}
+            availableCharacters={availableCharacters}
+            previewCharacterId={previewCharacterId}
+            onPreviewCharacter={onPreviewCharacter}
             onPlace={onPlace}
             onClose={onClose}
           />
@@ -74,7 +74,7 @@ export function TowerPanel({
 }
 
 /** 打法 + 特性的標籤組，兩個面板都會用到。 */
-function PetTags({ pet }: { pet: Pet }) {
+function PetTags({ pet }: { pet: TowerCharacter }) {
   const element = pet.elements[0];
   const archetype = ARCHETYPE_BY_ELEMENT[element];
   const trait = getTrait(pet);
@@ -100,7 +100,7 @@ function PetTags({ pet }: { pet: Pet }) {
   );
 }
 
-function PetDetails({ pet, level }: { pet: Pet; level: 1 | 2 | 3 }) {
+function PetDetails({ pet, level }: { pet: TowerCharacter; level: 1 | 2 | 3 }) {
   const element = pet.elements[0];
   const archetype = ARCHETYPE_BY_ELEMENT[element];
   const trait = getTrait(pet);
@@ -153,26 +153,26 @@ function Metric({
 
 function EmptySlot({
   frosting,
-  availablePets,
-  previewPetId,
-  onPreviewPet,
+  availableCharacters,
+  previewCharacterId,
+  onPreviewCharacter,
   onPlace,
   onClose,
 }: {
   frosting: number;
-  availablePets: Pet[];
-  previewPetId: string | null;
-  onPreviewPet: (petId: string | null) => void;
-  onPlace: (petId: string) => void;
+  availableCharacters: TowerCharacter[];
+  previewCharacterId: string | null;
+  onPreviewCharacter: (characterId: string | null) => void;
+  onPlace: (characterId: string) => void;
   onClose: () => void;
 }) {
-  const preview = availablePets.find((candidate) => candidate.id === previewPetId);
+  const preview = availableCharacters.find((candidate) => candidate.id === previewCharacterId);
 
   return (
     <>
       <div className="mb-2 flex items-center justify-between gap-2">
         <p className="text-sm font-semibold text-slate-800">
-          {preview ? preview.nameZh : "選一隻寵物站上這個位置"}
+          {preview ? preview.nameZh : "選一隻角色站上這個位置"}
         </p>
         <button
           type="button"
@@ -184,10 +184,10 @@ function EmptySlot({
       </div>
 
       <div className="flex flex-wrap gap-2 lg:justify-start">
-        {availablePets.map((candidate) => {
+        {availableCharacters.map((candidate) => {
           const cost = getPlaceCost(candidate);
           const affordable = frosting >= cost;
-          const isPreviewing = candidate.id === previewPetId;
+          const isPreviewing = candidate.id === previewCharacterId;
 
           return (
             <button
@@ -196,11 +196,11 @@ function EmptySlot({
               // 買不起的也要能點開來看——不然玩家在存到錢之前根本不知道這隻
               // 是幹嘛的，也就無從決定要不要存。只有「放上去」才擋。
               aria-disabled={!affordable}
-              onPointerEnter={() => onPreviewPet(candidate.id)}
-              onFocus={() => onPreviewPet(candidate.id)}
+              onPointerEnter={() => onPreviewCharacter(candidate.id)}
+              onFocus={() => onPreviewCharacter(candidate.id)}
               onClick={() => {
                 if (!isPreviewing) {
-                  onPreviewPet(candidate.id);
+                  onPreviewCharacter(candidate.id);
                   return;
                 }
                 if (affordable) onPlace(candidate.id);
@@ -268,7 +268,7 @@ function OccupiedSlot({
   onClose,
 }: {
   tower: TowerSummary;
-  pet: Pet;
+  pet: TowerCharacter;
   frosting: number;
   onUpgrade: () => void;
   onSell: () => void;

@@ -6,7 +6,7 @@ import {
 } from "../data/elements";
 import { TRAIT_BASE, TRAIT_BY_SECONDARY_ELEMENT } from "../data/traits";
 import { LEVEL_POWER, RARITY_TIERS, SECONDARY_ELEMENT_BONUS } from "../constants";
-import type { Element, Pet, TowerStats, TowerTrait } from "../types";
+import type { Element, TowerCharacter, TowerStats, TowerTrait } from "../types";
 
 /** 每升一級，除了整體倍率之外還會小幅加成的部分。 */
 const PER_LEVEL = {
@@ -20,20 +20,20 @@ const PER_LEVEL = {
   trait: 0.25,
 } as const;
 
-/** 一隻寵物的特性：由副元素決定，沒有副元素就是「純粹」。 */
-export function getTrait(pet: Pet): TowerTrait {
+/** 一隻角色的特性：由副元素決定，沒有副元素就是「純粹」。 */
+export function getTrait(pet: TowerCharacter): TowerTrait {
   const secondary = pet.elements[1];
   return secondary ? TRAIT_BY_SECONDARY_ELEMENT[secondary] : "pure";
 }
 
 /**
- * 一隻寵物在某個等級下的實際塔數值。
+ * 一隻角色在某個等級下的實際塔數值。
  *
  * 主元素決定打法（rapid / sniper / cannon…），副元素決定特性（連鎖 / 毒液 /
- * 碎甲…），稀有度與等級決定強度。所以 8 種打法 × 8 種特性讓 48 隻寵物幾乎
+ * 碎甲…），稀有度與等級決定強度。所以 8 種打法 × 8 種特性讓 48 隻角色幾乎
  * 每一隻手感都不一樣。
  */
-export function getTowerStats(pet: Pet, level: 1 | 2 | 3): TowerStats {
+export function getTowerStats(pet: TowerCharacter, level: 1 | 2 | 3): TowerStats {
   const element = pet.elements[0];
   const archetype = ARCHETYPE_BY_ELEMENT[element];
   const base = ARCHETYPE_BASE[archetype];
@@ -82,7 +82,7 @@ export function getTowerStats(pet: Pet, level: 1 | 2 | 3): TowerStats {
  * 一次攻擊實際造成的傷害。
  *
  * 主元素吃完整的克制倍率（2 / 1 / 0.5），副元素只在剛好克制對方時給一點加成，
- * 這樣雙元素寵物有優勢但不會讓單元素寵物完全沒得選。護甲最後才減，而且會扣掉
+ * 這樣雙元素角色有優勢但不會讓單元素角色完全沒得選。護甲最後才減，而且會扣掉
  * 被碎甲削掉的部分。
  */
 export function computeDamage(params: {

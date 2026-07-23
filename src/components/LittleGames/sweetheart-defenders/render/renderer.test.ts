@@ -90,7 +90,7 @@ function emptyView() {
   return {
     selectedSlotId: null,
     hoveredSlotId: null,
-    previewPetId: null,
+    previewCharacterId: null,
   };
 }
 
@@ -139,8 +139,8 @@ describe("renderBattle", () => {
       state,
       LEVEL,
       [
-        { kind: "placeTower", slotId: "s1", petId: "nibi" },
-        { kind: "placeTower", slotId: "s2", petId: "pico" },
+        { kind: "placeTower", slotId: "s1", characterId: "minna-no-tabo" },
+        { kind: "placeTower", slotId: "s2", characterId: "usahana" },
         { kind: "startWave" },
       ],
       STEP_MS,
@@ -171,7 +171,7 @@ describe("renderBattle", () => {
     stepSimulation(
       state,
       LEVEL,
-      [{ kind: "placeTower", slotId: "s1", petId: "lumi" }],
+      [{ kind: "placeTower", slotId: "s1", characterId: "shiro" }],
       STEP_MS,
     );
 
@@ -180,7 +180,7 @@ describe("renderBattle", () => {
       renderBattle(occupied, state, LEVEL, {
         selectedSlotId: "s1",
         hoveredSlotId: null,
-        previewPetId: null,
+        previewCharacterId: null,
       }),
     ).not.toThrow();
 
@@ -189,7 +189,7 @@ describe("renderBattle", () => {
       renderBattle(empty, state, LEVEL, {
         selectedSlotId: "s4",
         hoveredSlotId: "s4",
-        previewPetId: "momo",
+        previewCharacterId: "kuromi",
       }),
     ).not.toThrow();
   });
@@ -202,7 +202,7 @@ describe("renderBattle", () => {
       renderBattle(ctx, state, LEVEL, {
         selectedSlotId: "does-not-exist",
         hoveredSlotId: null,
-        previewPetId: "lumi",
+        previewCharacterId: "shiro",
       }),
     ).not.toThrow();
   });
