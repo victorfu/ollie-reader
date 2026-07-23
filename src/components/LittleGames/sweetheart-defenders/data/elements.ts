@@ -91,7 +91,10 @@ export const ARCHETYPE_DESC_ZH: Record<TowerArchetype, string> = {
   cheer: "不攻擊，但讓旁邊的夥伴打得更快。",
 };
 
-/** 每種原型的基礎數值（1 級、common、無倍率）。M3 平衡時主要調這裡。 */
+/**
+ * 每種原型的基礎數值（1 級、common、無倍率）。平衡時主要調這裡。
+ * 射程已跟著 1280×720 的畫布放大過。
+ */
 export const ARCHETYPE_BASE: Record<
   TowerArchetype,
   {
@@ -106,7 +109,7 @@ export const ARCHETYPE_BASE: Record<
   }
 > = {
   rapid: {
-    range: 120,
+    range: 156,
     damage: 8,
     cooldownMs: 320,
     splashRadius: 0,
@@ -116,7 +119,7 @@ export const ARCHETYPE_BASE: Record<
     cheerBonus: 0,
   },
   syrup: {
-    range: 112,
+    range: 146,
     damage: 5,
     cooldownMs: 700,
     splashRadius: 0,
@@ -126,17 +129,17 @@ export const ARCHETYPE_BASE: Record<
     cheerBonus: 0,
   },
   vine: {
-    range: 96,
+    range: 125,
     damage: 6,
     cooldownMs: 900,
-    splashRadius: 58,
+    splashRadius: 75,
     slowFactor: 0,
     stunChance: 0,
     armorPierce: 0,
     cheerBonus: 0,
   },
   sniper: {
-    range: 260,
+    range: 338,
     damage: 34,
     cooldownMs: 1600,
     splashRadius: 0,
@@ -146,7 +149,7 @@ export const ARCHETYPE_BASE: Record<
     cheerBonus: 0,
   },
   lullaby: {
-    range: 130,
+    range: 169,
     damage: 9,
     cooldownMs: 1100,
     splashRadius: 0,
@@ -156,17 +159,17 @@ export const ARCHETYPE_BASE: Record<
     cheerBonus: 0,
   },
   burst: {
-    range: 135,
+    range: 176,
     damage: 16,
     cooldownMs: 1000,
-    splashRadius: 62,
+    splashRadius: 81,
     slowFactor: 0,
     stunChance: 0,
     armorPierce: 0,
     cheerBonus: 0,
   },
   cannon: {
-    range: 150,
+    range: 195,
     damage: 40,
     cooldownMs: 1900,
     splashRadius: 0,
@@ -176,7 +179,7 @@ export const ARCHETYPE_BASE: Record<
     cheerBonus: 0,
   },
   cheer: {
-    range: 108,
+    range: 140,
     damage: 0,
     cooldownMs: 0,
     splashRadius: 0,

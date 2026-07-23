@@ -1,8 +1,13 @@
 // 甜心防衛隊 — 調參集中地。改數值請改這裡，不要散落在邏輯裡。
 
-/** 邏輯解析度。畫面用 letterbox 縮放對應到這個座標系。 */
-export const WIDTH = 960;
-export const HEIGHT = 540;
+/**
+ * 邏輯解析度。畫面用 letterbox 縮放對應到這個座標系。
+ *
+ * 960×540 對後面幾張圖來說太擠了——路徑、塔位、櫃檯全部黏在一起。放大到
+ * 1280×720（同樣 16:9）多出 78% 的面積，路線畫得開，塔位也排得下。
+ */
+export const WIDTH = 1280;
+export const HEIGHT = 720;
 
 /** 固定 timestep：模擬永遠以 60Hz 前進，跟畫面更新率脫鉤。 */
 export const STEP_MS = 1000 / 60;
@@ -57,9 +62,11 @@ export const SELL_REFUND_RATIO = 0.6;
 /** 副元素對「被它克制的敵人」額外加成。 */
 export const SECONDARY_ELEMENT_BONUS = 0.2;
 
-/** 塔位與塔的繪製尺寸。 */
-export const SLOT_RADIUS = 22;
-export const TOWER_SPRITE_SIZE = 46;
+/** 塔位與塔的繪製尺寸，跟著畫布一起放大。 */
+export const SLOT_RADIUS = 28;
+export const TOWER_SPRITE_SIZE = 60;
+/** 路面寬度。renderer 照這個畫，地圖的幾何檢查也照這個算路面佔多少畫布。 */
+export const PATH_WIDTH = 60;
 
 /** 三星門檻：剩餘蛋糕比例。 */
 export const THREE_STAR_CAKE_RATIO = 1;

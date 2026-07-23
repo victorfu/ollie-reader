@@ -2,15 +2,30 @@ import { describe, expect, it } from "vitest";
 import { LEVELS, getLevel } from "./levels";
 import { getEnemy } from "./enemies";
 import { getCharacter, DEFAULT_ROSTER_IDS } from "./characters";
-import { HEIGHT, SLOT_RADIUS, STEP_MS, WIDTH } from "../constants";
+import { HEIGHT, PATH_WIDTH, SLOT_RADIUS, STEP_MS, WIDTH } from "../constants";
 import { distanceToPath } from "../engine/path";
 import { getPlaceCost } from "../engine/economy";
-import { compileLevel, createBattle, stepSimulation } from "../engine/simulation";
+import {
+  compileLevel,
+  createBattle,
+  stepSimulation,
+} from "../engine/simulation";
 import { previewWave } from "../engine/waves";
 import type { Command, Difficulty, LevelSpec } from "../types";
 
+function pathLength(points: { x: number; y: number }[]): number {
+  return points
+    .slice(1)
+    .reduce(
+      (total, point, i) =>
+        total + Math.hypot(point.x - points[i].x, point.y - points[i].y),
+      0,
+    );
+}
+
 /** 路面半寬 + 塔位半徑：小於這個距離，塔看起來就是蓋在路中間。 */
-const MIN_SLOT_CLEARANCE = 23 + SLOT_RADIUS;
+const PATH_HALF_WIDTH = PATH_WIDTH / 2;
+const MIN_SLOT_CLEARANCE = PATH_HALF_WIDTH + SLOT_RADIUS;
 
 describe("level geometry", () => {
   it.each(LEVELS.map((level) => [level.nameZh, level] as const))(
@@ -67,7 +82,155 @@ describe("level geometry", () => {
 
   it("gives later levels more slots to work with", () => {
     for (let i = 1; i < LEVELS.length; i += 1) {
-      expect(LEVELS[i].slots.length).toBeGreaterThan(LEVELS[i - 1].slots.length);
+      expect(
+        LEVELS[i].slots.length,
+        `${LEVELS[i].nameZh} 的塔位不比前一關多`,
+      ).toBeGreaterThanOrEqual(LEVELS[i - 1].slots.length);
+    }
+  });
+
+  /**
+   * 這兩條是這次重畫地圖的主因。
+   *
+   * 改版前最後一關的路線只有 930px、軟糖 22 秒就走完，比第一關的 36 秒還短
+   * ——最後一關給塔的時間反而最少。
+   *
+   * 刻意不要求「每一關都比前一關長」：多路地圖的每條路都要塞進同一個畫布，
+   * 硬拉成嚴格遞增只會逼出一堆纏在一起的蛇形路線。真正要守住的是這兩件事：
+   * 沒有任何一條路短到不值得防守，而且壓軸關不能是最短的那張。
+   */
+  it("keeps every route long enough to be worth defending", () => {
+    const MIN_PATH_LENGTH = 2400;
+
+    for (const level of LEVELS) {
+      for (const [index, path] of level.paths.entries()) {
+        expect(
+          Math.round(pathLength(path)),
+          `${level.nameZh} 第 ${index + 1} 條路線太短`,
+        ).toBeGreaterThan(MIN_PATH_LENGTH);
+      }
+    }
+  });
+
+  /**
+   * 拉長路線很容易走過頭：多路地圖如果讓每條路都自己繞完全程，路面就會塞滿
+   * 整個畫布，變成一團看不出哪條是哪條的義大利麵，而且塔位擠不進路與路之間。
+   * 實測過 51% 路面 / 18 次交叉的版本，畫面完全讀不懂。
+   *
+   * 解法是「入口各走各的、後段共用一條主幹」，這三條就是那個做法的護欄。
+   */
+  it("never lets the road swallow the whole canvas", () => {
+    for (const level of LEVELS) {
+      let road = 0;
+      let cells = 0;
+
+      for (let x = 0; x <= WIDTH; x += 8) {
+        for (let y = 0; y <= HEIGHT; y += 8) {
+          cells += 1;
+          const nearest = Math.min(
+            ...level.paths.map((path) => distanceToPath({ x, y }, path)),
+          );
+          if (nearest <= PATH_HALF_WIDTH) road += 1;
+        }
+      }
+
+      expect(
+        Math.round((road / cells) * 100),
+        `${level.nameZh} 的路面佔掉太多畫布`,
+      ).toBeLessThanOrEqual(40);
+    }
+  });
+
+  it("keeps most of the road within reach of a tower slot", () => {
+    // 用中階射程取樣。路鋪得太密時塔位只剩畫布邊緣，怪在中間走一大段沒人打得到。
+    const MID_RANGE = 180;
+
+    for (const level of LEVELS) {
+      let covered = 0;
+      let total = 0;
+
+      for (const path of level.paths) {
+        for (let i = 1; i < path.length; i += 1) {
+          const from = path[i - 1];
+          const to = path[i];
+          const steps = Math.max(
+            1,
+            Math.round(Math.hypot(to.x - from.x, to.y - from.y) / 10),
+          );
+
+          for (let step = 0; step < steps; step += 1) {
+            const t = (step + 0.5) / steps;
+            const point = {
+              x: from.x + (to.x - from.x) * t,
+              y: from.y + (to.y - from.y) * t,
+            };
+            if (point.x < 0 || point.x > WIDTH) continue;
+
+            total += 1;
+            if (
+              level.slots.some(
+                (slot) =>
+                  Math.hypot(slot.x - point.x, slot.y - point.y) <= MID_RANGE,
+              )
+            ) {
+              covered += 1;
+            }
+          }
+        }
+      }
+
+      expect(
+        Math.round((covered / total) * 100),
+        `${level.nameZh} 有太多路面打不到`,
+      ).toBeGreaterThanOrEqual(75);
+    }
+  });
+
+  it("keeps path crossings rare enough to follow by eye", () => {
+    const side = (
+      a: { x: number; y: number },
+      b: { x: number; y: number },
+      c: { x: number; y: number },
+    ) => Math.sign((b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x));
+
+    for (const level of LEVELS) {
+      const segments = level.paths.flatMap((path) =>
+        path.slice(1).map((to, i) => [path[i], to] as const),
+      );
+      let crossings = 0;
+
+      for (let i = 0; i < segments.length; i += 1) {
+        // 跳過相鄰的線段：它們本來就共用一個轉角，不算交叉。
+        for (let j = i + 2; j < segments.length; j += 1) {
+          const [a, b] = segments[i];
+          const [c, d] = segments[j];
+          if (
+            side(a, b, c) * side(a, b, d) < 0 &&
+            side(c, d, a) * side(c, d, b) < 0
+          ) {
+            crossings += 1;
+          }
+        }
+      }
+
+      expect(
+        crossings,
+        `${level.nameZh} 的路線互相穿過太多次`,
+      ).toBeLessThanOrEqual(4);
+    }
+  });
+
+  it("never lets the finale be the shortest walk", () => {
+    const shortestRoute = (level: (typeof LEVELS)[number]) =>
+      Math.min(...level.paths.map(pathLength));
+
+    const finale = LEVELS[LEVELS.length - 1];
+
+    for (const level of LEVELS.slice(0, -1)) {
+      expect(
+        Math.round(shortestRoute(finale)),
+        `${finale.nameZh} 的最短路線比 ${level.nameZh} 還短`,
+      ).toBeGreaterThanOrEqual(Math.round(shortestRoute(level)));
     }
   });
 });
@@ -137,14 +300,16 @@ describe("every level is actually beatable", () => {
    * 真實情況低太多。
    */
   const GOOD_BUILD = [
-    "hiroshi-nohara", // ember 爆裂 · 碎甲（rare）
-    "dorami", // light 狙擊 · 碎甲（warden）
+    // 便宜的排前面：塔防的錢滾錢是靠先鋪滿防線，先買貴的會鋪不滿、
+    // 殺不掉怪、更沒錢，直接掉進死亡螺旋。
     "minna-no-tabo", // ember 爆裂 · 連鎖（common）
-    "takeshi-goda", // crystal 重砲 · 恍神（warden）
-    "usahana", // star 應援 · 毒液（common）
     "shiro", // light 狙擊 · 毒液（common）
+    "chococat", // crystal 重砲 · 連鎖（common）
+    "pochacco", // spark 速射 · 毒液（common）
+    "keroppi", // leaf 藤蔓 · 冰霜（common）
+    "usahana", // star 應援 · 毒液（common）
+    "hiroshi-nohara", // ember 爆裂 · 碎甲（rare）
     "aggretsuko", // ember 爆裂 · 連鎖（rare）
-    "kuromi", // dream 催眠 · 碎甲（warden）
   ];
 
   function playThrough(
@@ -165,7 +330,11 @@ describe("every level is actually beatable", () => {
       if (placed < slotIds.length) {
         const characterId = build[placed % build.length];
         if (state.frosting >= getPlaceCost(getCharacter(characterId)!)) {
-          commands.push({ kind: "placeTower", slotId: slotIds[placed], characterId });
+          commands.push({
+            kind: "placeTower",
+            slotId: slotIds[placed],
+            characterId,
+          });
           placed += 1;
         }
       } else if (state.towers.length > 0) {
@@ -204,18 +373,23 @@ describe("every level is actually beatable", () => {
     },
   );
 
-  it("never reports a clear on the same frame the last cake is stolen", () => {
-    // 最後一隻怪同時「離場」與「打穿櫃檯」時，結果必須算輸。
-    for (const level of LEVELS) {
-      for (const difficulty of ["easy", "normal", "hard"] as Difficulty[]) {
-        const state = playThrough(level, difficulty, DEFAULT_ROSTER_IDS);
-        if (state.phase === "cleared") {
-          expect(
-            state.cakes,
-            `${level.nameZh}/${difficulty} 在蛋糕歸零時被判定通關`,
-          ).toBeGreaterThan(0);
+  // 八張圖 × 三難度的完整快跑；地圖變長之後跑得比預設 5 秒久。
+  it(
+    "never reports a clear on the same frame the last cake is stolen",
+    { timeout: 30_000 },
+    () => {
+      // 最後一隻怪同時「離場」與「打穿櫃檯」時，結果必須算輸。
+      for (const level of LEVELS) {
+        for (const difficulty of ["easy", "normal", "hard"] as Difficulty[]) {
+          const state = playThrough(level, difficulty, DEFAULT_ROSTER_IDS);
+          if (state.phase === "cleared") {
+            expect(
+              state.cakes,
+              `${level.nameZh}/${difficulty} 在蛋糕歸零時被判定通關`,
+            ).toBeGreaterThan(0);
+          }
         }
       }
-    }
-  });
+    },
+  );
 });

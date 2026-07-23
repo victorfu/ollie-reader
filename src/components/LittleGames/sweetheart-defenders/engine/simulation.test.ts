@@ -456,9 +456,7 @@ describe("full 15-wave run on 店門小徑", () => {
 
     expect(state.phase).toBe("lost");
     // 但也不能一開場就結束——要撐得夠久才有再試一次的動力。
-    // 門檻暫時放寬：預設班底改成全 common 之後整體變弱，正式的數字等
-    // 地圖重畫完、重新跑平衡時再收緊。
-    expect(state.waveIndex).toBeGreaterThanOrEqual(4);
+    expect(state.waveIndex).toBeGreaterThanOrEqual(8);
   });
 
   it("finishes every wave rather than stalling", () => {

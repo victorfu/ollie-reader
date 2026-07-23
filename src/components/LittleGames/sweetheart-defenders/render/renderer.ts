@@ -1,4 +1,10 @@
-import { HEIGHT, SLOT_RADIUS, TOWER_SPRITE_SIZE, WIDTH } from "../constants";
+import {
+  HEIGHT,
+  SLOT_RADIUS,
+  TOWER_SPRITE_SIZE,
+  WIDTH,
+  PATH_WIDTH,
+} from "../constants";
 import { ELEMENT_COLOR } from "../data/elements";
 import { getEnemy } from "../data/enemies";
 import { getCharacter } from "../data/characters";
@@ -8,8 +14,6 @@ import { pointAtDistance } from "../engine/path";
 import type { BattleState, LiveEnemy, Vec2 } from "../types";
 import { drawEnemyShape, roundedRect } from "./shapes";
 import { getSprite } from "./sprites";
-
-const PATH_WIDTH = 46;
 
 export type ViewState = {
   /** 被點開的塔位；會畫出射程圈 */
@@ -56,11 +60,11 @@ function drawFloor(
   ctx.lineWidth = 1;
   ctx.globalAlpha = 0.55;
   ctx.beginPath();
-  for (let x = 60; x < WIDTH; x += 60) {
+  for (let x = 80; x < WIDTH; x += 80) {
     ctx.moveTo(x, 0);
     ctx.lineTo(x, HEIGHT);
   }
-  for (let y = 60; y < HEIGHT; y += 60) {
+  for (let y = 80; y < HEIGHT; y += 80) {
     ctx.moveTo(0, y);
     ctx.lineTo(WIDTH, y);
   }
@@ -116,20 +120,20 @@ function drawCounter(
   ctx.fillStyle = "#f6e3cf";
   ctx.strokeStyle = "#cba985";
   ctx.lineWidth = 2;
-  roundedRect(ctx, -44, -14, 88, 30, 8);
+  roundedRect(ctx, -58, -18, 116, 38, 10);
   ctx.fill();
   ctx.stroke();
 
   // 一塊小蛋糕代表一條命，最多畫 6 塊，其餘用數字補。
   const shown = Math.min(state.cakes, 6);
   for (let i = 0; i < shown; i += 1) {
-    const x = -34 + i * 13;
+    const x = -45 + i * 17;
     ctx.fillStyle = "#ffd3e2";
-    roundedRect(ctx, x, -26, 10, 12, 3);
+    roundedRect(ctx, x, -34, 13, 16, 4);
     ctx.fill();
     ctx.fillStyle = "#e2547a";
     ctx.beginPath();
-    ctx.arc(x + 5, -27, 2.2, 0, Math.PI * 2);
+    ctx.arc(x + 6.5, -35, 2.8, 0, Math.PI * 2);
     ctx.fill();
   }
 
@@ -137,7 +141,7 @@ function drawCounter(
     ctx.fillStyle = "#7a5b46";
     ctx.font = "bold 12px system-ui, sans-serif";
     ctx.textAlign = "left";
-    ctx.fillText(`+${state.cakes - 6}`, 46, -16);
+    ctx.fillText(`+${state.cakes - 6}`, 62, -20);
   }
 
   ctx.restore();
@@ -252,7 +256,8 @@ function drawEnemies(ctx: CanvasRenderingContext2D, state: BattleState): void {
   for (const enemy of state.enemies) {
     const spec = getEnemy(enemy.kind);
     const wobblePhase = (state.timeMs / 320 + enemy.uid * 0.7) % (Math.PI * 2);
-    const bob = enemy.stunMs > 0 ? 0 : Math.sin(wobblePhase) * spec.radius * 0.1;
+    const bob =
+      enemy.stunMs > 0 ? 0 : Math.sin(wobblePhase) * spec.radius * 0.1;
 
     ctx.save();
     ctx.translate(enemy.x, enemy.y + bob);
@@ -260,7 +265,15 @@ function drawEnemies(ctx: CanvasRenderingContext2D, state: BattleState): void {
     if (spec.flying) {
       ctx.fillStyle = "rgba(0,0,0,0.08)";
       ctx.beginPath();
-      ctx.ellipse(0, spec.radius * 1.5, spec.radius * 0.7, spec.radius * 0.22, 0, 0, Math.PI * 2);
+      ctx.ellipse(
+        0,
+        spec.radius * 1.5,
+        spec.radius * 0.7,
+        spec.radius * 0.22,
+        0,
+        0,
+        Math.PI * 2,
+      );
       ctx.fill();
     }
 
@@ -361,7 +374,8 @@ function drawHealthBar(
   roundedRect(ctx, x, y, width, height, 2);
   ctx.fill();
 
-  ctx.fillStyle = ratio > 0.5 ? "#67c96a" : ratio > 0.25 ? "#f2b544" : "#ef5f6b";
+  ctx.fillStyle =
+    ratio > 0.5 ? "#67c96a" : ratio > 0.25 ? "#f2b544" : "#ef5f6b";
   roundedRect(ctx, x, y, width * ratio, height, 2);
   ctx.fill();
 }
@@ -416,7 +430,15 @@ function drawProjectiles(
         // 飄上去的音符：一個實心頭 + 一根桿子
         ctx.globalAlpha = 1 - t * 0.4;
         ctx.beginPath();
-        ctx.ellipse(x, y, projectile.radius, projectile.radius * 0.8, -0.4, 0, Math.PI * 2);
+        ctx.ellipse(
+          x,
+          y,
+          projectile.radius,
+          projectile.radius * 0.8,
+          -0.4,
+          0,
+          Math.PI * 2,
+        );
         ctx.fill();
         ctx.strokeStyle = projectile.color;
         ctx.lineWidth = 1.8;
@@ -536,7 +558,13 @@ function drawEffects(
       ctx.strokeStyle = effect.color;
       ctx.lineWidth = 3;
       ctx.beginPath();
-      ctx.arc(effect.x, effect.y, effect.radius * (0.35 + progress * 0.65), 0, Math.PI * 2);
+      ctx.arc(
+        effect.x,
+        effect.y,
+        effect.radius * (0.35 + progress * 0.65),
+        0,
+        Math.PI * 2,
+      );
       ctx.stroke();
       ctx.globalAlpha = 1;
       continue;
@@ -550,7 +578,13 @@ function drawEffects(
     ctx.globalAlpha = (1 - progress) * 0.35;
     ctx.fillStyle = effect.color;
     ctx.beginPath();
-    ctx.arc(effect.x, effect.y, effect.radius * (0.5 + progress * 0.6), 0, Math.PI * 2);
+    ctx.arc(
+      effect.x,
+      effect.y,
+      effect.radius * (0.5 + progress * 0.6),
+      0,
+      Math.PI * 2,
+    );
     ctx.fill();
     ctx.globalAlpha = 1;
   }
