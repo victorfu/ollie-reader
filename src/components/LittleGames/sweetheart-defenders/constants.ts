@@ -28,7 +28,7 @@ export const PREP_MS = 20_000;
 /** 第一波開始前多給一點時間佈塔。 */
 export const FIRST_PREP_MS = 35_000;
 /** 提早出發的獎勵：剩餘秒數 × 這個數字。 */
-export const EARLY_START_BONUS_PER_SECOND = 3;
+export const EARLY_START_BONUS_PER_SECOND = 2;
 
 /** 稀有度 → 數值倍率與造價。 */
 export const RARITY_TIERS = {
@@ -39,8 +39,11 @@ export const RARITY_TIERS = {
   mythling: { power: 2.8, cost: 260 },
 } as const;
 
-/** 升級到 2 / 3 級的費用是造價的幾倍。 */
-export const UPGRADE_COST_MULTIPLIER = [0, 0.8, 1.4] as const;
+/**
+ * 升級到 2 / 3 級的費用是造價的幾倍。刻意比放一座新塔還貴——不然只要錢一夠
+ * 就無腦全部點滿，中盤就沒有取捨了。
+ */
+export const UPGRADE_COST_MULTIPLIER = [0, 1.2, 2.4] as const;
 /** 每一級的數值倍率（index 0 = 1 級）。 */
 export const LEVEL_POWER = [1, 1.45, 2.05] as const;
 /** 賣出退回已投入成本的比例。 */

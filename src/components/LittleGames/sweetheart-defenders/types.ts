@@ -188,6 +188,11 @@ export type LiveEnemy = {
   pathIndex: number;
   /** 沿路徑已前進的距離 */
   distance: number;
+  /**
+   * 距離櫃檯還有多遠。由 distance 推導出來，但先算好存起來，讓塔可以直接比較
+   * 「誰最接近櫃檯」——不同路徑長短不一，直接比 distance 會比錯。
+   */
+  remaining: number;
   x: number;
   y: number;
   /** 減速殘餘時間（毫秒），0 表示沒被減速 */
