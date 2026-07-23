@@ -52,6 +52,22 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+describe("GameHub card layout", () => {
+  it("lists Wonder Academy last and flags it as in development", () => {
+    renderGameHub();
+
+    const cards = [...container.querySelectorAll("article")];
+    expect(cards).toHaveLength(6);
+
+    const last = cards.at(-1);
+    expect(last?.querySelector("h2")?.textContent).toBe("Wonder Academy");
+    expect(last?.textContent).toContain("開發中");
+
+    const flagged = cards.filter((card) => card.textContent?.includes("開發中"));
+    expect(flagged).toHaveLength(1);
+  });
+});
+
 describe("GameHub single-tab game launcher", () => {
   it("opens every game URL in its own stable named tab", () => {
     const openMock = vi.spyOn(window, "open").mockImplementation(() => {
@@ -63,10 +79,10 @@ describe("GameHub single-tab game launcher", () => {
       ["單字大冒險", "開始遊戲", "/games/spirit"],
       ["人氣角色扭蛋機", "開始扭蛋", "/games/gacha"],
       ["人氣角色扭蛋機", "查看圖鑑", "/games/gacha?view=collection"],
-      ["Wonder Academy", "開始遊戲", "/games/wonder-academy"],
       ["Bunny Jumper", "開始遊戲", "/games/bunny"],
       ["森林蘑菇冒險", "開始遊戲", "/games/mushroom"],
       ["Meteor Glider", "開始遊戲", "/games/meteor"],
+      ["Wonder Academy", "開始遊戲", "/games/wonder-academy"],
     ] as const;
 
     for (const [title, label] of entries) {

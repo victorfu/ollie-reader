@@ -22,6 +22,7 @@ type GameCard = {
   best: number | null;
   primaryLabel?: string;
   statusLabel?: string;
+  inDevelopment?: boolean;
   secondaryAction?: {
     label: string;
     to: string;
@@ -68,16 +69,6 @@ export default function GameHub() {
         },
       },
       {
-        id: "wonder-academy",
-        to: "/games/wonder-academy",
-        title: "Wonder Academy",
-        blurb:
-          "全螢幕 cozy RPG：選擇 Wonderling 夥伴、探索 Sparkleaf Grove、用 Attune 建立連結。",
-        tag: "RPG",
-        emoji: "✨",
-        best: null,
-      },
-      {
         id: "bunny",
         to: "/games/bunny",
         title: "Bunny Jumper",
@@ -103,6 +94,18 @@ export default function GameHub() {
         tag: "Arcade",
         emoji: "☄️",
         best: meteorBest,
+      },
+      {
+        id: "wonder-academy",
+        to: "/games/wonder-academy",
+        title: "Wonder Academy",
+        blurb:
+          "全螢幕 cozy RPG：選擇 Wonderling 夥伴、探索 Sparkleaf Grove、用 Attune 建立連結。",
+        tag: "RPG",
+        emoji: "✨",
+        best: null,
+        inDevelopment: true,
+        statusLabel: "開發中 · Firestore 雲端存檔",
       },
     ],
     [bunnyBest, meteorBest, mushroomBest],
@@ -135,9 +138,16 @@ export default function GameHub() {
               <span className="text-3xl" aria-hidden="true">
                 {card.emoji}
               </span>
-              <span className="rounded-full bg-accent-tint px-2.5 py-1 text-xs font-semibold text-accent">
-                {card.tag}
-              </span>
+              <div className="flex flex-wrap items-center justify-end gap-1.5">
+                {card.inDevelopment && (
+                  <span className="rounded-full bg-warning/15 px-2.5 py-1 text-xs font-semibold text-warning">
+                    開發中
+                  </span>
+                )}
+                <span className="rounded-full bg-accent-tint px-2.5 py-1 text-xs font-semibold text-accent">
+                  {card.tag}
+                </span>
+              </div>
             </div>
             <h2 className="mt-3 text-lg font-semibold tracking-tight">
               {card.title}
@@ -150,11 +160,9 @@ export default function GameHub() {
                 {card.statusLabel ??
                 (card.best && card.best > 0
                   ? `最高星星 ${card.best}`
-                  : card.id === "wonder-academy"
-                    ? "Firestore 雲端存檔"
-                    : card.id === "word-adventure"
-                      ? "雲端存檔進度"
-                      : "尚無紀錄")}
+                  : card.id === "word-adventure"
+                    ? "雲端存檔進度"
+                    : "尚無紀錄")}
               </span>
               <div className="flex flex-wrap justify-end gap-2">
                 {card.secondaryAction && (
