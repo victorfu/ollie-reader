@@ -93,25 +93,30 @@ export function Hud({
             {hud.speed}×
           </button>
 
-          {inPrep && (
-            <button
-              type="button"
-              onClick={onStartWave}
-              className="min-h-11 rounded-[8px] bg-[#ff6f9f] px-4 text-sm font-semibold text-white shadow-sm transition hover:brightness-105 active:scale-[0.98]"
-            >
-              開始第 {hud.waveNumber} 波
-              <span className="ml-1.5 opacity-80">{hud.prepSeconds}s</span>
-            </button>
-          )}
+          {/* 開打後用 invisible 保留佔位而不是卸載：按鈕一下有一下沒，
+              右側的暫停／速度鈕會跟著左右跳，整排工具列在每波都閃一次。 */}
+          <button
+            type="button"
+            onClick={onStartWave}
+            className={`min-h-11 rounded-[8px] bg-[#ff6f9f] px-4 text-sm font-semibold text-white shadow-sm transition hover:brightness-105 active:scale-[0.98] ${
+              inPrep ? "" : "invisible"
+            }`}
+          >
+            開始第 {hud.waveNumber} 波
+            {/* 秒數固定寬度：19s → 9s 少一位數時，整顆按鈕才不會每秒抖動。 */}
+            <span className="ml-1.5 inline-block w-7 text-left tabular-nums opacity-80">
+              {hud.prepSeconds}s
+            </span>
+          </button>
         </div>
       </div>
 
-      {/* 準備階段先看清楚下一波要擋什麼，才有辦法決定蓋哪種塔。 */}
-      {inPrep && (
-        <div className="mt-1.5">
-          <WavePreview wave={nextWave} waveNumber={hud.waveNumber} />
-        </div>
-      )}
+      {/* 波次資訊列永遠都在：準備階段看下一波要擋什麼，開打後看這一波是什麼。
+          隨 phase 掛載／卸載的話，header 高度會抖，底下 flex-1 的畫布跟著
+          重新 letterbox，整個畫面在每波開始與結束時都閃一下。 */}
+      <div className="mt-1.5">
+        <WavePreview wave={nextWave} waveNumber={hud.waveNumber} />
+      </div>
     </header>
   );
 }
