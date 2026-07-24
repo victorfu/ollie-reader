@@ -33,7 +33,10 @@ export function Hud({
   const finished = hud.phase === "cleared" || hud.phase === "lost";
 
   return (
-    <header className="border-b border-black/5 bg-white/70 px-3 py-2 backdrop-blur-md sm:px-4">
+    // relative z-30：header 的 backdrop-blur 會自成一個堆疊環境，static 又排在
+    // 畫布前面，音量彈窗（z-40）會被關進來、整個沉到畫布底下。給 header 一個明確
+    // 的堆疊層級，讓工具列（連同它的彈窗）浮在遊玩區之上、但仍低於結算視窗。
+    <header className="relative z-30 border-b border-black/5 bg-white/70 px-3 py-2 backdrop-blur-md sm:px-4">
       <div className="flex flex-wrap items-center gap-2 sm:gap-3">
         <button
           type="button"

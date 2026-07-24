@@ -23,7 +23,8 @@ export function ResultDialog({
   const cleared = outcome.phase === "cleared";
 
   return (
-    <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/25 p-4 backdrop-blur-sm">
+    // z-40：結算視窗蓋住整個畫面，要壓在工具列 header（z-30）之上。
+    <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/25 p-4 backdrop-blur-sm">
       <div className="w-full max-w-sm rounded-[16px] border border-black/5 bg-white/95 p-6 text-center shadow-2xl backdrop-blur-2xl">
         <p className="flex justify-center text-[#ff6f9f]" aria-hidden="true">
           {cleared ? (
