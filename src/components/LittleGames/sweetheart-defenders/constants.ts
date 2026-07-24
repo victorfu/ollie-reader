@@ -71,3 +71,9 @@ export const PATH_WIDTH = 60;
 /** 三星門檻：剩餘蛋糕比例。 */
 export const THREE_STAR_CAKE_RATIO = 1;
 export const TWO_STAR_CAKE_RATIO = 0.7;
+
+/**
+ * 一場最多帶幾種角色。收藏全上陣就沒有「賽前搭配隊伍」的取捨了；
+ * 五隻剛好塞得進 TowerPanel 一排，也逼玩家在八種打法裡做選擇。
+ */
+export const MAX_SQUAD_SIZE = 5;

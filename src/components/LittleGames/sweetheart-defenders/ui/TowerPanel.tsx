@@ -2,11 +2,11 @@ import {
   ARCHETYPE_BY_ELEMENT,
   ARCHETYPE_DESC_ZH,
   ARCHETYPE_LABEL_ZH,
-  ELEMENT_COLOR,
   ELEMENT_LABEL_ZH,
 } from "../data/elements";
 import { TRAIT_DESC_ZH, TRAIT_LABEL_ZH } from "../data/traits";
 import { getTowerStats, getTrait } from "../engine/combat";
+import { CharacterTags } from "./CharacterTags";
 import { getPlaceCost, getSellRefund, getUpgradeCost } from "../engine/economy";
 import { Candy, X } from "lucide-react";
 import { playSfx } from "../audio";
@@ -69,33 +69,6 @@ export function TowerPanel({
           />
         )}
       </div>
-    </div>
-  );
-}
-
-/** 打法 + 特性的標籤組，兩個面板都會用到。 */
-function PetTags({ pet }: { pet: TowerCharacter }) {
-  const element = pet.elements[0];
-  const archetype = ARCHETYPE_BY_ELEMENT[element];
-  const trait = getTrait(pet);
-
-  return (
-    <div className="flex flex-wrap items-center gap-1">
-      <span
-        className="rounded-full px-1.5 py-0.5 text-[10px] font-semibold text-slate-800"
-        style={{ backgroundColor: ELEMENT_COLOR[element] }}
-      >
-        {ARCHETYPE_LABEL_ZH[archetype]}
-      </span>
-      <span
-        className="rounded-full px-1.5 py-0.5 text-[10px] font-semibold text-slate-700 ring-1 ring-inset ring-black/5"
-        style={{
-          // 特性的顏色取自副元素，一眼就看得出這隻的第二個元素是什麼。
-          backgroundColor: `${ELEMENT_COLOR[pet.elements[1] ?? element]}55`,
-        }}
-      >
-        {TRAIT_LABEL_ZH[trait]}
-      </span>
     </div>
   );
 }
@@ -221,7 +194,7 @@ function EmptySlot({
                 {candidate.nameZh}
               </span>
               <div className="mt-1">
-                <PetTags pet={candidate} />
+                <CharacterTags pet={candidate} />
               </div>
               <span
                 className={`mt-1 flex items-center gap-0.5 text-[11px] font-semibold ${
@@ -293,7 +266,7 @@ function OccupiedSlot({
             </span>
           </p>
           <div className="mt-1">
-            <PetTags pet={pet} />
+            <CharacterTags pet={pet} />
           </div>
         </div>
         <button

@@ -110,7 +110,7 @@ export function getCacheKey(uid: string | null): string {
   return `${CACHE_PREFIX}${uid ?? GUEST_KEY}`;
 }
 
-function defaultStorage(): SaveStorage | null {
+export function defaultStorage(): SaveStorage | null {
   if (typeof window === "undefined") return null;
   try {
     return window.localStorage;
