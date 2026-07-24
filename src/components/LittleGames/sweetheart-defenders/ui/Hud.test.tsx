@@ -32,7 +32,7 @@ function snapshot(phase: HudSnapshot["phase"]): HudSnapshot {
   return {
     phase,
     waveNumber: 6,
-    waveCount: 15,
+    waveCount: 10,
     cakes: 10,
     maxCakes: 10,
     frosting: 289,

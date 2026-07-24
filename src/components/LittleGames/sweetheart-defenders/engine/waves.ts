@@ -3,15 +3,15 @@ import { getEnemy } from "../data/enemies";
 import type { Difficulty, EnemyKind, WaveSpec } from "../types";
 
 /** 每過一波，敵人血量加成多少。第 15 波約是第 1 波的 3.2 倍。 */
-export const HP_GROWTH_PER_WAVE = 0.16;
+export const HP_GROWTH_PER_WAVE = 0.2;
 
 /**
  * Boss 的成長慢很多。
  *
- * Boss 只出現在第 5、10、15 波，基礎血量本來就是照那幾波抓的；再吃一次雜兵
+ * Boss 只出現在第 5、10 波，基礎血量本來就是照那幾波抓的；再吃一次雜兵
  * 的成長曲線，最後一波會變成兩隻一萬多血的蛋糕巨人，任何組合都攔不下來。
  */
-export const BOSS_HP_GROWTH_PER_WAVE = 0.07;
+export const BOSS_HP_GROWTH_PER_WAVE = 0.1;
 
 export type SpawnEntry = {
   /** 這隻怪要在模擬時間的哪一刻生出來（毫秒，絕對時間） */
@@ -65,7 +65,9 @@ export function getEnemyHp(
  * 下一波預告用：這波有哪些怪、各幾隻。
  * 分裂出來的小怪不算，因為那是打的時候才會出現。
  */
-export function previewWave(wave: WaveSpec): { kind: EnemyKind; count: number }[] {
+export function previewWave(
+  wave: WaveSpec,
+): { kind: EnemyKind; count: number }[] {
   const counts = new Map<EnemyKind, number>();
 
   for (const group of wave.groups) {

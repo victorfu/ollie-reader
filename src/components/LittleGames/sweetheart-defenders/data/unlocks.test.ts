@@ -36,6 +36,13 @@ describe("level gating", () => {
   it("refuses to unlock a level that does not exist", () => {
     expect(isLevelUnlocked("not-a-level", {})).toBe(false);
   });
+
+  it("keeps a cleared level open even if the one before it is not", () => {
+    // 戰役中段插入新關卡的情境：玩家早就打過第三關，新插進來的第二關還沒打。
+    // 已通關的關必須維持開放，不能因為「前一關」換人而被鎖回去。
+    expect(isLevelUnlocked(third.id, { [third.id]: 2 })).toBe(true);
+    expect(isLevelUnlocked(second.id, { [third.id]: 2 })).toBe(false);
+  });
 });
 
 describe("nextPlayableLevelId", () => {

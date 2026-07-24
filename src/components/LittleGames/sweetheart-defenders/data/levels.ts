@@ -2,13 +2,14 @@ import { buildWaves } from "./waveBuilder";
 import type { LevelSpec } from "../types";
 
 /**
- * 八張地圖。座標都是 1280×720 的邏輯座標，畫面再 letterbox 縮放上去。
+ * 十二張地圖。座標都是 1280×720 的邏輯座標，畫面再 letterbox 縮放上去。
  *
  * 路徑最後一點就是櫃檯：怪物走到那裡就會偷走蛋糕。塔位刻意放在離路徑
  * 75px 以上的地方（路面半寬 30 + 塔位半徑 28），才不會看起來蓋在路中間。
  *
- * 路徑長度**必須隨關卡遞增**，levels.test.ts 有斷言擋著。改版前最後一關的
- * 路線反而是全部裡最短的（22 秒 vs 第三關的 65 秒），難度曲線整個是亂的。
+ * 路線長度不必嚴格遞增，但 levels.test.ts 擋著兩件事：沒有一條路短於
+ * 2400px，而且壓軸關不能是全部裡最短的。改版前最後一關 22 秒就被走完
+ *（比第一關還短），難度曲線整個是亂的。
  *
  * 波表由 waveBuilder 依「節奏 + 強度」產生，這裡只描述每張地圖有哪些怪、
  * 難度大概多高——想重新平衡就是改 intensity。
@@ -229,7 +230,7 @@ const STOCKROOM_LOOP: LevelSpec = {
     rush: ["marshmallow", "lollipop"],
     tank: ["chocolate", "lollipop"],
     bosses: ["pudding-king", "macaron-queen"],
-    intensity: 1.4,
+    intensity: 1.35,
     pathCount: 1,
   }),
   startingFrosting: 578,
@@ -316,7 +317,7 @@ const CANDY_FACTORY: LevelSpec = {
     swarm: ["gumdrop", "soda"],
     rush: ["marshmallow", "frosting-ghost", "lollipop"],
     tank: ["chocolate", "lollipop"],
-    bosses: ["pudding-king", "macaron-queen", "cake-titan"],
+    bosses: ["pudding-king", "macaron-queen"],
     intensity: 1.5,
     pathCount: 3,
   }),
@@ -372,7 +373,7 @@ const CHOCOLATE_FOUNTAIN: LevelSpec = {
     swarm: ["gumdrop", "soda"],
     rush: ["marshmallow", "lollipop"],
     tank: ["chocolate", "lollipop"],
-    bosses: ["macaron-queen", "cake-titan", "pudding-king"],
+    bosses: ["macaron-queen", "cake-titan"],
     intensity: 1.55,
     pathCount: 1,
   }),
@@ -450,8 +451,8 @@ const MARSHMALLOW_STAIRS: LevelSpec = {
     swarm: ["soda", "gumdrop"],
     rush: ["marshmallow", "frosting-ghost", "lollipop"],
     tank: ["chocolate", "lollipop"],
-    bosses: ["cake-titan", "macaron-queen", "pudding-king"],
-    intensity: 1.6,
+    bosses: ["cake-titan", "macaron-queen"],
+    intensity: 1.65,
     pathCount: 2,
   }),
   startingFrosting: 782,
@@ -566,8 +567,8 @@ const CAKE_HALL: LevelSpec = {
     swarm: ["gumdrop", "soda"],
     rush: ["marshmallow", "frosting-ghost", "lollipop"],
     tank: ["chocolate", "lollipop"],
-    bosses: ["macaron-queen", "cake-titan", "cake-titan"],
-    intensity: 1.7,
+    bosses: ["macaron-queen", "cake-titan"],
+    intensity: 1.75,
     pathCount: 4,
   }),
   startingFrosting: 952,
@@ -578,17 +579,265 @@ const CAKE_HALL: LevelSpec = {
     pathEdge: "#d3ab84",
     accent: "#f7c948",
   },
+  coinReward: { clear: 140, threeStars: 80 },
+};
+
+/** 地圖「餅乾迴廊」——三條長直道摺成的迴廊，練習把火力集中在轉角。 */
+const COOKIE_CORRIDOR: LevelSpec = {
+  id: "cookie-corridor",
+  nameZh: "餅乾迴廊",
+  paths: [
+    [
+      { x: -60, y: 180 },
+      { x: 950, y: 180 },
+      { x: 950, y: 420 },
+      { x: 280, y: 420 },
+      { x: 280, y: 650 },
+      { x: 1210, y: 650 },
+    ],
+  ],
+  slots: [
+    { id: "b1", x: 60, y: 60 },
+    { id: "b2", x: 60, y: 300 },
+    { id: "b3", x: 80, y: 540 },
+    { id: "b4", x: 300, y: 60 },
+    { id: "b5", x: 300, y: 300 },
+    { id: "b6", x: 350, y: 540 },
+    { id: "b7", x: 540, y: 60 },
+    { id: "b8", x: 540, y: 300 },
+    { id: "b9", x: 590, y: 540 },
+    { id: "b10", x: 780, y: 60 },
+    { id: "b11", x: 780, y: 300 },
+    { id: "b12", x: 830, y: 540 },
+    { id: "b13", x: 1010, y: 130 },
+  ],
+  waves: buildWaves({
+    swarm: ["gumdrop", "soda"],
+    rush: ["marshmallow"],
+    tank: ["chocolate"],
+    bosses: ["pudding-king", "macaron-queen"],
+    intensity: 1.2,
+    pathCount: 1,
+  }),
+  startingFrosting: 500,
+  theme: {
+    floor: "#fbf0dd",
+    floorEdge: "#eddcbc",
+    path: "#dfc294",
+    pathEdge: "#bfa06e",
+    accent: "#d98f4e",
+  },
+  coinReward: { clear: 75, threeStars: 45 },
+};
+
+/**
+ * 地圖「果醬瀑布」——兩個入口從上緣進來，匯流後往右一路直落的瀑布群。
+ *
+ * 兩個入口都放在畫面左半、櫃檯放右下：第一版把右邊的入口放在 (1120,-60)、
+ * 櫃檯在 (1210,260)，糖霜幽靈直線飛過去只有 332px，四秒就偷到蛋糕，
+ * 什麼塔都來不及反應。入口跟櫃檯的直線距離是飛行怪的實際路程，擺位時
+ * 必須跟走地路線一起看。
+ */
+const JAM_FALLS: LevelSpec = {
+  id: "jam-falls",
+  nameZh: "果醬瀑布",
+  paths: [
+    [
+      { x: 160, y: -60 },
+      { x: 160, y: 140 },
+      { x: 400, y: 140 },
+      { x: 400, y: 620 },
+      { x: 600, y: 620 },
+      { x: 600, y: 220 },
+      { x: 800, y: 220 },
+      { x: 800, y: 620 },
+      { x: 1000, y: 620 },
+      { x: 1000, y: 220 },
+      { x: 1180, y: 220 },
+      { x: 1180, y: 560 },
+      { x: 1210, y: 560 },
+    ],
+    [
+      { x: 640, y: -60 },
+      { x: 640, y: 140 },
+      { x: 400, y: 140 },
+      { x: 400, y: 620 },
+      { x: 600, y: 620 },
+      { x: 600, y: 220 },
+      { x: 800, y: 220 },
+      { x: 800, y: 620 },
+      { x: 1000, y: 620 },
+      { x: 1000, y: 220 },
+      { x: 1180, y: 220 },
+      { x: 1180, y: 560 },
+      { x: 1210, y: 560 },
+    ],
+  ],
+  slots: [
+    { id: "j1", x: 60, y: 60 },
+    { id: "j2", x: 60, y: 270 },
+    { id: "j3", x: 200, y: 420 },
+    { id: "j4", x: 210, y: 630 },
+    { id: "j5", x: 260, y: 210 },
+    { id: "j6", x: 400, y: 60 },
+    { id: "j7", x: 470, y: 260 },
+    { id: "j8", x: 470, y: 470 },
+    { id: "j9", x: 660, y: 660 },
+    { id: "j10", x: 670, y: 310 },
+    { id: "j11", x: 710, y: 60 },
+    { id: "j12", x: 870, y: 190 },
+    { id: "j13", x: 870, y: 400 },
+    { id: "j14", x: 1030, y: 60 },
+    { id: "j15", x: 1060, y: 660 },
+    { id: "j16", x: 1070, y: 290 },
+    { id: "j17", x: 1220, y: 140 },
+  ],
+  waves: buildWaves({
+    swarm: ["soda", "gumdrop"],
+    rush: ["marshmallow", "frosting-ghost"],
+    tank: ["chocolate", "lollipop"],
+    bosses: ["macaron-queen", "pudding-king"],
+    intensity: 1.45,
+    pathCount: 2,
+  }),
+  startingFrosting: 700,
+  theme: {
+    floor: "#fdeef2",
+    floorEdge: "#f3d3dd",
+    path: "#efb8c9",
+    pathEdge: "#d18ba1",
+    accent: "#e05c81",
+  },
+  coinReward: { clear: 95, threeStars: 60 },
+};
+
+/** 地圖「蜂蜜漩渦」——先直衝到中心，再一圈一圈往外繞出去。 */
+const HONEY_SWIRL: LevelSpec = {
+  id: "honey-swirl",
+  nameZh: "蜂蜜漩渦",
+  paths: [
+    [
+      { x: -60, y: 360 },
+      { x: 720, y: 360 },
+      { x: 720, y: 480 },
+      { x: 480, y: 480 },
+      { x: 480, y: 240 },
+      { x: 880, y: 240 },
+      { x: 880, y: 600 },
+      { x: 320, y: 600 },
+      { x: 320, y: 120 },
+      { x: 1040, y: 120 },
+      { x: 1040, y: 640 },
+      { x: 1210, y: 640 },
+    ],
+  ],
+  slots: [
+    { id: "y1", x: 60, y: 160 },
+    { id: "y2", x: 60, y: 430 },
+    { id: "y3", x: 120, y: 590 },
+    { id: "y4", x: 170, y: 290 },
+    { id: "y5", x: 200, y: 60 },
+    { id: "y6", x: 230, y: 450 },
+    { id: "y7", x: 280, y: 660 },
+    { id: "y8", x: 390, y: 190 },
+    { id: "y9", x: 390, y: 510 },
+    { id: "y10", x: 770, y: 310 },
+    { id: "y11", x: 770, y: 530 },
+    { id: "y12", x: 920, y: 660 },
+    { id: "y13", x: 930, y: 190 },
+    { id: "y14", x: 950, y: 360 },
+    { id: "y15", x: 1080, y: 60 },
+    { id: "y16", x: 1110, y: 230 },
+    { id: "y17", x: 1110, y: 420 },
+    { id: "y18", x: 1190, y: 570 },
+  ],
+  waves: buildWaves({
+    swarm: ["soda", "gumdrop"],
+    rush: ["frosting-ghost", "marshmallow", "lollipop"],
+    tank: ["chocolate", "lollipop"],
+    bosses: ["cake-titan", "macaron-queen"],
+    intensity: 1.6,
+    pathCount: 1,
+  }),
+  startingFrosting: 750,
+  theme: {
+    floor: "#fdf6e0",
+    floorEdge: "#efe1b8",
+    path: "#ecd28e",
+    pathEdge: "#c9a95e",
+    accent: "#d9a13a",
+  },
+  coinReward: { clear: 115, threeStars: 70 },
+};
+
+/** 地圖「拐杖糖山道」——由下往上四條長髮夾彎，一條路吃滿整張圖。 */
+const CANDY_CANE_PASS: LevelSpec = {
+  id: "candy-cane-pass",
+  nameZh: "拐杖糖山道",
+  paths: [
+    [
+      { x: -60, y: 650 },
+      { x: 1150, y: 650 },
+      { x: 1150, y: 470 },
+      { x: 130, y: 470 },
+      { x: 130, y: 290 },
+      { x: 1150, y: 290 },
+      { x: 1150, y: 110 },
+      { x: 1210, y: 110 },
+    ],
+  ],
+  slots: [
+    { id: "g1", x: 60, y: 110 },
+    { id: "g2", x: 60, y: 320 },
+    { id: "g3", x: 60, y: 530 },
+    { id: "g4", x: 240, y: 210 },
+    { id: "g5", x: 260, y: 580 },
+    { id: "g6", x: 340, y: 390 },
+    { id: "g7", x: 410, y: 90 },
+    { id: "g8", x: 470, y: 550 },
+    { id: "g9", x: 550, y: 360 },
+    { id: "g10", x: 610, y: 140 },
+    { id: "g11", x: 680, y: 540 },
+    { id: "g12", x: 780, y: 360 },
+    { id: "g13", x: 810, y: 90 },
+    { id: "g14", x: 890, y: 540 },
+    { id: "g15", x: 970, y: 220 },
+    { id: "g16", x: 1070, y: 400 },
+    { id: "g17", x: 1100, y: 60 },
+    { id: "g18", x: 1220, y: 230 },
+    { id: "g19", x: 1220, y: 540 },
+  ],
+  waves: buildWaves({
+    swarm: ["gumdrop", "soda"],
+    rush: ["marshmallow", "frosting-ghost", "lollipop"],
+    tank: ["lollipop", "chocolate"],
+    bosses: ["macaron-queen", "cake-titan"],
+    intensity: 1.7,
+    pathCount: 1,
+  }),
+  startingFrosting: 850,
+  theme: {
+    floor: "#fdf2f0",
+    floorEdge: "#f2d8d4",
+    path: "#eec3bd",
+    pathEdge: "#d1948c",
+    accent: "#e0555f",
+  },
   coinReward: { clear: 130, threeStars: 75 },
 };
 
 export const LEVELS: LevelSpec[] = [
   SHOP_PATH,
   KITCHEN_CROSS,
+  COOKIE_CORRIDOR,
   PARLOUR_HALL,
   STOCKROOM_LOOP,
+  JAM_FALLS,
   CANDY_FACTORY,
   CHOCOLATE_FOUNTAIN,
+  HONEY_SWIRL,
   MARSHMALLOW_STAIRS,
+  CANDY_CANE_PASS,
   CAKE_HALL,
 ];
 

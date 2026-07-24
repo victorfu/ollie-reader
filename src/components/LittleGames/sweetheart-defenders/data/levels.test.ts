@@ -220,6 +220,30 @@ describe("level geometry", () => {
     }
   });
 
+  it("keeps every flight route long enough to react to", () => {
+    /**
+     * 飛行怪不走地面路線，直接從入口直線飛到櫃檯（compileFlightPath）。
+     * 所以「入口與櫃檯的直線距離」才是飛行怪的實際路程——果醬瀑布第一版
+     * 把入口放在 (1120,-60)、櫃檯在 (1210,260)，幽靈 332px、四秒就偷到蛋糕，
+     * 塔完全來不及反應，數值怎麼調都救不回來。
+     *
+     * 下限 600：巧克力噴泉（螺旋進中心，680）是刻意設計的短飛行路線，
+     * 要留著；比它更短的都是擺位失誤。
+     */
+    const MIN_FLIGHT_DISTANCE = 600;
+
+    for (const level of LEVELS) {
+      for (const [index, path] of level.paths.entries()) {
+        const spawn = path[0];
+        const counter = path[path.length - 1];
+        expect(
+          Math.round(Math.hypot(counter.x - spawn.x, counter.y - spawn.y)),
+          `${level.nameZh} 第 ${index + 1} 條路的飛行捷徑太短`,
+        ).toBeGreaterThan(MIN_FLIGHT_DISTANCE);
+      }
+    }
+  });
+
   it("never lets the finale be the shortest walk", () => {
     const shortestRoute = (level: (typeof LEVELS)[number]) =>
       Math.min(...level.paths.map(pathLength));
@@ -237,9 +261,9 @@ describe("level geometry", () => {
 
 describe("level wave tables", () => {
   it.each(LEVELS.map((level) => [level.nameZh, level] as const))(
-    "%s runs 15 waves with bosses on 5, 10 and 15",
+    "%s runs 10 waves with bosses on 5 and 10",
     (_name, level) => {
-      expect(level.waves).toHaveLength(15);
+      expect(level.waves).toHaveLength(10);
 
       for (const [index, wave] of level.waves.entries()) {
         const hasBoss = previewWave(wave).some(

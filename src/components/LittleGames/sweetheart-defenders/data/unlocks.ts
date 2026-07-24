@@ -16,6 +16,10 @@ export function isLevelUnlocked(
   if (index < 0) return false;
   if (index === 0) return true;
 
+  // 打過的關永遠開著。少了這條，之後在戰役中段插入新關卡時，舊玩家已通關
+  // 的後段會因為「前一關（新插入的）還沒打」而整排被鎖回去。
+  if ((levelStars[levelId] ?? 0) > 0) return true;
+
   return (levelStars[LEVELS[index - 1].id] ?? 0) > 0;
 }
 

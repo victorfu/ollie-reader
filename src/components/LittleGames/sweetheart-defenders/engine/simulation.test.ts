@@ -92,7 +92,11 @@ describe("placeTower", () => {
     ]);
 
     expect(state.towers).toHaveLength(1);
-    expect(state.towers[0]).toMatchObject({ slotId: "a", characterId: "shiro", level: 1 });
+    expect(state.towers[0]).toMatchObject({
+      slotId: "a",
+      characterId: "shiro",
+      level: 1,
+    });
     expect(state.frosting).toBe(500 - getPlaceCost(pet));
   });
 
@@ -154,7 +158,9 @@ describe("upgradeTower and sellTower", () => {
     const level = makeTestLevel();
     const state = createBattle(level, "normal", 1);
 
-    run(state, level, 1, [{ kind: "placeTower", slotId: "a", characterId: "shiro" }]);
+    run(state, level, 1, [
+      { kind: "placeTower", slotId: "a", characterId: "shiro" },
+    ]);
     const afterPlacing = state.frosting;
 
     run(state, level, 1, [{ kind: "sellTower", slotId: "a" }]);
@@ -259,7 +265,10 @@ describe("towers in combat", () => {
   it("splits a soda bubble into minis when it pops", () => {
     const level = makeTestLevel({
       waves: [
-        { groups: [{ kind: "soda", count: 1, gapMs: 0, delayMs: 0 }], bonus: 0 },
+        {
+          groups: [{ kind: "soda", count: 1, gapMs: 0, delayMs: 0 }],
+          bonus: 0,
+        },
       ],
     });
     const state = createBattle(level, "normal", 1);
@@ -273,7 +282,9 @@ describe("towers in combat", () => {
     run(state, level, secondsToSteps(9));
 
     expect(state.kills).toBeGreaterThanOrEqual(1);
-    expect(state.enemies.every((enemy) => enemy.kind === "soda-mini")).toBe(true);
+    expect(state.enemies.every((enemy) => enemy.kind === "soda-mini")).toBe(
+      true,
+    );
   });
 
   it("leaves flying enemies untouched by the walking path's detours", () => {
@@ -360,7 +371,7 @@ describe("determinism", () => {
  * 失血通關（拿三星），一個隨便亂放的組合在普通難度也要過得去（不然小孩會被
  * 卡住），但在挑戰難度就該輸。之後調任何數值只要破壞其中一條，這裡就會叫。
  */
-describe("full 15-wave run on 店門小徑", () => {
+describe("full 10-wave run on 店門小徑", () => {
   /** 懂遊戲的人會蓋的組合：主力輸出 + 一座應援 + 一座控場。 */
   const GOOD_BUILD = [
     "minna-no-tabo",
@@ -404,7 +415,11 @@ describe("full 15-wave run on 店門小徑", () => {
         const characterId = build[placed % build.length];
         const pet = getCharacter(characterId)!;
         if (state.frosting >= getPlaceCost(pet)) {
-          commands.push({ kind: "placeTower", slotId: slotIds[placed], characterId });
+          commands.push({
+            kind: "placeTower",
+            slotId: slotIds[placed],
+            characterId,
+          });
           placed += 1;
         }
       } else if (state.towers.length > 0) {
@@ -455,8 +470,9 @@ describe("full 15-wave run on 店門小徑", () => {
     const { state } = playThrough("hard", NAIVE_BUILD);
 
     expect(state.phase).toBe("lost");
-    // 但也不能一開場就結束——要撐得夠久才有再試一次的動力。
-    expect(state.waveIndex).toBeGreaterThanOrEqual(8);
+    // 但也不能一開場就結束——至少完整打完前四波、倒在第一隻 Boss 手上，
+    // 才有「差一點就擋下來了」的再試一次動力。
+    expect(state.waveIndex).toBeGreaterThanOrEqual(4);
   });
 
   it("finishes every wave rather than stalling", () => {
@@ -470,8 +486,10 @@ describe("full 15-wave run on 店門小徑", () => {
     const { maxedAtWave } = playThrough("normal", GOOD_BUILD);
 
     // 全部點滿發生得太早，代表中後段沒東西可花，錢就失去意義了。
-    expect(maxedAtWave).not.toBeNull();
-    expect(maxedAtWave!).toBeGreaterThanOrEqual(10);
+    // 10 波的經濟下正常是整場都點不滿（null）；就算點滿也不能早於第 7 波。
+    if (maxedAtWave !== null) {
+      expect(maxedAtWave).toBeGreaterThanOrEqual(7);
+    }
   });
 
   it("leaves some frosting unspent rather than starving the player", () => {
@@ -499,7 +517,10 @@ describe("secondary-element traits in battle", () => {
   }
 
   /** 跑到塔至少開過一次火，回傳當下的狀態。 */
-  function runUntilFirstHit(characterId: string, level: CompiledLevel): BattleState {
+  function runUntilFirstHit(
+    characterId: string,
+    level: CompiledLevel,
+  ): BattleState {
     const state = createBattle(level, "normal", 1);
     run(state, level, 1, [
       { kind: "placeTower", slotId: "a", characterId },
@@ -632,8 +653,14 @@ describe("secondary-element traits in battle", () => {
   it("連擊: does not carry a streak over into the next wave", () => {
     const level = makeTestLevel({
       waves: [
-        { groups: [{ kind: "gumdrop", count: 1, gapMs: 0, delayMs: 0 }], bonus: 0 },
-        { groups: [{ kind: "gumdrop", count: 1, gapMs: 0, delayMs: 0 }], bonus: 0 },
+        {
+          groups: [{ kind: "gumdrop", count: 1, gapMs: 0, delayMs: 0 }],
+          bonus: 0,
+        },
+        {
+          groups: [{ kind: "gumdrop", count: 1, gapMs: 0, delayMs: 0 }],
+          bonus: 0,
+        },
       ],
     });
     const state = runUntilFirstHit("my-sweet-piano", level);
