@@ -125,3 +125,20 @@ def test_cors_appends_env_origins(load_config):
 def test_cors_rejects_wildcard_origin(load_config, origin):
     with pytest.raises(ValueError, match="OLLIE_CORS_ORIGINS"):
         load_config(OLLIE_CORS_ORIGINS=f"https://ollie.example.app, {origin}")
+
+
+def test_version_matches_pyproject():
+    """config.VERSION 與 pyproject 的 version 必須一致。
+
+    release/version.py 把 pyproject 當單一真實來源（dmg 檔名、GitHub tag、
+    CFBundleVersion 都取自它），但 config.VERSION 是另外寫死的一份 —— frozen
+    後 pyproject.toml 不在 bundle 裡，所以沒法在執行期讀。兩者一旦不同步，
+    /api/version 與托盤顯示的版本就會和實際發佈的 .dmg 對不上。
+    """
+    from pathlib import Path
+
+    from release.version import read_version
+    from server.config import VERSION
+
+    pyproject = Path(__file__).resolve().parents[1] / "pyproject.toml"
+    assert VERSION == read_version(pyproject)
