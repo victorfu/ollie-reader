@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { Check, RotateCcw } from "lucide-react";
 import { playSound } from "../../services/gameService";
 
 interface SpellChipsProps {
@@ -89,16 +90,18 @@ export function SpellChips({ letters, disabled, onSubmit }: SpellChipsProps) {
           <button
             onClick={clearAll}
             disabled={chosen.length === 0}
-            className="btn btn-ghost btn-sm rounded-full min-h-11 px-5 disabled:opacity-40"
+            className="btn btn-ghost btn-sm gap-1 rounded-full min-h-11 px-5 disabled:opacity-40"
           >
-            ↺ 清除
+            <RotateCcw className="h-4 w-4" strokeWidth={2} aria-hidden="true" />
+            清除
           </button>
           <button
             onClick={() => onSubmit(attempt)}
             disabled={!isFull}
-            className="btn btn-primary btn-sm rounded-full min-h-11 px-6 disabled:opacity-40 active:scale-[0.98]"
+            className="btn btn-primary btn-sm gap-1 rounded-full min-h-11 px-6 disabled:opacity-40 active:scale-[0.98]"
           >
-            完成 ✓
+            完成
+            <Check className="h-4 w-4" strokeWidth={2.5} aria-hidden="true" />
           </button>
         </div>
       )}

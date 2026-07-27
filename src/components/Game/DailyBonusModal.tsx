@@ -1,4 +1,5 @@
 import { motion } from "framer-motion";
+import { Coins, Flame } from "lucide-react";
 import type { DailyBonusResult } from "../../services/economyService";
 
 interface DailyBonusModalProps {
@@ -40,11 +41,12 @@ export function DailyBonusModal({
           </h2>
           {bonus.streakDays > 1 && (
             <div className="badge badge-error badge-lg gap-1 mt-1">
-              🔥 連續登入 {bonus.streakDays} 天
+              <Flame className="mr-1 inline h-3.5 w-3.5 align-[-2px]" strokeWidth={2} aria-hidden="true" />
+              連續登入 {bonus.streakDays} 天
             </div>
           )}
           <div className="flex items-center gap-2 mt-4">
-            <span className="text-4xl">🪙</span>
+            <Coins className="h-9 w-9 text-warning" strokeWidth={2} aria-hidden="true" />
             <span className="text-3xl font-bold text-warning">
               +{bonus.coins} 扭蛋代幣
             </span>

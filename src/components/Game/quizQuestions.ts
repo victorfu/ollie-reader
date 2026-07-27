@@ -56,9 +56,11 @@ function stemOf(word: string): string {
 }
 
 /**
- * 英文釋義常常直接含有被考的單字（"Perseverance" → "the act of persevering"），
+ * 釋義常常直接含有被考的單字 —— 英文的 "Perseverance" → "the act of
+ * persevering"，中文的也會出現「「Sorts」表示許多不同類型的事物」——
  * 拿來當 spell 的提示、reverse 的題幹或 meaning 的正解都會直接洩答案，改遮成 ____。
  * 全部釋義（含干擾項）一視同仁 — 只遮正解的話，____ 本身就變成答案標記。
+ * 只比對拉丁字母，純中文釋義不會被動到。
  */
 function redactHeadword(text: string, word: string): string {
   const stem = stemOf(word);
@@ -82,7 +84,7 @@ function rawDef(word: GameWord, lang: DefLanguage): string | null {
 function defOf(word: GameWord, lang: DefLanguage): string | null {
   const value = rawDef(word, lang);
   if (value === null) return null;
-  return lang === "en" ? redactHeadword(value, word.word) : value;
+  return redactHeadword(value, word.word);
 }
 
 /**

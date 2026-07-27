@@ -4,6 +4,7 @@ import confetti from "canvas-confetti";
 import type { GameReward } from "../../types/game";
 import { playSound } from "../../services/gameService";
 import { COIN_REWARDS } from "../../services/economyService";
+import { Coins, Flame, PartyPopper, Star } from "lucide-react";
 
 interface RewardModalProps {
   reward: GameReward;
@@ -90,7 +91,7 @@ export function RewardModal({ reward, onClaim }: RewardModalProps) {
             transition={{ delay: 0.3 }}
             className="text-2xl font-semibold tracking-tight"
           >
-            {reward.isBossVictory ? "你打敗魔王了！" : "🏆 關卡完成！"}
+            {reward.isBossVictory ? "你打敗魔王了！" : "關卡完成！"}
           </motion.h2>
 
           {/* 經驗值獎勵 */}
@@ -100,7 +101,7 @@ export function RewardModal({ reward, onClaim }: RewardModalProps) {
             transition={{ delay: 0.4 }}
             className="flex items-center gap-2 mt-4"
           >
-            <span className="text-4xl">⭐</span>
+            <Star className="h-9 w-9 fill-primary text-primary" strokeWidth={2} aria-hidden="true" />
             <span className="text-3xl font-bold text-primary">
               +{reward.expGained} EXP
             </span>
@@ -114,7 +115,7 @@ export function RewardModal({ reward, onClaim }: RewardModalProps) {
               transition={{ delay: 0.5 }}
               className="flex items-center gap-2 mt-2"
             >
-              <span className="text-3xl">🪙</span>
+              <Coins className="h-8 w-8 text-warning" strokeWidth={2} aria-hidden="true" />
               <span className="text-2xl font-bold text-warning">
                 +{reward.coinsGained} 扭蛋代幣
               </span>
@@ -143,7 +144,7 @@ export function RewardModal({ reward, onClaim }: RewardModalProps) {
               transition={{ delay: 0.6, type: "spring" }}
               className="mt-4 p-4 bg-gradient-to-r from-warning/20 to-warning/10 rounded-xl"
             >
-              <span className="text-2xl">🎊</span>
+              <PartyPopper className="h-6 w-6" strokeWidth={2} aria-hidden="true" />
               <h3 className="text-xl font-bold text-warning mt-2">升級了！</h3>
               <p className="text-lg font-medium">
                 等級 {reward.newLevel - 1} → {reward.newLevel}
@@ -159,7 +160,7 @@ export function RewardModal({ reward, onClaim }: RewardModalProps) {
               transition={{ delay: 1 }}
               className="mt-4 badge badge-warning badge-lg gap-2"
             >
-              <span>🔥</span>
+              <Flame className="h-4 w-4" strokeWidth={2} aria-hidden="true" />
               新連擊紀錄！
             </motion.div>
           )}

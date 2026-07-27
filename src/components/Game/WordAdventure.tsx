@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { CircleAlert, Gamepad2 } from "lucide-react";
 import { useAdventure } from "../../hooks/useAdventure";
 import { useAdventureDefLanguage } from "../../hooks/useAdventureDefLanguage";
 import { useVocabulary } from "../../hooks/useVocabulary";
@@ -33,6 +34,7 @@ export function WordAdventure() {
     tokenSyncError,
     startQuiz,
     submitAnswer,
+    advanceQuestion,
     tickTimer,
     claimReward,
     claimDailyBonus,
@@ -71,7 +73,11 @@ export function WordAdventure() {
     return (
       <div className="min-h-[calc(100vh-8rem)] flex items-center justify-center p-4 sm:p-6">
         <div className="glass rounded-2xl shadow-floating p-6 text-center max-w-md">
-          <span className="text-4xl mb-4">😢</span>
+          <CircleAlert
+            className="mx-auto mb-4 h-10 w-10 text-error"
+            strokeWidth={1.5}
+            aria-hidden="true"
+          />
           <h2 className="text-lg font-semibold text-error mb-2">載入失敗</h2>
           <p className="text-muted-foreground mb-4">{error}</p>
           <button
@@ -90,7 +96,11 @@ export function WordAdventure() {
     return (
       <div className="min-h-[calc(100vh-8rem)] flex items-center justify-center">
         <div className="text-center">
-          <span className="text-6xl mb-4 block">🎮</span>
+          <Gamepad2
+            className="mx-auto mb-4 h-14 w-14 text-muted-foreground"
+            strokeWidth={1.5}
+            aria-hidden="true"
+          />
           <p className="text-muted-foreground">請先登入以開始遊戲</p>
         </div>
       </div>
@@ -167,6 +177,7 @@ export function WordAdventure() {
           quizState={quizState}
           timeLimit={quizTimeLimit}
           onSubmitAnswer={submitAnswer}
+          onAdvanceQuestion={advanceQuestion}
           onTickTimer={tickTimer}
           onQuit={() => setGameView("map")}
         />
@@ -179,6 +190,7 @@ export function WordAdventure() {
           bossState={bossState}
           timeLimit={quizTimeLimit}
           onSubmitAnswer={submitAnswer}
+          onAdvanceQuestion={advanceQuestion}
           onTickTimer={tickTimer}
           onQuit={() => setGameView("map")}
         />

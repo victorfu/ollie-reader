@@ -1,6 +1,14 @@
 import { useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import confetti from "canvas-confetti";
+import {
+  ArrowRight,
+  Check,
+  CircleCheck,
+  CircleX,
+  Timer,
+  Volume2,
+} from "lucide-react";
 import type { QuizQuestion } from "../../types/game";
 import { playSound } from "../../services/gameService";
 import { SpellChips } from "./SpellChips";
@@ -14,9 +22,16 @@ interface QuizCardProps {
   timeLimit: number;
   isAnswered: boolean;
   lastAnswerCorrect: boolean | null;
+  /** 本題推進後就會結算（沒命了 / 最後一題），按鈕改成「看結果」 */
+  isLastStep?: boolean;
   onAnswer: (answer: number | string) => void;
+  /** 答錯／逾時後手動推進。答對時由父層自動推進，不顯示按鈕 */
+  onNext?: () => void;
   speak?: (text: string) => void;
 }
+
+// 聽力題與看圖題的題幹看不到英文單字，揭曉答案時要補上
+const HIDES_WORD: Record<string, boolean> = { listen: true, emoji: true };
 
 // 各選項題型的中文小提示
 const PROMPT_HINT: Record<string, string> = {
@@ -39,7 +54,9 @@ export function QuizCard({
   timeLimit,
   isAnswered,
   lastAnswerCorrect,
+  isLastStep = false,
   onAnswer,
+  onNext,
   speak,
 }: QuizCardProps) {
   // 聽力題進場自動唸（StrictMode 以 ref 防雙念）
@@ -70,14 +87,21 @@ export function QuizCard({
     }
   }, [lastAnswerCorrect]);
 
-  // 鍵盤 1-4（僅選項題）
+  // 鍵盤：作答用 1-4（僅選項題）；答錯停住時用 Enter 推進
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
-      if (isAnswered || question.kind === "spell") return;
+      if (isAnswered) {
+        if (onNext && lastAnswerCorrect === false && e.key === "Enter") {
+          e.preventDefault();
+          onNext();
+        }
+        return;
+      }
+      if (question.kind === "spell") return;
       const map: Record<string, number> = { "1": 0, "2": 1, "3": 2, "4": 3 };
       if (map[e.key] !== undefined) onAnswer(map[e.key]);
     },
-    [isAnswered, question.kind, onAnswer],
+    [isAnswered, lastAnswerCorrect, question.kind, onAnswer, onNext],
   );
   useEffect(() => {
     window.addEventListener("keydown", handleKeyDown);
@@ -97,11 +121,12 @@ export function QuizCard({
               第 {questionIndex + 1} / {totalQuestions} 題
             </span>
             <span
-              className={`text-lg font-bold ${
+              className={`inline-flex items-center gap-1.5 text-lg font-bold tabular-nums ${
                 timeLeft <= 3 ? "text-error animate-pulse" : ""
               }`}
             >
-              ⏱️ {timeLeft}s
+              <Timer className="h-4 w-4" strokeWidth={2} aria-hidden="true" />
+              {timeLeft}s
             </span>
           </div>
           <div className="w-full bg-base-300 rounded-full h-2 overflow-hidden">
@@ -132,9 +157,10 @@ export function QuizCard({
           {question.kind === "listen" && (
             <button
               onClick={() => speak?.(question.word)}
-              className="btn btn-primary rounded-full text-xl min-h-14 px-8 active:scale-95"
+              className="btn btn-primary gap-2 rounded-full text-lg min-h-14 px-8 active:scale-95"
             >
-              🔊 再聽一次
+              <Volume2 className="h-5 w-5" strokeWidth={2} aria-hidden="true" />
+              再聽一次
             </button>
           )}
           {question.kind === "spell" && (
@@ -188,7 +214,13 @@ export function QuizCard({
                 >
                   <span className="badge badge-ghost mr-3">{index + 1}</span>
                   <span className="flex-1">{option}</span>
-                  {isAnswered && isCorrect && <span className="text-xl">✓</span>}
+                  {isAnswered && isCorrect && (
+                    <Check
+                      className="h-5 w-5 shrink-0"
+                      strokeWidth={2.5}
+                      aria-hidden="true"
+                    />
+                  )}
                 </motion.button>
               );
             })}
@@ -208,16 +240,73 @@ export function QuizCard({
                   : "bg-error/20 text-error"
               }`}
             >
-              {lastAnswerCorrect ? (
-                <span className="font-bold">🎉 答對了！太棒了！</span>
-              ) : (
-                <span className="font-bold">
-                  😅 答錯了，正確答案是「
-                  {question.kind === "spell"
-                    ? question.word
-                    : question.options[question.correctIndex]}
-                  」
-                </span>
+              <span className="inline-flex items-center justify-center gap-2 font-bold">
+                {lastAnswerCorrect ? (
+                  <>
+                    <CircleCheck
+                      className="h-5 w-5 shrink-0"
+                      strokeWidth={2}
+                      aria-hidden="true"
+                    />
+                    答對了！太棒了！
+                  </>
+                ) : (
+                  <>
+                    <CircleX
+                      className="h-5 w-5 shrink-0"
+                      strokeWidth={2}
+                      aria-hidden="true"
+                    />
+                    <span>
+                      答錯了，正確答案是「
+                      {question.kind === "spell"
+                        ? question.word
+                        : question.options[question.correctIndex]}
+                      」
+                    </span>
+                  </>
+                )}
+              </span>
+
+              {/* 聽力／看圖題的題幹沒有英文單字，揭曉時補上並可再聽一次 */}
+              {HIDES_WORD[question.kind] && (
+                <div className="mt-2 flex items-center justify-center gap-2">
+                  <span className="text-xs opacity-70">單字</span>
+                  <span className="text-lg font-bold tracking-tight">
+                    {question.word}
+                  </span>
+                  {speak && (
+                    <button
+                      type="button"
+                      onClick={() => speak(question.word)}
+                      aria-label={`再聽一次 ${question.word}`}
+                      className="btn btn-ghost btn-xs btn-circle"
+                    >
+                      <Volume2
+                        className="h-4 w-4"
+                        strokeWidth={2}
+                        aria-hidden="true"
+                      />
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* 答錯不自動跳題：讓玩家看清正確答案，自己決定何時繼續 */}
+              {onNext && lastAnswerCorrect === false && (
+                <button
+                  type="button"
+                  onClick={onNext}
+                  autoFocus
+                  className="btn btn-primary btn-sm mt-3 min-h-11 gap-1 px-5 active:scale-[0.98]"
+                >
+                  {isLastStep ? "看結果" : "下一題"}
+                  <ArrowRight
+                    className="h-4 w-4"
+                    strokeWidth={2}
+                    aria-hidden="true"
+                  />
+                </button>
               )}
             </motion.div>
           )}

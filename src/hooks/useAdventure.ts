@@ -89,6 +89,8 @@ interface UseAdventureReturn {
     preferredDefLanguage?: DefLanguage,
   ) => Promise<void>;
   submitAnswer: (answer: number | string) => void;
+  /** 答錯／逾時後由玩家手動推進；答對時 submitAnswer 會自動呼叫 */
+  advanceQuestion: () => void;
   tickTimer: () => void;
   claimReward: () => Promise<void>;
   claimDailyBonus: () => Promise<void>;
@@ -201,9 +203,14 @@ export function useAdventure(): UseAdventureReturn {
   const [bossState, setBossState] = useState<BossState | null>(null);
   const bossStateRef = useRef<BossState | null>(null);
   const bossHpRef = useRef<number>(0);
+  // 讓 tickTimer 能在 updater 外判斷逾時，updater 才能保持純函式
+  const quizStateRef = useRef<QuizState | null>(null);
   useEffect(() => {
     bossStateRef.current = bossState;
   }, [bossState]);
+  useEffect(() => {
+    quizStateRef.current = quizState;
+  }, [quizState]);
 
   // 初始化遊戲（載入玩家進度）
   const initializeGame = useCallback(async () => {
@@ -485,6 +492,42 @@ export function useAdventure(): UseAdventureReturn {
     [user],
   );
 
+  /**
+   * 推進到下一題（或結算本輪）。
+   * 答對 → submitAnswer 排 1.5 秒後自動呼叫；答錯／逾時 → 由玩家按「下一題」呼叫。
+   * 只有 isAnswered 的題目能推進，順便擋掉連點跳題。
+   */
+  const advanceQuestion = useCallback(() => {
+    const inBoss = bossStateRef.current !== null;
+    setQuizState((prev) => {
+      if (!prev || !prev.isAnswered) return prev;
+
+      const isLastQuestion = prev.currentIndex >= prev.questions.length - 1;
+
+      if (inBoss) {
+        if (bossHpRef.current <= 0) {
+          handleQuizEnd(true, prev.score, prev.combo); // 打敗魔王
+          return prev;
+        }
+        if (prev.lives <= 0 || isLastQuestion) {
+          handleQuizEnd(false, prev.score, prev.combo); // 被擊敗 / 魔王存活
+          return prev;
+        }
+      } else if (isLastQuestion || prev.lives <= 0) {
+        handleQuizEnd(prev.lives > 0, prev.score, prev.combo);
+        return prev;
+      }
+
+      return {
+        ...prev,
+        currentIndex: prev.currentIndex + 1,
+        timeLeft: QUIZ_TIME_LIMIT,
+        isAnswered: false,
+        lastAnswerCorrect: null,
+      };
+    });
+  }, [handleQuizEnd]);
+
   // 提交答案（選項題傳 index，拼字題傳字串）
   const submitAnswer = useCallback(
     (answer: number | string) => {
@@ -536,110 +579,55 @@ export function useAdventure(): UseAdventureReturn {
         };
       });
 
-      // 延遲後進入下一題或結束
-      const timeoutId = setTimeout(() => {
-        timeoutRefs.current.delete(timeoutId);
-        setQuizState((prev) => {
-          if (!prev) return prev;
-
-          const isLastQuestion = prev.currentIndex >= prev.questions.length - 1;
-
-          if (inBoss) {
-            if (bossHpRef.current <= 0) {
-              handleQuizEnd(true, prev.score, prev.combo); // 打敗魔王
-              return prev;
-            }
-            if (prev.lives <= 0 || isLastQuestion) {
-              handleQuizEnd(false, prev.score, prev.combo); // 被擊敗 / 魔王存活
-              return prev;
-            }
-          } else if (isLastQuestion || prev.lives <= 0) {
-            handleQuizEnd(prev.lives > 0, prev.score, prev.combo);
-            return prev;
-          }
-
-          // 進入下一題
-          return {
-            ...prev,
-            currentIndex: prev.currentIndex + 1,
-            timeLeft: QUIZ_TIME_LIMIT,
-            isAnswered: false,
-            lastAnswerCorrect: null,
-          };
-        });
-      }, 1500);
-      timeoutRefs.current.add(timeoutId);
-    },
-    [quizState, handleQuizEnd],
-  );
-
-  // 計時器每秒減少
-  const tickTimer = useCallback(() => {
-    const inBoss = bossStateRef.current !== null;
-    setQuizState((prev) => {
-      if (!prev || prev.isAnswered) return prev;
-
-      const newTimeLeft = prev.timeLeft - 1;
-
-      if (newTimeLeft <= 0) {
-        answeredQuestionIndexRef.current = prev.currentIndex;
-        // 時間到，視為答錯
-        const newLives = prev.lives - 1;
-
+      // 答對才自動進下一題；答錯停在原地，讓玩家看清正確答案後自己按「下一題」
+      if (isCorrect) {
         const timeoutId = setTimeout(() => {
           timeoutRefs.current.delete(timeoutId);
-          if (inBoss) {
-            setBossState((s) => (s ? { ...s, lastHit: "player" } : s));
-          }
-          setQuizState((p) => {
-            if (!p) return p;
-
-            const isLastQuestion = p.currentIndex >= p.questions.length - 1;
-
-            if (inBoss) {
-              // 逾時＝失誤：沒命或題目用完（魔王存活）都算敗
-              if (p.lives <= 0 || isLastQuestion) {
-                handleQuizEnd(false, p.score, p.combo);
-                return p;
-              }
-            } else {
-              if (p.lives <= 0) {
-                handleQuizEnd(false, p.score, p.combo);
-                return p;
-              }
-              if (isLastQuestion) {
-                handleQuizEnd(true, p.score, p.combo);
-                return p;
-              }
-            }
-
-            return {
-              ...p,
-              currentIndex: p.currentIndex + 1,
-              timeLeft: QUIZ_TIME_LIMIT,
-              isAnswered: false,
-              lastAnswerCorrect: null,
-            };
-          });
-        }, 1000);
+          advanceQuestion();
+        }, 1500);
         timeoutRefs.current.add(timeoutId);
-
-        return {
-          ...prev,
-          timeLeft: 0,
-          lives: newLives,
-          combo: 0,
-          isAnswered: true,
-          lastAnswerCorrect: false,
-        };
       }
+    },
+    [quizState, advanceQuestion],
+  );
 
-      return {
-        ...prev,
-        timeLeft: newTimeLeft,
-      };
-    });
-  }, [handleQuizEnd]);
+  /**
+   * 計時器每秒減少。逾時＝答錯：扣命、斷連擊，但**不**自動推進 —
+   * 和答錯一樣停下來等玩家自己按「下一題」。
+   * 判斷寫在 updater 外（讀 quizStateRef），避免在 updater 內做副作用；
+   * StrictMode 會重複呼叫 updater，舊寫法會排到兩個推進計時器而跳題。
+   */
+  const tickTimer = useCallback(() => {
+    const current = quizStateRef.current;
+    if (!current || current.isAnswered) return;
+
+    if (current.timeLeft > 1) {
+      setQuizState((prev) =>
+        prev && !prev.isAnswered
+          ? { ...prev, timeLeft: prev.timeLeft - 1 }
+          : prev,
+      );
+      return;
+    }
+
+    // 時間到
+    if (bossStateRef.current !== null) {
+      setBossState((s) => (s ? { ...s, lastHit: "player" } : s));
+    }
+    answeredQuestionIndexRef.current = current.currentIndex;
+    setQuizState((prev) =>
+      prev && !prev.isAnswered
+        ? {
+            ...prev,
+            timeLeft: 0,
+            lives: prev.lives - 1,
+            combo: 0,
+            isAnswered: true,
+            lastAnswerCorrect: false,
+          }
+        : prev,
+    );
+  }, []);
 
   // 領取獎勵
   const claimReward = useCallback(async () => {
@@ -744,6 +732,7 @@ export function useAdventure(): UseAdventureReturn {
     initializeGame,
     startQuiz,
     submitAnswer,
+    advanceQuestion,
     tickTimer,
     claimReward,
     claimDailyBonus,

@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { motion } from "framer-motion";
+import { Flame, Heart, Lightbulb, X } from "lucide-react";
 import type { QuizState, Stage } from "../../types/game";
 import { SceneBackground } from "./SceneBackground";
 import { QuizCard } from "./QuizCard";
@@ -10,6 +11,7 @@ interface QuizGameProps {
   quizState: QuizState;
   timeLimit: number;
   onSubmitAnswer: (answer: number | string) => void;
+  onAdvanceQuestion: () => void;
   onTickTimer: () => void;
   onQuit: () => void;
 }
@@ -19,6 +21,7 @@ export function QuizGame({
   quizState,
   timeLimit,
   onSubmitAnswer,
+  onAdvanceQuestion,
   onTickTimer,
   onQuit,
 }: QuizGameProps) {
@@ -27,6 +30,11 @@ export function QuizGame({
     ((quizState.currentIndex + 1) / quizState.questions.length) * 100;
 
   const { speak } = useSpeechState();
+
+  // 推進後就會結算：沒命了，或已是最後一題
+  const isLastStep =
+    quizState.lives <= 0 ||
+    quizState.currentIndex >= quizState.questions.length - 1;
 
   // 計時器
   useEffect(() => {
@@ -44,9 +52,10 @@ export function QuizGame({
         <div className="flex items-center justify-between mb-4 mt-10">
           <button
             onClick={onQuit}
-            className="btn btn-ghost btn-sm glass rounded-full active:scale-[0.98]"
+            className="btn btn-ghost btn-sm glass gap-1 rounded-full active:scale-[0.98]"
           >
-            ✕ 離開
+            <X className="h-4 w-4" strokeWidth={2} aria-hidden="true" />
+            離開
           </button>
 
           <div className="flex items-center gap-2 sm:gap-4">
@@ -60,9 +69,16 @@ export function QuizGame({
                     scale: i < quizState.lives ? 1 : 0.8,
                     opacity: i < quizState.lives ? 1 : 0.3,
                   }}
-                  className="text-lg sm:text-xl"
                 >
-                  {i < quizState.lives ? "❤️" : "🖤"}
+                  <Heart
+                    className={`h-5 w-5 ${
+                      i < quizState.lives
+                        ? "fill-error text-error"
+                        : "text-base-content/25"
+                    }`}
+                    strokeWidth={2}
+                    aria-hidden="true"
+                  />
                 </motion.span>
               ))}
             </div>
@@ -73,9 +89,10 @@ export function QuizGame({
                 key={quizState.combo}
                 initial={{ scale: 1.5, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
-                className="badge badge-warning badge-md sm:badge-lg font-bold shadow-lg"
+                className="badge badge-warning badge-md sm:badge-lg gap-1 font-bold text-white shadow-lg"
               >
-                🔥 {quizState.combo} 連擊
+                <Flame className="h-4 w-4" strokeWidth={2} aria-hidden="true" />
+                {quizState.combo} 連擊
               </motion.div>
             )}
 
@@ -112,7 +129,9 @@ export function QuizGame({
               timeLimit={timeLimit}
               isAnswered={quizState.isAnswered}
               lastAnswerCorrect={quizState.lastAnswerCorrect}
+              isLastStep={isLastStep}
               onAnswer={onSubmitAnswer}
+              onNext={onAdvanceQuestion}
               speak={speak}
             />
           </motion.div>
@@ -120,8 +139,13 @@ export function QuizGame({
 
         {/* 鍵盤提示 */}
         <div className="text-center mt-4">
-          <p className="text-xs text-muted-foreground glass inline-block px-4 py-2 rounded-full">
-            💡 選項題可用數字鍵 1-4 快速作答
+          <p className="text-xs text-muted-foreground glass inline-flex items-center gap-1.5 px-4 py-2 rounded-full">
+            <Lightbulb
+              className="h-3.5 w-3.5"
+              strokeWidth={2}
+              aria-hidden="true"
+            />
+            選項題可用數字鍵 1-4 作答，答錯後按 Enter 繼續
           </p>
         </div>
       </div>

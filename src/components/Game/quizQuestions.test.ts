@@ -299,6 +299,26 @@ describe("英文釋義模式", () => {
     expect(q.hint).toContain("____");
   });
 
+  // 中文釋義也會夾帶英文單字（實際遇到過「「Sorts」表示許多不同類型的事物」）
+  it("masks the head word inside a Chinese def too", () => {
+    const pool: GameWord[] = [
+      { word: "Sorts", def: "「Sorts」表示許多不同類型的事物。", emoji: "" },
+      ...POOL.slice(0, 3),
+    ];
+    const q = buildQuizQuestions(pool, makeStage({ questionCount: 1 }))[0];
+    if (q.kind === "spell") throw new Error("unexpected spell");
+    expect(q.options[q.correctIndex]).not.toMatch(/sorts/i);
+    expect(q.options[q.correctIndex]).toContain("____");
+  });
+
+  it("leaves a pure Chinese def alone", () => {
+    const qs = buildQuizQuestions(POOL, makeStage({ questionCount: 5 }));
+    qs.forEach((q, i) => {
+      if (q.kind === "spell") throw new Error("unexpected spell");
+      expect(q.options[q.correctIndex]).toBe(POOL[i].def);
+    });
+  });
+
   it("leaves Chinese mode untouched when English defs exist", () => {
     const qs = buildQuizQuestions(
       BILINGUAL_POOL,

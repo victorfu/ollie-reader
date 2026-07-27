@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { motion, useReducedMotion } from "framer-motion";
+import { Flame, Heart, Swords, X } from "lucide-react";
 import type { QuizState, Stage } from "../../types/game";
 import type { BossState } from "../../hooks/useAdventure";
 import { SceneBackground } from "./SceneBackground";
@@ -13,6 +14,7 @@ interface BossBattleProps {
   bossState: BossState;
   timeLimit: number;
   onSubmitAnswer: (answer: number | string) => void;
+  onAdvanceQuestion: () => void;
   onTickTimer: () => void;
   onQuit: () => void;
 }
@@ -35,12 +37,19 @@ export function BossBattle({
   bossState,
   timeLimit,
   onSubmitAnswer,
+  onAdvanceQuestion,
   onTickTimer,
   onQuit,
 }: BossBattleProps) {
   const currentQuestion = quizState.questions[quizState.currentIndex];
   const { speak } = useSpeechState();
   const reduce = useReducedMotion();
+
+  // 推進後就會結算：魔王倒了、沒命了，或已是最後一題
+  const isLastStep =
+    bossState.bossHp <= 0 ||
+    quizState.lives <= 0 ||
+    quizState.currentIndex >= quizState.questions.length - 1;
 
   // 計時器
   useEffect(() => {
@@ -67,9 +76,10 @@ export function BossBattle({
         <div className="flex items-center justify-between mb-4 mt-10">
           <button
             onClick={onQuit}
-            className="btn btn-ghost btn-sm glass rounded-full active:scale-[0.98]"
+            className="btn btn-ghost btn-sm glass gap-1 rounded-full active:scale-[0.98]"
           >
-            ✕ 離開
+            <X className="h-4 w-4" strokeWidth={2} aria-hidden="true" />
+            離開
           </button>
           <div className="flex items-center gap-2 sm:gap-4">
             <div className="flex items-center gap-1 glass px-3 py-1 rounded-full">
@@ -83,7 +93,15 @@ export function BossBattle({
                   }}
                   className="text-lg sm:text-xl"
                 >
-                  {i < quizState.lives ? "❤️" : "🖤"}
+                  <Heart
+                    className={`h-5 w-5 ${
+                      i < quizState.lives
+                        ? "fill-error text-error"
+                        : "text-base-content/25"
+                    }`}
+                    strokeWidth={2}
+                    aria-hidden="true"
+                  />
                 </motion.span>
               ))}
             </div>
@@ -92,9 +110,10 @@ export function BossBattle({
                 key={quizState.combo}
                 initial={{ scale: 1.5, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
-                className="badge badge-warning badge-md sm:badge-lg font-bold shadow-lg"
+                className="badge badge-warning badge-md sm:badge-lg gap-1 font-bold text-white shadow-lg"
               >
-                🔥 {quizState.combo} 連擊{quizState.combo >= 3 ? " 爆擊!" : ""}
+                <Flame className="h-4 w-4" strokeWidth={2} aria-hidden="true" />
+                {quizState.combo} 連擊{quizState.combo >= 3 ? " 爆擊!" : ""}
               </motion.div>
             )}
           </div>
@@ -103,7 +122,12 @@ export function BossBattle({
         {/* 魔王區 */}
         <div className="flex flex-col items-center gap-3 mb-4">
           <h2 className="text-lg font-bold text-error">
-            ⚔️ 魔王戰：{stage.name}
+            <Swords
+              className="mr-1.5 inline h-4 w-4 align-[-2px]"
+              strokeWidth={2}
+              aria-hidden="true"
+            />
+            魔王戰：{stage.name}
           </h2>
           <motion.div
             animate={bossAnim}
@@ -134,15 +158,22 @@ export function BossBattle({
               timeLimit={timeLimit}
               isAnswered={quizState.isAnswered}
               lastAnswerCorrect={quizState.lastAnswerCorrect}
+              isLastStep={isLastStep}
               onAnswer={onSubmitAnswer}
+              onNext={onAdvanceQuestion}
               speak={speak}
             />
           </motion.div>
         </div>
 
         <div className="text-center mt-4">
-          <p className="text-xs text-muted-foreground glass inline-block px-4 py-2 rounded-full">
-            💥 答對就攻擊魔王，連續答對還能爆擊！
+          <p className="text-xs text-muted-foreground glass inline-flex items-center gap-1.5 px-4 py-2 rounded-full">
+            <Swords
+              className="h-3.5 w-3.5"
+              strokeWidth={2}
+              aria-hidden="true"
+            />
+            答對就攻擊魔王，連續答對還能爆擊！
           </p>
         </div>
       </div>

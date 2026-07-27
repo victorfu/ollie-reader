@@ -1,5 +1,6 @@
 import { Fragment } from "react";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
+import { Coins, Hand, Lock, Skull, Star } from "lucide-react";
 import type { Stage, PlayerProgress } from "../../types/game";
 import { coinsForStageClear } from "../../services/economyService";
 import {
@@ -28,6 +29,7 @@ export function StageMap({
   onSelectStage,
   onBack,
 }: StageMapProps) {
+  const reduceMotion = useReducedMotion();
   const completedCount = stages.filter((_, i) => isStageCompleted(i)).length;
   const progressPercent = Math.round(
     (completedCount / (stages.length || 1)) * 100,
@@ -158,7 +160,11 @@ export function StageMap({
                 <Fragment key={stage.id}>
                   {dividerNode}
                   <div className="col-span-full surface-card rounded-2xl p-6 text-center">
-                    <span className="text-4xl">🔒</span>
+                    <Lock
+                      className="mx-auto h-9 w-9 text-base-content/40"
+                      strokeWidth={1.5}
+                      aria-hidden="true"
+                    />
                     <p className="mt-2 font-semibold">
                       擊敗「{prevName}」解鎖{myChapter.name}！
                     </p>
@@ -195,7 +201,7 @@ export function StageMap({
                     }
                     ${
                       isCurrent
-                        ? "bg-primary/10 border-2 border-primary ring-2 ring-primary/20"
+                        ? "bg-primary/10 border-2 border-primary"
                         : ""
                     }
                     ${
@@ -252,7 +258,7 @@ export function StageMap({
                             />
                           </svg>
                         ) : stage.isBoss ? (
-                          <span className="text-2xl sm:text-3xl">👹</span>
+                          <Skull className="h-7 w-7 sm:h-8 sm:w-8" strokeWidth={2} aria-hidden="true" />
                         ) : (
                           <span className="text-xl sm:text-2xl font-bold">
                             {stage.stageNumber}
@@ -291,21 +297,19 @@ export function StageMap({
                               locked ? "text-base-content/30" : "text-primary"
                             }`}
                           >
-                            <svg
-                              xmlns="http://www.w3.org/2000/svg"
-                              className="h-4 w-4"
-                              viewBox="0 0 20 20"
-                              fill="currentColor"
-                            >
-                              <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                            </svg>
+                            <Star className="h-4 w-4" strokeWidth={2} aria-hidden="true" />
                             +{stage.rewardExp} EXP
                           </span>
 
                           {/* 扭蛋代幣獎勵預覽 */}
                           {!completed && !locked && (
                             <span className="inline-flex items-center gap-1 text-xs font-medium text-warning">
-                              🪙 +
+                              <Coins
+                                className="h-3.5 w-3.5"
+                                strokeWidth={2}
+                                aria-hidden="true"
+                              />
+                              +
                               {coinsForStageClear(
                                 stage.rewardCoins,
                                 stage.isBoss,
@@ -360,12 +364,14 @@ export function StageMap({
                     </div>
                   </div>
 
-                  {/* 當前關卡的脈動效果 */}
+                  {/* 當前關卡的脈動光暈：畫在卡片外側，避免與卡片自身的
+                      border-2 疊成雙線（inset-0 會落在 border box 內緣，
+                      且圓角半徑已被 border 內縮 2px，轉角會對不齊） */}
                   {isCurrent && (
                     <motion.div
-                      animate={{ opacity: [0.5, 1, 0.5] }}
+                      animate={reduceMotion ? undefined : { opacity: [0.2, 0.6, 0.2] }}
                       transition={{ duration: 2, repeat: Infinity }}
-                      className="absolute inset-0 rounded-2xl border-2 border-primary pointer-events-none"
+                      className="absolute -inset-1 rounded-[20px] border-2 border-primary opacity-40 pointer-events-none"
                     />
                   )}
                 </button>
@@ -380,7 +386,12 @@ export function StageMap({
       <div className="sticky bottom-0 toolbar pt-4 pb-4 px-4 sm:px-6">
         <div className="text-center">
           <p className="text-sm text-muted-foreground">
-            👆 點擊可遊玩的關卡開始挑戰
+            <Hand
+              className="mr-1.5 inline h-3.5 w-3.5 align-[-2px]"
+              strokeWidth={2}
+              aria-hidden="true"
+            />
+            點擊可遊玩的關卡開始挑戰
           </p>
         </div>
       </div>
