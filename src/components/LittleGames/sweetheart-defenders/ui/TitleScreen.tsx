@@ -186,7 +186,9 @@ export function TitleScreen({
                           unlocked ? "text-slate-900" : "text-slate-400"
                         }`}
                       >
-                        {unlocked ? level.nameZh : "？？？"}
+                        {/* 鎖定關也顯示真名 —— 下一張卡的「先通關「…」」本來就會
+                            講出這一關的名字，藏了等於沒藏，只是讓地圖更難讀 */}
+                        {level.nameZh}
                       </span>
 
                       {unlocked ? (
