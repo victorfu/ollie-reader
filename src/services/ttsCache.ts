@@ -15,10 +15,11 @@ interface PendingRequest {
 
 const DB_NAME = "ollie-tts-cache";
 const STORE_NAME = "audio-blobs";
-// Bumped to 5: sidecar 的 Edge/Azure 預設聲音從 Emma 換成 Ava（Emma 在 st-/sp-
-// 字首會吞掉 /s/），但快取 key 不含 voice，不升版的話舊 Emma 音檔會再活 7 天。
+// Bumped to 6: sidecar 的 Edge/Azure 預設聲音兩度更換（Emma 吞 /s/ → Ava；
+// Ava 是多語模型、對光桿單字會語言漂移把 "gang" 唸成德式 → Jenny）。快取 key
+// 不含 voice，不升版的話舊聲音的音檔會再活 7 天。
 // onupgradeneeded 會整個重建 store（連 Piper/Kokoro 的也清掉；單字重合成很便宜）。
-const DB_VERSION = 5;
+const DB_VERSION = 6;
 const MAX_CACHE_SIZE = 50; // Maximum number of cached items in memory
 const CACHE_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 const PRUNE_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 hours

@@ -14,10 +14,11 @@ from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
-# 與 tts_edge 同步避開 Emma（Read Aloud 端點實測她在 st-/sp- 字首吞 /s/；
-# 官方端點是同一套模型目錄，未持金鑰實測、但沒有理由賭她在這裡表現不同）。
+# 與 tts_edge 的預設同步（同一套模型目錄；未持金鑰在官方端點實測，但沒有理由
+# 賭行為不同）：避開 Emma（st-/sp- 字首吞 /s/）與 Multilingual 系列（對光桿
+# 單字會語言漂移，"gang" 被唸成德式 /ɑ/）。詳細數據見 tts_edge.py。
 # 可用 AZURE_TTS_VOICE 覆寫。
-DEFAULT_AZURE_VOICE = "en-US-AvaMultilingualNeural"
+DEFAULT_AZURE_VOICE = "en-US-JennyNeural"
 
 
 def _default_azure_voice() -> str:

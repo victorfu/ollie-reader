@@ -194,5 +194,6 @@ def test_env_overrides_default_voice(fake_speechsdk, monkeypatch):
   assert 'name="en-GB-RyanNeural"' in fake_speechsdk.captured["ssml"]
 
 
-def test_default_voice_is_not_emma():
+def test_default_voice_is_monolingual_and_not_emma():
   assert "Emma" not in DEFAULT_AZURE_VOICE
+  assert "Multilingual" not in DEFAULT_AZURE_VOICE

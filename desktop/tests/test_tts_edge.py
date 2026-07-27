@@ -143,7 +143,9 @@ def test_explicit_voice_beats_env_override(fake_edge_tts, monkeypatch):
   assert _FakeCommunicate.last_kwargs["voice"] == "en-US-AriaNeural"
 
 
-# 迴歸鎖：Emma(Multilingual) 在 st-/sp- 字首會吞掉 /s/（"spell" 起音 4-10kHz
-# 佔比僅 9%），不得再被設回單字聽力題的預設聲音
-def test_default_voice_is_not_emma():
+# 迴歸鎖，兩條都是實測換來的：
+# - Emma 在 st-/sp- 字首吞 /s/（"spell" 起音 4-10kHz 佔比僅 9%）
+# - Multilingual 系列對光桿單字會語言漂移（"gang" 被唸成德式 /ɑ/）
+def test_default_voice_is_monolingual_and_not_emma():
   assert "Emma" not in DEFAULT_EDGE_VOICE
+  assert "Multilingual" not in DEFAULT_EDGE_VOICE

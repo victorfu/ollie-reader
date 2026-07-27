@@ -18,11 +18,16 @@ from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
-# 預設聲音刻意避開 Emma：實測 Emma(Multilingual) 在 s+子音字首會把 /s/ 吞掉
-# （"sting" 起音 4-10kHz 佔比 27.7%、"spell" 只剩 9.0%，其他 15 個 en-US 聲音
-# 全在 71-88%），單字聽力題聽起來像少了 s。Ava 在含 st-/sp- 的字都穩定 83-86%。
-# 可用 EDGE_TTS_VOICE 覆寫（web 端呼叫 /api/etts 不帶 voice，吃的就是這個預設）。
-DEFAULT_EDGE_VOICE = "en-US-AvaMultilingualNeural"
+# 預設聲音兩條實測教訓（web 呼叫 /api/etts 不帶 voice，吃的就是這個預設）：
+# 1. 避開 Emma：她在 s+子音字首會吞掉 /s/（"sting" 起音 4-10kHz 佔比 27.7%、
+#    "spell" 9.0%；其他 15 個 en-US 聲音全在 71-88%）。
+# 2. 避開 Multilingual 系列：多語模型會對文本自動判斷語言、無視 SSML 的
+#    xml:lang，光桿單字沒有上下文時會唸成別的語言 —— "gang"（也是德/荷語
+#    常用字）被 Ava 唸成後母音 /ɑ/（母音 F2 頻帶比 0.13，單語聲音 0.58-0.65）。
+#    本 app 的用途就是單字聽力題，單語聲音才不會漂移。
+# Jenny 是單語且 /s/ 排名全場第一（sting 88.3% / spell 82.8%）。
+# 可用 EDGE_TTS_VOICE 覆寫。
+DEFAULT_EDGE_VOICE = "en-US-JennyNeural"
 
 
 def _default_voice() -> str:
