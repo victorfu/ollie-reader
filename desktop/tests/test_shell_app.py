@@ -64,12 +64,126 @@ class _StubManager:
         pass
 
 
+@pytest.fixture(autouse=True)
+def _isolate_voice_lab(monkeypatch):
+    """VoiceLabTab 建構時會讀 keychain 並打一次 sidecar HTTP；測試中兩者都要斷開。"""
+    monkeypatch.setattr(app_module, "get_azure_credentials", lambda: None)
+    monkeypatch.setattr(app_module.VoiceLabTab, "_reload_voices", lambda self: None)
+
+
 @pytest.fixture
 def settings_dialog(qapp, monkeypatch):
     # Isolate __init__ from external state dependencies
     monkeypatch.setattr(app_module.autostart, "is_installed", lambda: False)
     monkeypatch.setattr(app_module, "get_oikid_credentials", lambda: None)
     return app_module.SettingsDialog(_StubManager())
+
+
+@pytest.fixture
+def voice_lab(qapp):
+    return app_module.VoiceLabTab(_StubManager())
+
+
+def test_settings_dialog_has_both_tabs(settings_dialog):
+    titles = [settings_dialog.tabs.tabText(i) for i in range(settings_dialog.tabs.count())]
+    assert titles == ["一般", "語音測試"]
+
+
+def test_engine_combo_lists_every_engine_with_endpoint(voice_lab):
+    ids = [voice_lab.engine_combo.itemData(i) for i in range(voice_lab.engine_combo.count())]
+    assert ids == ["edge", "azure", "piper", "kokoro", "chatterbox"]
+    assert voice_lab._endpoint("edge") == "/api/etts"
+    assert voice_lab._endpoint("azure") == "/api/azure-tts"
+    assert voice_lab._endpoint("kokoro") == "/api/ktts"
+
+
+def test_engine_labels_mark_cloud_vs_offline(voice_lab):
+    labels = [voice_lab.engine_combo.itemText(i) for i in range(voice_lab.engine_combo.count())]
+    # compute-mode「本機」的語意：雲端引擎一定要標出來，否則會被當成離線可用
+    assert "雲端" in labels[0] and "雲端" in labels[1]
+    assert all("離線" in label for label in labels[2:])
+
+
+def test_base_url_follows_manager_port(voice_lab):
+    assert voice_lab._base_url().endswith(":8765")
+
+
+def test_voices_loaded_populates_combo(voice_lab):
+    voice_lab._on_voices_loaded(
+        [{"id": "en-US-EmmaMultilingualNeural", "label": "Emma (Female)"}], None
+    )
+    assert voice_lab.voice_combo.count() == 1
+    assert voice_lab.voice_combo.itemData(0) == "en-US-EmmaMultilingualNeural"
+
+
+def test_voices_error_falls_back_to_default_entry(voice_lab):
+    voice_lab._on_voices_loaded(None, RuntimeError("boom"))
+    assert voice_lab.voice_combo.itemData(0) == ""
+    assert "失敗" in voice_lab.status_label.text()
+
+
+def test_connect_error_gets_actionable_message(voice_lab):
+    import httpx
+
+    msg = voice_lab._describe(httpx.ConnectError("refused"))
+    assert "啟動本機服務" in msg
+
+
+def test_http_error_surfaces_server_detail(voice_lab):
+    import httpx
+
+    request = httpx.Request("POST", "http://127.0.0.1:8765/api/etts")
+    response = httpx.Response(502, json={"detail": "403 token 失效"}, request=request)
+    msg = voice_lab._describe(httpx.HTTPStatusError("x", request=request, response=response))
+    assert "502" in msg and "403 token 失效" in msg
+
+
+def test_audio_suffix_follows_content_type(voice_lab):
+    voice_lab._on_audio_ready((b"\xff\xf3x", "audio/mpeg"), None)
+    assert voice_lab._audio_path.suffix == ".mp3"
+    voice_lab._on_audio_ready((b"RIFFx", "audio/wav"), None)
+    assert voice_lab._audio_path.suffix == ".wav"
+    voice_lab.cleanup()
+
+
+def test_cleanup_removes_temp_audio(voice_lab):
+    voice_lab._on_audio_ready((b"RIFFx", "audio/wav"), None)
+    path = voice_lab._audio_path
+    assert path.exists()
+    voice_lab.cleanup()
+    assert not path.exists()
+
+
+def test_blank_azure_key_with_no_existing_key_is_rejected(voice_lab, monkeypatch):
+    called = []
+    monkeypatch.setattr(app_module, "set_azure_credentials", lambda *a: called.append(a))
+    voice_lab.azure_key_edit.setText("")
+    voice_lab._save_azure_credentials()
+    assert called == []
+    assert "請輸入 Azure key" in voice_lab.status_label.text()
+
+
+def test_blank_azure_key_keeps_existing_key_when_changing_region(voice_lab, monkeypatch):
+    saved = {}
+    monkeypatch.setattr(app_module, "get_azure_credentials", lambda: ("OLDKEY", "eastasia"))
+    monkeypatch.setattr(
+        app_module, "set_azure_credentials", lambda k, r: saved.update(key=k, region=r)
+    )
+    voice_lab.azure_key_edit.setText("")
+    voice_lab.azure_region_edit.setText("westus")
+    voice_lab._save_azure_credentials()
+    assert saved == {"key": "OLDKEY", "region": "westus"}
+
+
+def test_azure_save_uses_default_region_when_blank(voice_lab, monkeypatch):
+    saved = {}
+    monkeypatch.setattr(
+        app_module, "set_azure_credentials", lambda k, r: saved.update(key=k, region=r)
+    )
+    voice_lab.azure_key_edit.setText("NEWKEY")
+    voice_lab.azure_region_edit.setText("")
+    voice_lab._save_azure_credentials()
+    assert saved == {"key": "NEWKEY", "region": app_module.DEFAULT_AZURE_REGION}
 
 
 def test_save_oikid_credentials_writes_to_keychain(settings_dialog, monkeypatch):

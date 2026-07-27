@@ -50,6 +50,10 @@ if Path("assets").exists():
 # intentionally NOT collected here — bundling torch would balloon the .app by
 # hundreds of MB. Since v0.2.0 the frozen build ships the MLX backend instead
 # (see below); /api/chatterbox-tts auto-selects it at runtime.
+# NOTE: the optional Azure SDK (uv group `azure`) is intentionally NOT collected.
+# /api/azure-tts needs a user-supplied subscription key, and a key can never be
+# bundled (release/verify_bundle.py enforces that), so the frozen build ships the
+# keyless Edge engine instead and reports 503 for Azure.
 for pkg in (
     "kokoro_onnx",
     "onnxruntime",
@@ -59,6 +63,12 @@ for pkg in (
     "numpy",
     "language_tags",
     "espeakng_loader",
+    # Edge TTS (/api/etts). Pure Python but reached through a lazy import inside
+    # server/tts_edge.py, and aiohttp/certifi carry data files (TLS roots) that
+    # PyInstaller misses without collect_all.
+    "edge_tts",
+    "aiohttp",
+    "certifi",
 ):
     d, b, h = collect_all(pkg)
     datas += d

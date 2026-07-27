@@ -1,29 +1,43 @@
-"""PySide6 殼：系統匣 icon + 設定視窗，監督本機 sidecar。"""
+"""PySide6 殼：系統匣 icon + 設定視窗（一般 / 語音測試），監督本機 sidecar。"""
 
 import os
 import signal
 import sys
+import tempfile
 from pathlib import Path
 
-from PySide6.QtCore import QTimer, QUrl
+import httpx
+from PySide6.QtCore import QObject, QRunnable, Qt, QThreadPool, QTimer, QUrl, Signal
 from PySide6.QtGui import QAction, QDesktopServices, QIcon
+from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
 from PySide6.QtWidgets import (
   QApplication,
   QCheckBox,
+  QComboBox,
   QDialog,
+  QDoubleSpinBox,
   QFormLayout,
   QLabel,
   QLineEdit,
   QMenu,
   QPushButton,
   QSystemTrayIcon,
+  QTabWidget,
+  QVBoxLayout,
+  QWidget,
 )
 
-from server.config import DEFAULT_PORT, VERSION
+from server.config import DEFAULT_PORT, HOST, VERSION
 from server.oikid_secrets import (
   clear_oikid_credentials,
   get_oikid_credentials,
   set_oikid_credentials,
+)
+from server.tts_secrets import (
+  DEFAULT_AZURE_REGION,
+  clear_azure_credentials,
+  get_azure_credentials,
+  set_azure_credentials,
 )
 from shell import autostart
 from shell.sidecar import SidecarManager
@@ -63,19 +77,292 @@ def _autostart_args(manager: SidecarManager) -> list[str]:
   return [sys.executable, manager.main_path, "--serve", "--port", str(manager.port)]
 
 
+# (id, 顯示名稱, sidecar 端點)。離線/雲端要標清楚 —— edge/azure 住在「本機
+# sidecar」裡但其實是網路引擎，不標的話 compute-mode「本機」的語意會被誤解。
+TTS_ENGINES = [
+  ("edge", "Edge TTS（雲端・免金鑰）", "/api/etts"),
+  ("azure", "Azure AI Speech（雲端・需金鑰）", "/api/azure-tts"),
+  ("piper", "Piper（離線）", "/api/tts"),
+  ("kokoro", "Kokoro（離線）", "/api/ktts"),
+  ("chatterbox", "Chatterbox（離線・需 opt-in）", "/api/chatterbox-tts"),
+]
+
+SAMPLE_TEXT = "she got stung by a bee"
+
+
+class _TaskSignals(QObject):
+  done = Signal(object, object)  # (result, error)
+
+
+class _Task(QRunnable):
+  """把阻塞的 HTTP 呼叫丟到執行緒池，避免試聽時凍住視窗。"""
+
+  def __init__(self, fn):
+    super().__init__()
+    self.fn = fn
+    self.signals = _TaskSignals()
+
+  def run(self) -> None:
+    try:
+      self.signals.done.emit(self.fn(), None)
+    except Exception as e:  # noqa: BLE001 - 一律回報到 UI，不讓執行緒吞掉
+      self.signals.done.emit(None, e)
+
+
+class VoiceLabTab(QWidget):
+  """試聽各 TTS 引擎的聲音。走 sidecar HTTP，測到的就是網頁端會用的同一條路。"""
+
+  def __init__(self, manager: SidecarManager):
+    super().__init__()
+    self.manager = manager
+    self.pool = QThreadPool.globalInstance()
+    self._audio_path: Path | None = None
+
+    self._player = QMediaPlayer(self)
+    self._audio_out = QAudioOutput(self)
+    self._player.setAudioOutput(self._audio_out)
+
+    layout = QFormLayout(self)
+
+    self.engine_combo = QComboBox()
+    for engine_id, label, _path in TTS_ENGINES:
+      self.engine_combo.addItem(label, engine_id)
+    self.engine_combo.currentIndexChanged.connect(self._on_engine_changed)
+    layout.addRow("引擎：", self.engine_combo)
+
+    self.voice_combo = QComboBox()
+    self.voice_combo.setMinimumWidth(320)
+    layout.addRow("聲音：", self.voice_combo)
+
+    self.en_only_cb = QCheckBox("只列英文聲音")
+    self.en_only_cb.setChecked(True)
+    self.en_only_cb.toggled.connect(lambda _checked: self._reload_voices())
+    self.reload_button = QPushButton("重新載入聲音清單")
+    self.reload_button.clicked.connect(lambda _checked=False: self._reload_voices())
+    layout.addRow(self.en_only_cb, self.reload_button)
+
+    self.text_edit = QLineEdit(SAMPLE_TEXT)
+    self.text_edit.setMinimumWidth(320)
+    self.text_edit.returnPressed.connect(self._audition)
+    layout.addRow("試聽文字：", self.text_edit)
+
+    self.speed_spin = QDoubleSpinBox()
+    self.speed_spin.setRange(0.5, 2.0)
+    self.speed_spin.setSingleStep(0.05)
+    self.speed_spin.setValue(1.0)
+    layout.addRow("語速：", self.speed_spin)
+
+    self.play_button = QPushButton("▶ 試聽")
+    self.play_button.clicked.connect(self._audition)
+    layout.addRow("", self.play_button)
+
+    self.status_label = QLabel("選好引擎與聲音後按「試聽」。")
+    self.status_label.setWordWrap(True)
+    layout.addRow("", self.status_label)
+
+    # ── Azure 金鑰（存 OS keychain，不落檔、不進 bundle）
+    creds = get_azure_credentials()
+    self.azure_key_edit = QLineEdit()
+    self.azure_key_edit.setEchoMode(QLineEdit.EchoMode.Password)
+    self.azure_key_edit.setMinimumWidth(320)
+    if creds:
+      self.azure_key_edit.setPlaceholderText("（已設定，留空則不變更）")
+    self.azure_region_edit = QLineEdit(creds[1] if creds else DEFAULT_AZURE_REGION)
+    layout.addRow(QLabel("<b>Azure 金鑰</b>（僅 Azure 引擎需要）"))
+    layout.addRow("Key：", self.azure_key_edit)
+    layout.addRow("Region：", self.azure_region_edit)
+
+    self.azure_save_button = QPushButton("儲存 Azure 金鑰")
+    self.azure_save_button.clicked.connect(self._save_azure_credentials)
+    self.azure_clear_button = QPushButton("清除 Azure 金鑰")
+    self.azure_clear_button.clicked.connect(self._clear_azure_credentials)
+    layout.addRow(self.azure_save_button, self.azure_clear_button)
+
+    self._reload_voices()
+
+  # ── helpers
+
+  def _engine_id(self) -> str:
+    return self.engine_combo.currentData()
+
+  def _endpoint(self, engine_id: str) -> str:
+    for candidate, _label, path in TTS_ENGINES:
+      if candidate == engine_id:
+        return path
+    return "/api/tts"
+
+  def _base_url(self) -> str:
+    return f"http://{HOST}:{self.manager.port}"
+
+  def _set_busy(self, busy: bool) -> None:
+    self.play_button.setEnabled(not busy)
+    self.reload_button.setEnabled(not busy)
+
+  @staticmethod
+  def _describe(error: Exception) -> str:
+    if isinstance(error, httpx.HTTPStatusError):
+      try:
+        detail = error.response.json().get("detail") or error.response.text
+      except Exception:  # noqa: BLE001 - 非 JSON 回應就用原始內容
+        detail = error.response.text
+      return f"HTTP {error.response.status_code}：{detail}"
+    if isinstance(error, httpx.ConnectError):
+      return "連不上本機服務。請先在「一般」頁按「啟動本機服務」。"
+    return f"{type(error).__name__}: {error}"
+
+  # ── 聲音清單
+
+  def _on_engine_changed(self, _index: int) -> None:
+    self._reload_voices()
+
+  def _reload_voices(self) -> None:
+    engine_id = self._engine_id()
+    locale = "en" if self.en_only_cb.isChecked() else ""
+    url = f"{self._base_url()}/api/tts/voices"
+
+    def fetch():
+      resp = httpx.get(
+        url, params={"engine": engine_id, "locale": locale}, timeout=30.0
+      )
+      resp.raise_for_status()
+      return resp.json().get("voices", [])
+
+    self._set_busy(True)
+    self.status_label.setText("載入聲音清單…")
+    task = _Task(fetch)
+    task.signals.done.connect(self._on_voices_loaded)
+    self.pool.start(task)
+
+  def _on_voices_loaded(self, voices, error) -> None:
+    self._set_busy(False)
+    self.voice_combo.clear()
+    if error is not None:
+      self.voice_combo.addItem("（預設）", "")
+      self.status_label.setText(f"聲音清單載入失敗 — {self._describe(error)}")
+      return
+    if not voices:
+      self.voice_combo.addItem("（預設）", "")
+      self.status_label.setText("此引擎沒有可選聲音，將使用預設。")
+      return
+    for voice in voices:
+      self.voice_combo.addItem(voice.get("label") or voice["id"], voice["id"])
+    self.status_label.setText(f"載入 {len(voices)} 個聲音。")
+
+  # ── 試聽
+
+  def _audition(self) -> None:
+    text = self.text_edit.text().strip()
+    if not text:
+      self.status_label.setText("請先輸入試聽文字。")
+      return
+
+    engine_id = self._engine_id()
+    url = f"{self._base_url()}{self._endpoint(engine_id)}"
+    payload = {
+      "text": text,
+      "speed": self.speed_spin.value(),
+      "voice": self.voice_combo.currentData() or None,
+    }
+
+    def synthesize():
+      resp = httpx.post(url, json=payload, timeout=120.0)
+      resp.raise_for_status()
+      return resp.content, resp.headers.get("content-type", "audio/wav")
+
+    self._set_busy(True)
+    self.status_label.setText(f"合成中（{engine_id}）…")
+    task = _Task(synthesize)
+    task.signals.done.connect(self._on_audio_ready)
+    self.pool.start(task)
+
+  def _on_audio_ready(self, result, error) -> None:
+    self._set_busy(False)
+    if error is not None:
+      self.status_label.setText(f"試聽失敗 — {self._describe(error)}")
+      return
+
+    audio, content_type = result
+    suffix = ".mp3" if "mpeg" in content_type or "mp3" in content_type else ".wav"
+
+    # QMediaPlayer 需要檔案在播放期間存在；換新音檔時才清掉上一個
+    self._player.stop()
+    self._player.setSource(QUrl())
+    if self._audio_path is not None:
+      self._audio_path.unlink(missing_ok=True)
+    with tempfile.NamedTemporaryFile(
+      delete=False, suffix=suffix, prefix="ollie-tts-"
+    ) as fh:
+      fh.write(audio)
+      self._audio_path = Path(fh.name)
+
+    self._player.setSource(QUrl.fromLocalFile(str(self._audio_path)))
+    self._player.play()
+    self.status_label.setText(
+      f"播放中：{len(audio) / 1024:.1f} KB {suffix.lstrip('.').upper()}"
+    )
+
+  # ── Azure 金鑰
+
+  def _save_azure_credentials(self, _checked: bool = False) -> None:
+    key = self.azure_key_edit.text().strip()
+    region = self.azure_region_edit.text().strip() or DEFAULT_AZURE_REGION
+    if not key:
+      existing = get_azure_credentials()
+      if not existing:
+        self.status_label.setText("請輸入 Azure key。")
+        return
+      key = existing[0]  # 只改 region，沿用既有 key
+    set_azure_credentials(key, region)
+    self.azure_key_edit.clear()
+    self.azure_key_edit.setPlaceholderText("（已設定，留空則不變更）")
+    self.status_label.setText(f"Azure 金鑰已儲存（region={region}）。")
+
+  def _clear_azure_credentials(self, _checked: bool = False) -> None:
+    clear_azure_credentials()
+    self.azure_key_edit.clear()
+    self.azure_key_edit.setPlaceholderText("")
+    self.status_label.setText("Azure 金鑰已清除。")
+
+  def cleanup(self) -> None:
+    self._player.stop()
+    self._player.setSource(QUrl())
+    if self._audio_path is not None:
+      self._audio_path.unlink(missing_ok=True)
+      self._audio_path = None
+
+
 class SettingsDialog(QDialog):
   def __init__(self, manager: SidecarManager):
     super().__init__()
     self.manager = manager
     self.setWindowTitle("ollie-reader desktop 設定")
     # 預設視窗寬一點，讓 OIKID 帳號（email）等欄位能完整顯示不被截斷。
-    self.setMinimumWidth(480)
+    self.setMinimumWidth(560)
 
-    layout = QFormLayout(self)
+    self.tabs = QTabWidget(self)
+    self.tabs.addTab(self._build_general_tab(), "一般")
+    self.voice_lab = VoiceLabTab(manager)
+    self.tabs.addTab(self.voice_lab, "語音測試")
+
+    root = QVBoxLayout(self)
+    root.addWidget(self.tabs)
+
+    self._timer = QTimer(self)
+    self._timer.timeout.connect(self._refresh)
+    self._timer.start(2000)
+    self._refresh()
+
+  def closeEvent(self, event) -> None:  # noqa: N802 - Qt 命名
+    self.voice_lab.cleanup()
+    super().closeEvent(event)
+
+  def _build_general_tab(self) -> QWidget:
+    page = QWidget()
+    layout = QFormLayout(page)
 
     self.status_label = QLabel("—")
     layout.addRow("狀態：", self.status_label)
-    layout.addRow("Port：", QLabel(str(manager.port)))
+    layout.addRow("Port：", QLabel(str(self.manager.port)))
 
     self.autostart_cb = QCheckBox("開機時自動啟動")
     self.autostart_cb.setChecked(autostart.is_installed())
@@ -108,10 +395,7 @@ class SettingsDialog(QDialog):
     self.oikid_clear_button.clicked.connect(self._clear_oikid_credentials)
     layout.addRow(self.oikid_save_button, self.oikid_clear_button)
 
-    self._timer = QTimer(self)
-    self._timer.timeout.connect(self._refresh)
-    self._timer.start(2000)
-    self._refresh()
+    return page
 
   def _refresh(self) -> None:
     # 本機存活檢查零網路（自家子行程 poll()/收養後 os.kill）；僅「收養但無 PID」的舊版過渡情境會退回 HTTP 探測。

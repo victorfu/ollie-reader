@@ -144,3 +144,34 @@ def kokoro_synthesize_speech(
   voice: Optional[str] = None,
 ) -> KokoroTTSResult:
   return KokoroTTSService.synthesize(text=text, speed=speed, voice=voice)
+
+
+def list_kokoro_voices(locale_prefix: Optional[str] = "en") -> list[dict]:
+  """列出 voices bin 內的聲音，給設定視窗試聽用。
+
+  Kokoro 的 voice id 沒有 locale 前綴（af_heart / bm_george…），第一個字母才是
+  語言（a=美式、b=英式）。locale_prefix 以 "en" 開頭時對應這兩者，其餘語言
+  （j/z/…）僅在不過濾時列出。
+  """
+  try:
+    engine = KokoroTTSService._get_engine()
+    names = sorted(engine.get_voices())
+  except KokoroTTSError:
+    raise
+  except Exception as e:
+    raise KokoroTTSError(
+      f"Kokoro 取得聲音清單失敗: {type(e).__name__}: {e}",
+      status_code=503,
+    ) from e
+
+  wanted_prefixes = None
+  if locale_prefix and locale_prefix.lower().startswith("en"):
+    wanted_prefixes = tuple(_VOICE_PREFIX_LANG)  # ("a", "b")
+
+  voices = []
+  for name in names:
+    if wanted_prefixes and not name.startswith(wanted_prefixes):
+      continue
+    lang = _VOICE_PREFIX_LANG.get(name[:1], "other")
+    voices.append({"id": name, "locale": lang, "gender": "", "label": f"{name} ({lang})"})
+  return voices

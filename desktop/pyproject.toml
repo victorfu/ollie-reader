@@ -16,9 +16,18 @@ dependencies = [
     # + espeakng-loader for G2P. Model/voices files live in models/ (bundled).
     "kokoro-onnx",
     "PySide6",
-    # outbound HTTP client for /api/fetch-url (URL proxy, e.g. remote PDFs).
+    # outbound HTTP client for /api/fetch-url (URL proxy, e.g. remote PDFs) and
+    # for the settings window's TTS audition tab talking to the local sidecar.
     "httpx",
     "keyring",
+    # Edge TTS (/api/etts): CLOUD engine, needs network, no API key. Pure Python
+    # (aiohttp), no model files — the lightest engine in the bundle.
+    # Licence: LGPL-3.0 (7.2.8 ships LICENSE saying LGPLv3 for everything except
+    # srt_composer.py, which is MIT). Weak copyleft, so bundling it in the MIT
+    # .app is fine as long as the notice + licence copy ship with the release.
+    # Fragile by nature: relies on a Sec-MS-GEC token that Microsoft rotates on
+    # Edge release cycles; a stale one means HTTP 403 until this pin is bumped.
+    "edge-tts",
 ]
 
 [dependency-groups]
@@ -41,6 +50,15 @@ chatterbox = [
 # bundled. Pinned because mlx-audio is pre-1.0 and its model API still churns.
 # Mutually exclusive with the `chatterbox` group (see [tool.uv].conflicts):
 # chatterbox-tts pins old transformers versions that mlx-audio can't use.
+# Optional Azure AI Speech SDK for /api/azure-tts. Serves the SAME neural voices
+# as edge-tts but through the official, key-authenticated endpoint (stable, full
+# SSML). Kept out of the default sync because it ships a native binary and most
+# users won't have a subscription key. Opt in with `uv sync --group azure`.
+# The key/region are entered by the user in the settings window and stored in the
+# OS keychain (server/tts_secrets.py) — never bundled into the .app.
+azure = [
+    "azure-cognitiveservices-speech",
+]
 chatterbox-mlx = [
     "mlx-audio>=0.4.4,<0.5",
     # mlx-lm 0.31.3 (latest) crashes on import with transformers 5.13

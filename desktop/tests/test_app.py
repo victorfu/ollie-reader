@@ -8,7 +8,9 @@ from server.oikid import OikidError
 from server.pdf_extract import PDFError, PDFExtractResult, PageText
 from server.tts_piper import TTSError, TTSResult
 from server.tts_kokoro import KokoroTTSError, KokoroTTSResult
+from server.tts_azure import AzureTTSError, AzureTTSResult
 from server.tts_chatterbox import ChatterboxTTSError, ChatterboxTTSResult
+from server.tts_edge import EdgeTTSError, EdgeTTSResult
 
 
 @pytest.fixture
@@ -182,6 +184,102 @@ def test_chatterbox_tts_success(client, monkeypatch):
     resp = client.post("/api/chatterbox-tts", json={"text": "hi"})
     assert resp.status_code == 200
     assert resp.headers["content-type"] == "audio/wav"
+
+
+def test_etts_503_when_unavailable(client, monkeypatch):
+    async def boom(text, speed, voice):
+        raise EdgeTTSError("no edge-tts", status_code=503)
+
+    monkeypatch.setattr(app_module, "edge_synthesize_speech", boom)
+    resp = client.post("/api/etts", json={"text": "hi"})
+    assert resp.status_code == 503
+    assert resp.json()["detail"] == "no edge-tts"
+
+
+def test_etts_success_returns_mp3(client, monkeypatch):
+    async def fake(text, speed, voice):
+        return EdgeTTSResult(audio_data=b"\xff\xf3fake")
+
+    monkeypatch.setattr(app_module, "edge_synthesize_speech", fake)
+    resp = client.post("/api/etts", json={"text": "hi"})
+    assert resp.status_code == 200
+    assert resp.headers["content-type"] == "audio/mpeg"
+    assert resp.content == b"\xff\xf3fake"
+
+
+def test_etts_403_surfaces_as_502(client, monkeypatch):
+    """Sec-MS-GEC token 過期不能被吞掉，前端要看得見。"""
+
+    async def boom(text, speed, voice):
+        raise EdgeTTSError("403 token 失效", status_code=502)
+
+    monkeypatch.setattr(app_module, "edge_synthesize_speech", boom)
+    resp = client.post("/api/etts", json={"text": "hi"})
+    assert resp.status_code == 502
+
+
+def test_azure_tts_503_when_key_missing(client, monkeypatch):
+    def boom(text, speed, voice):
+        raise AzureTTSError("尚未設定 Azure 金鑰。", status_code=503)
+
+    monkeypatch.setattr(app_module, "azure_synthesize_speech", boom)
+    resp = client.post("/api/azure-tts", json={"text": "hi"})
+    assert resp.status_code == 503
+    assert "金鑰" in resp.json()["detail"]
+
+
+def test_azure_tts_success_returns_mp3(client, monkeypatch):
+    monkeypatch.setattr(
+        app_module,
+        "azure_synthesize_speech",
+        lambda text, speed, voice: AzureTTSResult(audio_data=b"\xff\xf3az"),
+    )
+    resp = client.post("/api/azure-tts", json={"text": "hi"})
+    assert resp.status_code == 200
+    assert resp.headers["content-type"] == "audio/mpeg"
+
+
+def test_voices_edge(client, monkeypatch):
+    async def fake(prefix):
+        assert prefix == "en"
+        return [{"id": "en-US-EmmaMultilingualNeural", "label": "Emma"}]
+
+    monkeypatch.setattr(app_module, "list_edge_voices", fake)
+    resp = client.get("/api/tts/voices", params={"engine": "edge"})
+    assert resp.status_code == 200
+    assert resp.json()["voices"][0]["id"] == "en-US-EmmaMultilingualNeural"
+
+
+def test_voices_blank_locale_means_no_filter(client, monkeypatch):
+    seen = {}
+
+    async def fake(prefix):
+        seen["prefix"] = prefix
+        return []
+
+    monkeypatch.setattr(app_module, "list_edge_voices", fake)
+    client.get("/api/tts/voices", params={"engine": "edge", "locale": ""})
+    assert seen["prefix"] is None
+
+
+def test_voices_piper_returns_static_speaker(client):
+    resp = client.get("/api/tts/voices", params={"engine": "piper"})
+    assert resp.status_code == 200
+    assert resp.json()["voices"] == [{"id": "0", "label": "0（預設）"}]
+
+
+def test_voices_unknown_engine_400(client):
+    resp = client.get("/api/tts/voices", params={"engine": "nope"})
+    assert resp.status_code == 400
+
+
+def test_voices_propagates_engine_error_status(client, monkeypatch):
+    async def boom(prefix):
+        raise EdgeTTSError("403", status_code=502)
+
+    monkeypatch.setattr(app_module, "list_edge_voices", boom)
+    resp = client.get("/api/tts/voices", params={"engine": "edge"})
+    assert resp.status_code == 502
 
 
 def test_cors_allows_localhost_origin(client):

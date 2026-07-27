@@ -6,7 +6,7 @@
 
 **Ollie Reader** is a React + TypeScript + Vite web application for English learning. It uses Firebase (Auth, Firestore, Storage) and Gemini AI.
 
-An optional native macOS companion lives in `desktop/` (PySide6 tray + local FastAPI sidecar) providing fully-offline TTS. It is a separate Python subproject managed with `uv`; see [Desktop App](#desktop-app-sidecar) and `desktop/README.md`.
+An optional native macOS companion lives in `desktop/` (PySide6 tray + local FastAPI sidecar) providing offline TTS (Piper/Kokoro/Chatterbox) plus two cloud engines that require network (Edge TTS, Azure AI Speech). It is a separate Python subproject managed with `uv`; see [Desktop App](#desktop-app-sidecar) and `desktop/README.md`.
 
 ## Tech Stack
 
@@ -342,7 +342,7 @@ npm run test       # Vitest suite (jsdom)
 
 ## Desktop App (sidecar)
 
-The optional macOS companion in `desktop/` is a **separate Python subproject** (PySide6 tray + local FastAPI sidecar for offline Piper/Kokoro TTS), managed with [`uv`](https://docs.astral.sh/uv/) and frozen with PyInstaller. The repo root `Makefile` is the unified runner for both web and desktop:
+The optional macOS companion in `desktop/` is a **separate Python subproject** (PySide6 tray + local FastAPI sidecar for TTS), managed with [`uv`](https://docs.astral.sh/uv/) and frozen with PyInstaller. The repo root `Makefile` is the unified runner for both web and desktop:
 
 ```bash
 make desktop-setup   # create venv + install deps (uv)

@@ -54,6 +54,42 @@ Piper 與 Kokoro 的模型檔都放在 `models/`、由 spec 一起收進 bundle�
 Kokoro 還有 `kokoro-v1.0.onnx`（fp32, 310MB）與 `kokoro-v1.0.int8.onnx`（88MB）可選；
 換檔後同步調整 `server/config.py` 的 `_KOKORO_MODEL_RELATIVE_PATH`（或用 env）。
 
+## 雲端語音引擎（Edge TTS / Azure AI Speech）
+
+除了上面三個離線引擎，sidecar 另外提供兩個**需要網路**的引擎。兩者端出來的是
+**同一批 Azure Neural 聲音**（`en-US-EmmaMultilingualNeural` 等），差別只在怎麼進門：
+
+| 引擎 | 端點 | 金鑰 | 相依 | 特性 |
+|------|------|------|------|------|
+| Edge TTS | `/api/etts` | 不需要 | `edge-tts`（預設安裝） | 走 Edge「大聲朗讀」的未公開端點。純 Python、無模型檔 |
+| Azure AI Speech | `/api/azure-tts` | **需要**，使用者自行輸入 | `uv sync --group azure` | 官方 SDK，支援完整 SSML |
+
+兩個引擎都輸出 **MP3**（`audio/mpeg`），離線那三個是 WAV。
+
+**Edge TTS 用的套件**是 [`rany2/edge-tts`](https://github.com/rany2/edge-tts)（PyPI `edge-tts`，
+import 名 `edge_tts`）—— 逆向 Edge「大聲朗讀」的未公開端點，非 Azure 官方 SDK。
+
+**已知脆弱點**：它依賴一個會隨 Edge 改版輪替的 `Sec-MS-GEC` token，過期時服務端回
+403。`server/tts_edge.py` 會把 403 轉成「升級 edge-tts 套件」的明確訊息而非靜默失敗。
+
+**授權是 LGPL-3.0**（7.2.8 隨附的 LICENSE：除 `srt_composer.py` 為 MIT 外其餘 LGPLv3）。
+弱 copyleft，打包進 MIT 的 .app 沒問題，只要釋出時附上授權聲明與副本即可。
+順帶一提，bundle 裡真正是 **GPL-3.0-or-later** 的是 `piper-tts` 與 `phonemizer-fork`，
+那是既有狀況，與本引擎無關。
+
+**Azure 金鑰不進 bundle**：金鑰由使用者在設定視窗的「語音測試」頁輸入，存在
+OS keychain（`server/tts_secrets.py`，service `ollie-reader-azure-tts`）。
+spec 刻意不收 Azure SDK —— 沒有金鑰的 frozen build 會對 `/api/azure-tts` 回 503。
+
+`GET /api/tts/voices?engine=<edge|azure|kokoro|piper|chatterbox>&locale=en`
+可列出該引擎的聲音清單（`locale` 留空 = 不過濾）。設定視窗的試聽頁就是用這支。
+
+## 語音測試頁（設定視窗）
+
+`make desktop-run` 開啟托盤 →「開啟設定…」→ **語音測試** 分頁，可以挑引擎、挑聲音、
+改語速，直接試聽比較。它走的是 sidecar HTTP，因此測到的就是網頁端會用的同一條路。
+Azure 的 key / region 也在這頁輸入。
+
 ## Chatterbox-Turbo（可選的高品質英文 AI 語音）
 
 Chatterbox 是重量級 TTS，英文品質比 Kokoro / Piper 更好，但也更吃算力
