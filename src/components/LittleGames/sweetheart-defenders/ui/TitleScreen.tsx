@@ -52,7 +52,7 @@ export function TitleScreen({
   onOpenDex,
   onExit,
 }: Props) {
-  const [difficulty, setDifficulty] = useState<Difficulty>("normal");
+  const [difficulty, setDifficulty] = useState<Difficulty>("easy");
   const nextLevelId = nextPlayableLevelId(levelStars);
   const clearedCount = LEVELS.filter(
     (level) => (levelStars[level.id] ?? 0) > 0,
