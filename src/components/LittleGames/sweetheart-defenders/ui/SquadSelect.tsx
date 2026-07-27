@@ -1,11 +1,23 @@
 import { useState } from "react";
-import { ArrowLeft, Candy, Check, Eraser, Sparkles, Swords } from "lucide-react";
+import {
+  ArrowLeft,
+  Candy,
+  Check,
+  Crosshair,
+  Eraser,
+  Info,
+  Sparkles,
+  Swords,
+} from "lucide-react";
 import { playSfx } from "../audio";
 import { MAX_SQUAD_SIZE } from "../constants";
+import { getTowerStats } from "../engine/combat";
 import { getPlaceCost } from "../engine/economy";
 import { recommendSquad } from "../squad";
 import type { Difficulty, TowerCharacter } from "../types";
+import { CharacterDetail, RangeMeter } from "./CharacterDetail";
 import { CharacterTags } from "./CharacterTags";
+import { Popup } from "./Popup";
 
 const DIFFICULTY_LABEL_ZH: Record<Difficulty, string> = {
   easy: "輕鬆",
@@ -44,8 +56,12 @@ export function SquadSelect({
       ? initialSquadIds
       : recommendSquad(availableCharacters, []),
   );
+  const [detailId, setDetailId] = useState<string | null>(null);
 
   const isFull = squadIds.length >= MAX_SQUAD_SIZE;
+  const detail = availableCharacters.find(
+    (character) => character.id === detailId,
+  );
 
   const toggle = (id: string) => {
     if (squadIds.includes(id)) {
@@ -133,50 +149,113 @@ export function SquadSelect({
           ? "隊伍滿了，想換人就先點掉上面的一位"
           : `還可以帶 ${MAX_SQUAD_SIZE - squadIds.length} 位`}
       </p>
+      <p className="mt-1 flex items-center justify-center gap-1 text-center text-[11px] text-slate-400">
+        粉紅色長條是攻擊範圍，點
+        <Info size={12} strokeWidth={2} aria-hidden="true" />
+        看招式細節
+      </p>
 
       <div className="mx-auto mt-5 grid w-full max-w-4xl grid-cols-3 gap-2 pb-28 sm:grid-cols-5 lg:grid-cols-6">
         {availableCharacters.map((character) => {
           const picked = squadIds.includes(character.id);
+          const range = Math.round(getTowerStats(character, 1).range);
 
+          // 卡片本身是「選進隊伍」，ⓘ 是「看細節」——兩顆按鈕不能互相巢狀，
+          // 所以外面包一層 div 而不是把 ⓘ 塞進卡片按鈕裡。
           return (
-            <button
-              key={character.id}
-              type="button"
-              onClick={() => toggle(character.id)}
-              aria-pressed={picked}
-              className={`relative flex flex-col items-center rounded-[12px] border p-1.5 shadow-sm transition ${
-                picked
-                  ? "border-[#ff6f9f] bg-rose-50 ring-2 ring-[#ff6f9f]/25"
-                  : "border-black/5 bg-white/80 hover:-translate-y-0.5 hover:shadow-md"
-              } ${!picked && isFull ? "opacity-55" : ""}`}
-            >
-              {picked && (
-                <span
-                  aria-hidden="true"
-                  className="absolute right-1 top-1 flex size-5 items-center justify-center rounded-full bg-[#ff6f9f] text-white"
-                >
-                  <Check size={12} strokeWidth={3} />
+            <div key={character.id} className="relative">
+              <button
+                type="button"
+                onClick={() => toggle(character.id)}
+                aria-pressed={picked}
+                className={`flex w-full flex-col items-center rounded-[12px] border p-1.5 shadow-sm transition ${
+                  picked
+                    ? "border-[#ff6f9f] bg-rose-50 ring-2 ring-[#ff6f9f]/25"
+                    : "border-black/5 bg-white/80 hover:-translate-y-0.5 hover:shadow-md"
+                } ${!picked && isFull ? "opacity-55" : ""}`}
+              >
+                {picked && (
+                  <span
+                    aria-hidden="true"
+                    className="absolute right-1 top-1 flex size-5 items-center justify-center rounded-full bg-[#ff6f9f] text-white"
+                  >
+                    <Check size={12} strokeWidth={3} />
+                  </span>
+                )}
+                <img
+                  src={character.sprite}
+                  alt={character.name}
+                  className="h-12 w-12 object-contain"
+                />
+                <span className="mt-0.5 text-center text-[11px] font-medium leading-tight text-slate-700">
+                  {character.nameZh}
                 </span>
-              )}
-              <img
-                src={character.sprite}
-                alt={character.name}
-                className="h-12 w-12 object-contain"
-              />
-              <span className="mt-0.5 text-center text-[11px] font-medium leading-tight text-slate-700">
-                {character.nameZh}
-              </span>
-              <div className="mt-1">
-                <CharacterTags pet={character} />
-              </div>
-              <span className="mt-1 flex items-center gap-0.5 text-[11px] font-semibold text-amber-600">
-                <Candy size={12} strokeWidth={2} aria-hidden="true" />
-                {getPlaceCost(character)}
-              </span>
-            </button>
+                <div className="mt-1">
+                  <CharacterTags pet={character} />
+                </div>
+                <span className="mt-1 flex items-center gap-2 text-[11px] font-semibold">
+                  <span className="flex items-center gap-0.5 text-amber-600">
+                    <Candy size={12} strokeWidth={2} aria-hidden="true" />
+                    {getPlaceCost(character)}
+                  </span>
+                  <span className="flex items-center gap-0.5 text-slate-500">
+                    <Crosshair size={12} strokeWidth={2} aria-hidden="true" />
+                    {range}
+                  </span>
+                </span>
+                <RangeMeter range={range} className="mt-1" />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  playSfx("select");
+                  setDetailId(character.id);
+                }}
+                aria-haspopup="dialog"
+                aria-label={`看 ${character.nameZh} 的招式細節`}
+                className="absolute left-0.5 top-0.5 flex size-8 items-center justify-center rounded-full text-slate-400 transition hover:bg-black/5 hover:text-slate-600"
+              >
+                <Info size={15} strokeWidth={2} aria-hidden="true" />
+              </button>
+            </div>
           );
         })}
       </div>
+
+      {detail && (
+        <Popup
+          title="招式細節"
+          panelClassName="max-w-lg"
+          onClose={() => setDetailId(null)}
+          // 看完就能直接決定要不要帶，不用關掉面板再回去清單裡找同一張卡。
+          footer={
+            <div className="shrink-0 border-t border-black/5 bg-white/70 p-3">
+              <button
+                type="button"
+                disabled={isFull && !squadIds.includes(detail.id)}
+                onClick={() => {
+                  toggle(detail.id);
+                  setDetailId(null);
+                }}
+                className={`flex min-h-11 w-full items-center justify-center gap-1.5 rounded-[10px] px-4 text-sm font-semibold shadow-sm transition disabled:opacity-45 ${
+                  squadIds.includes(detail.id)
+                    ? "border border-[#ff6f9f]/40 bg-white text-[#d94f7d] hover:bg-rose-50"
+                    : "bg-[#ff6f9f] text-white hover:brightness-105"
+                }`}
+              >
+                {squadIds.includes(detail.id)
+                  ? "請下場"
+                  : isFull
+                    ? "隊伍滿了"
+                    : "選入隊伍"}
+              </button>
+            </div>
+          }
+        >
+          <CharacterDetail character={detail} />
+        </Popup>
+      )}
 
       {/* 固定在底部的行動列：清單再長，出發鍵都在手邊。 */}
       <div className="pointer-events-none fixed inset-x-0 bottom-0 z-20 flex justify-center p-4">
