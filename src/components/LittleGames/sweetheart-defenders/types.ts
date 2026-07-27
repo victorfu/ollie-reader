@@ -322,6 +322,8 @@ export type LiveTower = {
   /** 連擊特性用：連續打同一隻目標幾次了 */
   comboHits: number;
   comboTargetUid: number;
+  /** 「彈幕」絕招的殘餘時間（毫秒），期間攻速大幅提升 */
+  frenzyMs: number;
 };
 
 /** 飛行道具，純視覺；傷害在開火當下就結算了。 */
@@ -389,6 +391,15 @@ export type BattleState = {
   spawnQueue: { atMs: number; kind: EnemyKind; pathIndex: number }[];
   /** 每個烤箱口距離下次噴火還有多久（毫秒），索引對應 LevelSpec.zones */
   zoneTimers: number[];
+  /**
+   * 每個角色的絕招充能（0–1，滿 1 就能放）。
+   *
+   * 以角色而不是以塔為單位：同一個角色放了三座塔，三座的充能加總在一起，
+   * 滿了之後三座同時放招。畫面底下的絕招列直接讀這裡。
+   */
+  ultimateCharge: Record<string, number>;
+  /** 「大合唱」絕招的殘餘時間（毫秒），期間全場塔攻速提升 */
+  choirMs: number;
   kills: number;
   /** 被偷走的蛋糕總數 */
   leaked: number;
@@ -407,4 +418,6 @@ export type Command =
   | { kind: "upgradeTower"; slotId: string }
   | { kind: "sellTower"; slotId: string }
   | { kind: "startWave" }
-  | { kind: "setSpeed"; multiplier: 1 | 2 };
+  | { kind: "setSpeed"; multiplier: 1 | 2 }
+  /** 放這個角色的絕招。充能未滿時會被忽略。 */
+  | { kind: "castUltimate"; characterId: string };

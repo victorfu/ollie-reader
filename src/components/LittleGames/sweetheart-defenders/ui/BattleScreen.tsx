@@ -31,6 +31,7 @@ import type { AudioControls } from "../useAudioSettings";
 import { Hud } from "./Hud";
 import { ResultDialog } from "./ResultDialog";
 import { TowerPanel } from "./TowerPanel";
+import { UltimateBar } from "./UltimateBar";
 
 type TowerSummary = { slotId: string; characterId: string; level: 1 | 2 | 3 };
 
@@ -51,6 +52,8 @@ export type HudSnapshot = {
   kills: number;
   speed: 1 | 2;
   towers: TowerSummary[];
+  /** 每個上場角色的絕招充能（0–1）。畫面底下的絕招列直接讀這個。 */
+  ultimateCharge: Record<string, number>;
 };
 
 function snapshotOf(state: BattleState, waveCount: number): HudSnapshot {
@@ -69,6 +72,7 @@ function snapshotOf(state: BattleState, waveCount: number): HudSnapshot {
       characterId: tower.characterId,
       level: tower.level,
     })),
+    ultimateCharge: { ...state.ultimateCharge },
   };
 }
 
@@ -82,6 +86,9 @@ function sameSnapshot(a: HudSnapshot, b: HudSnapshot): boolean {
     a.kills === b.kills &&
     a.speed === b.speed &&
     a.towers.length === b.towers.length &&
+    // 充能每幀都在動，但畫面只需要更新到能看出進度就好——切成 20 段比對，
+    // 不然這條快照比對永遠不相等，等於每幀都重繪整個 React 樹。
+    sameCharge(a.ultimateCharge, b.ultimateCharge) &&
     a.towers.every((tower, index) => {
       const other = b.towers[index];
       return (
@@ -91,6 +98,15 @@ function sameSnapshot(a: HudSnapshot, b: HudSnapshot): boolean {
       );
     })
   );
+}
+
+function sameCharge(
+  a: Record<string, number>,
+  b: Record<string, number>,
+): boolean {
+  const ids = new Set([...Object.keys(a), ...Object.keys(b)]);
+  const step = (value: number) => Math.floor((value ?? 0) * 20);
+  return [...ids].every((id) => step(a[id]) === step(b[id]));
 }
 
 /** 這一波有沒有 Boss；用來決定要放哪一首曲子。 */
@@ -166,6 +182,12 @@ export function BattleScreen({
   useEffect(() => {
     pausedRef.current = paused;
   }, [paused]);
+
+  // 哪些角色已經站上塔位；沒上場的角色在絕招列裡是灰的。
+  const placedCharacterIds = useMemo(
+    () => new Set(hud.towers.map((tower) => tower.characterId)),
+    [hud.towers],
+  );
 
   const enqueue = useCallback((command: Command) => {
     commandQueue.current.push(command);
@@ -391,6 +413,19 @@ export function BattleScreen({
             className="touch-manipulation rounded-[16px] shadow-[0_18px_50px_rgba(180,120,150,0.28)] ring-1 ring-black/5"
           />
         </div>
+
+        {/* 絕招列永遠在底部同一個位置；塔位面板開起來時讓位，免得疊在一起。 */}
+        {!outcome && !selectedSlotId && (
+          <UltimateBar
+            squad={availableCharacters}
+            placed={placedCharacterIds}
+            charge={hud.ultimateCharge}
+            onCast={(characterId) => {
+              playSfx("upgrade");
+              enqueue({ kind: "castUltimate", characterId });
+            }}
+          />
+        )}
 
         {selectedSlotId && !outcome && (
           <TowerPanel

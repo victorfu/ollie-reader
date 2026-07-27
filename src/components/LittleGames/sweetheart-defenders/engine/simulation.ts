@@ -8,6 +8,11 @@ import { getEnemy } from "../data/enemies";
 import { getCharacter } from "../data/characters";
 import { DOT_COLOR, TRAIT_BASE } from "../data/traits";
 import { planSlots } from "../data/slotPlanner";
+import {
+  CHARGE_PER_DAMAGE,
+  CHARGE_TIME_MS,
+  ULTIMATE_BASE,
+} from "../data/ultimates";
 import { computeDamage, getTowerStats } from "./combat";
 import {
   getEarlyStartBonus,
@@ -126,6 +131,8 @@ export function createBattle(
     effects: [],
     spawnQueue: [],
     zoneTimers: (level.spec.zones ?? []).map(() => OVEN_VENT_INTERVAL_MS),
+    ultimateCharge: {},
+    choirMs: 0,
     kills: 0,
     leaked: 0,
     speed: 1,
@@ -207,6 +214,7 @@ function applyCommand(
         recoilMs: 0,
         comboHits: 0,
         comboTargetUid: 0,
+        frenzyMs: 0,
       });
       return;
     }
@@ -243,6 +251,11 @@ function applyCommand(
 
     case "setSpeed": {
       state.speed = command.multiplier;
+      return;
+    }
+
+    case "castUltimate": {
+      castUltimate(state, level, command.characterId);
       return;
     }
   }
@@ -417,11 +430,18 @@ function updateTowers(
   dtMs: number,
 ): void {
   const cheerBonusBySlot = computeCheerBonuses(state, level);
+  // 大合唱：全場一起加速，跟應援塔的區域加成疊加。
+  state.choirMs = Math.max(0, state.choirMs - dtMs);
+  const choirBonus = state.choirMs > 0 ? ULTIMATE_BASE.cheer.speedBonus : 0;
 
   for (const tower of state.towers) {
     const pet = getCharacter(tower.characterId);
     const slot = level.slotById.get(tower.slotId);
     if (!pet || !slot) continue;
+
+    // 每座塔都替自己的角色充能。同角色多座塔會加總，所以放越多充得越快。
+    chargeUltimate(state, tower.characterId, dtMs / CHARGE_TIME_MS);
+    tower.frenzyMs = Math.max(0, tower.frenzyMs - dtMs);
 
     // 糖霜池只加射程，不動其他數值——站進去打得更遠，但不會變強。
     const base = getTowerStats(pet, tower.level);
@@ -438,8 +458,14 @@ function updateTowers(
       continue;
     }
 
+    const frenzy =
+      tower.frenzyMs > 0 ? ULTIMATE_BASE.rapid.speedMultiplier - 1 : 0;
     const speedMultiplier =
-      1 + (cheerBonusBySlot.get(tower.slotId) ?? 0) + encoreBonus(tower, stats);
+      1 +
+      (cheerBonusBySlot.get(tower.slotId) ?? 0) +
+      encoreBonus(tower, stats) +
+      choirBonus +
+      frenzy;
     tower.cooldownMs -= dtMs * speedMultiplier;
     if (tower.cooldownMs > 0) continue;
 
@@ -453,6 +479,189 @@ function updateTowers(
       tower.comboTargetUid = 0;
     }
   }
+}
+
+// === 絕招 ===
+
+/**
+ * 放一個角色的絕招。
+ *
+ * 充能是以角色為單位算的，所以同一個角色的每一座塔都會一起發動——放三座就
+ * 三發，這是「多放幾隻同一個角色」的回報。充能沒滿就整個忽略（畫面上那顆
+ * 按鈕本來就是暗的，所以不需要另外的失敗回饋）。
+ */
+function castUltimate(
+  state: BattleState,
+  level: CompiledLevel,
+  characterId: string,
+): void {
+  if ((state.ultimateCharge[characterId] ?? 0) < 1) return;
+
+  const towers = state.towers.filter(
+    (tower) => tower.characterId === characterId,
+  );
+  if (towers.length === 0) return;
+
+  state.ultimateCharge[characterId] = 0;
+
+  for (const tower of towers) {
+    const pet = getCharacter(tower.characterId);
+    const slot = level.slotById.get(tower.slotId);
+    if (!pet || !slot) continue;
+
+    fireUltimate(state, level, tower, pet, slot);
+  }
+}
+
+function fireUltimate(
+  state: BattleState,
+  level: CompiledLevel,
+  tower: LiveTower,
+  pet: TowerCharacter,
+  slot: Vec2,
+): void {
+  const stats = getTowerStats(pet, tower.level);
+  const color = ELEMENT_COLOR[stats.element];
+  const secondaryElements = pet.elements.slice(1);
+
+  switch (stats.archetype) {
+    case "rapid": {
+      tower.frenzyMs = ULTIMATE_BASE.rapid.durationMs;
+      addEffect(state, "heal", slot, stats.range, color);
+      return;
+    }
+
+    case "syrup": {
+      const reach = stats.range * ULTIMATE_BASE.syrup.rangeMultiplier;
+      addEffect(state, "splash", slot, reach, color);
+
+      for (const enemy of findEnemiesInRadius(slot, reach, state.enemies)) {
+        if (getEnemy(enemy.kind).slowImmune) continue;
+        enemy.slowMs = Math.max(enemy.slowMs, ULTIMATE_BASE.syrup.durationMs);
+        enemy.slowFactor = Math.max(
+          enemy.slowFactor,
+          ULTIMATE_BASE.syrup.slowFactor,
+        );
+      }
+      return;
+    }
+
+    case "vine": {
+      addEffect(state, "splash", slot, stats.range, color);
+      for (const enemy of findEnemiesInRadius(slot, stats.range, state.enemies)) {
+        applyDot(
+          enemy,
+          ULTIMATE_BASE.vine.dps * stats.traitPower,
+          ULTIMATE_BASE.vine.durationMs,
+          DOT_COLOR.toxin,
+        );
+      }
+      return;
+    }
+
+    case "sniper": {
+      // 挑血量最高的那隻——Boss 站在場上時，玩家最想看到的就是那一發。
+      const target = state.enemies.reduce<LiveEnemy | null>(
+        (best, enemy) => (best === null || enemy.hp > best.hp ? enemy : best),
+        null,
+      );
+      if (!target) return;
+
+      addBeam(state, [slot, target], color, 9);
+      hitEnemy(
+        state,
+        level,
+        tower,
+        target,
+        stats,
+        secondaryElements,
+        ULTIMATE_BASE.sniper.damageMultiplier,
+        false,
+      );
+      return;
+    }
+
+    case "lullaby": {
+      addEffect(state, "heal", slot, stats.range, color);
+      for (const enemy of findEnemiesInRadius(slot, stats.range, state.enemies)) {
+        enemy.stunMs = Math.max(enemy.stunMs, ULTIMATE_BASE.lullaby.stunMs);
+      }
+      return;
+    }
+
+    case "burst": {
+      // 五發炸在射程內平均分佈的位置，看起來像一串煙火而不是一次大爆炸。
+      for (let i = 0; i < ULTIMATE_BASE.burst.blasts; i += 1) {
+        const angle = (i / ULTIMATE_BASE.burst.blasts) * Math.PI * 2;
+        const spot = {
+          x: slot.x + Math.cos(angle) * stats.range * 0.6,
+          y: slot.y + Math.sin(angle) * stats.range * 0.6,
+        };
+        addEffect(state, "splash", spot, stats.splashRadius * 1.4, color);
+
+        const caught = findEnemiesInRadius(
+          spot,
+          stats.splashRadius * 1.4,
+          state.enemies,
+        );
+        for (let index = caught.length - 1; index >= 0; index -= 1) {
+          hitEnemy(
+            state,
+            level,
+            tower,
+            caught[index],
+            stats,
+            secondaryElements,
+            ULTIMATE_BASE.burst.damageMultiplier,
+            false,
+          );
+        }
+      }
+      return;
+    }
+
+    case "cannon": {
+      addEffect(state, "splash", slot, stats.range, color);
+      const caught = findEnemiesInRadius(slot, stats.range, state.enemies);
+      // 逆向走訪：擊殺會就地從 state.enemies 移除。
+      for (let index = caught.length - 1; index >= 0; index -= 1) {
+        const enemy = caught[index];
+        enemy.armorShred = Math.max(
+          enemy.armorShred,
+          ULTIMATE_BASE.cannon.armorShred,
+        );
+        hitEnemy(
+          state,
+          level,
+          tower,
+          enemy,
+          stats,
+          secondaryElements,
+          ULTIMATE_BASE.cannon.damageMultiplier,
+          false,
+        );
+      }
+      return;
+    }
+
+    case "cheer": {
+      state.choirMs = Math.max(state.choirMs, ULTIMATE_BASE.cheer.durationMs);
+      addEffect(state, "heal", slot, stats.range * 1.6, color);
+      return;
+    }
+  }
+}
+
+/** 充能：時間一直加，打到怪加更多。滿 1 就停在 1，等玩家按。 */
+function chargeUltimate(
+  state: BattleState,
+  characterId: string,
+  amount: number,
+): void {
+  state.ultimateCharge[characterId] = Math.min(
+    1,
+    (state.ultimateCharge[characterId] ?? 0) + amount,
+  );
 }
 
 /**
@@ -745,6 +954,13 @@ function hitEnemy(
   stats: TowerStats,
   secondaryElements: Element[],
   damageRatio: number,
+  /**
+   * 這一擊算不算充能。
+   *
+   * 絕招自己造成的傷害不能回充自己——碎裂砲一發打全場，實測會當場把充能條
+   * 灌回四成，等於大招幾乎可以連放。平常的攻擊才充能。
+   */
+  charges = true,
 ): void {
   const spec = getEnemy(enemy.kind);
   const damage =
@@ -758,6 +974,10 @@ function hitEnemy(
     }) * damageRatio;
 
   tower.totalDamage += damage;
+  // 打得越兇充能越快，讓「認真在守的那隻」先拿到大招。
+  if (charges) {
+    chargeUltimate(state, tower.characterId, damage * CHARGE_PER_DAMAGE);
+  }
   enemy.flashMs = FLASH_MS;
 
   // 護盾先擋，擋不完的才扣血。
