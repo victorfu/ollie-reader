@@ -3,7 +3,7 @@ import { drawSpawnHint, renderBattle } from "./renderer";
 import { compileLevel, createBattle, stepSimulation } from "../engine/simulation";
 import { LEVELS } from "../data/levels";
 import { ENEMIES } from "../data/enemies";
-import { STEP_MS } from "../constants";
+import { HEIGHT, STEP_MS, WIDTH } from "../constants";
 import type { BattleState, EnemyKind, LiveEnemy } from "../types";
 
 /**
@@ -217,6 +217,87 @@ describe("renderBattle", () => {
         previewCharacterId: "shiro",
       }),
     ).not.toThrow();
+  });
+});
+
+/**
+ * 櫃檯畫在路徑終點，而十二張地圖裡有十一張的終點都貼在畫布右緣（x≈1210）。
+ * 任何「往櫃檯右邊再擺一點東西」的寫法都會被畫布裁掉——之前多出來的蛋糕數
+ * 「+6」就是這樣被切成一根小黑槓掛在畫面邊上。生命是 12、櫃檯只畫 6 塊，
+ * 所以那行字從每一關的第一幀就在畫面上。
+ */
+describe("counter overflow label", () => {
+  /** 記下 fillText 的絕對座標與對齊方式，用來檢查字有沒有被畫出畫布。 */
+  function createTextProbe() {
+    const texts: { text: string; x: number; y: number; align: string }[] = [];
+    let tx = 0;
+    let ty = 0;
+    const stack: number[][] = [];
+
+    const base = createRecordingContext();
+    const ctx = {
+      ...base,
+      textAlign: "left",
+      save() {
+        stack.push([tx, ty]);
+      },
+      restore() {
+        const previous = stack.pop();
+        if (previous) [tx, ty] = previous;
+      },
+      translate(x: number, y: number) {
+        tx += x;
+        ty += y;
+      },
+      fillText(text: string, x: number, y: number) {
+        texts.push({ text, x: tx + x, y: ty + y, align: ctx.textAlign });
+      },
+    };
+
+    return { ctx: ctx as unknown as CanvasRenderingContext2D, texts };
+  }
+
+  // jsdom 沒有 measureText。實測 bold 12px system-ui 畫「+6」約 16.3px 寬，
+  // 這裡取 24 當上限，涵蓋 "+12" 這種三個字元的情況。
+  const LABEL_WIDTH = 24;
+
+  function boxOf(entry: { x: number; align: string }) {
+    if (entry.align === "center") {
+      return [entry.x - LABEL_WIDTH / 2, entry.x + LABEL_WIDTH / 2];
+    }
+    if (entry.align === "right") return [entry.x - LABEL_WIDTH, entry.x];
+    return [entry.x, entry.x + LABEL_WIDTH];
+  }
+
+  it("keeps the '+N' label fully on canvas on every map", () => {
+    for (const spec of LEVELS) {
+      const level = compileLevel(spec);
+      const state = createBattle(level, 1);
+
+      // 只有蛋糕多於畫得出來的 6 塊時才會有這行字；預設 12 條命一定會有。
+      expect(state.cakes).toBeGreaterThan(6);
+
+      const { ctx, texts } = createTextProbe();
+      renderBattle(ctx, state, level, emptyView());
+
+      const label = texts.find((entry) => entry.text.startsWith("+"));
+      expect(label, `${spec.id} 少了多餘蛋糕的標籤`).toBeDefined();
+
+      const [left, right] = boxOf(label!);
+      expect(left, `${spec.id} 的「${label!.text}」超出畫布左緣`).toBeGreaterThanOrEqual(0);
+      expect(right, `${spec.id} 的「${label!.text}」超出畫布右緣`).toBeLessThanOrEqual(WIDTH);
+      expect(label!.y, `${spec.id} 的「${label!.text}」超出畫布上下緣`).toBeGreaterThanOrEqual(0);
+      expect(label!.y).toBeLessThanOrEqual(HEIGHT);
+    }
+  });
+
+  it("drops the label once six or fewer cakes are left", () => {
+    const level = compileLevel(LEVELS[0]);
+    const { ctx, texts } = createTextProbe();
+
+    renderBattle(ctx, { ...createBattle(level, 1), cakes: 6 }, level, emptyView());
+
+    expect(texts.filter((entry) => entry.text.startsWith("+"))).toHaveLength(0);
   });
 });
 

@@ -141,11 +141,16 @@ function drawCounter(
     ctx.fill();
   }
 
+  // 多出來的蛋糕寫在櫃檯正面，不寫在櫃檯右邊。十二張地圖有十一張的路徑終點
+  // 在 x≈1210，櫃檯右緣離畫布只剩 7px——擺在外側的字會被畫布裁掉，只留一根
+  // 小黑槓黏在畫面邊上。櫃檯本身一定在畫布內，寫在它身上就永遠切不到。
   if (state.cakes > 6) {
     ctx.fillStyle = "#7a5b46";
     ctx.font = "bold 12px system-ui, sans-serif";
-    ctx.textAlign = "left";
-    ctx.fillText(`+${state.cakes - 6}`, 62, -20);
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    // 櫃檯正面是 -18..20，中心在 1。字級小、又是深棕配米色，不會蓋掉櫃檯的形狀。
+    ctx.fillText(`+${state.cakes - 6}`, 0, 1);
   }
 
   ctx.restore();
