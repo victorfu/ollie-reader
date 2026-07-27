@@ -40,6 +40,7 @@ function snapshot(phase: HudSnapshot["phase"]): HudSnapshot {
     kills: 40,
     speed: 2,
     towers: [],
+    ultimateCharge: {},
   };
 }
 

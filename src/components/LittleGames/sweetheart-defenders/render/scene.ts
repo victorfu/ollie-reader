@@ -36,7 +36,7 @@ export function drawZones(
     ctx.translate(zone.x, zone.y);
 
     if (zone.kind === "sugarPool") drawSugarPool(ctx, zone, timeMs);
-    else drawOvenVent(ctx, zone, timeMs, zoneTimers[index] ?? 0);
+    else drawOvenVent(ctx, zone, zoneTimers[index] ?? 0);
 
     ctx.restore();
   });
@@ -75,7 +75,6 @@ function drawSugarPool(
 function drawOvenVent(
   ctx: CanvasRenderingContext2D,
   zone: SceneZone,
-  timeMs: number,
   msUntilFire: number,
 ): void {
   const charging = Math.max(0, 1 - msUntilFire / 1000);

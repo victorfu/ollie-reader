@@ -1,5 +1,4 @@
 import { ArrowLeft, CakeSlice, Candy, Pause, Play } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
 import type { WaveSpec } from "../types";
 import type { AudioControls } from "../useAudioSettings";
 import { AudioButton } from "./AudioControls";
@@ -18,6 +17,13 @@ type Props = {
   onExit: () => void;
 };
 
+/**
+ * 戰鬥畫面上方的狀態列。
+ *
+ * 主要玩家是小朋友，所以剩幾條命和打到第幾波都改成用看的：蛋糕是一排圖示，
+ * 被偷走就少一塊；波次是一排點，打完一波填滿一顆。原本是「12/12」「1/10」
+ * 這種要先讀數字再心算的寫法。糖霜留數字，因為那個值本來就是拿來跟造價比的。
+ */
 export function Hud({
   hud,
   levelName,
@@ -37,7 +43,7 @@ export function Hud({
     // 畫布前面，音量彈窗（z-40）會被關進來、整個沉到畫布底下。給 header 一個明確
     // 的堆疊層級，讓工具列（連同它的彈窗）浮在遊玩區之上、但仍低於結算視窗。
     <header className="relative z-30 border-b border-black/5 bg-white/70 px-3 py-2 backdrop-blur-md sm:px-4">
-      <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
         <button
           type="button"
           onClick={onExit}
@@ -51,15 +57,17 @@ export function Hud({
           {levelName}
         </span>
 
-        <Stat icon={CakeSlice} label="蛋糕" tone="rose">
-          {hud.cakes}/{hud.maxCakes}
-        </Stat>
-        <Stat icon={Candy} label="糖霜" tone="amber">
+        <CakeMeter cakes={hud.cakes} maxCakes={hud.maxCakes} />
+
+        <span
+          className="flex items-center gap-1 rounded-full bg-amber-100/70 px-2.5 py-1 text-sm font-semibold text-amber-700"
+          aria-label="糖霜"
+        >
+          <Candy size={14} strokeWidth={2} aria-hidden="true" />
           {hud.frosting}
-        </Stat>
-        <Stat label="波次" tone="slate">
-          {hud.waveNumber}/{hud.waveCount}
-        </Stat>
+        </span>
+
+        <WaveDots current={hud.waveNumber} total={hud.waveCount} />
 
         <div className="ml-auto flex items-center gap-2">
           <AudioButton {...audio} align="right" />
@@ -69,7 +77,8 @@ export function Hud({
               type="button"
               onClick={onTogglePause}
               aria-pressed={paused}
-              className={`flex min-h-11 items-center gap-1.5 rounded-[8px] border px-3 text-sm font-semibold shadow-sm transition ${
+              aria-label={paused ? "繼續" : "暫停"}
+              className={`flex min-h-11 items-center justify-center rounded-[8px] border px-3 shadow-sm transition ${
                 paused
                   ? "border-[#ff6f9f] bg-[#ff6f9f] text-white"
                   : "border-black/5 bg-white text-slate-700 hover:bg-slate-50"
@@ -80,7 +89,6 @@ export function Hud({
               ) : (
                 <Pause size={16} strokeWidth={2} aria-hidden="true" />
               )}
-              {paused ? "繼續" : "暫停"}
             </button>
           )}
 
@@ -121,32 +129,74 @@ export function Hud({
   );
 }
 
-const TONES = {
-  rose: "bg-rose-100/70 text-rose-700",
-  amber: "bg-amber-100/70 text-amber-700",
-  slate: "bg-slate-100/70 text-slate-700",
-} as const;
+/**
+ * 剩下幾塊蛋糕。
+ *
+ * 一塊圖示一條命，被偷走的變成空殼——小朋友不用讀「9/12」就知道還剩多少、
+ * 剛剛是不是掉了一塊。上限很高時（挑戰以外的難度最多 12）就退回數字，
+ * 免得整排圖示把工具列擠爆。
+ */
+function CakeMeter({ cakes, maxCakes }: { cakes: number; maxCakes: number }) {
+  const label = `蛋糕還剩 ${cakes} 塊，共 ${maxCakes} 塊`;
 
-function Stat({
-  icon: Icon,
-  label,
-  tone,
-  children,
-}: {
-  icon?: LucideIcon;
-  label: string;
-  tone: keyof typeof TONES;
-  children: React.ReactNode;
-}) {
+  if (maxCakes > 12) {
+    return (
+      <span
+        className="flex items-center gap-1 rounded-full bg-rose-100/70 px-2.5 py-1 text-sm font-semibold text-rose-700"
+        aria-label={label}
+      >
+        <CakeSlice size={14} strokeWidth={2} aria-hidden="true" />
+        {cakes}/{maxCakes}
+      </span>
+    );
+  }
+
   return (
     <span
-      className={`flex items-center gap-1 rounded-full px-2.5 py-1 text-sm font-semibold ${TONES[tone]}`}
-      // 圖示是裝飾，文字標籤才是給輔助技術讀的。
+      className="flex items-center gap-0.5 rounded-full bg-rose-100/70 px-2 py-1"
       aria-label={label}
     >
-      {Icon && <Icon size={14} strokeWidth={2} aria-hidden="true" />}
-      <span className="text-[11px] font-medium opacity-70">{label}</span>
-      {children}
+      {Array.from({ length: maxCakes }, (_, index) => (
+        <CakeSlice
+          key={index}
+          size={14}
+          strokeWidth={2}
+          aria-hidden="true"
+          className={
+            index < cakes
+              ? "text-rose-600"
+              : // 被偷走的留在原位變淡，才看得出「本來有幾塊」。
+                "text-rose-300/50"
+          }
+        />
+      ))}
+    </span>
+  );
+}
+
+/** 打到第幾波。一波一顆點，打完填滿，正在打的那顆會亮。 */
+function WaveDots({ current, total }: { current: number; total: number }) {
+  return (
+    <span
+      className="flex items-center gap-1"
+      aria-label={`第 ${current} 波，共 ${total} 波`}
+    >
+      {Array.from({ length: total }, (_, index) => {
+        const waveNumber = index + 1;
+        return (
+          <span
+            key={waveNumber}
+            aria-hidden="true"
+            className={`size-2 rounded-full transition-colors ${
+              waveNumber < current
+                ? "bg-[#ff6f9f]"
+                : waveNumber === current
+                  ? "bg-[#ff6f9f] ring-2 ring-[#ff6f9f]/30"
+                  : "bg-slate-300/70"
+            }`}
+          />
+        );
+      })}
     </span>
   );
 }

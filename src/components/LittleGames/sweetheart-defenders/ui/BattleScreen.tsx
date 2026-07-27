@@ -402,9 +402,14 @@ export function BattleScreen({
 
       {/* 面板定位在畫布這一層，不是整個畫面，才不會蓋到上面的 HUD 按鈕。 */}
       <div className="relative flex min-h-0 flex-1 flex-col">
+        {/* 畫布是固定 16:9 的，寬螢幕上左右一定會留白。留白填上這一關自己的
+            配色，那兩條就從「還沒畫完的空白」變成畫面的一部分。 */}
         <div
           ref={stageRef}
           className="flex min-h-0 flex-1 items-center justify-center p-2"
+          style={{
+            background: `radial-gradient(circle at 50% 40%, ${level.theme.floor}, ${level.theme.floorEdge})`,
+          }}
         >
           <canvas
             ref={canvasRef}
