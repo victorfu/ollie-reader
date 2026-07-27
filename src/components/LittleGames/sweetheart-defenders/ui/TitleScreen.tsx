@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { ArrowLeft, BookOpen, CakeSlice, Lock, Star } from "lucide-react";
 import { LEVELS } from "../data/levels";
 import { CHARACTERS } from "../data/characters";
@@ -6,10 +6,12 @@ import type { TowerCharacter } from "../types";
 import { getEnemy } from "../data/enemies";
 import { isLevelUnlocked, nextPlayableLevelId } from "../data/unlocks";
 import { previewWave } from "../engine/waves";
+import { playSfx } from "../audio";
 import type { Stars } from "../engine/progress";
 import type { SyncStatus } from "../storage";
 import type { AudioControls } from "../useAudioSettings";
 import { AudioButton } from "./AudioControls";
+import { CharacterDex } from "./CharacterDex";
 import type { Difficulty } from "../types";
 
 const DIFFICULTIES: { id: Difficulty; label: string; hint: string }[] = [
@@ -23,13 +25,10 @@ type Props = {
   /** 每關撐到過的最遠波次，還沒通關的關卡拿來顯示紀錄 */
   bestWave: Record<string, number>;
   availableCharacters: TowerCharacter[];
-  /** 扭蛋抽到的數量（不含預設班底） */
-  ownedCount: number;
   syncStatus: SyncStatus;
   isSignedIn: boolean;
   audio: AudioControls;
   onStart: (levelId: string, difficulty: Difficulty) => void;
-  onOpenDex: () => void;
   onExit?: () => void;
 };
 
@@ -44,19 +43,22 @@ export function TitleScreen({
   levelStars,
   bestWave,
   availableCharacters,
-  ownedCount,
   syncStatus,
   isSignedIn,
   audio,
   onStart,
-  onOpenDex,
   onExit,
 }: Props) {
   const [difficulty, setDifficulty] = useState<Difficulty>("easy");
+  const [dexOpen, setDexOpen] = useState(false);
   const nextLevelId = nextPlayableLevelId(levelStars);
   const clearedCount = LEVELS.filter(
     (level) => (levelStars[level.id] ?? 0) > 0,
   ).length;
+  const availableIds = useMemo(
+    () => availableCharacters.map((character) => character.id),
+    [availableCharacters],
+  );
 
   return (
     <div
@@ -77,8 +79,21 @@ export function TitleScreen({
         </button>
       )}
 
-      {/* 聲音收成右上角一顆按鈕，音量藏在彈出面板裡，不再佔一整列版面。 */}
-      <div className="absolute right-4 top-4 z-30 sm:right-6 sm:top-6">
+      {/* 圖鑑和聲音都收成右上角一顆按鈕，內容藏在彈出面板裡，不再各佔一列版面。 */}
+      <div className="absolute right-4 top-4 z-30 flex items-center gap-2 sm:right-6 sm:top-6">
+        <button
+          type="button"
+          onClick={() => {
+            playSfx("select");
+            setDexOpen(true);
+          }}
+          aria-haspopup="dialog"
+          aria-expanded={dexOpen}
+          aria-label={`角色圖鑑（已收集 ${availableIds.length} / ${CHARACTERS.length}）`}
+          className="flex min-h-11 items-center justify-center rounded-[10px] border border-black/5 bg-white px-3 text-[#ff6f9f] shadow-sm transition hover:bg-slate-50"
+        >
+          <BookOpen size={18} strokeWidth={2} aria-hidden="true" />
+        </button>
         <AudioButton {...audio} align="right" />
       </div>
 
@@ -215,40 +230,14 @@ export function TitleScreen({
         })}
       </ol>
 
-      <section className="mt-7 w-full max-w-xl">
-        <button
-          type="button"
-          onClick={onOpenDex}
-          className="flex w-full items-center gap-3 rounded-[14px] border border-black/5 bg-white/85 p-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg"
-        >
-          <BookOpen
-            size={22}
-            strokeWidth={1.75}
-            className="shrink-0 text-[#ff6f9f]"
-            aria-hidden="true"
-          />
-          <span className="min-w-0 flex-1">
-            <span className="block text-sm font-semibold text-slate-800">
-              角色圖鑑
-            </span>
-            <span className="block text-xs text-slate-500">
-              扭蛋收藏 {ownedCount} / {CHARACTERS.length} · 抽到的角色都能放上塔位
-            </span>
-          </span>
-          <span className="flex -space-x-3">
-            {availableCharacters.slice(-4).map((pet) => (
-              <img
-                key={pet.id}
-                src={pet.sprite}
-                alt=""
-                className="size-9 rounded-full bg-white object-contain ring-2 ring-white"
-              />
-            ))}
-          </span>
-        </button>
-      </section>
-
       <div className="h-6 shrink-0" />
+
+      {dexOpen && (
+        <CharacterDex
+          availableCharacterIds={availableIds}
+          onClose={() => setDexOpen(false)}
+        />
+      )}
     </div>
   );
 }

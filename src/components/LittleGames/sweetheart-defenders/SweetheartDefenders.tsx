@@ -2,12 +2,10 @@ import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "../../../hooks/useAuth";
 import { LEVELS } from "./data/levels";
 import { BattleScreen } from "./ui/BattleScreen";
-import { CharacterDex } from "./ui/CharacterDex";
 import { SquadSelect } from "./ui/SquadSelect";
 import { TitleScreen } from "./ui/TitleScreen";
 import { useCampaignSave } from "./useCampaignSave";
 import { useTowerRoster } from "./useTowerRoster";
-import { DEFAULT_ROSTER_IDS } from "./data/characters";
 import { readSquadCache, sanitizeSquad, writeSquadCache } from "./squad";
 import { useAudioSettings } from "./useAudioSettings";
 import { playMusic, playSfx } from "./audio";
@@ -19,7 +17,6 @@ type Props = {
 
 type Screen =
   | { kind: "title" }
-  | { kind: "dex" }
   | { kind: "squad"; levelId: string; difficulty: Difficulty }
   | {
       kind: "battle";
@@ -46,10 +43,6 @@ export default function SweetheartDefenders({ onExit }: Props) {
   const [lastCoinsEarned, setLastCoinsEarned] = useState(0);
 
   const backToTitle = useCallback(() => setScreen({ kind: "title" }), []);
-  const openDex = useCallback(() => {
-    playSfx("select");
-    setScreen({ kind: "dex" });
-  }, []);
 
   // 不在戰鬥裡就放選單音樂；戰鬥的曲子由 BattleScreen 自己接手。
   const inBattle = screen.kind === "battle";
@@ -90,16 +83,6 @@ export default function SweetheartDefenders({ onExit }: Props) {
       ? LEVELS.find((candidate) => candidate.id === screen.levelId)
       : undefined;
 
-  if (screen.kind === "dex") {
-    return (
-      <CharacterDex
-        availableCharacterIds={roster.availableIds}
-        defaultRosterIds={DEFAULT_ROSTER_IDS}
-        onBack={backToTitle}
-      />
-    );
-  }
-
   // 找不到關卡（例如舊存檔指到已移除的圖）就退回路線頁，不要卡在空畫面。
   if (screen.kind === "title" || !level) {
     return (
@@ -107,12 +90,10 @@ export default function SweetheartDefenders({ onExit }: Props) {
         levelStars={save.levelStars}
         bestWave={save.bestWave}
         availableCharacters={roster.available}
-        ownedCount={roster.ownedCount}
         syncStatus={status}
         isSignedIn={isSignedIn}
         audio={audio}
         onStart={openSquadSelect}
-        onOpenDex={openDex}
         onExit={onExit}
       />
     );
