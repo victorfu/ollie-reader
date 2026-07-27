@@ -43,6 +43,25 @@ const SHOP_PATH: LevelSpec = {
     ],
   ],
   slotPlan: { count: 12 },
+  // 甜點店的門口。道具擺在兩排塔位之間的空檔，填掉以前那一大片空地板，
+  // 又不會壓到塔位——塔位是生成的，座標印出來對過（levels.test.ts 也擋著）。
+  props: [
+    { kind: "planter", x: 150, y: 250 },
+    { kind: "sakura", x: 330, y: 258 },
+    { kind: "awning", x: 580, y: 196 },
+    { kind: "shopFront", x: 580, y: 272 },
+    { kind: "bench", x: 660, y: 328 },
+    { kind: "lamp", x: 960, y: 254 },
+    { kind: "balloon", x: 990, y: 322 },
+    { kind: "cakeStand", x: 210, y: 466 },
+    { kind: "planter", x: 300, y: 500, scale: 0.9 },
+    { kind: "sakura", x: 640, y: 502, scale: 0.85, flip: true },
+    { kind: "bench", x: 900, y: 478 },
+    { kind: "lamp", x: 1150, y: 478 },
+  ],
+  // 教學關只放一種地形區，而且是加成型的：站對地方有好處，站錯也不會被罰。
+  // 位置壓在 s3（741,178）上，讓那個塔位變成「看得出來比較好」的位置。
+  zones: [{ kind: "sugarPool", x: 741, y: 200, radius: 86 }],
   waves: buildWaves({
     swarm: ["gumdrop"],
     rush: ["marshmallow"],

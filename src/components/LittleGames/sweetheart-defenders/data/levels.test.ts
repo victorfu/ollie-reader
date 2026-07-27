@@ -139,6 +139,22 @@ describe("level geometry", () => {
     },
   );
 
+  it.each(LEVELS.map((level) => [level.nameZh, level] as const))(
+    "%s keeps scenery clear of the tower slots",
+    (_name, level) => {
+      // 塔位是生成的、道具是手擺的，所以很容易擺到塔位上。長椅蓋住空塔位的
+      // 圈圈時，玩家會以為那裡不能蓋。
+      for (const prop of level.props ?? []) {
+        for (const slot of slotsOf(level)) {
+          expect(
+            Math.hypot(prop.x - slot.x, prop.y - slot.y),
+            `裝飾 ${prop.kind}(${prop.x},${prop.y}) 壓在塔位 ${slot.id} 上`,
+          ).toBeGreaterThan(SLOT_RADIUS + 32);
+        }
+      }
+    },
+  );
+
   it("keeps the redesign backlog honest", () => {
     // 已經重畫過的地圖不准偷偷加進待辦清單來讓測試變綠。
     expect(PENDING_REDESIGN.has("shop-path")).toBe(false);

@@ -59,6 +59,12 @@ const RECOIL_MS = 120;
 /** 應援塔不攻擊，但每隔一陣子放個光環，讓玩家看得出它在工作。 */
 const CHEER_PULSE_MS = 1300;
 
+/** 糖霜池：站在裡面的塔射程加成。 */
+export const SUGAR_POOL_RANGE_BONUS = 0.2;
+/** 烤箱口：噴火間隔與每次的傷害。 */
+export const OVEN_VENT_INTERVAL_MS = 6000;
+export const OVEN_VENT_DAMAGE = 26;
+
 /**
  * 關卡的執行期形式：路徑先算好累積長度，塔位放進 Map，
  * 這樣模擬每幀就不用重算不變的東西。
@@ -71,10 +77,13 @@ export type CompiledLevel = {
   /** slotPlanner 沿路排出來的實際塔位 */
   slots: TowerSlot[];
   slotById: Map<string, TowerSlot>;
+  /** 站在糖霜池裡的塔位 → 射程加成比例 */
+  rangeBonusBySlot: Map<string, number>;
 };
 
 export function compileLevel(spec: LevelSpec): CompiledLevel {
   const slots = planSlots(spec.paths, spec.slotPlan);
+  const pools = (spec.zones ?? []).filter((zone) => zone.kind === "sugarPool");
 
   return {
     spec,
@@ -82,6 +91,16 @@ export function compileLevel(spec: LevelSpec): CompiledLevel {
     flightPaths: spec.paths.map(compileFlightPath),
     slots,
     slotById: new Map(slots.map((slot) => [slot.id, slot])),
+    // 「哪些塔位站在糖霜池裡」是固定的，開場算一次就好，不必每幀重算。
+    rangeBonusBySlot: new Map(
+      slots
+        .filter((slot) =>
+          pools.some(
+            (pool) => Math.hypot(pool.x - slot.x, pool.y - slot.y) <= pool.radius,
+          ),
+        )
+        .map((slot) => [slot.id, SUGAR_POOL_RANGE_BONUS]),
+    ),
   };
 }
 
@@ -106,6 +125,7 @@ export function createBattle(
     beams: [],
     effects: [],
     spawnQueue: [],
+    zoneTimers: (level.spec.zones ?? []).map(() => OVEN_VENT_INTERVAL_MS),
     kills: 0,
     leaked: 0,
     speed: 1,
@@ -149,6 +169,7 @@ export function stepSimulation(
     spawnDueEnemies(state, level);
     updateEnemies(state, level, dtMs);
     updateTowers(state, level, dtMs);
+    updateZones(state, level, dtMs);
     checkWaveComplete(state, level);
   }
 
@@ -402,7 +423,11 @@ function updateTowers(
     const slot = level.slotById.get(tower.slotId);
     if (!pet || !slot) continue;
 
-    const stats = getTowerStats(pet, tower.level);
+    // 糖霜池只加射程，不動其他數值——站進去打得更遠，但不會變強。
+    const base = getTowerStats(pet, tower.level);
+    const rangeBonus = level.rangeBonusBySlot.get(tower.slotId) ?? 0;
+    const stats: TowerStats =
+      rangeBonus === 0 ? base : { ...base, range: base.range * (1 + rangeBonus) };
 
     if (stats.archetype === "cheer") {
       tower.cooldownMs -= dtMs;
@@ -426,6 +451,45 @@ function updateTowers(
       tower.cooldownMs = 0;
       tower.comboHits = 0;
       tower.comboTargetUid = 0;
+    }
+  }
+}
+
+/**
+ * 地形區的定時效果。
+ *
+ * 目前只有烤箱口：每隔一段時間噴一次火，燒到圈內的敵人。地圖自己會做事，
+ * 玩家就得考慮「要不要把怪逼到烤箱前面」，每張圖也才有自己的個性。
+ * 糖霜池不在這裡——那是開場就算好的射程加成，不需要每幀處理。
+ */
+function updateZones(
+  state: BattleState,
+  level: CompiledLevel,
+  dtMs: number,
+): void {
+  const zones = level.spec.zones ?? [];
+
+  for (let index = 0; index < zones.length; index += 1) {
+    const zone = zones[index];
+    if (zone.kind !== "ovenVent") continue;
+
+    state.zoneTimers[index] -= dtMs;
+    if (state.zoneTimers[index] > 0) continue;
+
+    state.zoneTimers[index] = OVEN_VENT_INTERVAL_MS;
+    addEffect(state, "splash", zone, zone.radius, DOT_COLOR.scorch);
+
+    // 逆向走訪：擊殺會就地從陣列移除，正向跑會漏掉後一隻。
+    const caught = findEnemiesInRadius(zone, zone.radius, state.enemies);
+    for (let i = caught.length - 1; i >= 0; i -= 1) {
+      const enemy = caught[i];
+      // 地形傷害不吃護甲也不吃元素克制——它不是塔，只是很燙。
+      enemy.flashMs = FLASH_MS;
+      const absorbed = Math.min(enemy.shieldHp, OVEN_VENT_DAMAGE);
+      enemy.shieldHp -= absorbed;
+      enemy.hp -= OVEN_VENT_DAMAGE - absorbed;
+
+      if (enemy.hp <= 0) killEnemy(state, level, enemy);
     }
   }
 }

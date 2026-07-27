@@ -12,6 +12,7 @@ import { getTowerStats } from "../engine/combat";
 import type { CompiledLevel } from "../engine/simulation";
 import { pointAtDistance } from "../engine/path";
 import type { BattleState, LiveEnemy, Vec2 } from "../types";
+import { drawProps, drawZones } from "./scene";
 import { drawEnemyShape, roundedRect } from "./shapes";
 import { getSprite } from "./sprites";
 
@@ -33,7 +34,10 @@ export function renderBattle(
   const { theme } = level.spec;
 
   drawFloor(ctx, theme.floor, theme.floorEdge);
+  // 裝飾在路面底下，怪走過去會蓋住道具下緣，畫面才有前後層次。
+  drawProps(ctx, level.spec, state.timeMs);
   drawPaths(ctx, level, theme.path, theme.pathEdge);
+  drawZones(ctx, level.spec.zones ?? [], state.timeMs, state.zoneTimers);
   drawCounter(ctx, level, state);
   drawSlots(ctx, state, level, view);
   drawEffects(ctx, state, "heal");

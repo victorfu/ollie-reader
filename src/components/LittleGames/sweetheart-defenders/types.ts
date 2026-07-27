@@ -189,6 +189,46 @@ export type WaveSpec = {
 export type TowerSlot = { id: string; x: number; y: number };
 
 /**
+ * 場景裝飾。純畫面，不進模擬，也不影響任何判定。
+ *
+ * 十二張地圖以前只有「米色地板 + 一條棕色線」，換的只是 theme 顏色，
+ * 所以每張圖看起來都一樣。這一層負責讓店門像店門、廚房像廚房。
+ */
+export type PropKind =
+  | "shopFront"
+  | "awning"
+  | "bench"
+  | "planter"
+  | "sakura"
+  | "lamp"
+  | "cakeStand"
+  | "balloon";
+
+export type SceneProp = {
+  kind: PropKind;
+  x: number;
+  y: number;
+  /** 預設 1；同一種道具靠縮放做出遠近層次 */
+  scale?: number;
+  flip?: boolean;
+};
+
+/**
+ * 地形區：有規則的圓形區域，是各張地圖的玩法個性所在。
+ *
+ * - sugarPool 糖霜池：塔位落在圈內時射程 ×1.2，讓塔位有優劣之分
+ * - ovenVent 烤箱口：每隔一段時間噴火，燒到圈內路面上的敵人
+ */
+export type ZoneKind = "sugarPool" | "ovenVent";
+
+export type SceneZone = {
+  kind: ZoneKind;
+  x: number;
+  y: number;
+  radius: number;
+};
+
+/**
  * 關卡只描述「我要幾個塔位」，實際座標交給 data/slotPlanner.ts 沿路生成。
  *
  * 手打座標的時代，塔位只要「不壓路、不出畫面」就能過測試，於是有一半的塔位
@@ -203,6 +243,10 @@ export type LevelSpec = {
   paths: Vec2[][];
   /** 要沿路排幾個塔位 */
   slotPlan: SlotPlan;
+  /** 場景裝飾，純畫面 */
+  props?: SceneProp[];
+  /** 地形區，會影響玩法 */
+  zones?: SceneZone[];
   waves: WaveSpec[];
   /**
    * 這張地圖的敵人血量倍率，預設 1。
@@ -343,6 +387,8 @@ export type BattleState = {
   effects: Effect[];
   /** 本波還沒生出來的敵人 */
   spawnQueue: { atMs: number; kind: EnemyKind; pathIndex: number }[];
+  /** 每個烤箱口距離下次噴火還有多久（毫秒），索引對應 LevelSpec.zones */
+  zoneTimers: number[];
   kills: number;
   /** 被偷走的蛋糕總數 */
   leaked: number;

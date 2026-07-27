@@ -32,9 +32,21 @@ function createRecordingContext() {
     textAlign: "left",
     lineCap: "butt",
     lineJoin: "miter",
+    lineDashOffset: 0,
     save: record("save"),
     restore: record("restore"),
     translate: record("translate"),
+    scale: record("scale"),
+    rotate: record("rotate"),
+    // 漸層要回傳一個還能繼續呼叫 addColorStop 的東西，不然場景層畫不下去。
+    createRadialGradient: (...args: unknown[]) => {
+      calls.push(`createRadialGradient(${args.length})`);
+      return { addColorStop: record("addColorStop") };
+    },
+    createLinearGradient: (...args: unknown[]) => {
+      calls.push(`createLinearGradient(${args.length})`);
+      return { addColorStop: record("addColorStop") };
+    },
     setTransform: record("setTransform"),
     beginPath: record("beginPath"),
     closePath: record("closePath"),
