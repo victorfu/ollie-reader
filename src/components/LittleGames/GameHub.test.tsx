@@ -53,18 +53,49 @@ afterEach(() => {
 });
 
 describe("GameHub card layout", () => {
-  it("lists 甜心防衛隊 last and flags it as in development", () => {
+  it("keeps the cards in the order the hub is designed around", () => {
     renderGameHub();
 
     const cards = [...container.querySelectorAll("article")];
-    expect(cards).toHaveLength(6);
+    const titles = cards.map((card) => card.querySelector("h2")?.textContent);
 
-    const last = cards.at(-1);
-    expect(last?.querySelector("h2")?.textContent).toBe("甜心防衛隊");
-    expect(last?.textContent).toContain("開發中");
+    // 順序是排過的，不是陣列寫下來的先後而已——改動順序要是有意識的。
+    expect(titles).toEqual([
+      "單字大冒險",
+      "人氣角色扭蛋機",
+      "甜心防衛隊",
+      "Mushroom Adventure",
+      "Meteor Glider",
+      "Bunny Jumper",
+    ]);
+  });
 
+  it("flags 甜心防衛隊 as the only one still in development", () => {
+    renderGameHub();
+
+    const cards = [...container.querySelectorAll("article")];
     const flagged = cards.filter((card) => card.textContent?.includes("開發中"));
+
     expect(flagged).toHaveLength(1);
+    expect(flagged[0]?.querySelector("h2")?.textContent).toBe("甜心防衛隊");
+  });
+
+  it("shows the English name above the Chinese one where both exist", () => {
+    renderGameHub();
+
+    // 這是英文學習 App，英文名擺主位、中文名放下一行。
+    for (const [en, zh] of [
+      ["Mushroom Adventure", "森林蘑菇冒險"],
+      ["Meteor Glider", "隕石滑翔機"],
+      ["Bunny Jumper", "兔兔跳跳"],
+    ] as const) {
+      const card = [...container.querySelectorAll("article")].find(
+        (candidate) => candidate.querySelector("h2")?.textContent === en,
+      );
+
+      expect(card, `找不到 ${en} 的卡片`).toBeDefined();
+      expect(card!.textContent).toContain(zh);
+    }
   });
 });
 
@@ -79,10 +110,10 @@ describe("GameHub single-tab game launcher", () => {
       ["單字大冒險", "開始遊戲", "/games/spirit"],
       ["人氣角色扭蛋機", "開始扭蛋", "/games/gacha"],
       ["人氣角色扭蛋機", "查看圖鑑", "/games/gacha?view=collection"],
-      ["Bunny Jumper", "開始遊戲", "/games/bunny"],
-      ["森林蘑菇冒險", "開始遊戲", "/games/mushroom"],
-      ["Meteor Glider", "開始遊戲", "/games/meteor"],
       ["甜心防衛隊", "開始遊戲", "/games/sweetheart"],
+      ["Mushroom Adventure", "開始遊戲", "/games/mushroom"],
+      ["Meteor Glider", "開始遊戲", "/games/meteor"],
+      ["Bunny Jumper", "開始遊戲", "/games/bunny"],
     ] as const;
 
     for (const [title, label] of entries) {
@@ -127,11 +158,11 @@ describe("GameHub single-tab game launcher", () => {
       .mockReturnValue(tab as unknown as Window);
     renderGameHub();
 
-    act(() => cardButton("森林蘑菇冒險", "開始遊戲").click());
+    act(() => cardButton("Mushroom Adventure", "開始遊戲").click());
     act(() => root.unmount());
     root = createRoot(container);
     renderGameHub();
-    act(() => cardButton("森林蘑菇冒險", "開始遊戲").click());
+    act(() => cardButton("Mushroom Adventure", "開始遊戲").click());
 
     expect(openMock).toHaveBeenCalledTimes(1);
     expect(tab.focus).toHaveBeenCalledTimes(2);

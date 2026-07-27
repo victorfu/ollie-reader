@@ -16,6 +16,11 @@ type GameCard = {
     | "sweetheart";
   to: string;
   title: string;
+  /**
+   * 中文名。這是一個英文學習 App，所以卡片以英文名為主、中文名放在下一行；
+   * 只有本來就沒有英文名的幾款（單字大冒險等）維持單一名稱。
+   */
+  titleZh?: string;
   blurb: string;
   tag: string;
   emoji: string;
@@ -69,33 +74,6 @@ export default function GameHub() {
         },
       },
       {
-        id: "bunny",
-        to: "/games/bunny",
-        title: "Bunny Jumper",
-        blurb: "在粉彩天空中不斷彈跳，收集胡蘿蔔、衝高連段分數。",
-        tag: "Arcade",
-        emoji: "🐰",
-        best: bunnyBest,
-      },
-      {
-        id: "mushroom",
-        to: "/games/mushroom",
-        title: "森林蘑菇冒險",
-        blurb: "像馬力歐的闖關平台：踩蘑菇怪、收集硬幣、衝向旗桿。",
-        tag: "Platformer",
-        emoji: "🍄",
-        best: mushroomBest,
-      },
-      {
-        id: "meteor",
-        to: "/games/meteor",
-        title: "Meteor Glider",
-        blurb: "駕駛滑翔機穿越隕石雨，衝刺鑽過縫隙、收集燃料電池。",
-        tag: "Arcade",
-        emoji: "☄️",
-        best: meteorBest,
-      },
-      {
         id: "sweetheart",
         to: "/games/sweetheart",
         title: "甜心防衛隊",
@@ -106,6 +84,36 @@ export default function GameHub() {
         best: null,
         inDevelopment: true,
         statusLabel: "開發中 · 雲端存檔",
+      },
+      {
+        id: "mushroom",
+        to: "/games/mushroom",
+        title: "Mushroom Adventure",
+        titleZh: "森林蘑菇冒險",
+        blurb: "像馬力歐的闖關平台：踩蘑菇怪、收集硬幣、衝向旗桿。",
+        tag: "Platformer",
+        emoji: "🍄",
+        best: mushroomBest,
+      },
+      {
+        id: "meteor",
+        to: "/games/meteor",
+        title: "Meteor Glider",
+        titleZh: "隕石滑翔機",
+        blurb: "駕駛滑翔機穿越隕石雨，衝刺鑽過縫隙、收集燃料電池。",
+        tag: "Arcade",
+        emoji: "☄️",
+        best: meteorBest,
+      },
+      {
+        id: "bunny",
+        to: "/games/bunny",
+        title: "Bunny Jumper",
+        titleZh: "兔兔跳跳",
+        blurb: "在粉彩天空中不斷彈跳，收集胡蘿蔔、衝高連段分數。",
+        tag: "Arcade",
+        emoji: "🐰",
+        best: bunnyBest,
       },
     ],
     [bunnyBest, meteorBest, mushroomBest],
@@ -152,6 +160,11 @@ export default function GameHub() {
             <h2 className="mt-3 text-lg font-semibold tracking-tight">
               {card.title}
             </h2>
+            {card.titleZh && (
+              <p className="text-sm font-medium text-muted-foreground">
+                {card.titleZh}
+              </p>
+            )}
             <p className="mt-1 flex-1 text-sm text-muted-foreground">
               {card.blurb}
             </p>
