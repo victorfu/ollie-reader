@@ -185,14 +185,32 @@ export type WaveSpec = {
   bonus: number;
 };
 
+/** 一個可以放塔的位置。座標由 slotPlanner 沿著路徑排出來，不是手打的。 */
+export type TowerSlot = { id: string; x: number; y: number };
+
+/**
+ * 關卡只描述「我要幾個塔位」，實際座標交給 data/slotPlanner.ts 沿路生成。
+ *
+ * 手打座標的時代，塔位只要「不壓路、不出畫面」就能過測試，於是有一半的塔位
+ * 離路遠到什麼都打不到。改成生成之後，貼著路是結構上的保證。
+ */
+export type SlotPlan = { count: number };
+
 export type LevelSpec = {
   id: string;
   nameZh: string;
   /** 敵人行進路線；每條都是一串折線點，最後一點是櫃檯 */
   paths: Vec2[][];
-  /** 可以放塔的位置 */
-  slots: { id: string; x: number; y: number }[];
+  /** 要沿路排幾個塔位 */
+  slotPlan: SlotPlan;
   waves: WaveSpec[];
+  /**
+   * 這張地圖的敵人血量倍率，預設 1。
+   *
+   * 路線長度直接決定「怪待在射程裡多久」，所以拉長路線等於免費幫玩家加輸出。
+   * 波表的 intensity 只能加數量、加不了硬度，長路線的地圖要靠這個補回難度。
+   */
+  hpScale?: number;
   startingFrosting: number;
   /** 主題配色（背景、路面） */
   theme: {

@@ -325,14 +325,14 @@ export function BattleScreen({
 
       // 觸控時手指比較粗，判定半徑放寬一點。
       const hitRadius = SLOT_RADIUS + 10;
-      for (const slot of level.slots) {
+      for (const slot of compiled.slots) {
         if (Math.hypot(slot.x - point.x, slot.y - point.y) <= hitRadius) {
           return slot.id;
         }
       }
       return null;
     },
-    [level.slots, toLogicalPoint],
+    [compiled.slots, toLogicalPoint],
   );
 
   const handlePointerDown = useCallback(

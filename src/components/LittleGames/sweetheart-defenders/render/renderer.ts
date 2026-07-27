@@ -155,7 +155,7 @@ function drawSlots(
 ): void {
   const occupied = new Set(state.towers.map((tower) => tower.slotId));
 
-  for (const slot of level.spec.slots) {
+  for (const slot of level.slots) {
     if (occupied.has(slot.id)) continue;
 
     const isHovered = view.hoveredSlotId === slot.id;

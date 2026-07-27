@@ -14,6 +14,14 @@ import type { BattleState, Command, Difficulty, LevelSpec } from "../types";
 
 const SHOP_PATH = compileLevel(LEVELS[0]);
 
+/**
+ * 測試關唯一那個塔位的 id。
+ *
+ * 塔位改由 slotPlanner 沿路生成之後，id 一律是採用順序的 s1、s2…，
+ * 不再是關卡資料裡手寫的名字。
+ */
+const TEST_SLOT = "s1";
+
 /** 一條直線、一個塔位的最小關卡，方便單獨驗證某個行為。 */
 function makeTestLevel(overrides: Partial<LevelSpec> = {}): CompiledLevel {
   return compileLevel({
@@ -25,7 +33,7 @@ function makeTestLevel(overrides: Partial<LevelSpec> = {}): CompiledLevel {
         { x: 600, y: 100 },
       ],
     ],
-    slots: [{ id: "a", x: 300, y: 40 }],
+    slotPlan: { count: 1 },
     waves: [
       {
         groups: [{ kind: "gumdrop", count: 1, gapMs: 0, delayMs: 0 }],
@@ -88,12 +96,12 @@ describe("placeTower", () => {
     const pet = getCharacter("shiro")!;
 
     run(state, level, 1, [
-      { kind: "placeTower", slotId: "a", characterId: "shiro" },
+      { kind: "placeTower", slotId: TEST_SLOT, characterId: "shiro" },
     ]);
 
     expect(state.towers).toHaveLength(1);
     expect(state.towers[0]).toMatchObject({
-      slotId: "a",
+      slotId: TEST_SLOT,
       characterId: "shiro",
       level: 1,
     });
@@ -105,8 +113,8 @@ describe("placeTower", () => {
     const state = createBattle(level, "normal", 1);
 
     run(state, level, 1, [
-      { kind: "placeTower", slotId: "a", characterId: "shiro" },
-      { kind: "placeTower", slotId: "a", characterId: "kuromi" },
+      { kind: "placeTower", slotId: TEST_SLOT, characterId: "shiro" },
+      { kind: "placeTower", slotId: TEST_SLOT, characterId: "kuromi" },
     ]);
 
     expect(state.towers).toHaveLength(1);
@@ -118,7 +126,7 @@ describe("placeTower", () => {
     const state = createBattle(level, "normal", 1);
 
     run(state, level, 1, [
-      { kind: "placeTower", slotId: "a", characterId: "shiro" },
+      { kind: "placeTower", slotId: TEST_SLOT, characterId: "shiro" },
     ]);
 
     expect(state.towers).toHaveLength(0);
@@ -131,7 +139,7 @@ describe("placeTower", () => {
 
     run(state, level, 1, [
       { kind: "placeTower", slotId: "nope", characterId: "shiro" },
-      { kind: "placeTower", slotId: "a", characterId: "not-a-pet" },
+      { kind: "placeTower", slotId: TEST_SLOT, characterId: "not-a-pet" },
     ]);
 
     expect(state.towers).toHaveLength(0);
@@ -145,10 +153,10 @@ describe("upgradeTower and sellTower", () => {
     const state = createBattle(level, "normal", 1);
 
     run(state, level, 1, [
-      { kind: "placeTower", slotId: "a", characterId: "shiro" },
-      { kind: "upgradeTower", slotId: "a" },
-      { kind: "upgradeTower", slotId: "a" },
-      { kind: "upgradeTower", slotId: "a" },
+      { kind: "placeTower", slotId: TEST_SLOT, characterId: "shiro" },
+      { kind: "upgradeTower", slotId: TEST_SLOT },
+      { kind: "upgradeTower", slotId: TEST_SLOT },
+      { kind: "upgradeTower", slotId: TEST_SLOT },
     ]);
 
     expect(state.towers[0].level).toBe(3);
@@ -159,11 +167,11 @@ describe("upgradeTower and sellTower", () => {
     const state = createBattle(level, "normal", 1);
 
     run(state, level, 1, [
-      { kind: "placeTower", slotId: "a", characterId: "shiro" },
+      { kind: "placeTower", slotId: TEST_SLOT, characterId: "shiro" },
     ]);
     const afterPlacing = state.frosting;
 
-    run(state, level, 1, [{ kind: "sellTower", slotId: "a" }]);
+    run(state, level, 1, [{ kind: "sellTower", slotId: TEST_SLOT }]);
 
     expect(state.towers).toHaveLength(0);
     expect(state.frosting).toBeGreaterThan(afterPlacing);
@@ -252,7 +260,7 @@ describe("towers in combat", () => {
 
     run(state, level, 1, [
       // ember 爆裂，剋 leaf 的軟糖小兵
-      { kind: "placeTower", slotId: "a", characterId: "minna-no-tabo" },
+      { kind: "placeTower", slotId: TEST_SLOT, characterId: "minna-no-tabo" },
       { kind: "startWave" },
     ]);
     run(state, level, secondsToSteps(20));
@@ -275,7 +283,7 @@ describe("towers in combat", () => {
 
     run(state, level, 1, [
       // spark 速射，剋 tide 的汽水泡泡
-      { kind: "placeTower", slotId: "a", characterId: "pochacco" },
+      { kind: "placeTower", slotId: TEST_SLOT, characterId: "pochacco" },
       { kind: "startWave" },
     ]);
     // 打破泡泡的當下就會冒出兩隻小泡。
@@ -303,7 +311,7 @@ describe("towers in combat", () => {
           bonus: 0,
         },
       ],
-      slots: [],
+      slotPlan: { count: 0 },
     });
     const state = createBattle(level, "normal", 1);
 
@@ -403,7 +411,7 @@ describe("full 10-wave run on 店門小徑", () => {
   ): PlaythroughResult {
     const level = compileLevel(LEVELS[0]);
     const state = createBattle(level, difficulty, 99);
-    const slotIds = LEVELS[0].slots.map((slot) => slot.id);
+    const slotIds = level.slots.map((slot) => slot.id);
     let placed = 0;
     let upgradeCursor = 0;
     let maxedAtWave: number | null = null;
@@ -523,7 +531,7 @@ describe("secondary-element traits in battle", () => {
   ): BattleState {
     const state = createBattle(level, "normal", 1);
     run(state, level, 1, [
-      { kind: "placeTower", slotId: "a", characterId },
+      { kind: "placeTower", slotId: TEST_SLOT, characterId },
       { kind: "startWave" },
     ]);
 
@@ -590,7 +598,7 @@ describe("secondary-element traits in battle", () => {
     const level = traitLevel(4, 250);
     const state = createBattle(level, "normal", 1);
     run(state, level, 1, [
-      { kind: "placeTower", slotId: "a", characterId: "minna-no-tabo" },
+      { kind: "placeTower", slotId: TEST_SLOT, characterId: "minna-no-tabo" },
       { kind: "startWave" },
     ]);
 
@@ -611,7 +619,7 @@ describe("secondary-element traits in battle", () => {
     const level = traitLevel(4, 250);
     const state = createBattle(level, "normal", 1);
     run(state, level, 1, [
-      { kind: "placeTower", slotId: "a", characterId: "minna-no-tabo" },
+      { kind: "placeTower", slotId: TEST_SLOT, characterId: "minna-no-tabo" },
       { kind: "startWave" },
     ]);
 

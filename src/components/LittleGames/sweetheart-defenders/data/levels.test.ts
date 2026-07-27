@@ -3,6 +3,8 @@ import { LEVELS, getLevel } from "./levels";
 import { getEnemy } from "./enemies";
 import { getCharacter, DEFAULT_ROSTER_IDS } from "./characters";
 import { HEIGHT, PATH_WIDTH, SLOT_RADIUS, STEP_MS, WIDTH } from "../constants";
+import { ARCHETYPE_BASE } from "./elements";
+import { pathCoverage, planSlots } from "./slotPlanner";
 import { distanceToPath } from "../engine/path";
 import { getPlaceCost } from "../engine/economy";
 import {
@@ -27,11 +29,44 @@ function pathLength(points: { x: number; y: number }[]): number {
 const PATH_HALF_WIDTH = PATH_WIDTH / 2;
 const MIN_SLOT_CLEARANCE = PATH_HALF_WIDTH + SLOT_RADIUS;
 
+/** 射程最短的打法（藤蔓）。塔位再怎麼樣也要在這個距離內打得到路。 */
+const SHORTEST_RANGE = ARCHETYPE_BASE.vine.range;
+/** 速射的射程，用來衡量「這個塔位有多少路可以打」。 */
+const TYPICAL_RANGE = ARCHETYPE_BASE.rapid.range;
+
+const PLANNED = new Map(
+  LEVELS.map((level) => [level.id, planSlots(level.paths, level.slotPlan)]),
+);
+
+function slotsOf(level: (typeof LEVELS)[number]) {
+  return PLANNED.get(level.id)!;
+}
+
+/**
+ * 還沒重畫過的地圖。
+ *
+ * 改版是一張一張做的：先把店門小徑用新規則做到好玩，再往後套。這些圖的路線
+ * 還是舊的長直線，沒有折返段，所以塔位涵蓋率過不了新標準——那正是它們還沒
+ * 被重畫的證據，不是測試訂太嚴。
+ *
+ * **這個集合每重畫一張就要移掉一個，最後要變成空的。** 已經重畫過的地圖不准
+ * 加進來（底下有一條測試擋著）。
+ */
+const PENDING_REDESIGN = new Set([
+  "cookie-corridor",
+  "parlour-hall",
+  "stockroom-loop",
+  "chocolate-fountain",
+  "honey-swirl",
+]);
+
+const REDESIGNED = LEVELS.filter((level) => !PENDING_REDESIGN.has(level.id));
+
 describe("level geometry", () => {
   it.each(LEVELS.map((level) => [level.nameZh, level] as const))(
     "%s keeps every tower slot off the path",
     (_name, level) => {
-      for (const slot of level.slots) {
+      for (const slot of slotsOf(level)) {
         for (const path of level.paths) {
           expect(
             distanceToPath(slot, path),
@@ -45,7 +80,7 @@ describe("level geometry", () => {
   it.each(LEVELS.map((level) => [level.nameZh, level] as const))(
     "%s keeps every tower slot on screen",
     (_name, level) => {
-      for (const slot of level.slots) {
+      for (const slot of slotsOf(level)) {
         expect(slot.x).toBeGreaterThanOrEqual(0);
         expect(slot.x).toBeLessThanOrEqual(WIDTH);
         expect(slot.y).toBeGreaterThanOrEqual(0);
@@ -57,10 +92,64 @@ describe("level geometry", () => {
   it.each(LEVELS.map((level) => [level.nameZh, level] as const))(
     "%s uses unique slot ids",
     (_name, level) => {
-      const ids = level.slots.map((slot) => slot.id);
+      const ids = slotsOf(level).map((slot) => slot.id);
       expect(ids).toHaveLength(new Set(ids).size);
     },
   );
+
+  it.each(LEVELS.map((level) => [level.nameZh, level] as const))(
+    "%s gives every tower slot road within reach",
+    (_name, level) => {
+      // 這條是塔位從手打改成沿路生成的主因：以前 {x:40,y:30}（左上角，離路
+      // 300px 以上）也能過測試，放上去的塔一整場都在放空。
+      for (const slot of slotsOf(level)) {
+        const nearest = Math.min(
+          ...level.paths.map((path) => distanceToPath(slot, path)),
+        );
+
+        expect(
+          nearest,
+          `塔位 ${slot.id} 離路 ${Math.round(nearest)}px，連射程最短的藤蔓都打不到`,
+        ).toBeLessThanOrEqual(SHORTEST_RANGE);
+      }
+    },
+  );
+
+  it.each(REDESIGNED.map((level) => [level.nameZh, level] as const))(
+    "%s gives every tower slot enough road to work on",
+    (_name, level) => {
+      // 「離路很近」還不夠——貼在死巷口的塔位怪只會經過一瞬間。這裡量的是
+      // 射程內涵蓋多少路徑長度，也就是「怪會在我的射程裡走多久」。折返段
+      // 中間的塔位會明顯較高，因為來回兩趟都在射程裡。
+      const coverage = slotsOf(level)
+        .map((slot) => pathCoverage(slot, level.paths, TYPICAL_RANGE))
+        .sort((a, b) => a - b);
+
+      const median = coverage[Math.floor(coverage.length / 2)];
+
+      // 下限 180 是這條測試的主要目的：擋掉「放上去等於沒放」的塔位。
+      //
+      // 中位數只要求 240 而不是更高，是因為兩者會打架：要讓中位數上到 400，
+      // 折返段的間距得壓到 200px 以內，於是**每個**塔位都同時守得住來回兩趟，
+      // 防守強度直接翻倍——實測店門小徑那一版連挑戰難度都能亂擺一通打過，
+      // 敵人數量開到 2.8 倍還是殺不動。間距拉開到 280/250px 之後，射程 156 的
+      // 速射只守得住自己那條，重砲和狙擊才吃得到兩條，射程差異才有意義。
+      expect(coverage[0], `最差的塔位只涵蓋 ${coverage[0]}px 的路`).toBeGreaterThanOrEqual(180);
+      expect(median, `塔位涵蓋長度的中位數只有 ${median}px`).toBeGreaterThanOrEqual(240);
+    },
+  );
+
+  it("keeps the redesign backlog honest", () => {
+    // 已經重畫過的地圖不准偷偷加進待辦清單來讓測試變綠。
+    expect(PENDING_REDESIGN.has("shop-path")).toBe(false);
+
+    for (const id of PENDING_REDESIGN) {
+      expect(
+        LEVELS.some((level) => level.id === id),
+        `待重畫清單裡的 ${id} 已經不存在了`,
+      ).toBe(true);
+    }
+  });
 
   it.each(LEVELS.map((level) => [level.nameZh, level] as const))(
     "%s starts every path off screen and ends them all at the same counter",
@@ -80,12 +169,20 @@ describe("level geometry", () => {
     },
   );
 
+  it.each(REDESIGNED.map((level) => [level.nameZh, level] as const))(
+    "%s can actually place every slot it asks for",
+    (_name, level) => {
+      // planSlots 擠不下時會少給，關卡要的數量得是排得出來的數量。
+      expect(slotsOf(level)).toHaveLength(level.slotPlan.count);
+    },
+  );
+
   it("gives later levels more slots to work with", () => {
     for (let i = 1; i < LEVELS.length; i += 1) {
       expect(
-        LEVELS[i].slots.length,
+        LEVELS[i].slotPlan.count,
         `${LEVELS[i].nameZh} 的塔位不比前一關多`,
-      ).toBeGreaterThanOrEqual(LEVELS[i - 1].slots.length);
+      ).toBeGreaterThanOrEqual(LEVELS[i - 1].slotPlan.count);
     }
   });
 
@@ -168,7 +265,7 @@ describe("level geometry", () => {
 
             total += 1;
             if (
-              level.slots.some(
+              slotsOf(level).some(
                 (slot) =>
                   Math.hypot(slot.x - point.x, slot.y - point.y) <= MID_RANGE,
               )
@@ -343,7 +440,7 @@ describe("every level is actually beatable", () => {
   ) {
     const compiled = compileLevel(level);
     const state = createBattle(compiled, difficulty, 99);
-    const slotIds = level.slots.map((slot) => slot.id);
+    const slotIds = compiled.slots.map((slot) => slot.id);
     let placed = 0;
     let upgradeCursor = 0;
 

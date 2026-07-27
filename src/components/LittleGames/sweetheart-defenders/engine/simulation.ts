@@ -7,6 +7,7 @@ import {
 import { getEnemy } from "../data/enemies";
 import { getCharacter } from "../data/characters";
 import { DOT_COLOR, TRAIT_BASE } from "../data/traits";
+import { planSlots } from "../data/slotPlanner";
 import { computeDamage, getTowerStats } from "./combat";
 import {
   getEarlyStartBonus,
@@ -35,6 +36,7 @@ import type {
   LiveEnemy,
   LiveTower,
   TowerCharacter,
+  TowerSlot,
   TowerStats,
   Vec2,
 } from "../types";
@@ -66,15 +68,20 @@ export type CompiledLevel = {
   paths: CompiledPath[];
   /** 飛行怪專用：直接從起點飛到終點，不繞彎 */
   flightPaths: CompiledPath[];
-  slotById: Map<string, { id: string; x: number; y: number }>;
+  /** slotPlanner 沿路排出來的實際塔位 */
+  slots: TowerSlot[];
+  slotById: Map<string, TowerSlot>;
 };
 
 export function compileLevel(spec: LevelSpec): CompiledLevel {
+  const slots = planSlots(spec.paths, spec.slotPlan);
+
   return {
     spec,
     paths: spec.paths.map(compilePath),
     flightPaths: spec.paths.map(compileFlightPath),
-    slotById: new Map(spec.slots.map((slot) => [slot.id, slot])),
+    slots,
+    slotById: new Map(slots.map((slot) => [slot.id, slot])),
   };
 }
 
@@ -251,7 +258,12 @@ function createEnemy(
   atDistance: number,
 ): LiveEnemy {
   const spec = getEnemy(kind);
-  const hp = getEnemyHp(kind, state.waveIndex, state.difficulty);
+  const hp = getEnemyHp(
+    kind,
+    state.waveIndex,
+    state.difficulty,
+    level.spec.hpScale,
+  );
   const enemy: LiveEnemy = {
     uid: state.nextUid++,
     kind,

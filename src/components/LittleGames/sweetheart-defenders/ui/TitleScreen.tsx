@@ -248,7 +248,7 @@ export function TitleScreen({
                       {unlocked ? (
                         <>
                           <span className="text-xs text-slate-500">
-                            {level.waves.length} 波 · {level.slots.length} 個塔位
+                            {level.waves.length} 波 · {level.slotPlan.count} 個塔位
                             {level.paths.length > 1 &&
                               ` · ${level.paths.length} 條路`}
                           </span>
