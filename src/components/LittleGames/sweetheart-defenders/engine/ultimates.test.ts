@@ -8,7 +8,12 @@ import {
 import { STEP_MS } from "../constants";
 import { CHARACTERS } from "../data/characters";
 import { ARCHETYPE_BY_ELEMENT } from "../data/elements";
-import { CHARGE_TIME_MS, ULTIMATE_BASE } from "../data/ultimates";
+import {
+  CHARGE_TIME_MS,
+  TEAM_CHARGE_PER_CAST,
+  TEAM_ULTIMATE_BASE,
+  ULTIMATE_BASE,
+} from "../data/ultimates";
 import type {
   BattleState,
   Command,
@@ -276,5 +281,154 @@ describe("castUltimate", () => {
     };
 
     expect(play()).toBe(play());
+  });
+
+  it("charges the team gauge one notch per cast", () => {
+    const { state, level, character } = readyToCast("rapid");
+    expect(state.teamCharge).toBe(0);
+
+    run(state, level, 1, [{ kind: "castUltimate", characterId: character.id }]);
+
+    expect(state.teamCharge).toBeCloseTo(TEAM_CHARGE_PER_CAST, 5);
+  });
+
+  it("does not charge the team gauge when the cast was ignored", () => {
+    const { state, level, character } = readyToCast("rapid");
+    state.ultimateCharge[character.id] = 0.5;
+
+    run(state, level, 1, [{ kind: "castUltimate", characterId: character.id }]);
+
+    expect(state.teamCharge).toBe(0);
+  });
+
+  it("caps the team gauge at full", () => {
+    const { state, level, character } = readyToCast("rapid");
+    state.teamCharge = 0.9;
+
+    run(state, level, 1, [{ kind: "castUltimate", characterId: character.id }]);
+
+    expect(state.teamCharge).toBe(1);
+  });
+});
+
+describe("castTeamUltimate", () => {
+  /**
+   * 用應援角色佈陣：它傷害是 0，怪的血量只會被隊伍大絕招動到，
+   * 每隻怪掉多少血就能精準比對。
+   */
+  function teamReady(memberCount: 1 | 2 = 1) {
+    const members = CHARACTERS.filter(
+      (character) => ARCHETYPE_BY_ELEMENT[character.elements[0]] === "cheer",
+    ).slice(0, memberCount);
+    if (members.length < memberCount) {
+      throw new Error("應援打法的角色不夠這個測試用");
+    }
+
+    const level = makeLevel();
+    const state = createBattle(level, 1);
+    const placements: Command[] = members.map((character, index) => ({
+      kind: "placeTower",
+      slotId: level.slots[index].id,
+      characterId: character.id,
+    }));
+
+    run(state, level, 1, [...placements, { kind: "startWave" }]);
+    run(state, level, seconds(6));
+    state.teamCharge = 1;
+
+    return { state, level, members };
+  }
+
+  it("does nothing while the gauge is not full", () => {
+    const { state, level } = teamReady();
+    state.teamCharge = 0.9;
+    const before = state.enemies.map((enemy) => enemy.hp);
+
+    run(state, level, 1, [{ kind: "castTeamUltimate" }]);
+
+    expect(state.enemies.map((enemy) => enemy.hp)).toEqual(before);
+    expect(state.teamCharge).toBe(0.9);
+  });
+
+  it("hits every enemy on the map, range be damned", () => {
+    const { state, level } = teamReady();
+    const before = new Map(state.enemies.map((enemy) => [enemy.uid, enemy.hp]));
+    expect(before.size).toBeGreaterThan(0);
+
+    run(state, level, 1, [{ kind: "castTeamUltimate" }]);
+
+    expect(state.teamCharge).toBe(0);
+    for (const enemy of state.enemies) {
+      const hpBefore = before.get(enemy.uid);
+      if (hpBefore === undefined) continue;
+      expect(enemy.hp).toBeCloseTo(
+        hpBefore - TEAM_ULTIMATE_BASE.damagePerMember,
+        5,
+      );
+    }
+  });
+
+  it("staggers the whole map for a moment", () => {
+    const { state, level } = teamReady();
+
+    run(state, level, 1, [{ kind: "castTeamUltimate" }]);
+
+    expect(state.enemies.length).toBeGreaterThan(0);
+    expect(
+      state.enemies.every(
+        (enemy) => enemy.stunMs >= TEAM_ULTIMATE_BASE.stunMs - STEP_MS * 2,
+      ),
+    ).toBe(true);
+  });
+
+  it("hits harder for every distinct member on the field", () => {
+    const { state, level } = teamReady(2);
+    const before = new Map(state.enemies.map((enemy) => [enemy.uid, enemy.hp]));
+    expect(before.size).toBeGreaterThan(0);
+
+    run(state, level, 1, [{ kind: "castTeamUltimate" }]);
+
+    const damage = TEAM_ULTIMATE_BASE.damagePerMember * 2;
+    for (const [uid, hpBefore] of before) {
+      const enemy = state.enemies.find((candidate) => candidate.uid === uid);
+      if (enemy) {
+        expect(enemy.hp).toBeCloseTo(hpBefore - damage, 5);
+      } else {
+        // 不在場上就是被打死了——那牠的血量必須本來就撐不過這一擊。
+        expect(hpBefore).toBeLessThanOrEqual(damage);
+      }
+    }
+  });
+
+  it("keeps the charge when there is nothing to hit", () => {
+    const cheerleader = characterFor("cheer");
+    const level = makeLevel();
+    const state = createBattle(level, 1);
+    run(state, level, 1, [
+      {
+        kind: "placeTower",
+        slotId: level.slots[0].id,
+        characterId: cheerleader.id,
+      },
+    ]);
+    state.teamCharge = 1;
+
+    // 還在準備階段、場上沒有怪；亂按不該把集滿的量表放水流。
+    run(state, level, 1, [{ kind: "castTeamUltimate" }]);
+
+    expect(state.teamCharge).toBe(1);
+  });
+
+  it("keeps the charge when no tower is on the field", () => {
+    const level = makeLevel();
+    const state = createBattle(level, 1);
+    run(state, level, 1, [{ kind: "startWave" }]);
+    run(state, level, seconds(3));
+    state.teamCharge = 1;
+    expect(state.enemies.length).toBeGreaterThan(0);
+
+    run(state, level, 1, [{ kind: "castTeamUltimate" }]);
+
+    expect(state.teamCharge).toBe(1);
   });
 });

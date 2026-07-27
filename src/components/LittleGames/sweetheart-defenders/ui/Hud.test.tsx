@@ -41,6 +41,7 @@ function snapshot(phase: HudSnapshot["phase"]): HudSnapshot {
     speed: 2,
     towers: [],
     ultimateCharge: {},
+    teamCharge: 0,
   };
 }
 

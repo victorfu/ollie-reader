@@ -57,6 +57,8 @@ export type HudSnapshot = {
   towers: TowerSummary[];
   /** 每個上場角色的絕招充能（0–1）。畫面底下的絕招列直接讀這個。 */
   ultimateCharge: Record<string, number>;
+  /** 隊伍大絕招充能（0–1） */
+  teamCharge: number;
 };
 
 function snapshotOf(state: BattleState, waveCount: number): HudSnapshot {
@@ -77,6 +79,7 @@ function snapshotOf(state: BattleState, waveCount: number): HudSnapshot {
       spec: tower.spec,
     })),
     ultimateCharge: { ...state.ultimateCharge },
+    teamCharge: state.teamCharge,
   };
 }
 
@@ -93,6 +96,8 @@ function sameSnapshot(a: HudSnapshot, b: HudSnapshot): boolean {
     // 充能每幀都在動，但畫面只需要更新到能看出進度就好——切成 20 段比對，
     // 不然這條快照比對永遠不相等，等於每幀都重繪整個 React 樹。
     sameCharge(a.ultimateCharge, b.ultimateCharge) &&
+    // 隊伍充能只在放絕招的瞬間跳一格，理論上不需要分段；照 20 段切齊只是保險。
+    Math.floor(a.teamCharge * 20) === Math.floor(b.teamCharge * 20) &&
     a.towers.every((tower, index) => {
       const other = b.towers[index];
       return (
@@ -428,9 +433,14 @@ export function BattleScreen({
             squad={availableCharacters}
             placed={placedCharacterIds}
             charge={hud.ultimateCharge}
+            teamCharge={hud.teamCharge}
             onCast={(characterId) => {
               playSfx("upgrade");
               enqueue({ kind: "castUltimate", characterId });
+            }}
+            onCastTeam={() => {
+              playSfx("unlock");
+              enqueue({ kind: "castTeamUltimate" });
             }}
           />
         )}

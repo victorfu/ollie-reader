@@ -404,6 +404,12 @@ export type BattleState = {
    * 滿了之後三座同時放招。畫面底下的絕招列直接讀這裡。
    */
   ultimateCharge: Record<string, number>;
+  /**
+   * 隊伍大絕招「甜心總動員」的充能（0–1）。
+   *
+   * 只有一條量表、全隊共用；每放一次角色絕招就漲一格（TEAM_CHARGE_PER_CAST）。
+   */
+  teamCharge: number;
   /** 「大合唱」絕招的殘餘時間（毫秒），期間全場塔攻速提升 */
   choirMs: number;
   kills: number;
@@ -427,4 +433,6 @@ export type Command =
   | { kind: "startWave" }
   | { kind: "setSpeed"; multiplier: 1 | 2 }
   /** 放這個角色的絕招。充能未滿時會被忽略。 */
-  | { kind: "castUltimate"; characterId: string };
+  | { kind: "castUltimate"; characterId: string }
+  /** 放隊伍大絕招，全隊攻擊地圖上所有敵人。充能未滿或場上沒有怪時會被忽略。 */
+  | { kind: "castTeamUltimate" };

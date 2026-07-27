@@ -25,6 +25,7 @@ function makeState(overrides: Partial<BattleState> = {}): BattleState {
     spawnQueue: [],
     zoneTimers: [],
     ultimateCharge: {},
+    teamCharge: 0,
     choirMs: 0,
     kills: 200,
     leaked: 0,

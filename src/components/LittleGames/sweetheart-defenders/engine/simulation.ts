@@ -1,4 +1,4 @@
-import { FIRST_PREP_MS, MAX_CAKES, PREP_MS } from "../constants";
+import { FIRST_PREP_MS, HEIGHT, MAX_CAKES, PREP_MS, WIDTH } from "../constants";
 import {
   ELEMENT_COLOR,
   SLOW_DURATION_MS,
@@ -11,6 +11,8 @@ import { planSlots } from "../data/slotPlanner";
 import {
   CHARGE_PER_DAMAGE,
   CHARGE_TIME_MS,
+  TEAM_CHARGE_PER_CAST,
+  TEAM_ULTIMATE_BASE,
   ULTIMATE_BASE,
 } from "../data/ultimates";
 import { computeDamage, getTowerStats } from "./combat";
@@ -127,6 +129,7 @@ export function createBattle(level: CompiledLevel, seed: number): BattleState {
     spawnQueue: [],
     zoneTimers: (level.spec.zones ?? []).map(() => OVEN_VENT_INTERVAL_MS),
     ultimateCharge: {},
+    teamCharge: 0,
     choirMs: 0,
     kills: 0,
     leaked: 0,
@@ -256,6 +259,11 @@ function applyCommand(
 
     case "castUltimate": {
       castUltimate(state, level, command.characterId);
+      return;
+    }
+
+    case "castTeamUltimate": {
+      castTeamUltimate(state, level);
       return;
     }
   }
@@ -498,6 +506,8 @@ function castUltimate(
   if (towers.length === 0) return;
 
   state.ultimateCharge[characterId] = 0;
+  // 放角色絕招是隊伍大絕招唯一的充能來源——按小顆的，大顆的就往前漲一格。
+  state.teamCharge = Math.min(1, state.teamCharge + TEAM_CHARGE_PER_CAST);
 
   for (const tower of towers) {
     const pet = getCharacter(tower.characterId);
@@ -644,6 +654,52 @@ function fireUltimate(
       addEffect(state, "heal", slot, stats.range * 1.6, color);
       return;
     }
+  }
+}
+
+/**
+ * 隊伍大絕招「甜心總動員」：上場的甜心全員衝出來，把地圖上**每一隻**怪打一遍。
+ *
+ * 跟角色絕招不同，這招不看塔的射程——它的賣點就是「整張地圖一起有反應」，
+ * 躲在另一頭的怪也逃不掉。傷害按上場隊員數疊倍（帶滿隊、全上場就是五倍），
+ * 而且跟烤箱口一樣不吃護甲與元素克制：這是全員撲上去圍毆，不是某座塔在射擊。
+ *
+ * 場上沒有怪時整個忽略、也不花充能——小朋友最容易在波次空檔手癢亂按，
+ * 不該因此把三格量表放水流。
+ */
+function castTeamUltimate(state: BattleState, level: CompiledLevel): void {
+  if (state.teamCharge < 1) return;
+  if (state.enemies.length === 0) return;
+
+  const members = new Set(state.towers.map((tower) => tower.characterId));
+  if (members.size === 0) return;
+
+  state.teamCharge = 0;
+  const damage = TEAM_ULTIMATE_BASE.damagePerMember * members.size;
+
+  // 從地圖中心炸開一圈大光環，宣告「這是全隊的招」，不屬於任何一座塔。
+  addEffect(
+    state,
+    "heal",
+    { x: WIDTH / 2, y: HEIGHT / 2 },
+    Math.hypot(WIDTH, HEIGHT) / 2,
+    "#ff6f9f",
+  );
+
+  // 逆向走訪副本：擊殺會就地從 state.enemies 移除。
+  const caught = [...state.enemies];
+  for (let index = caught.length - 1; index >= 0; index -= 1) {
+    const enemy = caught[index];
+    enemy.flashMs = FLASH_MS;
+    enemy.stunMs = Math.max(enemy.stunMs, TEAM_ULTIMATE_BASE.stunMs);
+    addEffect(state, "splash", enemy, 34, "#ff6f9f");
+
+    // 護盾照樣先擋——無視護甲不等於無視護盾，盾就是拿來吃這一下的。
+    const absorbed = Math.min(enemy.shieldHp, damage);
+    enemy.shieldHp -= absorbed;
+    enemy.hp -= damage - absorbed;
+
+    if (enemy.hp <= 0) killEnemy(state, level, enemy);
   }
 }
 

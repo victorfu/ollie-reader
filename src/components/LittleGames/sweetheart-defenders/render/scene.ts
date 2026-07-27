@@ -42,28 +42,132 @@ export function drawZones(
   });
 }
 
-/** 糖霜池：淡藍色的一灘，邊緣有慢慢轉的光。站進去射程 +20%。 */
+/**
+ * 糖霜池：潑在地上的一灘淡藍糖漿。站進去射程 +20%。
+ *
+ * 之前畫成「正圓 + 旋轉虛線」，跟空塔位、射程預覽是同一套 UI 虛線圈的視覺
+ * 語言，玩家會把它讀成某種操作提示而不是地形。改成潑濺形：波浪邊緣、旁邊
+ * 濺出去的小糖珠、糖面反光加閃爍糖粒——一眼就是「地上有一灘東西」。
+ *
+ * 波浪邊緣的幅度收在半徑 ±10% 內：加成判定用的是 zone.radius 的正圓
+ * （compileLevel 的 rangeBonusBySlot），視覺形狀不能跟判定差太多。
+ */
 function drawSugarPool(
   ctx: CanvasRenderingContext2D,
   zone: SceneZone,
   timeMs: number,
 ): void {
-  const pulse = 0.5 + 0.5 * Math.sin(timeMs / 900);
+  // 座標當種子：每一灘的形狀不同，但同一灘每一幀畫出來都一樣（不抖動）。
+  const seed = (zone.x * 13 + zone.y * 7) % (Math.PI * 2);
+  const edge = (angle: number) =>
+    zone.radius *
+    (0.96 +
+      0.04 * Math.sin(angle * 3 + seed) +
+      0.03 * Math.sin(angle * 5 + seed * 2) +
+      // 邊緣像液面一樣慢慢起伏，幅度小到不會讓人懷疑範圍變了。
+      0.015 * Math.sin(angle * 2 - timeMs / 1400));
 
-  const fill = ctx.createRadialGradient(0, 0, zone.radius * 0.2, 0, 0, zone.radius);
-  fill.addColorStop(0, "rgba(146, 214, 245, 0.42)");
-  fill.addColorStop(1, "rgba(146, 214, 245, 0.08)");
+  // 主體：光源偏左上（跟氣球、路燈的反光同一套），邊緣色深一點像有厚度。
+  // 不透明度要夠高才像濃稠的糖霜——太透會變成一顆肥皂泡。
+  const fill = ctx.createRadialGradient(
+    -zone.radius * 0.18,
+    -zone.radius * 0.22,
+    zone.radius * 0.1,
+    0,
+    0,
+    zone.radius,
+  );
+  fill.addColorStop(0, "rgba(200, 236, 252, 0.8)");
+  fill.addColorStop(0.7, "rgba(160, 220, 247, 0.7)");
+  fill.addColorStop(1, "rgba(120, 197, 238, 0.62)");
   ctx.fillStyle = fill;
-  ctx.beginPath();
-  ctx.arc(0, 0, zone.radius, 0, Math.PI * 2);
+
+  const tracePool = (scale: number) => {
+    const STEPS = 48;
+    ctx.beginPath();
+    for (let i = 0; i <= STEPS; i += 1) {
+      const angle = (i / STEPS) * Math.PI * 2;
+      const r = edge(angle) * scale;
+      const x = Math.cos(angle) * r;
+      const y = Math.sin(angle) * r;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+  };
+
+  tracePool(1);
   ctx.fill();
 
-  ctx.strokeStyle = `rgba(91, 184, 232, ${0.35 + pulse * 0.3})`;
+  // 實線的厚邊。不用虛線——虛線在這個遊戲裡是 UI 的專用語彙。
+  ctx.strokeStyle = "rgba(91, 184, 232, 0.7)";
   ctx.lineWidth = 3;
-  ctx.setLineDash([14, 10]);
-  ctx.lineDashOffset = -timeMs / 60;
   ctx.stroke();
-  ctx.setLineDash([]);
+
+  // 內圈再疊一層淺色的小灘，糖漿才有「中間比較厚」的濃稠感。
+  ctx.fillStyle = "rgba(226, 245, 253, 0.55)";
+  ctx.save();
+  ctx.translate(-zone.radius * 0.05, -zone.radius * 0.07);
+  tracePool(0.72);
+  ctx.fill();
+  ctx.restore();
+
+  // 濺出去的小糖珠，potch 一聲的那種感覺；位置吃種子，每灘不同。
+  ctx.fillStyle = "rgba(178, 227, 249, 0.75)";
+  ctx.strokeStyle = "rgba(91, 184, 232, 0.55)";
+  ctx.lineWidth = 2;
+  for (const [angleOffset, distanceRatio, sizeRatio] of [
+    [0.9, 1.16, 0.07],
+    [2.7, 1.2, 0.045],
+    [4.4, 1.14, 0.055],
+  ]) {
+    const angle = seed + angleOffset;
+    ctx.beginPath();
+    ctx.arc(
+      Math.cos(angle) * zone.radius * distanceRatio,
+      Math.sin(angle) * zone.radius * distanceRatio,
+      zone.radius * sizeRatio,
+      0,
+      Math.PI * 2,
+    );
+    ctx.fill();
+    ctx.stroke();
+  }
+
+  // 糖面的左上反光。
+  ctx.fillStyle = "rgba(255, 255, 255, 0.4)";
+  ctx.beginPath();
+  ctx.ellipse(
+    -zone.radius * 0.32,
+    -zone.radius * 0.38,
+    zone.radius * 0.3,
+    zone.radius * 0.14,
+    -0.5,
+    0,
+    Math.PI * 2,
+  );
+  ctx.fill();
+
+  // 糖粒：幾顆小菱形亮點輪流閃，「糖」霜的糖。
+  for (let i = 0; i < 6; i += 1) {
+    const angle = seed + (i / 6) * Math.PI * 2;
+    const distance = zone.radius * (0.25 + (0.4 * ((i * 5) % 7)) / 7);
+    const twinkle = 0.5 + 0.5 * Math.sin(timeMs / 650 + i * 1.9);
+    const size = 2 + twinkle * 1.6;
+    const x = Math.cos(angle) * distance;
+    const y = Math.sin(angle) * distance;
+
+    ctx.globalAlpha = 0.25 + twinkle * 0.55;
+    ctx.fillStyle = "#ffffff";
+    ctx.beginPath();
+    ctx.moveTo(x, y - size);
+    ctx.lineTo(x + size * 0.55, y);
+    ctx.lineTo(x, y + size);
+    ctx.lineTo(x - size * 0.55, y);
+    ctx.closePath();
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
 }
 
 /**
