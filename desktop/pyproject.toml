@@ -35,6 +35,16 @@ dev = [
     "pytest",
     "pyinstaller",
 ]
+# Optional Azure AI Speech SDK for /api/azure-tts. Serves the SAME neural voices
+# as edge-tts but through the official, key-authenticated endpoint — and unlike
+# edge-tts (which hardcodes 24kHz/48kbps mono mp3) it lets us pick the output
+# format, which matters for sibilance. Kept out of the default sync because it
+# ships a native binary and most users won't have a subscription key. Opt in with
+# `uv sync --group azure`. The key/region are entered by the user in the settings
+# window and stored in the OS keychain (server/tts_secrets.py) — never bundled.
+azure = [
+    "azure-cognitiveservices-speech",
+]
 
 # This is a run-from-source app (main.py + server/ + shell/), not an installable
 # distribution, so uv manages only the environment — it does not build the project.

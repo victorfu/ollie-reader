@@ -19,6 +19,7 @@ describe("normalizeTtsEngine", () => {
   it("accepts every supported engine", () => {
     expect(normalizeTtsEngine("piper")).toBe("piper");
     expect(normalizeTtsEngine("kokoro")).toBe("kokoro");
+    expect(normalizeTtsEngine("edge")).toBe("edge");
   });
 
   it("falls back to piper for legacy/unknown/empty values", () => {

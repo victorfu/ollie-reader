@@ -357,6 +357,11 @@ export const Settings = () => {
                               name: "Kokoro",
                               desc: "高品質神經語音；需後端本地啟用，未啟用會失敗",
                             },
+                            {
+                              id: "edge",
+                              name: "Edge TTS",
+                              desc: "微軟神經語音，發音最自然；需連網，且僅在本機 desktop app 執行時可用",
+                            },
                           ] as { id: TTSEngine; name: string; desc: string }[]
                         ).map((eng) => (
                           <label

@@ -123,3 +123,27 @@ def test_list_voices_filters_by_locale_prefix(fake_edge_tts):
 
 def test_list_voices_unfiltered_returns_all(fake_edge_tts):
   assert len(asyncio.run(list_edge_voices(None))) == 3
+
+
+def test_env_overrides_default_voice(fake_edge_tts, monkeypatch):
+  monkeypatch.setenv("EDGE_TTS_VOICE", "en-GB-RyanNeural")
+  asyncio.run(edge_synthesize_speech("hello"))
+  assert _FakeCommunicate.last_kwargs["voice"] == "en-GB-RyanNeural"
+
+
+def test_blank_env_falls_back_to_default_voice(fake_edge_tts, monkeypatch):
+  monkeypatch.setenv("EDGE_TTS_VOICE", "   ")
+  asyncio.run(edge_synthesize_speech("hello"))
+  assert _FakeCommunicate.last_kwargs["voice"] == DEFAULT_EDGE_VOICE
+
+
+def test_explicit_voice_beats_env_override(fake_edge_tts, monkeypatch):
+  monkeypatch.setenv("EDGE_TTS_VOICE", "en-GB-RyanNeural")
+  asyncio.run(edge_synthesize_speech("hello", voice="en-US-AriaNeural"))
+  assert _FakeCommunicate.last_kwargs["voice"] == "en-US-AriaNeural"
+
+
+# 迴歸鎖：Emma(Multilingual) 在 st-/sp- 字首會吞掉 /s/（"spell" 起音 4-10kHz
+# 佔比僅 9%），不得再被設回單字聽力題的預設聲音
+def test_default_voice_is_not_emma():
+  assert "Emma" not in DEFAULT_EDGE_VOICE

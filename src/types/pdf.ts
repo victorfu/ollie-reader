@@ -16,7 +16,8 @@ export type ReadingMode = "word" | "selection";
 export type TTSMode = "browser" | "api";
 
 // API 模式下使用哪個後端 TTS 引擎（ttsMode === "api" 時生效）
-export type TTSEngine = "piper" | "kokoro";
+// piper/kokoro 兩邊（雲端 + 本機 sidecar）都有；edge 目前只有本機 sidecar 提供
+export type TTSEngine = "piper" | "kokoro" | "edge";
 
 // 文字解析模式
 export type TextParsingMode = "frontend" | "backend";

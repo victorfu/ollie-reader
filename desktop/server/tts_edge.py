@@ -12,12 +12,21 @@
 """
 
 import logging
+import os
 from dataclasses import dataclass
 from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_EDGE_VOICE = "en-US-EmmaMultilingualNeural"
+# 預設聲音刻意避開 Emma：實測 Emma(Multilingual) 在 s+子音字首會把 /s/ 吞掉
+# （"sting" 起音 4-10kHz 佔比 27.7%、"spell" 只剩 9.0%，其他 15 個 en-US 聲音
+# 全在 71-88%），單字聽力題聽起來像少了 s。Ava 在含 st-/sp- 的字都穩定 83-86%。
+# 可用 EDGE_TTS_VOICE 覆寫（web 端呼叫 /api/etts 不帶 voice，吃的就是這個預設）。
+DEFAULT_EDGE_VOICE = "en-US-AvaMultilingualNeural"
+
+
+def _default_voice() -> str:
+  return os.getenv("EDGE_TTS_VOICE", "").strip() or DEFAULT_EDGE_VOICE
 
 
 @dataclass
@@ -86,7 +95,7 @@ async def edge_synthesize_speech(
     raise EdgeTTSError("text 不可為空", status_code=400)
 
   edge_tts = _import_edge_tts()
-  chosen_voice = (voice or DEFAULT_EDGE_VOICE).strip() or DEFAULT_EDGE_VOICE
+  chosen_voice = (voice or _default_voice()).strip() or _default_voice()
 
   try:
     communicate = edge_tts.Communicate(

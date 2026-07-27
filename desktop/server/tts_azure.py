@@ -14,7 +14,23 @@ from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_AZURE_VOICE = "en-US-EmmaMultilingualNeural"
+# 與 tts_edge 同步避開 Emma（Read Aloud 端點實測她在 st-/sp- 字首吞 /s/；
+# 官方端點是同一套模型目錄，未持金鑰實測、但沒有理由賭她在這裡表現不同）。
+# 可用 AZURE_TTS_VOICE 覆寫。
+DEFAULT_AZURE_VOICE = "en-US-AvaMultilingualNeural"
+
+
+def _default_azure_voice() -> str:
+  import os
+
+  return os.getenv("AZURE_TTS_VOICE", "").strip() or DEFAULT_AZURE_VOICE
+
+# 官方 API 可以選輸出格式（edge-tts 那條側門寫死 24kHz/48kbps 沒得選）。
+# 刻意選高品質：48kbps 會把 /s/ /ʃ/ 這類擦音的 4-10kHz 能量壓掉，單字朗讀聽起來
+# 像少了 s（實測 48kbps mp3 該頻段佔比 27.7%，無壓縮參考為 66.6%）。
+# 單字音檔本來就只有 1-2 秒，提高位元率的傳輸成本可忽略，且 Azure 按字元計費、
+# 與格式無關。可用 AZURE_TTS_FORMAT 覆寫成 SpeechSynthesisOutputFormat 的其他名稱。
+DEFAULT_AZURE_FORMAT = "Audio48Khz192KBitRateMonoMp3"
 
 
 @dataclass
@@ -64,12 +80,24 @@ def _require_credentials() -> tuple[str, str]:
   return creds
 
 
+def _output_format(speechsdk: Any):
+  """解析輸出格式；env 給了無效名稱就退回預設而不是讓整個請求爆掉。"""
+  import os
+
+  name = os.getenv("AZURE_TTS_FORMAT", "").strip() or DEFAULT_AZURE_FORMAT
+  fmt = getattr(speechsdk.SpeechSynthesisOutputFormat, name, None)
+  if fmt is None:
+    logger.warning("未知的 AZURE_TTS_FORMAT=%r，改用 %s", name, DEFAULT_AZURE_FORMAT)
+    fmt = getattr(
+      speechsdk.SpeechSynthesisOutputFormat, DEFAULT_AZURE_FORMAT
+    )
+  return fmt
+
+
 def _speech_config(speechsdk: Any):
   key, region = _require_credentials()
   config = speechsdk.SpeechConfig(subscription=key, region=region)
-  config.set_speech_synthesis_output_format(
-    speechsdk.SpeechSynthesisOutputFormat.Audio24Khz48KBitRateMonoMp3
-  )
+  config.set_speech_synthesis_output_format(_output_format(speechsdk))
   return config
 
 
@@ -98,7 +126,7 @@ def azure_synthesize_speech(
     raise AzureTTSError("text 不可為空", status_code=400)
 
   speechsdk = _import_speechsdk()
-  chosen_voice = (voice or DEFAULT_AZURE_VOICE).strip() or DEFAULT_AZURE_VOICE
+  chosen_voice = (voice or _default_azure_voice()).strip() or _default_azure_voice()
 
   try:
     synthesizer = speechsdk.SpeechSynthesizer(

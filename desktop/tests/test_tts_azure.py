@@ -2,6 +2,7 @@ import pytest
 
 import server.tts_azure as a
 from server.tts_azure import (
+  DEFAULT_AZURE_FORMAT,
   DEFAULT_AZURE_VOICE,
   AzureTTSError,
   _build_ssml,
@@ -111,7 +112,12 @@ def fake_speechsdk(monkeypatch):
     SpeechSynthesizer = _Synth
     ResultReason = _Reason
     SpeechSynthesisOutputFormat = type(
-      "F", (), {"Audio24Khz48KBitRateMonoMp3": "mp3"}
+      "F",
+      (),
+      {
+        "Audio48Khz192KBitRateMonoMp3": "hq-mp3",
+        "Audio24Khz48KBitRateMonoMp3": "lq-mp3",
+      },
     )
 
   monkeypatch.setattr(a, "_import_speechsdk", lambda: _Module)
@@ -161,3 +167,32 @@ def test_list_voices_filters_by_locale(fake_speechsdk):
     "en-US-EmmaMultilingualNeural"
   ]
   assert len(list_azure_voices(None)) == 2
+
+
+def test_uses_high_quality_output_format(fake_speechsdk):
+  """48kbps 會把 /s/ 的擦音壓掉，官方 API 既然能選格式就不該沿用那個低位元率。"""
+  assert DEFAULT_AZURE_FORMAT == "Audio48Khz192KBitRateMonoMp3"
+  azure_synthesize_speech("hello")
+  assert fake_speechsdk.captured["format"] == "hq-mp3"
+
+
+def test_env_can_override_output_format(fake_speechsdk, monkeypatch):
+  monkeypatch.setenv("AZURE_TTS_FORMAT", "Audio24Khz48KBitRateMonoMp3")
+  azure_synthesize_speech("hello")
+  assert fake_speechsdk.captured["format"] == "lq-mp3"
+
+
+def test_unknown_env_format_falls_back_to_default(fake_speechsdk, monkeypatch):
+  monkeypatch.setenv("AZURE_TTS_FORMAT", "NotARealFormat")
+  azure_synthesize_speech("hello")
+  assert fake_speechsdk.captured["format"] == "hq-mp3"
+
+
+def test_env_overrides_default_voice(fake_speechsdk, monkeypatch):
+  monkeypatch.setenv("AZURE_TTS_VOICE", "en-GB-RyanNeural")
+  azure_synthesize_speech("hello")
+  assert 'name="en-GB-RyanNeural"' in fake_speechsdk.captured["ssml"]
+
+
+def test_default_voice_is_not_emma():
+  assert "Emma" not in DEFAULT_AZURE_VOICE

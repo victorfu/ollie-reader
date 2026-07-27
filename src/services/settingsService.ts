@@ -6,11 +6,11 @@ import type { TTSMode, TTSEngine, ReadingMode } from "../types/pdf";
 const SETTINGS_COLLECTION = "userSettings";
 
 /**
- * 僅接受目前支援的引擎；任何其他值（含舊資料如已移除的 "google"、"chatterbox"）
- * fallback 到 piper。
+ * 僅接受目前支援的引擎（piper / kokoro / edge）；任何其他值（含舊資料如已
+ * 移除的 "google"、"chatterbox"）fallback 到 piper。
  */
 export function normalizeTtsEngine(value: unknown): TTSEngine {
-  return value === "kokoro" || value === "piper"
+  return value === "kokoro" || value === "piper" || value === "edge"
     ? value
     : "piper";
 }
