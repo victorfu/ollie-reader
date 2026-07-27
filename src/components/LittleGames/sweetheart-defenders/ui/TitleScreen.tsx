@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { ArrowLeft, BookOpen, CakeSlice, Lock, Star } from "lucide-react";
 import { LEVELS } from "../data/levels";
 import { CHARACTERS } from "../data/characters";
@@ -6,10 +6,12 @@ import type { TowerCharacter } from "../types";
 import { getEnemy } from "../data/enemies";
 import { isLevelUnlocked, nextPlayableLevelId } from "../data/unlocks";
 import { previewWave } from "../engine/waves";
+import { playSfx } from "../audio";
 import type { Stars } from "../engine/progress";
 import type { SyncStatus } from "../storage";
 import type { AudioControls } from "../useAudioSettings";
 import { AudioButton } from "./AudioControls";
+import { CharacterDex } from "./CharacterDex";
 import type { Difficulty } from "../types";
 
 const DIFFICULTIES: { id: Difficulty; label: string; hint: string }[] = [
@@ -23,20 +25,17 @@ type Props = {
   /** 每關撐到過的最遠波次，還沒通關的關卡拿來顯示紀錄 */
   bestWave: Record<string, number>;
   availableCharacters: TowerCharacter[];
-  /** 扭蛋抽到的數量（不含預設班底） */
-  ownedCount: number;
   syncStatus: SyncStatus;
   isSignedIn: boolean;
   audio: AudioControls;
   onStart: (levelId: string, difficulty: Difficulty) => void;
-  onOpenDex: () => void;
   onExit?: () => void;
 };
 
 /**
  * 闖關路線。
  *
- * 版面分兩欄：左邊是不會動的控制欄（招牌、進度、難度、圖鑑），右邊只放路線。
+ * 版面分兩欄：左邊是不會動的控制欄（招牌、進度、難度），右邊只放路線。
  * 之前全部疊成一直欄置中，光招牌加難度就吃掉整個第一屏，要捲一下才看得到
  * 第一關；把它們挪到側欄之後，路線從畫面最上面就開始，也順便把寬螢幕左右
  * 兩片空白用掉。窄螢幕（md 以下）自動退回上下堆疊，側欄變成一條矮工具列。
@@ -50,19 +49,22 @@ export function TitleScreen({
   levelStars,
   bestWave,
   availableCharacters,
-  ownedCount,
   syncStatus,
   isSignedIn,
   audio,
   onStart,
-  onOpenDex,
   onExit,
 }: Props) {
   const [difficulty, setDifficulty] = useState<Difficulty>("easy");
+  const [dexOpen, setDexOpen] = useState(false);
   const nextLevelId = nextPlayableLevelId(levelStars);
   const clearedCount = LEVELS.filter(
     (level) => (levelStars[level.id] ?? 0) > 0,
   ).length;
+  const availableIds = useMemo(
+    () => availableCharacters.map((character) => character.id),
+    [availableCharacters],
+  );
 
   return (
     <div
@@ -73,7 +75,7 @@ export function TitleScreen({
       }}
     >
       <aside className="flex shrink-0 flex-col gap-2.5 px-4 pb-1.5 pt-3 md:h-screen md:w-[17rem] md:gap-4 md:overflow-y-auto md:border-r md:border-black/5 md:bg-white/40 md:px-5 md:py-5 md:backdrop-blur-xl lg:w-[19rem]">
-        {/* 離開和聲音收成同一列。之前兩顆都是絕對定位，行動版還得留一段上緣空白閃開它們。 */}
+        {/* 離開、圖鑑、聲音收成同一列。之前三顆都是絕對定位，行動版還得留一段上緣空白閃開它們。 */}
         <div
           className={`flex items-center gap-2 ${onExit ? "justify-between" : "justify-end"}`}
         >
@@ -87,7 +89,22 @@ export function TitleScreen({
               回遊戲列表
             </button>
           )}
-          <AudioButton {...audio} align="right" />
+          <span className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                playSfx("select");
+                setDexOpen(true);
+              }}
+              aria-haspopup="dialog"
+              aria-expanded={dexOpen}
+              aria-label={`角色圖鑑（已收集 ${availableIds.length} / ${CHARACTERS.length}）`}
+              className="flex min-h-11 items-center justify-center rounded-[10px] border border-black/5 bg-white px-3 text-[#ff6f9f] shadow-sm transition hover:bg-slate-50"
+            >
+              <BookOpen size={18} strokeWidth={2} aria-hidden="true" />
+            </button>
+            <AudioButton {...audio} align="right" />
+          </span>
         </div>
 
         <div>
@@ -158,13 +175,6 @@ export function TitleScreen({
           </div>
         </fieldset>
 
-        {/* 圖鑑在手機上排到路線後面：那裡是逛收藏的地方，不該擋在第一關前面。 */}
-        <DexCard
-          className="hidden md:block"
-          ownedCount={ownedCount}
-          availableCharacters={availableCharacters}
-          onOpenDex={onOpenDex}
-        />
       </aside>
 
       <main className="flex-1 px-4 pb-8 pt-2 md:h-screen md:overflow-y-auto md:px-6 md:py-5">
@@ -266,63 +276,16 @@ export function TitleScreen({
               );
             })}
           </ol>
-
-          <DexCard
-            className="mt-3 md:hidden"
-            ownedCount={ownedCount}
-            availableCharacters={availableCharacters}
-            onOpenDex={onOpenDex}
-          />
         </div>
       </main>
-    </div>
-  );
-}
 
-/**
- * 角色圖鑑入口。桌機釘在側欄底部，手機接在路線後面——同一顆按鈕，
- * 兩個位置各自 display:none，不會有兩份跑進無障礙樹或 tab 順序。
- */
-function DexCard({
-  className,
-  ownedCount,
-  availableCharacters,
-  onOpenDex,
-}: {
-  className: string;
-  ownedCount: number;
-  availableCharacters: TowerCharacter[];
-  onOpenDex: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onOpenDex}
-      className={`w-full rounded-[12px] border border-black/5 bg-white/85 p-2.5 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg ${className}`}
-    >
-      <span className="flex items-center gap-2">
-        <BookOpen
-          size={18}
-          strokeWidth={1.75}
-          className="shrink-0 text-[#ff6f9f]"
-          aria-hidden="true"
+      {dexOpen && (
+        <CharacterDex
+          availableCharacterIds={availableIds}
+          onClose={() => setDexOpen(false)}
         />
-        <span className="text-sm font-semibold text-slate-800">角色圖鑑</span>
-        <span className="ml-auto flex -space-x-2.5">
-          {availableCharacters.slice(-4).map((pet) => (
-            <img
-              key={pet.id}
-              src={pet.sprite}
-              alt=""
-              className="size-7 rounded-full bg-white object-contain ring-2 ring-white"
-            />
-          ))}
-        </span>
-      </span>
-      <span className="mt-1.5 block text-[11px] leading-snug text-slate-500">
-        扭蛋收藏 {ownedCount} / {CHARACTERS.length} · 抽到的角色都能放上塔位
-      </span>
-    </button>
+      )}
+    </div>
   );
 }
 

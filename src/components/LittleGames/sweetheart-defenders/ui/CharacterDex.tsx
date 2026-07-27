@@ -1,12 +1,12 @@
-import { useMemo, useState } from "react";
-import { ArrowLeft, Candy } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Candy, X } from "lucide-react";
 import {
   ARCHETYPE_BY_ELEMENT,
   ARCHETYPE_LABEL_ZH,
   ELEMENT_COLOR,
   ELEMENT_LABEL_ZH,
 } from "../data/elements";
-import { CHARACTERS } from "../data/characters";
+import { CHARACTERS, DEFAULT_ROSTER_IDS } from "../data/characters";
 import { TRAIT_DESC_ZH, TRAIT_LABEL_ZH } from "../data/traits";
 import { getTowerStats, getTrait } from "../engine/combat";
 import { RARITY_TIERS } from "../constants";
@@ -28,11 +28,11 @@ const RARITY_STYLE: Record<Rarity, string> = {
   mythling: "bg-amber-100 text-amber-700",
 };
 
+const DEFAULTS = new Set(DEFAULT_ROSTER_IDS);
+
 type Props = {
   availableCharacterIds: string[];
-  /** 預設班底的 id，用來區分「抽到的」與「本來就有的」 */
-  defaultRosterIds: string[];
-  onBack: () => void;
+  onClose: () => void;
 };
 
 /**
@@ -41,69 +41,92 @@ type Props = {
  * 57 個扭蛋角色全部列出來，還沒收集到的顯示成剪影——看得到但還沒有，才會想
  * 去扭蛋機碰運氣。已收集的顯示打法、特性與數值，那是扭蛋機的收藏頁沒有、
  * 但決定「這場要放誰」時真正需要的資訊。
+ *
+ * 做成彈出面板而不是獨立畫面：圖鑑是「看一眼就回去挑關卡」的東西，
+ * 整頁切走再切回來會把闖關路線的位置和捲動都洗掉。
  */
-export function CharacterDex({
-  availableCharacterIds,
-  defaultRosterIds,
-  onBack,
-}: Props) {
+export function CharacterDex({ availableCharacterIds, onClose }: Props) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const unlocked = useMemo(
     () => new Set(availableCharacterIds),
     [availableCharacterIds],
   );
-  const defaults = useMemo(() => new Set(defaultRosterIds), [defaultRosterIds]);
   const selected = CHARACTERS.find((character) => character.id === selectedId);
 
+  // 跟聲音面板一樣，按 Esc 就收起來。
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [onClose]);
+
   return (
-    <div
-      className="relative flex h-screen w-full flex-col overflow-y-auto px-4 py-8 sm:px-6"
-      style={{
-        background:
-          "radial-gradient(circle at 18% 18%, rgba(255,200,224,0.5), transparent 42%), radial-gradient(circle at 82% 12%, rgba(198,222,255,0.45), transparent 38%), #fff7fb",
-      }}
-    >
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6">
       <button
         type="button"
-        onClick={onBack}
-        className="absolute left-4 top-4 z-20 flex min-h-11 items-center gap-1.5 rounded-full bg-white/90 px-4 py-2 text-sm font-semibold text-slate-900 shadow-lg backdrop-blur transition hover:-translate-y-0.5 hover:shadow-xl sm:left-6 sm:top-6"
+        aria-label="關閉角色圖鑑"
+        onClick={onClose}
+        className="absolute inset-0 cursor-default bg-black/25 backdrop-blur-sm"
+      />
+
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="character-dex-title"
+        className="relative flex max-h-full w-full max-w-4xl flex-col overflow-hidden rounded-[16px] border border-black/5 bg-white/90 shadow-2xl backdrop-blur-2xl"
       >
-        <ArrowLeft size={16} strokeWidth={2} aria-hidden="true" />
-        回闖關路線
-      </button>
+        <header className="flex items-start justify-between gap-3 border-b border-black/5 px-4 py-3">
+          <div className="min-w-0">
+            <h2
+              id="character-dex-title"
+              className="text-lg font-semibold tracking-tight text-slate-900"
+            >
+              角色圖鑑
+            </h2>
+            <p className="mt-0.5 text-xs text-slate-500">
+              已收集 {unlocked.size} / {CHARACTERS.length} · 抽到的角色都能放上塔位
+            </p>
+          </div>
 
-      <header className="mt-10 flex flex-col items-center sm:mt-2">
-        <h1 className="text-3xl font-semibold tracking-tight text-slate-900">
-          角色圖鑑
-        </h1>
-        <p className="mt-1 text-sm text-slate-600">
-          已收集 {unlocked.size} / {CHARACTERS.length}
-        </p>
-      </header>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="關閉"
+            className="flex size-11 shrink-0 items-center justify-center rounded-full text-slate-500 transition hover:bg-black/5"
+          >
+            <X size={18} strokeWidth={2} aria-hidden="true" />
+          </button>
+        </header>
 
-      <div className="mx-auto mt-6 grid w-full max-w-4xl grid-cols-3 gap-2 sm:grid-cols-5 lg:grid-cols-6">
-        {CHARACTERS.map((character) => (
-          <DexCard
-            key={character.id}
-            character={character}
-            unlocked={unlocked.has(character.id)}
-            selected={character.id === selectedId}
-            onSelect={() => setSelectedId(character.id === selectedId ? null : character.id)}
-          />
-        ))}
-      </div>
-
-      {selected && (
-        <div className="mx-auto mt-4 w-full max-w-4xl">
-          <CharacterDetail
-            character={selected}
-            unlocked={unlocked.has(selected.id)}
-            isDefault={defaults.has(selected.id)}
-          />
+        <div className="flex-1 overflow-y-auto px-4 py-3">
+          <div className="grid grid-cols-3 gap-2 sm:grid-cols-5 lg:grid-cols-6">
+            {CHARACTERS.map((character) => (
+              <DexCard
+                key={character.id}
+                character={character}
+                unlocked={unlocked.has(character.id)}
+                selected={character.id === selectedId}
+                onSelect={() => setSelectedId(character.id === selectedId ? null : character.id)}
+              />
+            ))}
+          </div>
         </div>
-      )}
 
-      <div className="h-8 shrink-0" />
+        {/* 詳細資料釘在底部而不是接在格子後面：57 個角色排下來，點了誰都要
+            捲到最後才看得到說明，看起來就像點了沒反應。 */}
+        {selected && (
+          <div className="max-h-[45%] shrink-0 overflow-y-auto border-t border-black/5 bg-white/70 px-4 py-3">
+            <CharacterDetail
+              character={selected}
+              unlocked={unlocked.has(selected.id)}
+              isDefault={DEFAULTS.has(selected.id)}
+            />
+          </div>
+        )}
+      </div>
     </div>
   );
 }
