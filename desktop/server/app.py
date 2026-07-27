@@ -21,7 +21,6 @@ from server.tts_azure import (
     azure_synthesize_speech,
     list_azure_voices,
 )
-from server.tts_chatterbox import ChatterboxTTSError, chatterbox_synthesize_speech
 from server.tts_edge import EdgeTTSError, edge_synthesize_speech, list_edge_voices
 from server.tts_kokoro import (
     KokoroTTSError,
@@ -187,30 +186,6 @@ def create_app() -> FastAPI:
             headers={"Content-Disposition": 'attachment; filename="speech.wav"'},
         )
 
-    @app.post("/api/chatterbox-tts", tags=["tts"])
-    async def chatterbox_tts(request: SpeechRequest):
-        # Chatterbox-Turbo 是可選的重量級引擎；未安裝/不可用時回 503
-        # （前端不再自動降級，會直接顯示錯誤）。
-        try:
-            result = await run_in_threadpool(
-                chatterbox_synthesize_speech,
-                request.text,
-                request.speed,
-                request.voice,
-            )
-        except ChatterboxTTSError as e:
-            raise HTTPException(status_code=e.status_code, detail=e.message) from e
-        except Exception as e:
-            logger.exception("未預期的 Chatterbox Turbo TTS 失敗")
-            raise HTTPException(
-                status_code=500, detail="Chatterbox Turbo 語音合成失敗"
-            ) from e
-        return StreamingResponse(
-            io.BytesIO(result.audio_data),
-            media_type=result.content_type,
-            headers={"Content-Disposition": 'attachment; filename="speech.wav"'},
-        )
-
     @app.post("/api/etts", tags=["tts"])
     async def etts(request: SpeechRequest):
         """Edge TTS（雲端，需網路，免金鑰）。edge-tts 是 asyncio，直接 await。"""
@@ -254,7 +229,7 @@ def create_app() -> FastAPI:
 
     @app.get("/api/tts/voices", tags=["tts"])
     async def tts_voices(
-        engine: str = Query(..., description="edge | azure | kokoro | piper | chatterbox"),
+        engine: str = Query(..., description="edge | azure | kokoro | piper"),
         locale: str = Query(
             "en", description="locale 前綴過濾；空字串=不過濾（全部語言）"
         ),
@@ -277,8 +252,6 @@ def create_app() -> FastAPI:
             if engine == "piper":
                 # 目前只 bundle 單一 speaker 的 lessac-medium
                 return {"engine": engine, "voices": [{"id": "0", "label": "0（預設）"}]}
-            if engine == "chatterbox":
-                return {"engine": engine, "voices": [{"id": "", "label": "內建聲音"}]}
         except (EdgeTTSError, AzureTTSError, KokoroTTSError) as e:
             raise HTTPException(status_code=e.status_code, detail=e.message) from e
         except Exception as e:

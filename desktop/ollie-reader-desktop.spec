@@ -46,10 +46,6 @@ for _name in _BUNDLED_MODELS:
 if Path("assets").exists():
     datas.append(("assets", "assets"))
 
-# NOTE: the PyTorch Chatterbox backend (chatterbox-tts / torch / torchaudio) is
-# intentionally NOT collected here — bundling torch would balloon the .app by
-# hundreds of MB. Since v0.2.0 the frozen build ships the MLX backend instead
-# (see below); /api/chatterbox-tts auto-selects it at runtime.
 # NOTE: the optional Azure SDK (uv group `azure`) is intentionally NOT collected.
 # /api/azure-tts needs a user-supplied subscription key, and a key can never be
 # bundled (release/verify_bundle.py enforces that), so the frozen build ships the
@@ -69,30 +65,6 @@ for pkg in (
     "edge_tts",
     "aiohttp",
     "certifi",
-):
-    d, b, h = collect_all(pkg)
-    datas += d
-    binaries += b
-    hiddenimports += h
-
-# Chatterbox MLX backend (uv group `chatterbox-mlx`; the desktop-package target
-# syncs it before building). Weights are still downloaded/cached at runtime by
-# Hugging Face — only code ships in the bundle. collect_all is required, not
-# just tracing:
-#  - mlx ships its Metal kernels (mlx.metallib) as package data
-#  - mlx_audio / mlx_lm resolve model classes dynamically via importlib from
-#    config.json's model_type, which static analysis can't see
-#  - transformers / tokenizers rely on lazy imports + bundled data files
-for pkg in (
-    "mlx",
-    "mlx_audio",
-    "mlx_lm",
-    "transformers",
-    "tokenizers",
-    "safetensors",
-    "huggingface_hub",
-    "sounddevice",
-    "miniaudio",
 ):
     d, b, h = collect_all(pkg)
     datas += d

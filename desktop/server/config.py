@@ -43,50 +43,6 @@ KOKORO_VOICES_PATH = os.getenv("KOKORO_VOICES_PATH") or str(
 KOKORO_DEFAULT_VOICE = os.getenv("KOKORO_DEFAULT_VOICE", "af_heart")
 KOKORO_DEFAULT_LANG = os.getenv("KOKORO_LANG", "en-us")
 
-def _optional_float(name: str):
-    """Parse an optional float env var; unset/blank/malformed → None (use library default)."""
-    raw = os.getenv(name)
-    if raw is None or raw.strip() == "":
-        return None
-    try:
-        return float(raw)
-    except ValueError:
-        return None
-
-
-# Chatterbox (optional). Two interchangeable backends behind the same endpoint;
-# no bundled weights — loaded lazily and cached by Hugging Face on first use.
-# All settings are env-only.
-#  - CHATTERBOX_BACKEND: "mlx" | "torch"; unset → auto (mlx if mlx-audio is
-#    installed, else torch). Install exactly one of the uv groups
-#    `chatterbox-mlx` (Apple Silicon, faster) or `chatterbox` (PyTorch).
-#  - CHATTERBOX_MLX_MODEL: HF repo for the MLX weights. Default is the
-#    English-only Chatterbox-Turbo (ships conds.safetensors = built-in voice,
-#    no cloning needed). Do NOT use mlx-community/chatterbox-fp16 for English:
-#    that's the 23-language multilingual model and its English sounds worse.
-#  - CHATTERBOX_DEVICE: torch backend only: "cuda" | "mps" | "cpu"; unset →
-#    auto (cuda > mps > cpu).
-#  - CHATTERBOX_AUDIO_PROMPT_PATH: reference wav for voice cloning (optional).
-#  - CHATTERBOX_DEFAULT_VOICE: default voice/audio-prompt when request omits one.
-CHATTERBOX_BACKEND = os.getenv("CHATTERBOX_BACKEND")
-CHATTERBOX_MLX_MODEL = os.getenv(
-    "CHATTERBOX_MLX_MODEL", "mlx-community/chatterbox-turbo-fp16"
-)
-CHATTERBOX_DEVICE = os.getenv("CHATTERBOX_DEVICE")
-CHATTERBOX_AUDIO_PROMPT_PATH = os.getenv("CHATTERBOX_AUDIO_PROMPT_PATH")
-CHATTERBOX_DEFAULT_VOICE = os.getenv("CHATTERBOX_DEFAULT_VOICE")
-
-# Generation-QUALITY knobs (all optional; None → chatterbox library default).
-# NOT a speed lever: cfg_weight=0 would skip CFG's doubled T3 batch (~halve
-# compute), but chatterbox-tts 0.1.3's t3 inference loop hardcodes batch=2, so
-# cfg_weight=0 crashes with a tensor shape mismatch, and any cfg_weight>0 still
-# runs batch=2 (no speedup). The wrapper guards cfg_weight<=0. Unsupported knobs
-# are filtered per model signature, so these stay safe across chatterbox variants.
-CHATTERBOX_CFG_WEIGHT = _optional_float("CHATTERBOX_CFG_WEIGHT")
-CHATTERBOX_TEMPERATURE = _optional_float("CHATTERBOX_TEMPERATURE")
-CHATTERBOX_EXAGGERATION = _optional_float("CHATTERBOX_EXAGGERATION")
-
-
 # Web origins allowed to call the local sidecar:
 #  - Vite dev server (localhost:5173)
 #  - Production Firebase Hosting domains (the deployed web app reaches the local

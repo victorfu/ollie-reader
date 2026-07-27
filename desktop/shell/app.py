@@ -84,7 +84,6 @@ TTS_ENGINES = [
   ("azure", "Azure AI Speech（雲端・需金鑰）", "/api/azure-tts"),
   ("piper", "Piper（離線）", "/api/tts"),
   ("kokoro", "Kokoro（離線）", "/api/ktts"),
-  ("chatterbox", "Chatterbox（離線・需 opt-in）", "/api/chatterbox-tts"),
 ]
 
 SAMPLE_TEXT = "she got stung by a bee"

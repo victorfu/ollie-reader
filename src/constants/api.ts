@@ -5,13 +5,11 @@ export const API_BASE_URL =
 export const API_URL = `${API_BASE_URL}/api/pdf/extract`;
 export const TTS_API_URL = `${API_BASE_URL}/api/tts`; // Piper
 export const KTTS_API_URL = `${API_BASE_URL}/api/ktts`; // Kokoro
-export const CHATTERBOX_TTS_API_URL = `${API_BASE_URL}/api/chatterbox-tts`; // Chatterbox Turbo
 
 // engine -> endpoint 對應。前端統一送 { text, speed, voice? }，後端各自轉換。
 export const TTS_ENGINE_URL: Record<TTSEngine, string> = {
   piper: TTS_API_URL,
   kokoro: KTTS_API_URL,
-  chatterbox: CHATTERBOX_TTS_API_URL,
 };
 export const VERSION_API_URL = `${API_BASE_URL}/api/version`;
 export const OIKID_BOOKING_RECORDS_PATH = "/api/oikid/booking-records";
@@ -23,7 +21,6 @@ export const LOCAL_BASE_URL = "http://127.0.0.1:8765";
 export const TTS_ENGINE_PATH: Record<TTSEngine, string> = {
   piper: "/api/tts",
   kokoro: "/api/ktts",
-  chatterbox: "/api/chatterbox-tts",
 };
 export const PDF_EXTRACT_PATH = "/api/pdf/extract";
 export const FETCH_URL_PATH = "/api/fetch-url";

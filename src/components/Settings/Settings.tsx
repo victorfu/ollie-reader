@@ -357,11 +357,6 @@ export const Settings = () => {
                               name: "Kokoro",
                               desc: "高品質神經語音；需後端本地啟用，未啟用會失敗",
                             },
-                            {
-                              id: "chatterbox",
-                              name: "Chatterbox Turbo",
-                              desc: "高品質英文 AI 語音；較吃效能，需後端本地啟用，未啟用會失敗",
-                            },
                           ] as { id: TTSEngine; name: string; desc: string }[]
                         ).map((eng) => (
                           <label

@@ -16,10 +16,9 @@ vi.mock("../utils/firebaseUtil", () => ({
 import { normalizeTtsEngine } from "./settingsService";
 
 describe("normalizeTtsEngine", () => {
-  it("accepts every supported engine, including chatterbox", () => {
+  it("accepts every supported engine", () => {
     expect(normalizeTtsEngine("piper")).toBe("piper");
     expect(normalizeTtsEngine("kokoro")).toBe("kokoro");
-    expect(normalizeTtsEngine("chatterbox")).toBe("chatterbox");
   });
 
   it("falls back to piper for legacy/unknown/empty values", () => {
@@ -28,5 +27,11 @@ describe("normalizeTtsEngine", () => {
     expect(normalizeTtsEngine(undefined)).toBe("piper");
     expect(normalizeTtsEngine(null)).toBe("piper");
     expect(normalizeTtsEngine(42)).toBe("piper");
+  });
+
+  // 已移除的引擎必須被正規化掉，否則舊存檔選過 chatterbox 的人會卡在
+  // 打不到的端點上（Firestore 裡還留著 ttsEngine: "chatterbox"）
+  it("migrates the removed chatterbox engine to piper", () => {
+    expect(normalizeTtsEngine("chatterbox")).toBe("piper");
   });
 });

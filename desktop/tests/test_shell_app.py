@@ -91,7 +91,7 @@ def test_settings_dialog_has_both_tabs(settings_dialog):
 
 def test_engine_combo_lists_every_engine_with_endpoint(voice_lab):
     ids = [voice_lab.engine_combo.itemData(i) for i in range(voice_lab.engine_combo.count())]
-    assert ids == ["edge", "azure", "piper", "kokoro", "chatterbox"]
+    assert ids == ["edge", "azure", "piper", "kokoro"]
     assert voice_lab._endpoint("edge") == "/api/etts"
     assert voice_lab._endpoint("azure") == "/api/azure-tts"
     assert voice_lab._endpoint("kokoro") == "/api/ktts"
