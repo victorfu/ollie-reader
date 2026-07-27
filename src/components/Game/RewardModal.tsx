@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import confetti from "canvas-confetti";
 import type { GameReward } from "../../types/game";
 import { playSound } from "../../services/gameService";
+import { COIN_REWARDS } from "../../services/economyService";
 
 interface RewardModalProps {
   reward: GameReward;
@@ -117,6 +118,11 @@ export function RewardModal({ reward, onClaim }: RewardModalProps) {
               <span className="text-2xl font-bold text-warning">
                 +{reward.coinsGained} 扭蛋代幣
               </span>
+              {reward.defLanguage === "en" && (
+                <span className="badge badge-soft badge-accent font-semibold">
+                  英文模式 ×{COIN_REWARDS.englishModeMultiplier}
+                </span>
+              )}
             </motion.div>
           ) : null}
 

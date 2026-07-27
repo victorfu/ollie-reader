@@ -13,6 +13,8 @@ interface StageMapProps {
   progress: PlayerProgress;
   isStageCompleted: (stageIndex: number) => boolean;
   isStagePlayable: (stageIndex: number) => boolean;
+  /** 代幣倍率（英文模式為 2），讓預覽數字與實際入帳一致 */
+  coinMultiplier: number;
   onSelectStage: (stageIndex: number) => void;
   onBack: () => void;
 }
@@ -22,6 +24,7 @@ export function StageMap({
   progress,
   isStageCompleted,
   isStagePlayable,
+  coinMultiplier,
   onSelectStage,
   onBack,
 }: StageMapProps) {
@@ -302,7 +305,13 @@ export function StageMap({
                           {/* 扭蛋代幣獎勵預覽 */}
                           {!completed && !locked && (
                             <span className="inline-flex items-center gap-1 text-xs font-medium text-warning">
-                              🪙 +{coinsForStageClear(stage.rewardCoins, stage.isBoss)} 代幣
+                              🪙 +
+                              {coinsForStageClear(
+                                stage.rewardCoins,
+                                stage.isBoss,
+                                coinMultiplier,
+                              )}{" "}
+                              代幣
                             </span>
                           )}
                         </div>

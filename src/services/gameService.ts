@@ -107,14 +107,17 @@ export const prepareGamePool = async (
   userWords: VocabularyWord[],
 ): Promise<GameWord[]> => {
   // 1. Convert ALL user words to GameWord format (prioritize vocabulary book)
-  const userGameWords: GameWord[] = userWords.map((w) => ({
-    word: w.word,
-    def:
-      w.definitions[0]?.definitionChinese ||
-      w.definitions[0]?.definition ||
-      "未知定義",
-    emoji: w.emoji || "✨",
-  }));
+  //    def 維持「中文優先、缺中文退英文」的既有行為；defEn 另外帶出來給英文模式用
+  const userGameWords: GameWord[] = userWords.map((w) => {
+    const first = w.definitions[0];
+    const defEn = first?.definition?.trim();
+    return {
+      word: w.word,
+      def: first?.definitionChinese || first?.definition || "未知定義",
+      defEn: defEn || undefined,
+      emoji: w.emoji || "✨",
+    };
+  });
 
   // 2. If we have at least 4 words (minimum needed for the game), use them
   if (userGameWords.length >= 4) {

@@ -44,7 +44,8 @@ export interface ParsedSentence {
  */
 export interface GameWord {
   word: string;
-  def: string;
+  def: string; // 中文優先的主要釋義（中文模式用）
+  defEn?: string; // 英文釋義（英文模式用，可能缺）
   emoji: string;
 }
 
@@ -367,14 +368,16 @@ export async function generateGameWords(
       Each object must have:
       - "word": The English word (string)
       - "def": The Traditional Chinese definition (string, simple and direct)
+      - "defEn": A simple English definition (10-20 words) that only uses words easier than the target word.
+        NEVER include the target word or any inflected form of it inside "defEn" — it is used as a quiz clue.
       - "emoji": A relevant emoji (string)
-      
+
       Example format:
       [
-        {"word": "Magnificent", "def": "壯麗的", "emoji": "✨"},
-        {"word": "Persevere", "def": "堅持不懈", "emoji": "💪"}
+        {"word": "Magnificent", "def": "壯麗的", "defEn": "extremely beautiful or impressive to look at", "emoji": "✨"},
+        {"word": "Persevere", "def": "堅持不懈", "defEn": "to keep trying to do something even when it is hard", "emoji": "💪"}
       ]
-      
+
       Do not include markdown formatting like \`\`\`json. Just the raw JSON string.
     `;
 
@@ -384,9 +387,28 @@ export async function generateGameWords(
       .trim()
       .replace(/```json|```/g, "");
 
-    const words = JSON.parse(text) as GameWord[];
-    if (Array.isArray(words) && words.length > 0) {
-      return words;
+    const parsed = JSON.parse(text) as unknown;
+    if (Array.isArray(parsed)) {
+      // Gemini 偶爾會漏欄位；正規化並丟掉不可用的項目，避免整輪題目破圖
+      const words = parsed
+        .filter(
+          (w): w is Record<string, unknown> =>
+            typeof w === "object" && w !== null,
+        )
+        .map((w) => ({
+          word: typeof w.word === "string" ? w.word.trim() : "",
+          def: typeof w.def === "string" ? w.def.trim() : "",
+          defEn:
+            typeof w.defEn === "string" && w.defEn.trim()
+              ? w.defEn.trim()
+              : undefined,
+          emoji: typeof w.emoji === "string" && w.emoji ? w.emoji : "✨",
+        }))
+        .filter((w) => w.word && w.def);
+
+      if (words.length > 0) {
+        return words;
+      }
     }
 
     return [];

@@ -1,7 +1,9 @@
 import { useEffect } from "react";
 import { useAdventure } from "../../hooks/useAdventure";
+import { useAdventureDefLanguage } from "../../hooks/useAdventureDefLanguage";
 import { useVocabulary } from "../../hooks/useVocabulary";
 import { useSpeechState } from "../../hooks/useSpeechState";
+import { coinMultiplierForDefLanguage } from "../../services/economyService";
 import { AdventureHome } from "./AdventureHome";
 import { StageMap } from "./StageMap";
 import { QuizGame } from "./QuizGame";
@@ -21,6 +23,8 @@ export function WordAdventure() {
     isStageCompleted,
     isStagePlayable,
     quizState,
+    quizTimeLimit,
+    defLanguageFellBack,
     bossState,
     pendingReward,
     pendingDailyBonus,
@@ -38,6 +42,7 @@ export function WordAdventure() {
 
   const { words, loadVocabulary } = useVocabulary();
   const { speechSupported } = useSpeechState();
+  const { defLanguage, updateDefLanguage } = useAdventureDefLanguage();
 
   // 載入詞彙用於遊戲
   useEffect(() => {
@@ -46,7 +51,7 @@ export function WordAdventure() {
 
   // 處理關卡選擇
   const handleSelectStage = async (stageIndex: number) => {
-    await startQuiz(stageIndex, words, speechSupported);
+    await startQuiz(stageIndex, words, speechSupported, defLanguage);
   };
 
   // 載入中
@@ -110,6 +115,15 @@ export function WordAdventure() {
         </div>
       ) : null}
 
+      {defLanguageFellBack ? (
+        <div
+          className="mx-auto mb-4 max-w-3xl rounded-[10px] border border-warning/25 bg-warning/10 px-4 py-3 text-sm text-warning"
+          role="status"
+        >
+          生字本的英文解釋不足，本輪改用中文題目，這次代幣不加倍。
+        </div>
+      ) : null}
+
       {/* 獎勵彈窗 */}
       {pendingReward && (
         <RewardModal reward={pendingReward} onClaim={claimReward} />
@@ -129,6 +143,8 @@ export function WordAdventure() {
       {gameView === "home" && (
         <AdventureHome
           progress={progress}
+          defLanguage={defLanguage}
+          onChangeDefLanguage={updateDefLanguage}
           onStartAdventure={() => setGameView("map")}
         />
       )}
@@ -139,6 +155,7 @@ export function WordAdventure() {
           progress={progress}
           isStageCompleted={isStageCompleted}
           isStagePlayable={isStagePlayable}
+          coinMultiplier={coinMultiplierForDefLanguage(defLanguage)}
           onSelectStage={handleSelectStage}
           onBack={goHome}
         />
@@ -148,6 +165,7 @@ export function WordAdventure() {
         <QuizGame
           stage={currentStage}
           quizState={quizState}
+          timeLimit={quizTimeLimit}
           onSubmitAnswer={submitAnswer}
           onTickTimer={tickTimer}
           onQuit={() => setGameView("map")}
@@ -159,6 +177,7 @@ export function WordAdventure() {
           stage={currentStage}
           quizState={quizState}
           bossState={bossState}
+          timeLimit={quizTimeLimit}
           onSubmitAnswer={submitAnswer}
           onTickTimer={tickTimer}
           onQuit={() => setGameView("map")}

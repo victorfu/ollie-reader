@@ -8,6 +8,7 @@ import { useSpeechState } from "../../hooks/useSpeechState";
 interface QuizGameProps {
   stage: Stage;
   quizState: QuizState;
+  timeLimit: number;
   onSubmitAnswer: (answer: number | string) => void;
   onTickTimer: () => void;
   onQuit: () => void;
@@ -16,6 +17,7 @@ interface QuizGameProps {
 export function QuizGame({
   stage,
   quizState,
+  timeLimit,
   onSubmitAnswer,
   onTickTimer,
   onQuit,
@@ -107,6 +109,7 @@ export function QuizGame({
               questionIndex={quizState.currentIndex}
               totalQuestions={quizState.questions.length}
               timeLeft={quizState.timeLeft}
+              timeLimit={timeLimit}
               isAnswered={quizState.isAnswered}
               lastAnswerCorrect={quizState.lastAnswerCorrect}
               onAnswer={onSubmitAnswer}

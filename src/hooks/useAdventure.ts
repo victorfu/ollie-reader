@@ -15,6 +15,7 @@ import { prepareGamePool, type GameWord } from "../services/gameService";
 import {
   buildQuizQuestions,
   isQuestionCorrect,
+  resolveDefLanguage,
 } from "../components/Game/quizQuestions";
 import type {
   PlayerProgress,
@@ -22,9 +23,11 @@ import type {
   QuizState,
   Stage,
   GameReward,
+  DefLanguage,
 } from "../types/game";
 import type { VocabularyWord } from "../types/vocabulary";
 import {
+  coinMultiplierForDefLanguage,
   coinsForAnswer,
   coinsForStageClear,
   computeDailyBonus,
@@ -32,7 +35,7 @@ import {
   type DailyBonusResult,
 } from "../services/economyService";
 
-const QUIZ_TIME_LIMIT = 30; // 每題 30 秒
+export const QUIZ_TIME_LIMIT = 60; // 每題 60 秒
 const QUIZ_MAX_LIVES = 3; // 3 條命
 const BOSS_QUESTION_BUFFER = 3; // 魔王題數 = bossHp + buffer（一次失誤不會變不可過）
 
@@ -60,6 +63,10 @@ interface UseAdventureReturn {
 
   // 快問快答狀態
   quizState: QuizState | null;
+  quizTimeLimit: number;
+
+  // 想玩英文但單字池英文釋義不夠，本輪已退回中文
+  defLanguageFellBack: boolean;
 
   // 魔王戰狀態
   bossState: BossState | null;
@@ -79,6 +86,7 @@ interface UseAdventureReturn {
     stageIndex: number,
     vocabularyWords: VocabularyWord[],
     speechSupported?: boolean,
+    preferredDefLanguage?: DefLanguage,
   ) => Promise<void>;
   submitAnswer: (answer: number | string) => void;
   tickTimer: () => void;
@@ -113,6 +121,10 @@ export function useAdventure(): UseAdventureReturn {
   const dailyClaimInFlightRef = useRef(false);
   // 結算冪等旗標：避免 StrictMode 重複呼叫 / 競態造成雙重寫入與代幣灌水
   const quizEndedRef = useRef<boolean>(false);
+
+  // 本輪實際釋義語言（決定代幣倍率）。用 ref 讓結算 callback 讀得到最新值
+  const activeDefLanguageRef = useRef<DefLanguage>("zh");
+  const [defLanguageFellBack, setDefLanguageFellBack] = useState(false);
 
   // 每日獎勵（登入時計算，可領時由 UI 顯示）
   const [pendingDailyBonus, setPendingDailyBonus] =
@@ -232,6 +244,7 @@ export function useAdventure(): UseAdventureReturn {
       stageIndex: number,
       vocabularyWords: VocabularyWord[],
       speechSupported: boolean = true,
+      preferredDefLanguage: DefLanguage = "zh",
     ) => {
       if (!progress) return;
 
@@ -256,10 +269,21 @@ export function useAdventure(): UseAdventureReturn {
           ? bossHp + BOSS_QUESTION_BUFFER
           : stage.questionCount;
 
+        // 本輪釋義語言：英文釋義不足就整輪退回中文（並且不發英文模式加成）
+        const effectiveDefLanguage = resolveDefLanguage(
+          wordPool,
+          preferredDefLanguage,
+        );
+        activeDefLanguageRef.current = effectiveDefLanguage;
+        setDefLanguageFellBack(
+          preferredDefLanguage === "en" && effectiveDefLanguage === "zh",
+        );
+
         // 依關卡題型組合建題
         const questions = buildQuizQuestions(wordPool, stage, {
           speechSupported,
           count: questionCount,
+          defLanguage: effectiveDefLanguage,
         });
 
         // 初始化快問快答狀態
@@ -330,10 +354,11 @@ export function useAdventure(): UseAdventureReturn {
           maxCombo,
         );
 
-        // 扭蛋代幣：答題累積 + 過關獎勵
+        // 扭蛋代幣：答題累積 + 過關獎勵（英文模式加倍）
         coinsEarnedRef.current += coinsForStageClear(
           stage.rewardCoins,
           stage.isBoss,
+          coinMultiplierForDefLanguage(activeDefLanguageRef.current),
         );
         const coinsGained = coinsEarnedRef.current;
         let creditedTokenBalance: number | null = null;
@@ -404,6 +429,7 @@ export function useAdventure(): UseAdventureReturn {
           isNewHighScore: maxCombo > currentProgress.highestCombo,
           coinsGained:
             creditedTokenBalance !== null ? coinsGained : undefined,
+          defLanguage: activeDefLanguageRef.current,
           tokenSyncFailed: creditedTokenBalance === null,
           isBossVictory: stage.isBoss,
         });
@@ -474,7 +500,10 @@ export function useAdventure(): UseAdventureReturn {
 
       // 答對即累積扭蛋代幣 — 以題號 ref 防止快速連點重複發放
       if (isCorrect) {
-        coinsEarnedRef.current += coinsForAnswer(quizState.combo + 1);
+        coinsEarnedRef.current += coinsForAnswer(
+          quizState.combo + 1,
+          coinMultiplierForDefLanguage(activeDefLanguageRef.current),
+        );
         // 魔王扣血（連擊 ≥3 爆擊 -2）
         if (inBoss) {
           const crit = quizState.combo + 1 >= 3;
@@ -704,6 +733,8 @@ export function useAdventure(): UseAdventureReturn {
     isStageCompleted: checkStageCompleted,
     isStagePlayable: checkStagePlayable,
     quizState,
+    quizTimeLimit: QUIZ_TIME_LIMIT,
+    defLanguageFellBack,
     bossState,
     pendingReward,
     pendingDailyBonus,

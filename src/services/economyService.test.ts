@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   COIN_REWARDS,
+  coinMultiplierForDefLanguage,
   coinsForAnswer,
   coinsForStageClear,
   computeDailyBonus,
@@ -31,6 +32,64 @@ describe("coinsForStageClear", () => {
     expect(coinsForStageClear(undefined, true)).toBe(
       COIN_REWARDS.stageClear + COIN_REWARDS.bossClearBonus,
     );
+  });
+});
+
+describe("coinMultiplierForDefLanguage", () => {
+  it("leaves Chinese mode at the base rate", () => {
+    expect(coinMultiplierForDefLanguage("zh")).toBe(1);
+  });
+  it("boosts English mode", () => {
+    expect(coinMultiplierForDefLanguage("en")).toBe(
+      COIN_REWARDS.englishModeMultiplier,
+    );
+  });
+});
+
+describe("英文模式代幣倍率", () => {
+  const enMultiplier = COIN_REWARDS.englishModeMultiplier;
+
+  it("scales answer coins", () => {
+    expect(coinsForAnswer(0, enMultiplier)).toBe(
+      COIN_REWARDS.correct * enMultiplier,
+    );
+    expect(coinsForAnswer(3, enMultiplier)).toBe(
+      (COIN_REWARDS.correct + 3 * COIN_REWARDS.comboStep) * enMultiplier,
+    );
+  });
+
+  it("scales the formula-derived stage clear reward", () => {
+    expect(coinsForStageClear(undefined, true, enMultiplier)).toBe(
+      (COIN_REWARDS.stageClear + COIN_REWARDS.bossClearBonus) * enMultiplier,
+    );
+  });
+
+  // 迴歸測試：coinsForStageClear 以前在 rewardCoins 有值時直接 return，
+  // 倍率會整章吃不到（第二章每一關都設了 rewardCoins）
+  it("scales an explicit stage reward instead of short-circuiting past it", () => {
+    expect(coinsForStageClear(120, true, enMultiplier)).toBe(
+      120 * enMultiplier,
+    );
+    expect(coinsForStageClear(30, false, enMultiplier)).toBe(30 * enMultiplier);
+  });
+
+  // saveProgressWithTokenReward 對非安全整數會丟 RangeError，且該錯誤會被
+  // handleQuizEnd 的 catch 吞掉 → 整輪代幣默默消失，所以取整是關鍵防線
+  it("always yields a safe integer", () => {
+    for (let combo = 0; combo <= 12; combo++) {
+      expect(Number.isSafeInteger(coinsForAnswer(combo, enMultiplier))).toBe(
+        true,
+      );
+    }
+    for (const reward of [undefined, 0, 30, 35, 120]) {
+      expect(
+        Number.isSafeInteger(coinsForStageClear(reward, true, enMultiplier)),
+      ).toBe(true);
+    }
+  });
+
+  it("keeps a zero reward at zero", () => {
+    expect(coinsForStageClear(0, true, enMultiplier)).toBe(0);
   });
 });
 
