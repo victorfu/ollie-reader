@@ -36,8 +36,14 @@ type Props = {
 /**
  * 闖關路線。
  *
- * 刻意做成一條由上往下的線而不是一整片卡片牆——五張圖攤開來讓人隨便挑，
- * 看起來就像五個獨立的小遊戲；串成一條路才會讓人想「再過一關」。
+ * 版面分兩欄：左邊是不會動的控制欄（招牌、進度、難度、圖鑑），右邊只放路線。
+ * 之前全部疊成一直欄置中，光招牌加難度就吃掉整個第一屏，要捲一下才看得到
+ * 第一關；把它們挪到側欄之後，路線從畫面最上面就開始，也順便把寬螢幕左右
+ * 兩片空白用掉。窄螢幕（md 以下）自動退回上下堆疊，側欄變成一條矮工具列。
+ *
+ * 關卡仍然刻意做成一條由上往下的線而不是一整片卡片牆——十二張圖攤開來讓人
+ * 隨便挑，看起來就像十二個獨立的小遊戲；串成一條路才會讓人想「再過一關」。
+ * 每張卡固定兩行（標題列 + 資訊列），節奏一致，捲起來也短很多。
  * 開放規則本身在 data/unlocks.ts，這裡只負責畫。
  */
 export function TitleScreen({
@@ -60,196 +66,263 @@ export function TitleScreen({
 
   return (
     <div
-      className="relative flex h-screen w-full flex-col items-center overflow-y-auto px-4 py-8 sm:px-6"
+      className="relative flex h-screen w-full flex-col overflow-y-auto md:flex-row md:overflow-hidden"
       style={{
         background:
           "radial-gradient(circle at 18% 18%, rgba(255,200,224,0.55), transparent 42%), radial-gradient(circle at 82% 12%, rgba(198,222,255,0.5), transparent 38%), radial-gradient(circle at 50% 100%, rgba(255,232,196,0.6), transparent 45%), #fff7fb",
       }}
     >
-      {onExit && (
-        <button
-          type="button"
-          onClick={onExit}
-          className="absolute left-4 top-4 z-20 flex min-h-11 items-center gap-1.5 rounded-full bg-white/90 px-4 py-2 text-sm font-semibold text-slate-900 shadow-lg backdrop-blur transition hover:-translate-y-0.5 hover:shadow-xl sm:left-6 sm:top-6"
+      <aside className="flex shrink-0 flex-col gap-2.5 px-4 pb-1.5 pt-3 md:h-screen md:w-[17rem] md:gap-4 md:overflow-y-auto md:border-r md:border-black/5 md:bg-white/40 md:px-5 md:py-5 md:backdrop-blur-xl lg:w-[19rem]">
+        {/* 離開和聲音收成同一列。之前兩顆都是絕對定位，行動版還得留一段上緣空白閃開它們。 */}
+        <div
+          className={`flex items-center gap-2 ${onExit ? "justify-between" : "justify-end"}`}
         >
-          <ArrowLeft size={16} strokeWidth={2} aria-hidden="true" />
-          回遊戲列表
-        </button>
-      )}
-
-      {/* 聲音收成右上角一顆按鈕，音量藏在彈出面板裡，不再佔一整列版面。 */}
-      <div className="absolute right-4 top-4 z-30 sm:right-6 sm:top-6">
-        <AudioButton {...audio} align="right" />
-      </div>
-
-      <header className="mt-10 flex flex-col items-center sm:mt-2">
-        <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500">
-          Sweetheart Defenders
-        </p>
-        <h1 className="mt-2 flex items-center gap-2 text-center text-4xl font-semibold tracking-tight text-slate-900 sm:text-5xl">
-          <CakeSlice
-            size={40}
-            strokeWidth={1.5}
-            className="text-[#ff6f9f]"
-            aria-hidden="true"
-          />
-          甜心防衛隊
-        </h1>
-        <p className="mt-2 text-sm text-slate-600">
-          闖關進度 {clearedCount} / {LEVELS.length}
-        </p>
-        <SyncBadge status={syncStatus} isSignedIn={isSignedIn} />
-      </header>
-
-      <fieldset className="mt-6 flex flex-col items-center">
-        <legend className="mb-2 text-center text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-          難度
-        </legend>
-        <div className="flex flex-wrap justify-center gap-2">
-          {DIFFICULTIES.map((option) => (
+          {onExit && (
             <button
-              key={option.id}
               type="button"
-              onClick={() => setDifficulty(option.id)}
-              aria-pressed={difficulty === option.id}
-              className={`min-h-11 rounded-[10px] border px-4 py-2 text-sm font-semibold shadow-sm transition ${
-                difficulty === option.id
-                  ? "border-[#ff6f9f] bg-[#ff6f9f] text-white"
-                  : "border-black/5 bg-white/80 text-slate-700 hover:bg-white"
-              }`}
+              onClick={onExit}
+              className="flex min-h-11 items-center gap-1.5 rounded-full bg-white/90 px-3.5 text-sm font-semibold text-slate-900 shadow-sm backdrop-blur transition hover:-translate-y-0.5 hover:shadow-lg"
             >
-              {option.label}
-              <span className="ml-1.5 text-[11px] font-normal opacity-75">
-                {option.hint}
-              </span>
+              <ArrowLeft size={16} strokeWidth={2} aria-hidden="true" />
+              回遊戲列表
             </button>
-          ))}
+          )}
+          <AudioButton {...audio} align="right" />
         </div>
-      </fieldset>
 
-      <ol className="mt-7 w-full max-w-xl">
-        {LEVELS.map((level, index) => {
-          const stars = levelStars[level.id] ?? 0;
-          const unlocked = isLevelUnlocked(level.id, levelStars);
-          const isNext = level.id === nextLevelId && unlocked;
-          const isLast = index === LEVELS.length - 1;
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-500">
+            Sweetheart Defenders
+          </p>
+          <h1 className="mt-0.5 flex items-center gap-1.5 text-2xl font-semibold tracking-tight text-slate-900 lg:text-[1.75rem]">
+            <CakeSlice
+              size={26}
+              strokeWidth={1.5}
+              className="shrink-0 text-[#ff6f9f]"
+              aria-hidden="true"
+            />
+            甜心防衛隊
+          </h1>
+        </div>
 
-          return (
-            <li key={level.id} className="relative flex gap-3 pb-3 last:pb-0">
-              {/* 把關卡串成一條線；已通關的線是實心的，還沒到的是虛線。 */}
-              {!isLast && (
-                <span
-                  aria-hidden="true"
-                  className={`absolute left-5 top-11 bottom-0 w-0.5 -translate-x-1/2 ${
-                    stars > 0
-                      ? "bg-[#ff6f9f]/45"
-                      : "border-l-2 border-dashed border-slate-300"
+        <div>
+          <div className="flex items-baseline justify-between gap-2">
+            <span className="text-xs font-medium text-slate-600">闖關進度</span>
+            <span className="text-xs font-semibold tabular-nums text-slate-700">
+              {clearedCount} / {LEVELS.length}
+            </span>
+          </div>
+          {/* 同一份進度多給一個一眼可讀的長度，沒有多佔一列。 */}
+          <div
+            aria-hidden="true"
+            className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-white/75"
+          >
+            <div
+              className="h-full rounded-full bg-[#ff6f9f] transition-[width] duration-500"
+              style={{ width: `${(clearedCount / LEVELS.length) * 100}%` }}
+            />
+          </div>
+          <SyncBadge status={syncStatus} isSignedIn={isSignedIn} />
+        </div>
+
+        <fieldset>
+          <legend className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+            難度
+          </legend>
+          {/* 分段控制：三顆按鈕併成一條，標題和「蛋糕幾塊」上下疊，橫向就不會拉開一整列。 */}
+          <div className="flex gap-1 rounded-[12px] border border-black/5 bg-white/70 p-1 shadow-sm">
+            {DIFFICULTIES.map((option) => {
+              const selected = difficulty === option.id;
+
+              return (
+                <button
+                  key={option.id}
+                  type="button"
+                  onClick={() => setDifficulty(option.id)}
+                  aria-pressed={selected}
+                  className={`flex min-h-11 flex-1 flex-col items-center justify-center rounded-[9px] px-1 leading-tight transition ${
+                    selected
+                      ? "bg-[#ff6f9f] text-white shadow-sm"
+                      : "text-slate-700 hover:bg-white"
                   }`}
-                />
-              )}
-
-              <StageBadge index={index} stars={stars} unlocked={unlocked} />
-
-              <button
-                type="button"
-                disabled={!unlocked}
-                onClick={() => onStart(level.id, difficulty)}
-                className={`flex flex-1 flex-col items-start rounded-[14px] border p-3 text-left shadow-sm transition ${
-                  !unlocked
-                    ? "cursor-not-allowed border-black/5 bg-white/45"
-                    : isNext
-                      ? "border-[#ff6f9f] bg-white ring-2 ring-[#ff6f9f]/25 hover:-translate-y-0.5 hover:shadow-lg"
-                      : "border-black/5 bg-white/85 hover:-translate-y-0.5 hover:shadow-lg"
-                }`}
-              >
-                <div className="flex w-full items-center justify-between gap-2">
+                >
+                  <span className="text-sm font-semibold">{option.label}</span>
                   <span
-                    className={`text-base font-semibold tracking-tight ${
-                      unlocked ? "text-slate-900" : "text-slate-400"
-                    }`}
+                    className={`text-[10px] ${selected ? "text-white/80" : "text-slate-400"}`}
                   >
-                    {unlocked ? level.nameZh : "？？？"}
+                    {option.hint}
                   </span>
+                </button>
+              );
+            })}
+          </div>
+        </fieldset>
 
-                  {unlocked ? (
-                    <span className="shrink-0 rounded-full bg-[#ff6f9f] px-3 py-1 text-xs font-semibold text-white">
-                      {stars > 0 ? "再挑戰" : "開始"}
-                    </span>
-                  ) : (
-                    <Lock
-                      size={16}
-                      strokeWidth={2}
-                      className="shrink-0 text-slate-400"
-                      aria-label="尚未開放"
+        {/* 圖鑑在手機上排到路線後面：那裡是逛收藏的地方，不該擋在第一關前面。 */}
+        <DexCard
+          className="hidden md:block"
+          ownedCount={ownedCount}
+          availableCharacters={availableCharacters}
+          onOpenDex={onOpenDex}
+        />
+      </aside>
+
+      <main className="flex-1 px-4 pb-8 pt-2 md:h-screen md:overflow-y-auto md:px-6 md:py-5">
+        <div className="mx-auto w-full max-w-2xl">
+          <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+            闖關路線
+          </p>
+
+          <ol>
+            {LEVELS.map((level, index) => {
+              const stars = levelStars[level.id] ?? 0;
+              const unlocked = isLevelUnlocked(level.id, levelStars);
+              const isNext = level.id === nextLevelId && unlocked;
+              const isLast = index === LEVELS.length - 1;
+              const newEnemies = newEnemyNames(index);
+              const record = bestWave[level.id] ?? 0;
+
+              return (
+                <li key={level.id} className="relative flex gap-3 pb-2.5 last:pb-0">
+                  {/* 把關卡串成一條線；已通關的線是實心的，還沒到的是虛線。 */}
+                  {!isLast && (
+                    <span
+                      aria-hidden="true"
+                      className={`absolute left-5 bottom-0 w-0.5 -translate-x-1/2 ${
+                        stars > 0
+                          ? "top-[3.375rem] bg-[#ff6f9f]/45"
+                          : "top-11 border-l-2 border-dashed border-slate-300"
+                      }`}
                     />
                   )}
-                </div>
 
-                {unlocked ? (
-                  <>
-                    <span className="mt-0.5 text-xs text-slate-500">
-                      {level.waves.length} 波 · {level.slots.length} 個塔位
-                      {level.paths.length > 1 && ` · ${level.paths.length} 條路`}
+                  <StageBadge index={index} stars={stars} unlocked={unlocked} />
+
+                  <button
+                    type="button"
+                    disabled={!unlocked}
+                    onClick={() => onStart(level.id, difficulty)}
+                    className={`flex flex-1 flex-col gap-1 rounded-[14px] border p-2.5 text-left shadow-sm transition sm:p-3 ${
+                      !unlocked
+                        ? "cursor-not-allowed border-black/5 bg-white/45"
+                        : isNext
+                          ? "border-[#ff6f9f] bg-white ring-2 ring-[#ff6f9f]/25 hover:-translate-y-0.5 hover:shadow-lg"
+                          : "border-black/5 bg-white/85 hover:-translate-y-0.5 hover:shadow-lg"
+                    }`}
+                  >
+                    <span className="flex w-full items-center gap-2">
+                      <span
+                        className={`min-w-0 flex-1 truncate text-[15px] font-semibold tracking-tight sm:text-base ${
+                          unlocked ? "text-slate-900" : "text-slate-400"
+                        }`}
+                      >
+                        {unlocked ? level.nameZh : "？？？"}
+                      </span>
+
+                      {unlocked ? (
+                        <span className="shrink-0 rounded-full bg-[#ff6f9f] px-3 py-1 text-xs font-semibold text-white">
+                          {stars > 0 ? "再挑戰" : "開始"}
+                        </span>
+                      ) : (
+                        <Lock
+                          size={16}
+                          strokeWidth={2}
+                          className="shrink-0 text-slate-400"
+                          aria-label="尚未開放"
+                        />
+                      )}
                     </span>
 
-                    {newEnemyNames(index).length > 0 && (
-                      <span className="mt-1.5 rounded-full bg-rose-50 px-2 py-0.5 text-[11px] font-medium text-rose-600">
-                        新怪物：{newEnemyNames(index).join("、")}
-                      </span>
-                    )}
+                    {/* 資訊全部收在同一列，卡片就固定兩行高，一屏能多看好幾關。 */}
+                    <span className="flex w-full flex-wrap items-center gap-x-2 gap-y-1">
+                      {unlocked ? (
+                        <>
+                          <span className="text-xs text-slate-500">
+                            {level.waves.length} 波 · {level.slots.length} 個塔位
+                            {level.paths.length > 1 &&
+                              ` · ${level.paths.length} 條路`}
+                          </span>
 
-                    {stars === 0 && (bestWave[level.id] ?? 0) > 0 && (
-                      <span className="mt-1.5 text-[11px] font-medium text-slate-400">
-                        最佳紀錄：撐到第 {bestWave[level.id]} 波
-                      </span>
-                    )}
-                  </>
-                ) : (
-                  <span className="mt-0.5 text-xs text-slate-400">
-                    先通關「{LEVELS[index - 1].nameZh}」
-                  </span>
-                )}
-              </button>
-            </li>
-          );
-        })}
-      </ol>
+                          {newEnemies.length > 0 && (
+                            <span className="rounded-full bg-rose-50 px-2 py-0.5 text-[11px] font-medium text-rose-600">
+                              新怪物：{newEnemies.join("、")}
+                            </span>
+                          )}
 
-      <section className="mt-7 w-full max-w-xl">
-        <button
-          type="button"
-          onClick={onOpenDex}
-          className="flex w-full items-center gap-3 rounded-[14px] border border-black/5 bg-white/85 p-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg"
-        >
-          <BookOpen
-            size={22}
-            strokeWidth={1.75}
-            className="shrink-0 text-[#ff6f9f]"
-            aria-hidden="true"
+                          {stars === 0 && record > 0 && (
+                            <span className="text-[11px] font-medium text-slate-400">
+                              最佳紀錄：撐到第 {record} 波
+                            </span>
+                          )}
+                        </>
+                      ) : (
+                        <span className="text-xs text-slate-400">
+                          先通關「{LEVELS[index - 1].nameZh}」
+                        </span>
+                      )}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ol>
+
+          <DexCard
+            className="mt-3 md:hidden"
+            ownedCount={ownedCount}
+            availableCharacters={availableCharacters}
+            onOpenDex={onOpenDex}
           />
-          <span className="min-w-0 flex-1">
-            <span className="block text-sm font-semibold text-slate-800">
-              角色圖鑑
-            </span>
-            <span className="block text-xs text-slate-500">
-              扭蛋收藏 {ownedCount} / {CHARACTERS.length} · 抽到的角色都能放上塔位
-            </span>
-          </span>
-          <span className="flex -space-x-3">
-            {availableCharacters.slice(-4).map((pet) => (
-              <img
-                key={pet.id}
-                src={pet.sprite}
-                alt=""
-                className="size-9 rounded-full bg-white object-contain ring-2 ring-white"
-              />
-            ))}
-          </span>
-        </button>
-      </section>
-
-      <div className="h-6 shrink-0" />
+        </div>
+      </main>
     </div>
+  );
+}
+
+/**
+ * 角色圖鑑入口。桌機釘在側欄底部，手機接在路線後面——同一顆按鈕，
+ * 兩個位置各自 display:none，不會有兩份跑進無障礙樹或 tab 順序。
+ */
+function DexCard({
+  className,
+  ownedCount,
+  availableCharacters,
+  onOpenDex,
+}: {
+  className: string;
+  ownedCount: number;
+  availableCharacters: TowerCharacter[];
+  onOpenDex: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onOpenDex}
+      className={`w-full rounded-[12px] border border-black/5 bg-white/85 p-2.5 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg ${className}`}
+    >
+      <span className="flex items-center gap-2">
+        <BookOpen
+          size={18}
+          strokeWidth={1.75}
+          className="shrink-0 text-[#ff6f9f]"
+          aria-hidden="true"
+        />
+        <span className="text-sm font-semibold text-slate-800">角色圖鑑</span>
+        <span className="ml-auto flex -space-x-2.5">
+          {availableCharacters.slice(-4).map((pet) => (
+            <img
+              key={pet.id}
+              src={pet.sprite}
+              alt=""
+              className="size-7 rounded-full bg-white object-contain ring-2 ring-white"
+            />
+          ))}
+        </span>
+      </span>
+      <span className="mt-1.5 block text-[11px] leading-snug text-slate-500">
+        扭蛋收藏 {ownedCount} / {CHARACTERS.length} · 抽到的角色都能放上塔位
+      </span>
+    </button>
   );
 }
 
@@ -263,7 +336,7 @@ function SyncBadge({
 }) {
   if (!isSignedIn) {
     return (
-      <span className="mt-1.5 rounded-full bg-amber-100/80 px-2.5 py-1 text-[11px] font-medium text-amber-700">
+      <span className="mt-2 inline-block rounded-full bg-amber-100/80 px-2.5 py-1 text-[11px] font-medium text-amber-700">
         未登入 · 進度只存在這台裝置
       </span>
     );
@@ -281,7 +354,7 @@ function SyncBadge({
 
   return (
     <span
-      className={`mt-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium ${
+      className={`mt-2 inline-block rounded-full px-2.5 py-1 text-[11px] font-medium ${
         status === "offline"
           ? "bg-amber-100/80 text-amber-700"
           : "bg-white/70 text-slate-500"
