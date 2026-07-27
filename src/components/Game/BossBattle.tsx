@@ -11,6 +11,7 @@ interface BossBattleProps {
   stage: Stage;
   quizState: QuizState;
   bossState: BossState;
+  timeLimit: number;
   onSubmitAnswer: (answer: number | string) => void;
   onTickTimer: () => void;
   onQuit: () => void;
@@ -32,6 +33,7 @@ export function BossBattle({
   stage,
   quizState,
   bossState,
+  timeLimit,
   onSubmitAnswer,
   onTickTimer,
   onQuit,
@@ -129,6 +131,7 @@ export function BossBattle({
               questionIndex={quizState.currentIndex}
               totalQuestions={quizState.questions.length}
               timeLeft={quizState.timeLeft}
+              timeLimit={timeLimit}
               isAnswered={quizState.isAnswered}
               lastAnswerCorrect={quizState.lastAnswerCorrect}
               onAnswer={onSubmitAnswer}

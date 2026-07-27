@@ -10,7 +10,8 @@ interface QuizCardProps {
   questionIndex: number;
   totalQuestions: number;
   timeLeft: number;
-  timeLimit?: number;
+  /** 每題總秒數。必填 — 若讓它有預設值，改遊戲規則時時間條的百分比會默默算錯 */
+  timeLimit: number;
   isAnswered: boolean;
   lastAnswerCorrect: boolean | null;
   onAnswer: (answer: number | string) => void;
@@ -35,7 +36,7 @@ export function QuizCard({
   questionIndex,
   totalQuestions,
   timeLeft,
-  timeLimit = 30,
+  timeLimit,
   isAnswered,
   lastAnswerCorrect,
   onAnswer,

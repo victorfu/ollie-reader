@@ -36,6 +36,9 @@ export type GameView = "home" | "map" | "quiz" | "boss" | "reward";
 // 題型判別子
 export type QuizKind = "meaning" | "listen" | "spell" | "reverse" | "emoji";
 
+// 題目釋義語言：zh=中文釋義 · en=英文釋義（英英，難度較高，代幣加倍）
+export type DefLanguage = "zh" | "en";
+
 interface BaseQuestion {
   kind: QuizKind;
   word: string; // 正解英文單字
@@ -115,6 +118,7 @@ export interface GameReward {
   newLevel?: number;
   isNewHighScore: boolean;
   coinsGained?: number; // 本次獲得扭蛋代幣（沿用欄位名稱）
+  defLanguage?: DefLanguage; // 本輪釋義語言（英文模式顯示加倍徽章）
   tokenSyncFailed?: boolean; // 代幣未成功寫入時顯示明確提示
   isBossVictory?: boolean; // 是否為魔王勝利（金色皇冠慶祝）
 }

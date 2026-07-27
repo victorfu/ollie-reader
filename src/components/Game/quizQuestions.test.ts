@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   buildQuizQuestions,
   isQuestionCorrect,
+  resolveDefLanguage,
   scrambleWord,
 } from "./quizQuestions";
 import type { GameWord } from "../../services/gameService";
@@ -14,6 +15,28 @@ const POOL: GameWord[] = [
   { word: "book", def: "書", emoji: "📖" },
   { word: "cat", def: "貓", emoji: "🐱" },
 ];
+
+// 每個字都有中英文釋義；defEn 刻意不含字根，避免觸發遮蔽而干擾斷言
+const BILINGUAL_POOL: GameWord[] = [
+  {
+    word: "apple",
+    def: "蘋果",
+    defEn: "a round red or green fruit",
+    emoji: "🍎",
+  },
+  { word: "dog", def: "狗", defEn: "a friendly animal that barks", emoji: "🐶" },
+  { word: "run", def: "跑", defEn: "to move fast on your feet", emoji: "🏃" },
+  {
+    word: "book",
+    def: "書",
+    defEn: "pages joined together with words to read",
+    emoji: "📖",
+  },
+  { word: "cat", def: "貓", defEn: "a small pet that says meow", emoji: "🐱" },
+];
+
+// 任何中日韓字元出現在英文題組裡就代表洩題（中文備援選項或「選項 N」補位）
+const HAS_CJK = /[㐀-䶿一-鿿]/;
 
 function makeStage(over: Partial<Stage>): Stage {
   return {
@@ -152,6 +175,140 @@ describe("buildQuizQuestions", () => {
     expect([...q.letters].sort()).toEqual([...POOL[0].word].sort());
     expect(q.hint).toBe(POOL[0].def);
     expect(q.word).toBe(POOL[0].word);
+  });
+});
+
+describe("resolveDefLanguage", () => {
+  it("always honours a Chinese request", () => {
+    expect(resolveDefLanguage(BILINGUAL_POOL, "zh")).toBe("zh");
+    expect(resolveDefLanguage([], "zh")).toBe("zh");
+  });
+
+  it("uses English when enough words carry an English def", () => {
+    expect(resolveDefLanguage(BILINGUAL_POOL, "en")).toBe("en");
+    expect(resolveDefLanguage(BILINGUAL_POOL.slice(0, 4), "en")).toBe("en");
+  });
+
+  it("falls the whole round back to Chinese below the four-option floor", () => {
+    expect(resolveDefLanguage(BILINGUAL_POOL.slice(0, 3), "en")).toBe("zh");
+    expect(resolveDefLanguage(POOL, "en")).toBe("zh"); // 舊資料完全沒有 defEn
+    expect(resolveDefLanguage([], "en")).toBe("zh");
+  });
+
+  it("ignores blank English defs when counting coverage", () => {
+    const padded = BILINGUAL_POOL.map((w, i) =>
+      i < 3 ? w : { ...w, defEn: "   " },
+    );
+    expect(resolveDefLanguage(padded, "en")).toBe("zh");
+  });
+});
+
+describe("英文釋義模式", () => {
+  it("draws prompts and options from the English defs only", () => {
+    const qs = buildQuizQuestions(
+      BILINGUAL_POOL,
+      makeStage({ questionCount: 5 }),
+      { defLanguage: "en" },
+    );
+    const chineseDefs = new Set(BILINGUAL_POOL.map((w) => w.def));
+
+    qs.forEach((q, i) => {
+      if (q.kind === "spell") throw new Error("unexpected spell");
+      expect(q.prompt).toBe(BILINGUAL_POOL[i].word);
+      expect(q.options[q.correctIndex]).toBe(BILINGUAL_POOL[i].defEn);
+      // 最重要的一條：整組選項不得混入中文，否則等於直接標出答案
+      q.options.forEach((option) => {
+        expect(chineseDefs.has(option)).toBe(false);
+        expect(HAS_CJK.test(option)).toBe(false);
+      });
+    });
+  });
+
+  it("keeps padded options monolingual when defs collide", () => {
+    const pool: GameWord[] = [
+      { word: "real", def: "真的", defEn: "actually true", emoji: "" },
+      { word: "aa", def: "甲", defEn: "one shared english def", emoji: "" },
+      { word: "bb", def: "乙", defEn: "one shared english def", emoji: "" },
+      { word: "cc", def: "丙", defEn: "one shared english def", emoji: "" },
+    ];
+    const q = buildQuizQuestions(pool, makeStage({ questionCount: 1 }), {
+      defLanguage: "en",
+    })[0];
+    if (q.kind === "spell") throw new Error("unexpected spell");
+    expect(q.options).toHaveLength(4);
+    expect(new Set(q.options).size).toBe(4);
+    expect(q.options[q.correctIndex]).toBe("actually true");
+    q.options.forEach((option) => expect(HAS_CJK.test(option)).toBe(false));
+  });
+
+  it("shows the English def as the reverse prompt", () => {
+    const qs = buildQuizQuestions(
+      BILINGUAL_POOL,
+      makeStage({ questionCount: 2, questionKinds: ["reverse"] }),
+      { defLanguage: "en" },
+    );
+    qs.forEach((q, i) => {
+      if (q.kind === "spell") throw new Error("unexpected spell");
+      expect(q.prompt).toBe(BILINGUAL_POOL[i].defEn);
+      expect(q.options[q.correctIndex]).toBe(BILINGUAL_POOL[i].word);
+    });
+  });
+
+  it("uses the English def as the spell hint", () => {
+    const qs = buildQuizQuestions(
+      BILINGUAL_POOL,
+      makeStage({ questionCount: 1, questionKinds: ["spell"] }),
+      { defLanguage: "en" },
+    );
+    const q = qs[0];
+    if (q.kind !== "spell") throw new Error("expected spell");
+    expect(q.hint).toBe(BILINGUAL_POOL[0].defEn);
+  });
+
+  // buildQuizQuestions 只出「該語言可用」的字。呼叫端負責先用 resolveDefLanguage
+  // 決定語言；即使有人直接指定 en，也絕不會混進沒有 defEn 的字。
+  it("only asks about words that have a def in the requested language", () => {
+    const mixed: GameWord[] = [
+      ...BILINGUAL_POOL.slice(0, 2),
+      { word: "zzz", def: "只有中文", emoji: "" },
+    ];
+    const qs = buildQuizQuestions(mixed, makeStage({ questionCount: 6 }), {
+      defLanguage: "en",
+    });
+    expect(qs.every((q) => q.word !== "zzz")).toBe(true);
+  });
+
+  it("masks the head word so English defs cannot give the answer away", () => {
+    const pool: GameWord[] = [
+      {
+        word: "Perseverance",
+        def: "毅力",
+        defEn: "the act of persevering when things get hard",
+        emoji: "💪",
+      },
+      ...BILINGUAL_POOL.slice(0, 3),
+    ];
+    const qs = buildQuizQuestions(
+      pool,
+      makeStage({ questionCount: 1, questionKinds: ["spell"] }),
+      { defLanguage: "en" },
+    );
+    const q = qs[0];
+    if (q.kind !== "spell") throw new Error("expected spell");
+    expect(q.hint).not.toMatch(/persever/i);
+    expect(q.hint).toContain("____");
+  });
+
+  it("leaves Chinese mode untouched when English defs exist", () => {
+    const qs = buildQuizQuestions(
+      BILINGUAL_POOL,
+      makeStage({ questionCount: 5 }),
+      { defLanguage: "zh" },
+    );
+    qs.forEach((q, i) => {
+      if (q.kind === "spell") throw new Error("unexpected spell");
+      expect(q.options[q.correctIndex]).toBe(BILINGUAL_POOL[i].def);
+    });
   });
 });
 

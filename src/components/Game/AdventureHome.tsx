@@ -1,18 +1,28 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import type { PlayerProgress } from "../../types/game";
+import type { DefLanguage, PlayerProgress } from "../../types/game";
 import { LEVEL_EXP_TABLE } from "../../services/gameProgressService";
+import { COIN_REWARDS } from "../../services/economyService";
 import { getGameTabTargetName } from "../../utils/gameTabs";
 import { AchievementsPanel } from "./AchievementsPanel";
 import { ACHIEVEMENTS } from "../../constants/achievements";
 
 interface AdventureHomeProps {
   progress: PlayerProgress;
+  defLanguage: DefLanguage;
+  onChangeDefLanguage: (lang: DefLanguage) => void;
   onStartAdventure: () => void;
 }
 
+const DEF_LANGUAGE_OPTIONS: { value: DefLanguage; label: string }[] = [
+  { value: "zh", label: "中文" },
+  { value: "en", label: "英文" },
+];
+
 export function AdventureHome({
   progress,
+  defLanguage,
+  onChangeDefLanguage,
   onStartAdventure,
 }: AdventureHomeProps) {
   const [showAchievements, setShowAchievements] = useState(false);
@@ -141,6 +151,52 @@ export function AdventureHome({
                 <div className="text-xs text-muted-foreground">最高連擊</div>
               </div>
             </div>
+          </div>
+
+          {/* 釋義語言 */}
+          <div className="w-full mt-4 p-3 bg-base-200/60 rounded-xl border border-border-hairline">
+            <div className="flex items-center justify-between gap-3">
+              <span
+                id="def-language-label"
+                className="text-sm font-medium shrink-0"
+              >
+                釋義語言
+              </span>
+              <div
+                role="group"
+                aria-labelledby="def-language-label"
+                className="flex gap-1 p-1 bg-base-300/60 rounded-[8px]"
+              >
+                {DEF_LANGUAGE_OPTIONS.map(({ value, label }) => {
+                  const active = defLanguage === value;
+                  return (
+                    <button
+                      key={value}
+                      type="button"
+                      aria-pressed={active}
+                      onClick={() => onChangeDefLanguage(value)}
+                      className={`inline-flex min-h-11 items-center gap-1 rounded-[6px] px-3 text-sm font-medium transition-all active:scale-[0.98] ${
+                        active
+                          ? "bg-accent text-white shadow-sm"
+                          : "text-muted-foreground hover:bg-black/5 dark:hover:bg-white/10"
+                      }`}
+                    >
+                      {label}
+                      {value === "en" && (
+                        <span className="text-xs font-semibold">
+                          🪙×{COIN_REWARDS.englishModeMultiplier}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <p className="mt-2 text-xs text-muted-foreground">
+              {defLanguage === "en"
+                ? `只看英文解釋，比較難，代幣 ${COIN_REWARDS.englishModeMultiplier} 倍！`
+                : "看中文解釋。想挑戰英英解釋可以切到英文，代幣加倍。"}
+            </p>
           </div>
 
           {/* 按鈕區 */}

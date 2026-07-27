@@ -1,5 +1,7 @@
 // ============ 扭蛋代幣規則（coins 為舊存檔欄位名稱） ============
 
+import type { DefLanguage } from "../types/game";
+
 export const COIN_REWARDS = {
   correct: 5, // 每題答對基本代幣
   comboStep: 2, // 每層連擊額外代幣
@@ -9,23 +11,37 @@ export const COIN_REWARDS = {
   dailyBase: 20, // 每日獎勵基本代幣
   dailyStreakStep: 5, // 每連續一天額外代幣
   dailyCap: 60, // 每日獎勵上限
+  englishModeMultiplier: 2, // 只看英文釋義（難度較高）代幣加倍
 } as const;
 
-/** 單題答對可得代幣（連擊越高越多，設上限） */
-export function coinsForAnswer(combo: number): number {
-  const bonus = Math.min(Math.max(combo, 0), COIN_REWARDS.comboCap);
-  return COIN_REWARDS.correct + bonus * COIN_REWARDS.comboStep;
+/** 依本輪釋義語言決定代幣倍率 */
+export function coinMultiplierForDefLanguage(lang: DefLanguage): number {
+  return lang === "en" ? COIN_REWARDS.englishModeMultiplier : 1;
 }
 
-/** 過關可得代幣：優先用關卡設定，否則用公式（魔王加成） */
+/**
+ * 單題答對可得代幣（連擊越高越多，設上限）。
+ * 一律四捨五入成整數 — saveProgressWithTokenReward 對非安全整數會丟 RangeError。
+ */
+export function coinsForAnswer(combo: number, multiplier: number = 1): number {
+  const bonus = Math.min(Math.max(combo, 0), COIN_REWARDS.comboCap);
+  const base = COIN_REWARDS.correct + bonus * COIN_REWARDS.comboStep;
+  return Math.round(base * multiplier);
+}
+
+/** 過關可得代幣：優先用關卡設定，否則用公式（魔王加成），最後套上難度倍率 */
 export function coinsForStageClear(
   rewardCoins: number | undefined,
   isBoss: boolean,
+  multiplier: number = 1,
 ): number {
-  if (typeof rewardCoins === "number") return rewardCoins;
-  return isBoss
-    ? COIN_REWARDS.stageClear + COIN_REWARDS.bossClearBonus
-    : COIN_REWARDS.stageClear;
+  const base =
+    typeof rewardCoins === "number"
+      ? rewardCoins
+      : isBoss
+        ? COIN_REWARDS.stageClear + COIN_REWARDS.bossClearBonus
+        : COIN_REWARDS.stageClear;
+  return Math.round(base * multiplier);
 }
 
 // ============ 每日連勝獎勵 ============
