@@ -88,7 +88,7 @@ describe("sugarPool", () => {
     // 但射程長的那座更早搆得到走過來的怪。
     const firstHitStep = (zones: SceneZone[]) => {
       const level = makeLevel(zones);
-      const state = createBattle(level, "normal", 1);
+      const state = createBattle(level, 1);
       run(state, level, 1, [
         { kind: "placeTower", slotId: level.slots[0].id, characterId: "shiro" },
         { kind: "startWave" },
@@ -116,7 +116,7 @@ describe("ovenVent", () => {
       // 路上 x=300 的位置正上方，半徑蓋住路面
       { kind: "ovenVent", x: 300, y: 300, radius: 90 },
     ]);
-    const state = createBattle(level, "normal", 1);
+    const state = createBattle(level, 1);
 
     run(state, level, 1, [{ kind: "startWave" }]);
     // 軟糖 56px/s，走到 x=300 大約 6.4 秒；噴火間隔 6 秒。
@@ -129,7 +129,7 @@ describe("ovenVent", () => {
 
   it("does not fire before its timer is up", () => {
     const level = makeLevel([{ kind: "ovenVent", x: 60, y: 300, radius: 200 }]);
-    const state = createBattle(level, "normal", 1);
+    const state = createBattle(level, 1);
 
     run(state, level, 1, [{ kind: "startWave" }]);
     run(state, level, seconds(2));
@@ -143,7 +143,7 @@ describe("ovenVent", () => {
       const level = makeLevel([
         { kind: "ovenVent", x: 300, y: 300, radius: 90 },
       ]);
-      const state = createBattle(level, "normal", 7);
+      const state = createBattle(level, 7);
       run(state, level, 1, [{ kind: "startWave" }]);
       run(state, level, seconds(12));
       return JSON.stringify({

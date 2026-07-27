@@ -10,7 +10,6 @@ import type { BattleState } from "../types";
 function makeState(overrides: Partial<BattleState> = {}): BattleState {
   return {
     levelId: "test",
-    difficulty: "normal",
     timeMs: 0,
     phase: "cleared",
     waveIndex: 14,

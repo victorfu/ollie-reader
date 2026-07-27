@@ -23,8 +23,8 @@ import { preloadSprites } from "../render/sprites";
 import type {
   BattleState,
   Command,
-  Difficulty,
   LevelSpec,
+  LiveTower,
   TowerCharacter,
 } from "../types";
 import type { AudioControls } from "../useAudioSettings";
@@ -33,7 +33,10 @@ import { ResultDialog } from "./ResultDialog";
 import { TowerPanel } from "./TowerPanel";
 import { UltimateBar } from "./UltimateBar";
 
-type TowerSummary = { slotId: string; characterId: string; level: 1 | 2 | 3 };
+type TowerSummary = Pick<
+  LiveTower,
+  "slotId" | "characterId" | "level" | "spec"
+>;
 
 /**
  * React 這一層只看得到這份快照。
@@ -71,6 +74,7 @@ function snapshotOf(state: BattleState, waveCount: number): HudSnapshot {
       slotId: tower.slotId,
       characterId: tower.characterId,
       level: tower.level,
+      spec: tower.spec,
     })),
     ultimateCharge: { ...state.ultimateCharge },
   };
@@ -94,7 +98,8 @@ function sameSnapshot(a: HudSnapshot, b: HudSnapshot): boolean {
       return (
         tower.slotId === other.slotId &&
         tower.characterId === other.characterId &&
-        tower.level === other.level
+        tower.level === other.level &&
+        tower.spec === other.spec
       );
     })
   );
@@ -118,7 +123,6 @@ function isBossWave(level: LevelSpec, waveIndex: number): boolean {
 
 type Props = {
   level: LevelSpec;
-  difficulty: Difficulty;
   availableCharacters: TowerCharacter[];
   audio: AudioControls;
   /** 這一場賺到的扭蛋代幣，結算頁顯示用 */
@@ -134,7 +138,6 @@ type Props = {
  */
 export function BattleScreen({
   level,
-  difficulty,
   availableCharacters,
   audio,
   coinsEarned,
@@ -150,7 +153,7 @@ export function BattleScreen({
   // 可變的模擬狀態。放在 state 而不是 ref，是為了能在初始化時算出第一份快照；
   // 之後的變動一律由迴圈搬進 hud，不靠 React 重繪。
   const [battle] = useState<BattleState>(() =>
-    createBattle(compiled, difficulty, 1),
+    createBattle(compiled, 1),
   );
   const [hud, setHud] = useState<HudSnapshot>(() =>
     snapshotOf(battle, level.waves.length),
@@ -445,9 +448,9 @@ export function BattleScreen({
               enqueue({ kind: "placeTower", slotId: selectedSlotId, characterId });
               closePanel();
             }}
-            onUpgrade={() => {
+            onUpgrade={(spec) => {
               playSfx("upgrade");
-              enqueue({ kind: "upgradeTower", slotId: selectedSlotId });
+              enqueue({ kind: "upgradeTower", slotId: selectedSlotId, spec });
             }}
             onSell={() => {
               playSfx("sell");

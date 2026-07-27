@@ -13,7 +13,15 @@ import type { LevelSpec } from "../types";
  *（比第一關還短），難度曲線整個是亂的。
  *
  * 波表由 waveBuilder 依「節奏 + 強度」產生，這裡只描述每張地圖有哪些怪、
- * 難度大概多高——想重新平衡就是改 intensity。
+ * 難度大概多高。
+ *
+ * hpScale 是難度曲線本身：三種難度的選單拿掉之後（小朋友一律選輕鬆，等於
+ * 同一份內容平衡了三次卻只有一次被玩到），鬆緊全部由這個值承擔。它照關卡
+ * 順序從 1.3 每關 +0.05 遞增到 1.85，所以第一關可以零失誤過關，後面幾關
+ * 隨便擺會漏個兩三塊蛋糕，但都還是過得了——整體偏簡單，但不是沒有取捨。
+ *
+ * 巧克力噴泉是例外（維持 1）：它還在待重畫清單裡，螺旋路線的塔位涵蓋率
+ * 明顯比別張差，照曲線給值會直接變成全場最難的一關。重畫完再拉回曲線上。
  */
 
 /**
@@ -132,6 +140,7 @@ const KITCHEN_CROSS: LevelSpec = {
     pathCount: 2,
   }),
   // 多一條路等於防線要拆成兩半，開場的錢得夠蓋兩邊，不然第一波就會漏。
+  hpScale: 1.35,
   startingFrosting: 578,
   theme: {
     floor: "#eef4f7",
@@ -168,6 +177,7 @@ const PARLOUR_HALL: LevelSpec = {
     intensity: 1.3,
     pathCount: 1,
   }),
+  hpScale: 1.45,
   startingFrosting: 527,
   theme: {
     floor: "#fdf0f5",
@@ -206,6 +216,7 @@ const STOCKROOM_LOOP: LevelSpec = {
     intensity: 1.35,
     pathCount: 1,
   }),
+  hpScale: 1.5,
   startingFrosting: 578,
   theme: {
     floor: "#f2f0e6",
@@ -276,6 +287,7 @@ const CANDY_FACTORY: LevelSpec = {
     pathCount: 3,
   }),
   // 三個入口，開場至少要能一條路擺兩座。
+  hpScale: 1.6,
   startingFrosting: 731,
   theme: {
     floor: "#f6eefc",
@@ -312,6 +324,7 @@ const CHOCOLATE_FOUNTAIN: LevelSpec = {
     intensity: 1.55,
     pathCount: 1,
   }),
+  hpScale: 1,
   startingFrosting: 646,
   theme: {
     floor: "#f5ece4",
@@ -370,6 +383,7 @@ const MARSHMALLOW_STAIRS: LevelSpec = {
     intensity: 1.65,
     pathCount: 2,
   }),
+  hpScale: 1.75,
   startingFrosting: 782,
   theme: {
     floor: "#fdf4f8",
@@ -466,6 +480,7 @@ const CAKE_HALL: LevelSpec = {
     intensity: 1.75,
     pathCount: 4,
   }),
+  hpScale: 1.85,
   startingFrosting: 952,
   theme: {
     floor: "#fff6ea",
@@ -500,6 +515,7 @@ const COOKIE_CORRIDOR: LevelSpec = {
     intensity: 1.2,
     pathCount: 1,
   }),
+  hpScale: 1.4,
   startingFrosting: 500,
   theme: {
     floor: "#fbf0dd",
@@ -563,6 +579,7 @@ const JAM_FALLS: LevelSpec = {
     intensity: 1.45,
     pathCount: 2,
   }),
+  hpScale: 1.55,
   startingFrosting: 700,
   theme: {
     floor: "#fdeef2",
@@ -603,6 +620,7 @@ const HONEY_SWIRL: LevelSpec = {
     intensity: 1.6,
     pathCount: 1,
   }),
+  hpScale: 1.7,
   startingFrosting: 750,
   theme: {
     floor: "#fdf6e0",
@@ -639,6 +657,7 @@ const CANDY_CANE_PASS: LevelSpec = {
     intensity: 1.7,
     pathCount: 1,
   }),
+  hpScale: 1.8,
   startingFrosting: 850,
   theme: {
     floor: "#fdf2f0",

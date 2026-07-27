@@ -6,7 +6,14 @@ import {
 } from "../data/elements";
 import { TRAIT_BASE, TRAIT_BY_SECONDARY_ELEMENT } from "../data/traits";
 import { LEVEL_POWER, RARITY_TIERS, SECONDARY_ELEMENT_BONUS } from "../constants";
-import type { Element, TowerCharacter, TowerStats, TowerTrait } from "../types";
+import { SPECIALISATIONS, type SpecPath } from "../data/specialisations";
+import type {
+  Element,
+  TowerCharacter,
+  TowerLevel,
+  TowerStats,
+  TowerTrait,
+} from "../types";
 
 /** 每升一級，除了整體倍率之外還會小幅加成的部分。 */
 const PER_LEVEL = {
@@ -33,7 +40,11 @@ export function getTrait(pet: TowerCharacter): TowerTrait {
  * 碎甲…），稀有度與等級決定強度。所以 8 種打法 × 8 種特性讓 48 隻角色幾乎
  * 每一隻手感都不一樣。
  */
-export function getTowerStats(pet: TowerCharacter, level: 1 | 2 | 3): TowerStats {
+export function getTowerStats(
+  pet: TowerCharacter,
+  level: TowerLevel,
+  spec: SpecPath | null = null,
+): TowerStats {
   const element = pet.elements[0];
   const archetype = ARCHETYPE_BY_ELEMENT[element];
   const base = ARCHETYPE_BASE[archetype];
@@ -48,7 +59,7 @@ export function getTowerStats(pet: TowerCharacter, level: 1 | 2 | 3): TowerStats
   const pureBonus = trait === "pure" ? 1 + TRAIT_BASE.pure.damageBonus : 1;
   const focusRange = trait === "focus" ? 1 + TRAIT_BASE.focus.rangeBonus : 1;
 
-  return {
+  const base_ = {
     archetype,
     attackStyle: ATTACK_STYLE_BY_ARCHETYPE[archetype],
     element,
@@ -75,6 +86,33 @@ export function getTowerStats(pet: TowerCharacter, level: 1 | 2 | 3): TowerStats
         : Math.min(0.9, base.armorPierce + PER_LEVEL.pierce * steps),
     cheerBonus:
       base.cheerBonus === 0 ? 0 : base.cheerBonus + PER_LEVEL.cheer * steps,
+    extraTargets: 0,
+  };
+
+  return spec ? applySpecialisation(base_, spec) : base_;
+}
+
+/**
+ * 套上第 4 級的專精。
+ *
+ * 專精只會改既有的欄位（外加 extraTargets），所以模擬層完全不需要知道
+ * 「這座塔選了哪一條」——它拿到的還是一份普通的 TowerStats。
+ */
+function applySpecialisation(stats: TowerStats, path: SpecPath): TowerStats {
+  const spec = SPECIALISATIONS[stats.archetype][path];
+
+  return {
+    ...stats,
+    range: stats.range * (spec.range ?? 1),
+    damage: stats.damage * (spec.damage ?? 1),
+    cooldownMs: stats.cooldownMs * (spec.cooldown ?? 1),
+    splashRadius: stats.splashRadius * (spec.splashRadius ?? 1),
+    // 這幾個是比例，加算之後仍要夾在合理範圍內。
+    slowFactor: Math.min(0.75, stats.slowFactor + (spec.slowFactor ?? 0)),
+    stunChance: Math.min(0.7, stats.stunChance + (spec.stunChance ?? 0)),
+    armorPierce: Math.min(0.95, stats.armorPierce + (spec.armorPierce ?? 0)),
+    cheerBonus: stats.cheerBonus + (spec.cheerBonus ?? 0),
+    extraTargets: spec.extraTargets ?? 0,
   };
 }
 

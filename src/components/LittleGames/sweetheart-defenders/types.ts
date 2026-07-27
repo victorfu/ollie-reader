@@ -1,3 +1,5 @@
+import type { SpecPath } from "./data/specialisations";
+
 // 甜心防衛隊 — 全遊戲共用型別。
 // 這裡只放資料形狀，不放任何邏輯，也不 import 任何會碰到 DOM 的東西，
 // 讓 engine/ 底下的模組可以在 vitest 裡直接跑（不需要 canvas）。
@@ -104,7 +106,12 @@ export type TowerStats = {
   armorPierce: number;
   /** cheer 給周圍塔的攻速加成（0–1）；非 cheer 為 0 */
   cheerBonus: number;
+  /** 專精帶來的額外目標數；沒選到那條路就是 0 */
+  extraTargets: number;
 };
+
+/** 塔的等級。4 級是專精級，一定伴隨一條 SpecPath。 */
+export type TowerLevel = 1 | 2 | 3 | 4;
 
 // === 敵人（糖果怪） ===
 
@@ -271,8 +278,6 @@ export type LevelSpec = {
   coinReward: { clear: number; threeStars: number };
 };
 
-export type Difficulty = "easy" | "normal" | "hard";
-
 // === 戰鬥中的即時狀態 ===
 
 export type LiveEnemy = {
@@ -312,7 +317,9 @@ export type LiveEnemy = {
 export type LiveTower = {
   slotId: string;
   characterId: string;
-  level: 1 | 2 | 3;
+  level: TowerLevel;
+  /** 升到 4 級時選的專精路線；還沒升到就是 null */
+  spec: SpecPath | null;
   /** 距離下次可攻擊還要多久（毫秒） */
   cooldownMs: number;
   /** 本場累積傷害，結算頁顯示 */
@@ -371,7 +378,6 @@ export type BattlePhase = "prep" | "wave" | "cleared" | "lost";
 
 export type BattleState = {
   levelId: string;
-  difficulty: Difficulty;
   /** 模擬累積時間（毫秒） */
   timeMs: number;
   phase: BattlePhase;
@@ -415,7 +421,8 @@ export type BattleState = {
  */
 export type Command =
   | { kind: "placeTower"; slotId: string; characterId: string }
-  | { kind: "upgradeTower"; slotId: string }
+  /** 升級。從 3 級升到 4 級時必須指定要走哪一條專精。 */
+  | { kind: "upgradeTower"; slotId: string; spec?: SpecPath }
   | { kind: "sellTower"; slotId: string }
   | { kind: "startWave" }
   | { kind: "setSpeed"; multiplier: 1 | 2 }

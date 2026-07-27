@@ -4,7 +4,7 @@ import {
   SELL_REFUND_RATIO,
   UPGRADE_COST_MULTIPLIER,
 } from "../constants";
-import type { TowerCharacter } from "../types";
+import type { TowerCharacter, TowerLevel } from "../types";
 
 /** 放一隻角色上塔位的費用。 */
 export function getPlaceCost(pet: TowerCharacter): number {
@@ -12,23 +12,26 @@ export function getPlaceCost(pet: TowerCharacter): number {
 }
 
 /** 從 currentLevel 升到下一級的費用。 */
-export function getUpgradeCost(pet: TowerCharacter, currentLevel: 1 | 2): number {
+export function getUpgradeCost(
+  pet: TowerCharacter,
+  currentLevel: 1 | 2 | 3,
+): number {
   return Math.round(
     RARITY_TIERS[pet.rarity].cost * UPGRADE_COST_MULTIPLIER[currentLevel],
   );
 }
 
 /** 這座塔到目前為止總共投入了多少糖霜。 */
-export function getInvestedCost(pet: TowerCharacter, level: 1 | 2 | 3): number {
+export function getInvestedCost(pet: TowerCharacter, level: TowerLevel): number {
   let total = getPlaceCost(pet);
   for (let current = 1; current < level; current += 1) {
-    total += getUpgradeCost(pet, current as 1 | 2);
+    total += getUpgradeCost(pet, current as 1 | 2 | 3);
   }
   return total;
 }
 
 /** 賣掉一座塔退回多少糖霜。 */
-export function getSellRefund(pet: TowerCharacter, level: 1 | 2 | 3): number {
+export function getSellRefund(pet: TowerCharacter, level: TowerLevel): number {
   return Math.floor(getInvestedCost(pet, level) * SELL_REFUND_RATIO);
 }
 

@@ -10,10 +10,18 @@ import { CharacterTags } from "./CharacterTags";
 import { getPlaceCost, getSellRefund, getUpgradeCost } from "../engine/economy";
 import { Candy, X } from "lucide-react";
 import { playSfx } from "../audio";
-import type { LiveTower, TowerCharacter } from "../types";
+import {
+  SPECIALISATIONS,
+  SPEC_PATHS,
+  type SpecPath,
+} from "../data/specialisations";
+import type { LiveTower, TowerCharacter, TowerLevel } from "../types";
 
 /** TowerPanel 只需要知道塔的等級，不需要冷卻、傷害那些每幀都在動的欄位。 */
-type TowerSummary = Pick<LiveTower, "slotId" | "characterId" | "level">;
+type TowerSummary = Pick<
+  LiveTower,
+  "slotId" | "characterId" | "level" | "spec"
+>;
 
 type Props = {
   tower: TowerSummary | undefined;
@@ -23,7 +31,7 @@ type Props = {
   previewCharacterId: string | null;
   onPreviewCharacter: (characterId: string | null) => void;
   onPlace: (characterId: string) => void;
-  onUpgrade: () => void;
+  onUpgrade: (spec?: SpecPath) => void;
   onSell: () => void;
   onClose: () => void;
 };
@@ -73,17 +81,26 @@ export function TowerPanel({
   );
 }
 
-function PetDetails({ pet, level }: { pet: TowerCharacter; level: 1 | 2 | 3 }) {
+function PetDetails({
+  pet,
+  level,
+  spec = null,
+}: {
+  pet: TowerCharacter;
+  level: TowerLevel;
+  spec?: SpecPath | null;
+}) {
   const element = pet.elements[0];
   const archetype = ARCHETYPE_BY_ELEMENT[element];
   const trait = getTrait(pet);
-  const stats = getTowerStats(pet, level);
+  const stats = getTowerStats(pet, level, spec);
 
   return (
     <div className="mt-2 space-y-1.5 rounded-[10px] bg-slate-50/80 p-2">
       <p className="text-xs leading-snug text-slate-600">
         <span className="font-semibold text-slate-700">
           {ARCHETYPE_LABEL_ZH[archetype]}
+          {spec && ` · ${SPECIALISATIONS[archetype][spec].nameZh}`}
         </span>
         {" · "}
         {ARCHETYPE_DESC_ZH[archetype]}
@@ -243,12 +260,15 @@ function OccupiedSlot({
   tower: TowerSummary;
   pet: TowerCharacter;
   frosting: number;
-  onUpgrade: () => void;
+  onUpgrade: (spec?: SpecPath) => void;
   onSell: () => void;
   onClose: () => void;
 }) {
-  const maxed = tower.level >= 3;
-  const upgradeCost = maxed ? 0 : getUpgradeCost(pet, tower.level as 1 | 2);
+  const maxed = tower.level >= 4;
+  const upgradeCost = maxed ? 0 : getUpgradeCost(pet, tower.level as 1 | 2 | 3);
+  // 3 → 4 是分岔：不再是一顆「升級」，而是兩條路線二選一。
+  const choosingSpec = tower.level === 3;
+  const archetype = ARCHETYPE_BY_ELEMENT[pet.elements[0]];
 
   return (
     <>
@@ -279,14 +299,47 @@ function OccupiedSlot({
         </button>
       </div>
 
-      <PetDetails pet={pet} level={tower.level} />
+      <PetDetails pet={pet} level={tower.level} spec={tower.spec} />
+
+      {choosingSpec && (
+        <div className="mt-2">
+          <p className="mb-1 text-[11px] font-semibold text-slate-500">
+            選一條路走（選了就不能改）
+          </p>
+          <div className="flex gap-2">
+            {SPEC_PATHS.map((path) => {
+              const spec = SPECIALISATIONS[archetype][path];
+              return (
+                <button
+                  key={path}
+                  type="button"
+                  onClick={() => onUpgrade(path)}
+                  disabled={frosting < upgradeCost}
+                  className="flex min-h-11 flex-1 flex-col items-start rounded-[10px] border border-[#ff6f9f]/40 bg-white px-3 py-2 text-left shadow-sm transition hover:bg-rose-50 disabled:opacity-45"
+                >
+                  <span className="flex items-center gap-1 text-sm font-semibold text-[#d94f7d]">
+                    {spec.nameZh}
+                    <Candy size={12} strokeWidth={2} aria-hidden="true" />
+                    {upgradeCost}
+                  </span>
+                  <span className="text-[11px] leading-snug text-slate-500">
+                    {spec.descZh}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <div className="mt-2 flex flex-wrap items-center gap-2">
         <button
           type="button"
-          onClick={onUpgrade}
-          disabled={maxed || frosting < upgradeCost}
-          className="min-h-11 flex-1 rounded-[10px] bg-[#ff6f9f] px-4 text-sm font-semibold text-white shadow-sm transition hover:brightness-105 active:scale-[0.98] disabled:opacity-45"
+          onClick={() => onUpgrade()}
+          disabled={maxed || choosingSpec || frosting < upgradeCost}
+          className={`min-h-11 flex-1 rounded-[10px] bg-[#ff6f9f] px-4 text-sm font-semibold text-white shadow-sm transition hover:brightness-105 active:scale-[0.98] disabled:opacity-45 ${
+            choosingSpec ? "hidden" : ""
+          }`}
         >
           {maxed ? (
             "已滿級"

@@ -13,7 +13,7 @@ import {
   stepSimulation,
 } from "../engine/simulation";
 import { previewWave } from "../engine/waves";
-import type { Command, Difficulty, LevelSpec } from "../types";
+import type { Command, LevelSpec } from "../types";
 
 function pathLength(points: { x: number; y: number }[]): number {
   return points
@@ -451,11 +451,10 @@ describe("every level is actually beatable", () => {
 
   function playThrough(
     level: LevelSpec,
-    difficulty: Difficulty,
     build: string[],
   ) {
     const compiled = compileLevel(level);
-    const state = createBattle(compiled, difficulty, 99);
+    const state = createBattle(compiled, 99);
     const slotIds = compiled.slots.map((slot) => slot.id);
     let placed = 0;
     let upgradeCursor = 0;
@@ -477,8 +476,13 @@ describe("every level is actually beatable", () => {
       } else if (state.towers.length > 0) {
         const tower = state.towers[upgradeCursor % state.towers.length];
         upgradeCursor += 1;
-        if (tower.level < 3) {
-          commands.push({ kind: "upgradeTower", slotId: tower.slotId });
+        if (tower.level < 4) {
+          // 3 → 4 要指名專精。兩條路輪流選，模擬「玩家會選，但不特別會選」。
+          commands.push({
+            kind: "upgradeTower",
+            slotId: tower.slotId,
+            spec: upgradeCursor % 2 === 0 ? "a" : "b",
+          });
         }
       }
 
@@ -494,7 +498,7 @@ describe("every level is actually beatable", () => {
   it.each(LEVELS.map((level) => [level.nameZh, level] as const))(
     "%s can be cleared on normal with a sensible build",
     (_name, level) => {
-      const state = playThrough(level, "normal", GOOD_BUILD);
+      const state = playThrough(level, GOOD_BUILD);
 
       expect(state.phase).toBe("cleared");
       expect(state.waveIndex).toBe(level.waves.length - 1);
@@ -504,7 +508,7 @@ describe("every level is actually beatable", () => {
   it.each(LEVELS.map((level) => [level.nameZh, level] as const))(
     "%s can be cleared on easy even when the pets are picked at random",
     (_name, level) => {
-      const state = playThrough(level, "easy", DEFAULT_ROSTER_IDS);
+      const state = playThrough(level, DEFAULT_ROSTER_IDS);
 
       expect(state.phase).toBe("cleared");
     },
@@ -517,14 +521,12 @@ describe("every level is actually beatable", () => {
     () => {
       // 最後一隻怪同時「離場」與「打穿櫃檯」時，結果必須算輸。
       for (const level of LEVELS) {
-        for (const difficulty of ["easy", "normal", "hard"] as Difficulty[]) {
-          const state = playThrough(level, difficulty, DEFAULT_ROSTER_IDS);
-          if (state.phase === "cleared") {
-            expect(
-              state.cakes,
-              `${level.nameZh}/${difficulty} 在蛋糕歸零時被判定通關`,
-            ).toBeGreaterThan(0);
-          }
+        const state = playThrough(level, DEFAULT_ROSTER_IDS);
+        if (state.phase === "cleared") {
+          expect(
+            state.cakes,
+            `${level.nameZh} 在蛋糕歸零時被判定通關`,
+          ).toBeGreaterThan(0);
         }
       }
     },

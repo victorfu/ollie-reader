@@ -1,6 +1,5 @@
-import { HP_SCALE_BY_DIFFICULTY } from "../constants";
 import { getEnemy } from "../data/enemies";
-import type { Difficulty, EnemyKind, WaveSpec } from "../types";
+import type { EnemyKind, WaveSpec } from "../types";
 
 /** 每過一波，敵人血量加成多少。第 15 波約是第 1 波的 3.2 倍。 */
 export const HP_GROWTH_PER_WAVE = 0.2;
@@ -48,25 +47,23 @@ export function getWaveHpScale(waveIndex: number, boss = false): number {
 }
 
 /**
- * 一隻怪在某一波、某個難度、某張地圖下的實際血量。
+ * 一隻怪在某一波、某張地圖下的實際血量。
  *
  * hpScale 是每張地圖自己的血量倍率，用來抵銷路線長度的差異。路線一拉長，
  * 怪待在射程裡的時間就變多，同一組塔的輸出等於憑空翻倍——店門小徑從 2570px
- * 改成 3850px 之後，挑戰難度連亂擺一通都打得過，而波表那邊的 intensity 只能
- * 加「數量」不能加「硬度」，敵人開到 2.8 倍照樣被清光。缺的就是這個倍率。
+ * 改成 3850px 之後，亂擺一通也打得過，而波表那邊的 intensity 只能加「數量」
+ * 不能加「硬度」，敵人開到 2.8 倍照樣被清光。缺的就是這個倍率。
+ *
+ * 難度選單拿掉之後，這是唯一調整鬆緊的地方。
  */
 export function getEnemyHp(
   kind: EnemyKind,
   waveIndex: number,
-  difficulty: Difficulty,
   hpScale = 1,
 ): number {
   const spec = getEnemy(kind);
   return Math.round(
-    spec.hp *
-      getWaveHpScale(waveIndex, spec.boss === true) *
-      HP_SCALE_BY_DIFFICULTY[difficulty] *
-      hpScale,
+    spec.hp * getWaveHpScale(waveIndex, spec.boss === true) * hpScale,
   );
 }
 

@@ -38,7 +38,6 @@ function renderSquad(initialSquadIds: string[] = []): HTMLDivElement {
     root!.render(
       <SquadSelect
         levelName="店門小徑"
-        difficulty="easy"
         availableCharacters={ROSTER}
         initialSquadIds={initialSquadIds}
         onStart={(squadIds) => started.push(squadIds)}

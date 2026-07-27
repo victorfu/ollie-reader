@@ -1,4 +1,4 @@
-import { CAKES_BY_DIFFICULTY, FIRST_PREP_MS, PREP_MS } from "../constants";
+import { FIRST_PREP_MS, MAX_CAKES, PREP_MS } from "../constants";
 import {
   ELEMENT_COLOR,
   SLOW_DURATION_MS,
@@ -34,13 +34,13 @@ import type {
   AttackStyle,
   BattleState,
   Command,
-  Difficulty,
   Element,
   EnemyKind,
   LevelSpec,
   LiveEnemy,
   LiveTower,
   TowerCharacter,
+  TowerLevel,
   TowerSlot,
   TowerStats,
   Vec2,
@@ -109,21 +109,16 @@ export function compileLevel(spec: LevelSpec): CompiledLevel {
   };
 }
 
-export function createBattle(
-  level: CompiledLevel,
-  difficulty: Difficulty,
-  seed: number,
-): BattleState {
+export function createBattle(level: CompiledLevel, seed: number): BattleState {
   return {
     levelId: level.spec.id,
-    difficulty,
     timeMs: 0,
     phase: "prep",
     waveIndex: 0,
     prepMs: FIRST_PREP_MS,
     frosting: level.spec.startingFrosting,
-    cakes: CAKES_BY_DIFFICULTY[difficulty],
-    maxCakes: CAKES_BY_DIFFICULTY[difficulty],
+    cakes: MAX_CAKES,
+    maxCakes: MAX_CAKES,
     enemies: [],
     towers: [],
     projectiles: [],
@@ -215,6 +210,7 @@ function applyCommand(
         comboHits: 0,
         comboTargetUid: 0,
         frenzyMs: 0,
+        spec: null,
       });
       return;
     }
@@ -222,13 +218,17 @@ function applyCommand(
     case "upgradeTower": {
       const tower = state.towers.find((t) => t.slotId === command.slotId);
       const pet = tower ? getCharacter(tower.characterId) : undefined;
-      if (!tower || !pet || tower.level === 3) return;
+      if (!tower || !pet || tower.level === 4) return;
 
-      const cost = getUpgradeCost(pet, tower.level);
+      // 3 → 4 是專精分岔，一定要指名走哪一條，而且選了就定案。
+      if (tower.level === 3 && !command.spec) return;
+
+      const cost = getUpgradeCost(pet, tower.level as 1 | 2 | 3);
       if (state.frosting < cost) return;
 
       state.frosting -= cost;
-      tower.level = (tower.level + 1) as 1 | 2 | 3;
+      tower.level = (tower.level + 1) as TowerLevel;
+      if (tower.level === 4) tower.spec = command.spec ?? null;
       return;
     }
 
@@ -292,12 +292,7 @@ function createEnemy(
   atDistance: number,
 ): LiveEnemy {
   const spec = getEnemy(kind);
-  const hp = getEnemyHp(
-    kind,
-    state.waveIndex,
-    state.difficulty,
-    level.spec.hpScale,
-  );
+  const hp = getEnemyHp(kind, state.waveIndex, level.spec.hpScale);
   const enemy: LiveEnemy = {
     uid: state.nextUid++,
     kind,
@@ -444,7 +439,7 @@ function updateTowers(
     tower.frenzyMs = Math.max(0, tower.frenzyMs - dtMs);
 
     // 糖霜池只加射程，不動其他數值——站進去打得更遠，但不會變強。
-    const base = getTowerStats(pet, tower.level);
+    const base = getTowerStats(pet, tower.level, tower.spec);
     const rangeBonus = level.rangeBonusBySlot.get(tower.slotId) ?? 0;
     const stats: TowerStats =
       rangeBonus === 0 ? base : { ...base, range: base.range * (1 + rangeBonus) };
@@ -520,7 +515,7 @@ function fireUltimate(
   pet: TowerCharacter,
   slot: Vec2,
 ): void {
-  const stats = getTowerStats(pet, tower.level);
+  const stats = getTowerStats(pet, tower.level, tower.spec);
   const color = ELEMENT_COLOR[stats.element];
   const secondaryElements = pet.elements.slice(1);
 
@@ -725,7 +720,7 @@ function computeCheerBonuses(
     const origin = level.slotById.get(cheerTower.slotId);
     if (!pet || !origin) continue;
 
-    const stats = getTowerStats(pet, cheerTower.level);
+    const stats = getTowerStats(pet, cheerTower.level, cheerTower.spec);
     if (stats.archetype !== "cheer") continue;
 
     const rangeSquared = stats.range * stats.range;
@@ -801,7 +796,57 @@ function fireTower(
   }
 
   applyTrait(state, level, tower, stats, secondaryElements, target, slot, color);
+
+  // 「散射」「貫穿」這類專精：同一次開火多打幾隻，效果比照主要目標。
+  if (stats.extraTargets > 0) {
+    fireAtExtraTargets(
+      state,
+      level,
+      tower,
+      stats,
+      secondaryElements,
+      target,
+      slot,
+      color,
+    );
+  }
+
   return true;
+}
+
+/**
+ * 專精帶來的額外目標。
+ *
+ * 挑射程內「離主要目標最近」的幾隻，畫面上才看得出是同一次掃射，而不是塔
+ * 隨機亂打。連擊的計數只跟著主要目標走，所以這裡不碰 comboHits。
+ */
+function fireAtExtraTargets(
+  state: BattleState,
+  level: CompiledLevel,
+  tower: LiveTower,
+  stats: TowerStats,
+  secondaryElements: Element[],
+  primary: LiveEnemy,
+  slot: Vec2,
+  color: string,
+): void {
+  const others = findEnemiesInRadius(slot, stats.range, state.enemies)
+    .filter((enemy) => enemy.uid !== primary.uid)
+    .sort((a, b) => distanceSquared(primary, a) - distanceSquared(primary, b))
+    .slice(0, stats.extraTargets);
+
+  // 逆向走訪：打死的怪會就地從 state.enemies 移除。
+  for (let index = others.length - 1; index >= 0; index -= 1) {
+    const enemy = others[index];
+
+    if (stats.attackStyle === "beam") {
+      addBeam(state, [{ ...slot }, { x: enemy.x, y: enemy.y }], color, 2.5);
+    } else {
+      spawnProjectile(state, slot, enemy, color, stats.attackStyle);
+    }
+
+    hitEnemy(state, level, tower, enemy, stats, secondaryElements, 1);
+  }
 }
 
 /**

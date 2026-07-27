@@ -8,9 +8,9 @@ import {
 import { getPlaceCost } from "./economy";
 import { getCharacter, DEFAULT_ROSTER_IDS } from "../data/characters";
 import { LEVELS } from "../data/levels";
-import { CAKES_BY_DIFFICULTY, FIRST_PREP_MS, STEP_MS } from "../constants";
+import { FIRST_PREP_MS, MAX_CAKES, STEP_MS } from "../constants";
 import { TRAIT_BASE } from "../data/traits";
-import type { BattleState, Command, Difficulty, LevelSpec } from "../types";
+import type { BattleState, Command, LevelSpec } from "../types";
 
 const SHOP_PATH = compileLevel(LEVELS[0]);
 
@@ -71,28 +71,26 @@ function secondsToSteps(seconds: number): number {
 }
 
 describe("createBattle", () => {
-  it("starts in prep with the level's frosting and the difficulty's cakes", () => {
-    const state = createBattle(SHOP_PATH, "normal", 1);
+  it("starts in prep with the level's frosting and a full cake counter", () => {
+    const state = createBattle(SHOP_PATH, 1);
 
     expect(state.phase).toBe("prep");
     expect(state.waveIndex).toBe(0);
     expect(state.frosting).toBe(LEVELS[0].startingFrosting);
-    expect(state.cakes).toBe(CAKES_BY_DIFFICULTY.normal);
+    expect(state.cakes).toBe(MAX_CAKES);
     expect(state.prepMs).toBe(FIRST_PREP_MS);
   });
 
-  it("gives easy more cakes than hard", () => {
-    const easy = createBattle(SHOP_PATH, "easy", 1);
-    const hard = createBattle(SHOP_PATH, "hard", 1);
-
-    expect(easy.cakes).toBeGreaterThan(hard.cakes);
+  it("always starts with the same number of cakes", () => {
+    // 難度選單拿掉之後，蛋糕數是固定的，不再隨難度變動。
+    expect(createBattle(SHOP_PATH, 1).cakes).toBe(MAX_CAKES);
   });
 });
 
 describe("placeTower", () => {
   it("charges frosting and occupies the slot", () => {
     const level = makeTestLevel();
-    const state = createBattle(level, "normal", 1);
+    const state = createBattle(level, 1);
     const pet = getCharacter("shiro")!;
 
     run(state, level, 1, [
@@ -110,7 +108,7 @@ describe("placeTower", () => {
 
   it("refuses a second tower on an occupied slot", () => {
     const level = makeTestLevel();
-    const state = createBattle(level, "normal", 1);
+    const state = createBattle(level, 1);
 
     run(state, level, 1, [
       { kind: "placeTower", slotId: TEST_SLOT, characterId: "shiro" },
@@ -123,7 +121,7 @@ describe("placeTower", () => {
 
   it("refuses when there is not enough frosting", () => {
     const level = makeTestLevel({ startingFrosting: 10 });
-    const state = createBattle(level, "normal", 1);
+    const state = createBattle(level, 1);
 
     run(state, level, 1, [
       { kind: "placeTower", slotId: TEST_SLOT, characterId: "shiro" },
@@ -135,7 +133,7 @@ describe("placeTower", () => {
 
   it("ignores unknown slots and unknown pets", () => {
     const level = makeTestLevel();
-    const state = createBattle(level, "normal", 1);
+    const state = createBattle(level, 1);
 
     run(state, level, 1, [
       { kind: "placeTower", slotId: "nope", characterId: "shiro" },
@@ -148,9 +146,9 @@ describe("placeTower", () => {
 });
 
 describe("upgradeTower and sellTower", () => {
-  it("levels a tower up to 3 and no further", () => {
+  it("levels a tower up to 3 without a specialisation", () => {
     const level = makeTestLevel({ startingFrosting: 5000 });
-    const state = createBattle(level, "normal", 1);
+    const state = createBattle(level, 1);
 
     run(state, level, 1, [
       { kind: "placeTower", slotId: TEST_SLOT, characterId: "shiro" },
@@ -159,12 +157,13 @@ describe("upgradeTower and sellTower", () => {
       { kind: "upgradeTower", slotId: TEST_SLOT },
     ]);
 
+    // 3 → 4 是專精分岔，沒指名走哪一條就停在 3 級。細節見 specialisations.test.ts。
     expect(state.towers[0].level).toBe(3);
   });
 
   it("frees the slot and refunds part of the cost when sold", () => {
     const level = makeTestLevel();
-    const state = createBattle(level, "normal", 1);
+    const state = createBattle(level, 1);
 
     run(state, level, 1, [
       { kind: "placeTower", slotId: TEST_SLOT, characterId: "shiro" },
@@ -182,7 +181,7 @@ describe("upgradeTower and sellTower", () => {
 describe("wave flow", () => {
   it("starts the wave automatically when prep time runs out", () => {
     const level = makeTestLevel();
-    const state = createBattle(level, "normal", 1);
+    const state = createBattle(level, 1);
 
     run(state, level, secondsToSteps(FIRST_PREP_MS / 1000) + 2);
 
@@ -191,7 +190,7 @@ describe("wave flow", () => {
 
   it("pays an early-start bonus and skips the rest of prep", () => {
     const level = makeTestLevel();
-    const state = createBattle(level, "normal", 1);
+    const state = createBattle(level, 1);
 
     run(state, level, 1, [{ kind: "startWave" }]);
 
@@ -201,7 +200,7 @@ describe("wave flow", () => {
 
   it("ignores startWave once the wave is already running", () => {
     const level = makeTestLevel();
-    const state = createBattle(level, "normal", 1);
+    const state = createBattle(level, 1);
 
     run(state, level, 1, [{ kind: "startWave" }]);
     const frostingAfterStart = state.frosting;
@@ -212,7 +211,7 @@ describe("wave flow", () => {
 
   it("clears the level after the final wave is emptied", () => {
     const level = makeTestLevel();
-    const state = createBattle(level, "normal", 1);
+    const state = createBattle(level, 1);
 
     // 沒有塔，一隻軟糖走完 600px 大約 15 秒，之後就沒有敵人了。
     run(state, level, 1, [{ kind: "startWave" }]);
@@ -225,13 +224,13 @@ describe("wave flow", () => {
 describe("cakes", () => {
   it("loses a cake when an enemy reaches the counter", () => {
     const level = makeTestLevel();
-    const state = createBattle(level, "normal", 1);
+    const state = createBattle(level, 1);
 
     run(state, level, 1, [{ kind: "startWave" }]);
     run(state, level, secondsToSteps(20));
 
     expect(state.leaked).toBe(1);
-    expect(state.cakes).toBe(CAKES_BY_DIFFICULTY.normal - 1);
+    expect(state.cakes).toBe(MAX_CAKES - 1);
   });
 
   it("ends the run when the last cake is stolen", () => {
@@ -243,7 +242,7 @@ describe("cakes", () => {
         },
       ],
     });
-    const state = createBattle(level, "normal", 1);
+    const state = createBattle(level, 1);
 
     run(state, level, 1, [{ kind: "startWave" }]);
     run(state, level, secondsToSteps(60));
@@ -256,7 +255,7 @@ describe("cakes", () => {
 describe("towers in combat", () => {
   it("kills enemies and collects their reward", () => {
     const level = makeTestLevel();
-    const state = createBattle(level, "normal", 1);
+    const state = createBattle(level, 1);
 
     run(state, level, 1, [
       // ember 爆裂，剋 leaf 的軟糖小兵
@@ -279,7 +278,7 @@ describe("towers in combat", () => {
         },
       ],
     });
-    const state = createBattle(level, "normal", 1);
+    const state = createBattle(level, 1);
 
     run(state, level, 1, [
       // spark 速射，剋 tide 的汽水泡泡
@@ -313,7 +312,7 @@ describe("towers in combat", () => {
       ],
       slotPlan: { count: 0 },
     });
-    const state = createBattle(level, "normal", 1);
+    const state = createBattle(level, 1);
 
     run(state, level, 1, [{ kind: "startWave" }]);
     run(state, level, secondsToSteps(3));
@@ -335,7 +334,7 @@ describe("determinism", () => {
 
     const runOnce = () => {
       const level = compileLevel(LEVELS[0]);
-      const state = createBattle(level, "normal", 12345);
+      const state = createBattle(level, 12345);
       run(state, level, 1, script);
       run(state, level, secondsToSteps(120));
       return state;
@@ -353,7 +352,7 @@ describe("determinism", () => {
 
   it("does not read the wall clock or Math.random", () => {
     const level = compileLevel(LEVELS[0]);
-    const state = createBattle(level, "normal", 7);
+    const state = createBattle(level, 7);
     const before = state.rngState;
 
     run(state, level, 1, [
@@ -406,11 +405,10 @@ describe("full 10-wave run on 店門小徑", () => {
    * 每一波都提早出發。
    */
   function playThrough(
-    difficulty: Difficulty,
     build: string[],
   ): PlaythroughResult {
     const level = compileLevel(LEVELS[0]);
-    const state = createBattle(level, difficulty, 99);
+    const state = createBattle(level, 99);
     const slotIds = level.slots.map((slot) => slot.id);
     let placed = 0;
     let upgradeCursor = 0;
@@ -433,8 +431,13 @@ describe("full 10-wave run on 店門小徑", () => {
       } else if (state.towers.length > 0) {
         const tower = state.towers[upgradeCursor % state.towers.length];
         upgradeCursor += 1;
-        if (tower.level < 3) {
-          commands.push({ kind: "upgradeTower", slotId: tower.slotId });
+        if (tower.level < 4) {
+          // 3 → 4 要指名專精。兩條路輪流選，模擬「玩家會選，但不特別會選」。
+          commands.push({
+            kind: "upgradeTower",
+            slotId: tower.slotId,
+            spec: upgradeCursor % 2 === 0 ? "a" : "b",
+          });
         }
       }
 
@@ -459,7 +462,7 @@ describe("full 10-wave run on 店門小徑", () => {
   }
 
   it("rewards a sensible build on normal with every cake intact", () => {
-    const { state } = playThrough("normal", GOOD_BUILD);
+    const { state } = playThrough(GOOD_BUILD);
 
     expect(state.phase).toBe("cleared");
     expect(state.waveIndex).toBe(LEVELS[0].waves.length - 1);
@@ -467,31 +470,33 @@ describe("full 10-wave run on 店門小徑", () => {
     expect(state.kills).toBeGreaterThan(100);
   });
 
-  it("still lets a scattershot build clear normal", () => {
-    // 防挫折：第一關的普通難度不該因為「亂選角色」就過不了。
-    const { state } = playThrough("normal", NAIVE_BUILD);
+  it("still lets a scattershot build clear", () => {
+    // 防挫折：只有一種難度，而且刻意偏簡單——第一關不該因為「亂選角色」就過不了。
+    const { state } = playThrough(NAIVE_BUILD);
 
     expect(state.phase).toBe("cleared");
   });
 
-  it("makes hard actually punish a scattershot build", () => {
-    const { state } = playThrough("hard", NAIVE_BUILD);
+  it("still rewards picking a sensible squad", () => {
+    // 難度選單拿掉之後，「挑戰難度會輸」這個保證也一起沒了，但取捨不能跟著
+    // 消失：亂選也過得了關，可是要付出代價，好好搭配才守得住全部蛋糕。
+    // 比的是兩種組合的相對結果，不綁任何絕對數字，重新平衡時不會假性壞掉。
+    const good = playThrough(GOOD_BUILD).state;
+    const naive = playThrough(NAIVE_BUILD).state;
 
-    expect(state.phase).toBe("lost");
-    // 但也不能一開場就結束——至少完整打完前四波、倒在第一隻 Boss 手上，
-    // 才有「差一點就擋下來了」的再試一次動力。
-    expect(state.waveIndex).toBeGreaterThanOrEqual(4);
+    expect(good.cakes).toBeGreaterThanOrEqual(naive.cakes);
+    expect(good.kills).toBeGreaterThan(0);
   });
 
   it("finishes every wave rather than stalling", () => {
-    const { state } = playThrough("normal", GOOD_BUILD);
+    const { state } = playThrough(GOOD_BUILD);
 
     expect(state.enemies).toHaveLength(0);
     expect(state.spawnQueue).toHaveLength(0);
   });
 
   it("keeps upgrades worth buying deep into the level", () => {
-    const { maxedAtWave } = playThrough("normal", GOOD_BUILD);
+    const { maxedAtWave } = playThrough(GOOD_BUILD);
 
     // 全部點滿發生得太早，代表中後段沒東西可花，錢就失去意義了。
     // 10 波的經濟下正常是整場都點不滿（null）；就算點滿也不能早於第 7 波。
@@ -501,7 +506,7 @@ describe("full 10-wave run on 店門小徑", () => {
   });
 
   it("leaves some frosting unspent rather than starving the player", () => {
-    const { state } = playThrough("normal", GOOD_BUILD);
+    const { state } = playThrough(GOOD_BUILD);
 
     expect(state.frosting).toBeGreaterThan(0);
   });
@@ -529,7 +534,7 @@ describe("secondary-element traits in battle", () => {
     characterId: string,
     level: CompiledLevel,
   ): BattleState {
-    const state = createBattle(level, "normal", 1);
+    const state = createBattle(level, 1);
     run(state, level, 1, [
       { kind: "placeTower", slotId: TEST_SLOT, characterId },
       { kind: "startWave" },
@@ -596,7 +601,7 @@ describe("secondary-element traits in battle", () => {
   it("連鎖: jumps the shot to a nearby enemy", () => {
     // minna-no-tabo = ember + spark → 爆裂 · 連鎖
     const level = traitLevel(4, 250);
-    const state = createBattle(level, "normal", 1);
+    const state = createBattle(level, 1);
     run(state, level, 1, [
       { kind: "placeTower", slotId: TEST_SLOT, characterId: "minna-no-tabo" },
       { kind: "startWave" },
@@ -617,7 +622,7 @@ describe("secondary-element traits in battle", () => {
 
   it("連鎖: never hits the same enemy twice in one chain", () => {
     const level = traitLevel(4, 250);
-    const state = createBattle(level, "normal", 1);
+    const state = createBattle(level, 1);
     run(state, level, 1, [
       { kind: "placeTower", slotId: TEST_SLOT, characterId: "minna-no-tabo" },
       { kind: "startWave" },

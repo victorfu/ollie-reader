@@ -14,20 +14,13 @@ import { MAX_SQUAD_SIZE } from "../constants";
 import { getTowerStats } from "../engine/combat";
 import { getPlaceCost } from "../engine/economy";
 import { recommendSquad } from "../squad";
-import type { Difficulty, TowerCharacter } from "../types";
+import type { TowerCharacter } from "../types";
 import { CharacterDetail, RangeMeter } from "./CharacterDetail";
 import { CharacterTags } from "./CharacterTags";
 import { Popup } from "./Popup";
 
-const DIFFICULTY_LABEL_ZH: Record<Difficulty, string> = {
-  easy: "輕鬆",
-  normal: "普通",
-  hard: "挑戰",
-};
-
 type Props = {
   levelName: string;
-  difficulty: Difficulty;
   /** 已擁有的角色（預設班底 ∪ 扭蛋收藏），照 CHARACTERS 順序 */
   availableCharacters: TowerCharacter[];
   /** 上次帶的隊伍（已 sanitize），空陣列表示第一次玩 */
@@ -44,7 +37,6 @@ type Props = {
  */
 export function SquadSelect({
   levelName,
-  difficulty,
   availableCharacters,
   initialSquadIds,
   onStart,
@@ -109,7 +101,7 @@ export function SquadSelect({
           出戰隊伍
         </h1>
         <p className="mt-1 text-sm text-slate-600">
-          {levelName} · {DIFFICULTY_LABEL_ZH[difficulty]}
+          {levelName}
         </p>
       </header>
 

@@ -80,20 +80,21 @@ describe("getWaveHpScale", () => {
 
 describe("getEnemyHp", () => {
   it("matches the spec value on wave 1 at normal difficulty", () => {
-    expect(getEnemyHp("gumdrop", 0, "normal")).toBe(ENEMIES.gumdrop.hp);
+    expect(getEnemyHp("gumdrop", 0)).toBe(ENEMIES.gumdrop.hp);
   });
 
-  it("makes easy softer and hard tougher than normal", () => {
-    const easy = getEnemyHp("chocolate", 5, "easy");
-    const normal = getEnemyHp("chocolate", 5, "normal");
-    const hard = getEnemyHp("chocolate", 5, "hard");
+  it("scales with the level's own hpScale", () => {
+    // 難度選單拿掉之後，每張地圖的鬆緊只剩這一個旋鈕：路線越長、塔的輸出
+    // 時間越多，就要靠它把難度補回來。
+    const plain = getEnemyHp("chocolate", 5);
+    const tough = getEnemyHp("chocolate", 5, 1.5);
 
-    expect(easy).toBeLessThan(normal);
-    expect(hard).toBeGreaterThan(normal);
+    expect(tough).toBeGreaterThan(plain);
+    expect(tough).toBe(Math.round(plain * 1.5));
   });
 
   it("returns whole numbers so health bars do not show fractions", () => {
-    expect(Number.isInteger(getEnemyHp("soda", 7, "hard"))).toBe(true);
+    expect(Number.isInteger(getEnemyHp("soda", 7))).toBe(true);
   });
 });
 

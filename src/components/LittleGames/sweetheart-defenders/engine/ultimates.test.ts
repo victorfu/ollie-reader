@@ -99,7 +99,7 @@ describe("charging", () => {
         },
       ],
     });
-    const state = createBattle(level, "normal", 1);
+    const state = createBattle(level, 1);
 
     run(state, level, 1, [
       {
@@ -124,7 +124,7 @@ describe("charging", () => {
           ? {}
           : { waves: [{ groups: [], bonus: 0 }] },
       );
-      const state = createBattle(level, "normal", 1);
+      const state = createBattle(level, 1);
       run(state, level, 1, [
         {
           kind: "placeTower",
@@ -145,7 +145,7 @@ describe("charging", () => {
 
     const chargeWith = (slotCount: 1 | 2) => {
       const level = makeLevel();
-      const state = createBattle(level, "normal", 1);
+      const state = createBattle(level, 1);
       const placements: Command[] = level.slots
         .slice(0, slotCount)
         .map((slot) => ({
@@ -169,7 +169,7 @@ describe("castUltimate", () => {
   function readyToCast(archetype: TowerArchetype, warmupSeconds = 6) {
     const character = characterFor(archetype);
     const level = makeLevel();
-    const state = createBattle(level, "normal", 1);
+    const state = createBattle(level, 1);
 
     run(state, level, 1, [
       {

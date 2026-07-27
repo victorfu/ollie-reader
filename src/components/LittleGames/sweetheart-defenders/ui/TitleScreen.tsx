@@ -12,13 +12,6 @@ import type { SyncStatus } from "../storage";
 import type { AudioControls } from "../useAudioSettings";
 import { AudioButton } from "./AudioControls";
 import { CharacterDex } from "./CharacterDex";
-import type { Difficulty } from "../types";
-
-const DIFFICULTIES: { id: Difficulty; label: string; hint: string }[] = [
-  { id: "easy", label: "輕鬆", hint: "蛋糕 12 塊" },
-  { id: "normal", label: "普通", hint: "蛋糕 10 塊" },
-  { id: "hard", label: "挑戰", hint: "蛋糕 8 塊" },
-];
 
 type Props = {
   levelStars: Record<string, Stars>;
@@ -28,7 +21,7 @@ type Props = {
   syncStatus: SyncStatus;
   isSignedIn: boolean;
   audio: AudioControls;
-  onStart: (levelId: string, difficulty: Difficulty) => void;
+  onStart: (levelId: string) => void;
   onExit?: () => void;
 };
 
@@ -55,7 +48,6 @@ export function TitleScreen({
   onStart,
   onExit,
 }: Props) {
-  const [difficulty, setDifficulty] = useState<Difficulty>("easy");
   const [dexOpen, setDexOpen] = useState(false);
   const nextLevelId = nextPlayableLevelId(levelStars);
   const clearedCount = LEVELS.filter(
@@ -142,38 +134,6 @@ export function TitleScreen({
           <SyncBadge status={syncStatus} isSignedIn={isSignedIn} />
         </div>
 
-        <fieldset>
-          <legend className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-            難度
-          </legend>
-          {/* 分段控制：三顆按鈕併成一條，標題和「蛋糕幾塊」上下疊，橫向就不會拉開一整列。 */}
-          <div className="flex gap-1 rounded-[12px] border border-black/5 bg-white/70 p-1 shadow-sm">
-            {DIFFICULTIES.map((option) => {
-              const selected = difficulty === option.id;
-
-              return (
-                <button
-                  key={option.id}
-                  type="button"
-                  onClick={() => setDifficulty(option.id)}
-                  aria-pressed={selected}
-                  className={`flex min-h-11 flex-1 flex-col items-center justify-center rounded-[9px] px-1 leading-tight transition ${
-                    selected
-                      ? "bg-[#ff6f9f] text-white shadow-sm"
-                      : "text-slate-700 hover:bg-white"
-                  }`}
-                >
-                  <span className="text-sm font-semibold">{option.label}</span>
-                  <span
-                    className={`text-[10px] ${selected ? "text-white/80" : "text-slate-400"}`}
-                  >
-                    {option.hint}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </fieldset>
 
       </aside>
 
@@ -211,7 +171,7 @@ export function TitleScreen({
                   <button
                     type="button"
                     disabled={!unlocked}
-                    onClick={() => onStart(level.id, difficulty)}
+                    onClick={() => onStart(level.id)}
                     className={`flex flex-1 flex-col gap-1 rounded-[14px] border p-2.5 text-left shadow-sm transition sm:p-3 ${
                       !unlocked
                         ? "cursor-not-allowed border-black/5 bg-white/45"

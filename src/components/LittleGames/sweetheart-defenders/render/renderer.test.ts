@@ -109,7 +109,7 @@ function emptyView() {
 describe("renderBattle", () => {
   it("draws an empty prep-phase board without throwing", () => {
     const ctx = createRecordingContext();
-    const state = createBattle(LEVEL, "normal", 1);
+    const state = createBattle(LEVEL, 1);
 
     expect(() => renderBattle(ctx, state, LEVEL, emptyView())).not.toThrow();
     expect(ctx.calls.length).toBeGreaterThan(0);
@@ -119,7 +119,7 @@ describe("renderBattle", () => {
     for (const kind of Object.keys(ENEMIES) as EnemyKind[]) {
       const ctx = createRecordingContext();
       const state: BattleState = {
-        ...createBattle(LEVEL, "normal", 1),
+        ...createBattle(LEVEL, 1),
         enemies: [makeEnemy(kind)],
       };
 
@@ -133,7 +133,7 @@ describe("renderBattle", () => {
   it("draws status rings for slowed, stunned and shielded enemies", () => {
     const ctx = createRecordingContext();
     const state: BattleState = {
-      ...createBattle(LEVEL, "normal", 1),
+      ...createBattle(LEVEL, 1),
       enemies: [
         makeEnemy("gumdrop", { uid: 1, slowMs: 500, slowFactor: 0.35 }),
         makeEnemy("gumdrop", { uid: 2, stunMs: 500, x: 260 }),
@@ -146,7 +146,7 @@ describe("renderBattle", () => {
   });
 
   it("draws towers, projectiles and effects after a live battle step", () => {
-    const state = createBattle(LEVEL, "normal", 1);
+    const state = createBattle(LEVEL, 1);
     stepSimulation(
       state,
       LEVEL,
@@ -173,13 +173,13 @@ describe("renderBattle", () => {
     // 圖片在 jsdom 裡永遠載不完，所以這裡走的是「還沒載到圖」的退路——正好順便
     // 確認退路本身畫得出東西。場上有東西時的繪製指令一定比空場多。
     const idle = createRecordingContext();
-    renderBattle(idle, createBattle(LEVEL, "normal", 1), LEVEL, emptyView());
+    renderBattle(idle, createBattle(LEVEL, 1), LEVEL, emptyView());
 
     expect(busy.calls.length).toBeGreaterThan(idle.calls.length);
   });
 
   it("draws the range preview for a selected slot, occupied or not", () => {
-    const state = createBattle(LEVEL, "normal", 1);
+    const state = createBattle(LEVEL, 1);
     stepSimulation(
       state,
       LEVEL,
@@ -208,7 +208,7 @@ describe("renderBattle", () => {
 
   it("ignores a selected slot that no longer exists", () => {
     const ctx = createRecordingContext();
-    const state = createBattle(LEVEL, "normal", 1);
+    const state = createBattle(LEVEL, 1);
 
     expect(() =>
       renderBattle(ctx, state, LEVEL, {
@@ -236,7 +236,7 @@ describe("drawSpawnHint", () => {
 describe("candy crumbs on a defeated enemy", () => {
   function stateWithPop(uid: number, ageMs: number): BattleState {
     return {
-      ...createBattle(LEVEL, "normal", 1),
+      ...createBattle(LEVEL, 1),
       effects: [
         {
           uid,
@@ -258,7 +258,7 @@ describe("candy crumbs on a defeated enemy", () => {
 
     const arcs = ctx.calls.filter((call) => call.startsWith("arc(")).length;
     const bare = createRecordingContext();
-    renderBattle(bare, createBattle(LEVEL, "normal", 1), LEVEL, emptyView());
+    renderBattle(bare, createBattle(LEVEL, 1), LEVEL, emptyView());
     const baseArcs = bare.calls.filter((call) => call.startsWith("arc(")).length;
 
     expect(arcs - baseArcs).toBeGreaterThanOrEqual(5);
@@ -288,7 +288,7 @@ describe("beams", () => {
   it("draws a sniper shot and a chain without throwing", () => {
     const ctx = createRecordingContext();
     const state: BattleState = {
-      ...createBattle(LEVEL, "normal", 1),
+      ...createBattle(LEVEL, 1),
       beams: [
         {
           uid: 1,
@@ -323,7 +323,7 @@ describe("beams", () => {
   it("ignores a beam with too few points to draw a line", () => {
     const ctx = createRecordingContext();
     const state: BattleState = {
-      ...createBattle(LEVEL, "normal", 1),
+      ...createBattle(LEVEL, 1),
       beams: [
         {
           uid: 1,

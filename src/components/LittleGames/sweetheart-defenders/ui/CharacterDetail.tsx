@@ -1,4 +1,4 @@
-import { Candy } from "lucide-react";
+import { Candy, Swords } from "lucide-react";
 import {
   ARCHETYPE_BASE,
   ARCHETYPE_BY_ELEMENT,
@@ -10,6 +10,7 @@ import {
 import { DEFAULT_ROSTER_IDS } from "../data/characters";
 import { TRAIT_BASE, TRAIT_DESC_ZH, TRAIT_LABEL_ZH } from "../data/traits";
 import { getTowerStats, getTrait } from "../engine/combat";
+import { RARITY_TIERS } from "../constants";
 import { getPlaceCost } from "../engine/economy";
 import type { Rarity, TowerCharacter } from "../types";
 
@@ -73,6 +74,49 @@ export function RangeMeter({
 }
 
 const DEFAULT_ROSTER = new Set(DEFAULT_ROSTER_IDS);
+
+/**
+ * 攻擊力的兩端。跟射程條一樣從 ARCHETYPE_BASE 推出來，平衡時改了基礎傷害，
+ * 這裡的刻度會跟著對。重砲最高、應援不攻擊所以不算進來。
+ */
+const DAMAGES = Object.values(ARCHETYPE_BASE)
+  .map((base) => base.damage)
+  .filter((damage) => damage > 0);
+const DAMAGE_MIN = Math.min(...DAMAGES);
+const DAMAGE_MAX = Math.max(...DAMAGES) * RARITY_TIERS.mythling.power;
+
+/**
+ * 攻擊力：五把劍，填滿幾把就是多強。
+ *
+ * 「攻擊 33.6」這個數字對小朋友沒有意義——沒有東西可以拿來比。五格的圖示
+ * 一眼就看得出「這隻比剛剛那隻兇」，數字留在旁邊給想算的人。
+ */
+export function PowerMeter({ damage }: { damage: number }) {
+  const PIPS = 5;
+  const ratio = Math.min(
+    1,
+    Math.max(0, (damage - DAMAGE_MIN) / (DAMAGE_MAX - DAMAGE_MIN)),
+  );
+  // 有攻擊力就至少亮一把，不然低傷害的糖漿塔看起來像不會打人。
+  const filled = damage <= 0 ? 0 : Math.max(1, Math.round(ratio * PIPS));
+
+  return (
+    <span
+      className="flex items-center gap-0.5"
+      aria-label={`攻擊力 ${filled} / ${PIPS}`}
+    >
+      {Array.from({ length: PIPS }, (_, index) => (
+        <Swords
+          key={index}
+          size={13}
+          strokeWidth={2.25}
+          aria-hidden="true"
+          className={index < filled ? "text-[#ff6f9f]" : "text-slate-300/70"}
+        />
+      ))}
+    </span>
+  );
+}
 
 type Props = {
   character: TowerCharacter;
@@ -166,7 +210,12 @@ export function CharacterDetail({ character, unlocked = true }: Props) {
                 </Metric>
                 <Metric label="射程">{Math.round(stats.range)}</Metric>
                 {stats.damage > 0 && (
-                  <Metric label="攻擊">{stats.damage.toFixed(1)}</Metric>
+                  <Metric label="攻擊">
+                    <span className="flex items-center gap-1.5">
+                      <PowerMeter damage={stats.damage} />
+                      {stats.damage.toFixed(1)}
+                    </span>
+                  </Metric>
                 )}
                 {stats.cooldownMs > 0 && (
                   <Metric label="間隔">

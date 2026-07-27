@@ -9,7 +9,6 @@ import { useTowerRoster } from "./useTowerRoster";
 import { readSquadCache, sanitizeSquad, writeSquadCache } from "./squad";
 import { useAudioSettings } from "./useAudioSettings";
 import { playMusic, playSfx } from "./audio";
-import type { Difficulty } from "./types";
 
 type Props = {
   onExit?: () => void;
@@ -17,11 +16,10 @@ type Props = {
 
 type Screen =
   | { kind: "title" }
-  | { kind: "squad"; levelId: string; difficulty: Difficulty }
+  | { kind: "squad"; levelId: string }
   | {
       kind: "battle";
       levelId: string;
-      difficulty: Difficulty;
       /** 這一場帶進來的隊伍；重試沿用，回路線頁重進才重選 */
       squadIds: string[];
       runId: number;
@@ -51,20 +49,17 @@ export default function SweetheartDefenders({ onExit }: Props) {
   }, [inBattle]);
 
   // 點關卡不再直接開戰，先進選隊畫面挑這一場要帶誰。
-  const openSquadSelect = useCallback(
-    (levelId: string, difficulty: Difficulty) => {
-      playSfx("select");
-      setScreen({ kind: "squad", levelId, difficulty });
-    },
-    [],
-  );
+  const openSquadSelect = useCallback((levelId: string) => {
+    playSfx("select");
+    setScreen({ kind: "squad", levelId });
+  }, []);
 
   const startBattle = useCallback(
-    (levelId: string, difficulty: Difficulty, squadIds: string[]) => {
+    (levelId: string, squadIds: string[]) => {
       playSfx("place");
       // 記住這次的隊伍，下次進關直接帶入，不用每場重挑。
       writeSquadCache(uid, squadIds);
-      setScreen({ kind: "battle", levelId, difficulty, squadIds, runId: 0 });
+      setScreen({ kind: "battle", levelId, squadIds, runId: 0 });
     },
     [uid],
   );
@@ -103,12 +98,11 @@ export default function SweetheartDefenders({ onExit }: Props) {
     return (
       <SquadSelect
         levelName={level.nameZh}
-        difficulty={screen.difficulty}
         availableCharacters={roster.available}
         // 上次的隊伍過一遍 sanitize：換帳號或收藏變動後，沒擁有的角色要拿掉。
         initialSquadIds={sanitizeSquad(readSquadCache(uid), roster.available)}
         onStart={(squadIds) =>
-          startBattle(screen.levelId, screen.difficulty, squadIds)
+          startBattle(screen.levelId, squadIds)
         }
         onBack={backToTitle}
       />
@@ -132,9 +126,8 @@ export default function SweetheartDefenders({ onExit }: Props) {
       }}
     >
       <BattleScreen
-        key={`${screen.levelId}-${screen.difficulty}-${screen.runId}`}
+        key={`${screen.levelId}-${screen.runId}`}
         level={level}
-        difficulty={screen.difficulty}
         availableCharacters={battleCharacters}
         audio={audio}
         coinsEarned={lastCoinsEarned}
