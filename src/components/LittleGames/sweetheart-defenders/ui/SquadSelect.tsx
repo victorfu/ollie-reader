@@ -5,6 +5,7 @@ import {
   Check,
   Crosshair,
   Eraser,
+  Heart,
   Info,
   Sparkles,
   Swords,
@@ -15,7 +16,7 @@ import { getTowerStats } from "../engine/combat";
 import { getPlaceCost } from "../engine/economy";
 import { recommendSquad } from "../squad";
 import type { TowerCharacter } from "../types";
-import { CharacterDetail, RangeMeter } from "./CharacterDetail";
+import { CharacterDetail, PowerMeter, RangePips } from "./CharacterDetail";
 import { CharacterTags } from "./CharacterTags";
 import { Popup } from "./Popup";
 
@@ -142,7 +143,10 @@ export function SquadSelect({
           : `還可以帶 ${MAX_SQUAD_SIZE - squadIds.length} 位`}
       </p>
       <p className="mt-1 flex items-center justify-center gap-1 text-center text-[11px] text-slate-400">
-        粉紅色長條是攻擊範圍，點
+        <Swords size={12} strokeWidth={2} aria-hidden="true" className="text-[#ff6f9f]" />
+        是攻擊力、
+        <Crosshair size={12} strokeWidth={2} aria-hidden="true" className="text-sky-500" />
+        是射程，亮越多越強；點
         <Info size={12} strokeWidth={2} aria-hidden="true" />
         看招式細節
       </p>
@@ -150,7 +154,7 @@ export function SquadSelect({
       <div className="mx-auto mt-5 grid w-full max-w-4xl grid-cols-3 gap-2 pb-28 sm:grid-cols-5 lg:grid-cols-6">
         {availableCharacters.map((character) => {
           const picked = squadIds.includes(character.id);
-          const range = Math.round(getTowerStats(character, 1).range);
+          const stats = getTowerStats(character, 1);
 
           // 卡片本身是「選進隊伍」，ⓘ 是「看細節」——兩顆按鈕不能互相巢狀，
           // 所以外面包一層 div 而不是把 ⓘ 塞進卡片按鈕裡。
@@ -185,17 +189,30 @@ export function SquadSelect({
                 <div className="mt-1">
                   <CharacterTags pet={character} />
                 </div>
-                <span className="mt-1 flex items-center gap-2 text-[11px] font-semibold">
-                  <span className="flex items-center gap-0.5 text-amber-600">
-                    <Candy size={12} strokeWidth={2} aria-hidden="true" />
-                    {getPlaceCost(character)}
-                  </span>
-                  <span className="flex items-center gap-0.5 text-slate-500">
-                    <Crosshair size={12} strokeWidth={2} aria-hidden="true" />
-                    {range}
-                  </span>
+                <span className="mt-1 flex items-center gap-0.5 text-[11px] font-semibold text-amber-600">
+                  <Candy size={12} strokeWidth={2} aria-hidden="true" />
+                  {getPlaceCost(character)}
                 </span>
-                <RangeMeter range={range} className="mt-1" />
+                {/* 應援不攻擊：那一排放「加速夥伴」而不是空劍或留白——
+                    每張卡的列數一樣，高度才會一致。 */}
+                <span className="mt-1 flex h-[13px] items-center">
+                  {stats.damage > 0 ? (
+                    <PowerMeter damage={stats.damage} />
+                  ) : (
+                    <span className="flex items-center gap-1 text-[10px] font-semibold text-[#ff6f9f]">
+                      <Heart
+                        size={13}
+                        strokeWidth={2.25}
+                        fill="currentColor"
+                        aria-hidden="true"
+                      />
+                      加速夥伴
+                    </span>
+                  )}
+                </span>
+                <span className="mt-0.5 flex h-[13px] items-center">
+                  <RangePips range={stats.range} />
+                </span>
               </button>
 
               <button

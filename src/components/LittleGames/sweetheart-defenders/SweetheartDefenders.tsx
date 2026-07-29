@@ -7,6 +7,7 @@ import { TitleScreen } from "./ui/TitleScreen";
 import { useCampaignSave } from "./useCampaignSave";
 import { useTowerRoster } from "./useTowerRoster";
 import { readSquadCache, sanitizeSquad, writeSquadCache } from "./squad";
+import { readScreenSession, writeScreenSession } from "./screenSession";
 import { useAudioSettings } from "./useAudioSettings";
 import { playMusic, playSfx } from "./audio";
 
@@ -31,7 +32,12 @@ type Screen =
  * 進度由 useCampaignSave 負責（本機 + Firestore），這裡只管畫面切換。
  */
 export default function SweetheartDefenders({ onExit }: Props) {
-  const [screen, setScreen] = useState<Screen>({ kind: "title" });
+  // 整頁 reload(部署自動更新、iPad 回收分頁、錯誤重試)後,回到上次
+  // 所在關卡的選隊畫面,而不是把打到一半的人丟回標題頁。
+  const [screen, setScreen] = useState<Screen>(() => {
+    const levelId = readScreenSession();
+    return levelId ? { kind: "squad", levelId } : { kind: "title" };
+  });
   const { user } = useAuth();
   const uid = user?.uid ?? null;
   const { save, status, isSignedIn, recordResult } = useCampaignSave();
@@ -41,6 +47,10 @@ export default function SweetheartDefenders({ onExit }: Props) {
   const [lastCoinsEarned, setLastCoinsEarned] = useState(0);
 
   const backToTitle = useCallback(() => setScreen({ kind: "title" }), []);
+
+  useEffect(() => {
+    writeScreenSession(screen.kind === "title" ? null : screen.levelId);
+  }, [screen]);
 
   // 不在戰鬥裡就放選單音樂；戰鬥的曲子由 BattleScreen 自己接手。
   const inBattle = screen.kind === "battle";
