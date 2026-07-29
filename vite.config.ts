@@ -4,6 +4,7 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { VitePWA } from "vite-plugin-pwa";
+import { NAVIGATE_FALLBACK_DENYLIST } from "./src/constants/pwa";
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -36,6 +37,9 @@ export default defineConfig({
       workbox: {
         globPatterns: ["**/*.{js,css,html,ico,png,webp,svg,woff,woff2}"],
         globIgnores: ["**/exams/images/**"],
+        // Real static files (exam paper PDFs/JPG) must reach the network;
+        // without this the SPA navigateFallback answers them with index.html.
+        navigateFallbackDenylist: NAVIGATE_FALLBACK_DENYLIST,
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
         runtimeCaching: [
           {
