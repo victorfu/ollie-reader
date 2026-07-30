@@ -1,4 +1,4 @@
-import { Candy, Swords } from "lucide-react";
+import { Candy, Crosshair, Swords } from "lucide-react";
 import {
   ARCHETYPE_BASE,
   ARCHETYPE_BY_ELEMENT,
@@ -31,8 +31,8 @@ const RARITY_STYLE: Record<Rarity, string> = {
 };
 
 /**
- * 射程條的兩端。從 ARCHETYPE_BASE 推出來而不是寫死，平衡時改了基礎射程，
- * 這裡的比例尺會跟著對。
+ * 射程五格的比例尺兩端。從 ARCHETYPE_BASE 推出來而不是寫死，平衡時改了
+ * 基礎射程，這裡會跟著對。
  */
 const RANGE_MIN = Math.min(
   ...Object.values(ARCHETYPE_BASE).map((base) => base.range),
@@ -42,33 +42,34 @@ const RANGE_MAX =
   (1 + TRAIT_BASE.focus.rangeBonus);
 
 /**
- * 射程長條。
+ * 射程：五個準星，亮幾個就站得多遠。
  *
- * 光給「射程 195」這個數字，玩家沒有東西可以比——195 到底算遠還算近？
- * 條子的長度是拿全部打法的最短／最遠當兩端算的，掃一眼就知道這隻站得多遠。
+ * 跟 PowerMeter 同一套視覺語言。「射程 195」這個數字沒有東西可以比——
+ * 195 算遠還算近？五格跟隔壁那張卡一數就能比，數字留給想算的人。
  */
-export function RangeMeter({
-  range,
-  className = "",
-}: {
-  range: number;
-  className?: string;
-}) {
+export function RangePips({ range }: { range: number }) {
+  const PIPS = 5;
   const ratio = Math.min(
     1,
     Math.max(0, (range - RANGE_MIN) / (RANGE_MAX - RANGE_MIN)),
   );
+  // 站得最近的也至少亮一格，不然看起來像「打不到任何東西」。
+  const filled = Math.max(1, Math.round(ratio * PIPS));
 
   return (
     <span
-      aria-hidden="true"
-      className={`block h-1 w-full overflow-hidden rounded-full bg-slate-200/80 ${className}`}
+      className="flex items-center gap-0.5"
+      aria-label={`射程 ${filled} / ${PIPS}`}
     >
-      {/* 最短的也留一截看得見的長度，不然「射程最近」看起來像「沒有射程」。 */}
-      <span
-        className="block h-full rounded-full bg-[#ff6f9f]/75"
-        style={{ width: `${12 + ratio * 88}%` }}
-      />
+      {Array.from({ length: PIPS }, (_, index) => (
+        <Crosshair
+          key={index}
+          size={13}
+          strokeWidth={2.25}
+          aria-hidden="true"
+          className={index < filled ? "text-sky-500" : "text-slate-300/70"}
+        />
+      ))}
     </span>
   );
 }
@@ -208,7 +209,12 @@ export function CharacterDetail({ character, unlocked = true }: Props) {
                     {getPlaceCost(character)}
                   </span>
                 </Metric>
-                <Metric label="射程">{Math.round(stats.range)}</Metric>
+                <Metric label="射程">
+                  <span className="flex items-center gap-1.5">
+                    <RangePips range={stats.range} />
+                    {Math.round(stats.range)}
+                  </span>
+                </Metric>
                 {stats.damage > 0 && (
                   <Metric label="攻擊">
                     <span className="flex items-center gap-1.5">
@@ -238,11 +244,6 @@ export function CharacterDetail({ character, unlocked = true }: Props) {
                   <Metric label="夥伴加速">{percent(stats.cheerBonus)}</Metric>
                 )}
               </dl>
-
-              <div className="mt-2 flex items-center gap-2">
-                <span className="shrink-0 text-xs text-slate-400">攻擊範圍</span>
-                <RangeMeter range={stats.range} className="max-w-48" />
-              </div>
             </>
           ) : (
             <p className="mt-2 text-sm text-slate-500">

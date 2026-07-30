@@ -4,13 +4,13 @@ import { createRoot, type Root } from "react-dom/client";
 import { SquadSelect } from "./SquadSelect";
 import { CHARACTERS } from "../data/characters";
 import { ARCHETYPE_BY_ELEMENT, ARCHETYPE_DESC_ZH } from "../data/elements";
-import { getTowerStats } from "../engine/combat";
 
 /**
- * 這支測的是「選隊時看得到打得多遠、也看得到怎麼打」。
+ * 這支測的是「選隊時看得到打得多兇、打得多遠、也看得到怎麼打」。
  *
- * 選隊畫面本來只有造價和兩個標籤，射程要進到戰鬥點開塔位才知道——那時候糖霜
- * 已經花下去了。射程改成卡片上就有，招式說明則收在 ⓘ 的彈出面板裡。
+ * 攻擊力與射程都用五格圖示（劍／準星）呈現——裸數字和沒刻度的長條對
+ * 小朋友都沒有意義，五格一數就能跟隔壁那張卡比。招式說明收在 ⓘ 的
+ * 彈出面板裡。
  */
 
 beforeAll(() => {
@@ -19,10 +19,16 @@ beforeAll(() => {
   ).IS_REACT_ACT_ENVIRONMENT = true;
 });
 
-/** 狙擊（射程最遠）與藤蔓（最近）各一隻，射程差得出來才測得出來。 */
+/**
+ * 狙擊（射程最遠）與藤蔓（最近）各一隻，射程差得出來才測得出來；
+ * 再帶一隻應援（不攻擊），確認不會出現空的攻擊力格。
+ */
 const ROSTER = [
   CHARACTERS.find((character) => character.elements[0] === "light")!,
   CHARACTERS.find((character) => character.elements[0] === "leaf")!,
+  CHARACTERS.find(
+    (character) => ARCHETYPE_BY_ELEMENT[character.elements[0]] === "cheer",
+  )!,
 ];
 
 let root: Root | null = null;
@@ -81,25 +87,42 @@ afterEach(() => {
   started = [];
 });
 
-describe("the squad screen shows how far each character reaches", () => {
-  it("prints every character's range on its card", () => {
+/** 抓出畫面上某個五格圖示的填格數，照 DOM 順序（= ROSTER 順序）。 */
+function pipCounts(dom: HTMLElement, statLabel: string): number[] {
+  return [...dom.querySelectorAll(`[aria-label^="${statLabel} "]`)].map((el) =>
+    Number.parseInt(
+      (el.getAttribute("aria-label") ?? "").slice(statLabel.length),
+      10,
+    ),
+  );
+}
+
+describe("the squad screen shows power and reach at a glance", () => {
+  it("gives every card range pips, and the sniper more than the vine", () => {
     const dom = renderSquad();
 
-    for (const character of ROSTER) {
-      const range = Math.round(getTowerStats(character, 1).range);
-      expect(dom.textContent).toContain(String(range));
-    }
+    const reach = pipCounts(dom, "射程");
+    expect(reach).toHaveLength(ROSTER.length);
+    expect(reach[0]).toBeGreaterThan(reach[1]);
   });
 
-  it("draws a longer range bar for the sniper than for the vine", () => {
+  it("gives attackers power pips and supporters a helper label instead", () => {
     const dom = renderSquad();
-    const widths = [...dom.querySelectorAll("[style*='width']")]
-      .map((el) => Number.parseFloat((el as HTMLElement).style.width))
-      .filter((width) => !Number.isNaN(width));
 
-    // 兩張卡各一條，順序跟 ROSTER 一樣：狙擊在前，藤蔓在後。
-    expect(widths).toHaveLength(2);
-    expect(widths[0]).toBeGreaterThan(widths[1]);
+    const power = pipCounts(dom, "攻擊力");
+    // 應援不攻擊——空的五把劍看起來像「很弱」，那一排改放「加速夥伴」。
+    // 同一個位置一定有東西，卡片高度才會一致。
+    expect(power).toHaveLength(2);
+    for (const filled of power) {
+      expect(filled).toBeGreaterThanOrEqual(1);
+    }
+    expect(dom.textContent).toContain("加速夥伴");
+  });
+
+  it("no longer draws the unlabelled range bar on the cards", () => {
+    const dom = renderSquad();
+
+    expect(dom.querySelectorAll("[style*='width']")).toHaveLength(0);
   });
 });
 
@@ -117,6 +140,9 @@ describe("the squad screen explains what each character does", () => {
     expect(dialog!.textContent).toContain(
       ARCHETYPE_DESC_ZH[ARCHETYPE_BY_ELEMENT[sniper.elements[0]]],
     );
+    // 細節面板跟卡片說同一套語言：射程也是五格，不再有無刻度的長條。
+    expect(dialog!.querySelector('[aria-label^="射程 "]')).not.toBeNull();
+    expect(dialog!.querySelectorAll("[style*='width']")).toHaveLength(0);
   });
 
   it("lets you pick the character straight from the popup", () => {
