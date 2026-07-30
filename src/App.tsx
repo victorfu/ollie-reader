@@ -96,6 +96,9 @@ const SweetheartDefenders = lazyWithReload(
 const GachaMachine = lazyWithReload(
   () => import("./components/LittleGames/gacha-machine/GachaMachine"),
 );
+const CloudCottage = lazyWithReload(
+  () => import("./components/LittleGames/cloud-cottage/CloudCottage"),
+);
 
 const SIDEBAR_COLLAPSED_KEY = "ollie-sidebar-collapsed";
 
@@ -312,6 +315,7 @@ function AppContent() {
   const isStandaloneBunny = normalizedPathname === "/games/bunny";
   const isStandaloneMeteor = normalizedPathname === "/games/meteor";
   const isStandaloneGacha = normalizedPathname === "/games/gacha";
+  const isStandaloneCottage = normalizedPathname === "/games/cottage";
   // 甜心防衛隊取代了 Wonder Academy / Monster Academy，舊網址（含已開著的分頁
   // 與書籤）一律導到新遊戲。
   const isRetiredAcademyGame =
@@ -362,6 +366,18 @@ function AppContent() {
       <Suspense fallback={<RouteLoadingFallback />}>
         <GachaMachine onExit={() => navigate("/games")} />
       </Suspense>
+    );
+  }
+
+  if (isStandaloneCottage) {
+    return (
+      <SettingsProvider>
+        <SpeechProvider>
+          <Suspense fallback={<RouteLoadingFallback />}>
+            <CloudCottage onExit={() => navigate("/games")} />
+          </Suspense>
+        </SpeechProvider>
+      </SettingsProvider>
     );
   }
 

@@ -87,3 +87,40 @@ Follow-up prompt: 「去扭蛋機收集人氣角色」正常狀態維持原本�
 ## Follow-up TODO
 
 - None.
+
+## Follow-up: implement Cloud Cottage pet game
+
+Follow-up prompt: 實作 f0fee4a7e2016fb740ef2dfbe565ad9b6e2d44da 裡面的新遊戲 spec；實作前先 review spec，有問題可以討論，沒有問題就開始實作。
+
+- Reviewing the approved Phase 1 design against the current standalone-game, Firebase, TTS, and shared-token architecture.
+- Applying the repository art constraint by using Codex GPT-Image2 raster assets instead of the SVG character implementation proposed in the spec.
+- Generated and visually checked a watercolor cloud-cottage room plus a transparent Cinnamoroll character cutout with the built-in GPT-Image2 workflow; optimized both as project-local WebP assets.
+- Completed the Phase 1 domain model, deterministic daily wishes, stat decay, bond cap/unlocks, sleep lifecycle, canonical catalog, and 62 focused domain/storage tests.
+- Added revision-aware local cache and Firestore transactions for care actions, consumables, permanent toys, and the shared Word Adventure coin balance.
+- Added the standalone `/games/cottage` route, Little Games hub card, responsive cottage UI, generated WebAudio cues, TTS subtitles, offline state, cross-tab refresh, and browser-test hooks.
+- Strict TypeScript now passes for the complete application.
+- Hardened modal focus/inert behavior, hydration/reconnect races, authoritative transaction reconciliation, automatic 07:00 wake-up, unlocked phrase selection, idle performances, and full-snapshot Firestore writes so consumed snacks cannot reappear.
+- Added UI coverage for the signed-out gate and the demo care loop; the full repository suite passes with 829 tests (1 skipped), `src` ESLint has no errors, and the production build succeeds.
+- Playwright QA passed at 1280×720 and 375×667 for the initial layout, feeding, three-step bathing, shopping, petting, daily-wish completion, and the bond-unlock modal with no Cloud Cottage console/page errors.
+
+## Follow-up TODO
+
+- None.
+
+## Follow-up: complete Cloud Cottage Phase 2
+
+Follow-up prompt: 請繼續實作（完成 `f0fee4a7e2016fb740ef2dfbe565ad9b6e2d44da` 規格尚未實作的 Phase 2 個人化內容）。
+
+- Confirmed the remaining committed scope: furniture/wallpaper/floor shop and freeform room editor, outfit shop and two-slot wardrobe, scene reactions, and retroactive bond-gift grants.
+- Reusing the existing revision-aware canonical save document and transaction model; generated art must remain Codex GPT-Image2 raster WebP rather than the spec's SVG suggestion.
+- Completed and tested the six-category catalog, permanent ownership rules, normalized room transitions, outfit slots, canonical personalization transactions, and idempotent L5/L8/L11/L14/L15/L18 gift backfill (119 Cloud Cottage tests passing at this milestone).
+- Generated and visually checked an empty watercolor room plus transparent raster atlases for 14 furniture/gift objects and 9 outfits; removed chroma spill, split them into project-local WebP assets, and verified every exported sprite has alpha.
+- Completed the responsive nine-action toolbar, six-category shop, freeform wall/floor room editor with drag and keyboard controls, deterministic z-order persistence, two-slot wardrobe with instant preview, anchored raster outfit layers, and furniture-aware pet reactions.
+- Added atomic multi-action personalization commits and monotonic permanent-inventory reconciliation across cloud, cache, purchase, care, reconnect, and personalization paths so a newer offline snapshot cannot erase paid items or charge for them twice.
+- Completed strict Phase 1 fidelity discovered during the final audit: queued entrance TTS after settings hydration, centralized dialogue, touch/pointer bubble rubbing, shake/sneeze/fluff bathing, five distinct toy animations, daytime naps, regular-level heart bursts, and the L20 room-wide heart/confetti celebration.
+- Expanded `render_game_to_text` to expose every active panel/editor draft and deterministic time advancement; desktop and 375×667 Playwright QA covered the main scene, six-category shop, room editor, wardrobe, care animation, purchased-toy animation, and saved personalization round trips with no game console/page errors.
+- Final verification passes: 70 test files (910 passed, 1 skipped), TypeScript, production build, and ESLint with 0 errors (3 pre-existing non-Cottage hook warnings).
+
+## Follow-up TODO
+
+- None.

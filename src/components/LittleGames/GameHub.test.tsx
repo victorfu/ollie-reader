@@ -63,6 +63,7 @@ describe("GameHub card layout", () => {
     expect(titles).toEqual([
       "單字大冒險",
       "人氣角色扭蛋機",
+      "大耳狗的雲朵小窩",
       "甜心防衛隊",
       "Mushroom Adventure",
       "Meteor Glider",
@@ -78,6 +79,23 @@ describe("GameHub card layout", () => {
 
     expect(flagged).toHaveLength(1);
     expect(flagged[0]?.querySelector("h2")?.textContent).toBe("甜心防衛隊");
+  });
+
+  it("shows the Cloud Cottage card copy and cloud-save status from the design", () => {
+    renderGameHub();
+
+    const card = [...container.querySelectorAll("article")].find(
+      (candidate) =>
+        candidate.querySelector("h2")?.textContent === "大耳狗的雲朵小窩",
+    );
+
+    expect(card).toBeDefined();
+    expect(card!.textContent).toContain("☁️");
+    expect(card!.textContent).toContain("Pet Care");
+    expect(card!.textContent).toContain(
+      "大耳狗喜拿住進了雲朵小窩:餵點心、洗泡泡澡、佈置房間,越照顧感情越好。",
+    );
+    expect(card!.textContent).toContain("雲端存檔");
   });
 
   it("shows the English name above the Chinese one where both exist", () => {
@@ -110,6 +128,7 @@ describe("GameHub single-tab game launcher", () => {
       ["單字大冒險", "開始遊戲", "/games/spirit"],
       ["人氣角色扭蛋機", "開始扭蛋", "/games/gacha"],
       ["人氣角色扭蛋機", "查看圖鑑", "/games/gacha?view=collection"],
+      ["大耳狗的雲朵小窩", "開始遊戲", "/games/cottage"],
       ["甜心防衛隊", "開始遊戲", "/games/sweetheart"],
       ["Mushroom Adventure", "開始遊戲", "/games/mushroom"],
       ["Meteor Glider", "開始遊戲", "/games/meteor"],

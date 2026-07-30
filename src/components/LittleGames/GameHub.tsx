@@ -10,6 +10,7 @@ type GameCard = {
   id:
     | "word-adventure"
     | "gacha-machine"
+    | "cottage"
     | "bunny"
     | "meteor"
     | "mushroom"
@@ -72,6 +73,17 @@ export default function GameHub() {
           label: "查看圖鑑",
           to: "/games/gacha?view=collection",
         },
+      },
+      {
+        id: "cottage",
+        to: "/games/cottage",
+        title: "大耳狗的雲朵小窩",
+        blurb:
+          "大耳狗喜拿住進了雲朵小窩:餵點心、洗泡泡澡、佈置房間,越照顧感情越好。",
+        tag: "Pet Care",
+        emoji: "☁️",
+        best: null,
+        statusLabel: "雲端存檔",
       },
       {
         id: "sweetheart",
