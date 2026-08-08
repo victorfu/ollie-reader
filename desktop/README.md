@@ -2,8 +2,8 @@
 
 Ollie Reader Desktop 是 Web App 的選用 macOS 伴隨程式，由兩個部分組成：
 
-- **PySide6 托盤殼**：管理本機服務、開機自啟、OIKID 與 Azure 憑證，以及 TTS 試聽。
-- **FastAPI sidecar**：固定綁定 `127.0.0.1`，提供 PDF 文字擷取、URL 代抓、OIKID 預約記錄與四種 TTS 引擎。
+- **PySide6 托盤殼**：管理本機服務、開機自啟、OIKID 憑證，以及 TTS 試聽。
+- **FastAPI sidecar**：固定綁定 `127.0.0.1`，提供 PDF 文字擷取、URL 代抓、OIKID 預約記錄與三種 TTS 引擎。
 
 desktop 是獨立的 Python 子專案，以 [uv](https://docs.astral.sh/uv/) 管理；不會由根目錄的 npm 安裝流程建立。runtime 依 `pyproject.toml` 支援 **Python 3.10 以上**；目前的 PyInstaller/release 腳本直接使用標準函式庫 `tomllib`，所以打包與發佈實際需要 **Python 3.11 以上**。目前正式發佈物是 **macOS 12.0+、Apple Silicon（arm64）**，不提供 Intel 或 universal build。
 
@@ -57,7 +57,6 @@ PyInstaller spec 只會收進上表四個「實際存在」的檔案，不會整
 | Piper | `POST /api/tts` | 不需要 | WAV | `en_US-lessac-medium`、speaker `0` | `voice` 必須是可轉成整數的 speaker id |
 | Kokoro | `POST /api/ktts` | 不需要 | WAV | `af_heart`、fp16 ONNX | 使用 `kokoro-onnx`/ONNX Runtime，不需要 PyTorch |
 | Edge TTS | `POST /api/etts` | **需要** | MP3 | `en-US-JennyNeural` | `edge-tts` 的非官方 Edge Read Aloud 端點，不需要 API key |
-| Azure AI Speech | `POST /api/azure-tts` | **需要** | MP3 | `en-US-JennyNeural`、48 kHz/192 kbps mono | 官方 SDK；需要使用者自己的 key 與 region |
 
 所有 TTS POST 端點共用 JSON request：
 
@@ -69,7 +68,7 @@ PyInstaller spec 只會收進上表四個「實際存在」的檔案，不會整
 }
 ```
 
-設定視窗將語速限制在 `0.5`–`2.0`。Edge/Azure 會將語速轉為 `-50%`–`+100%`；Piper 會轉為反向的 `length_scale`；Kokoro 則直接接收 speed。
+設定視窗將語速限制在 `0.5`–`2.0`。Edge 會將語速轉為 `-50%`–`+100%`；Piper 會轉為反向的 `length_scale`；Kokoro 則直接接收 speed。
 
 ### Edge TTS
 
@@ -79,24 +78,12 @@ Edge TTS 由預設相依 `edge-tts` 提供，會連線至 Microsoft Edge「大�
 
 目前 lockfile 中的 `edge-tts` 7.2.8 隨附 LGPL-3.0 授權；發佈 bundle 時仍需一併處理它與 `piper-tts`、`phonemizer-fork` 等第三方套件的授權聲明。不要把相依套件授權相容性視為 README 的法律保證。
 
-### Azure AI Speech
-
-Azure SDK 是選用 dependency group，從原始碼實際使用或試聽 Azure 引擎前需安裝：
-
-```bash
-uv sync --directory desktop --group azure
-```
-
-key 與 region 只能由設定視窗的「語音測試」頁儲存，資料透過 `keyring` 放在 OS keychain（service：`ollie-reader-azure-tts`），不讀取環境變數或設定檔。region 預設為 `eastasia`。
-
-標準 release 環境不安裝 `azure` group，PyInstaller spec 也不主動 collect Azure SDK；因此預設 frozen bundle 即使 keychain 已有憑證，`/api/azure-tts` 仍會回傳 `503`。spec 並未設定強制 exclude，所以不要在 release 環境預先安裝 `azure` group；正式 bundle 請使用免 key 的 Edge 引擎。Azure 目前支援從原始碼、且已安裝 `azure` group 的環境。
-
 ## 托盤殼與設定
 
 托盤選單提供 sidecar 狀態、啟動／停止服務、開啟設定、開啟 Web App 與結束程式。設定視窗包含：
 
 - **一般**：sidecar 狀態與 port、開機自啟、啟動／停止服務、OIKID 帳密。
-- **語音測試**：四種引擎、聲音清單、英文聲音篩選、語速與文字試聽，以及 Azure key/region。
+- **語音測試**：三種引擎、聲音清單、英文聲音篩選、語速與文字試聽。
 
 OIKID 帳密透過 `keyring` 存在 OS keychain（service：`ollie-reader-oikid`），不落地為一般設定檔，也不會進入 bundle。`GET /api/oikid/booking-records` 會用這組帳密登入 OIKID 並抓取第一頁預約記錄。
 
@@ -128,8 +115,6 @@ sidecar host 固定為 `127.0.0.1`，預設 port 為 `8765`；可用 `main.py --
 | `KOKORO_DEFAULT_VOICE` | `af_heart` | Kokoro 預設 voice id |
 | `KOKORO_LANG` | `en-us` | 無法由 voice prefix 判斷時的 Kokoro 語言 |
 | `EDGE_TTS_VOICE` | `en-US-JennyNeural` | Edge 預設聲音 |
-| `AZURE_TTS_VOICE` | `en-US-JennyNeural` | Azure 預設聲音 |
-| `AZURE_TTS_FORMAT` | `Audio48Khz192KBitRateMonoMp3` | Azure SDK 的 `SpeechSynthesisOutputFormat` 名稱；無效值會退回預設 |
 | `OLLIE_CORS_ORIGINS` | 空 | 以逗號追加允許的 Web origin；禁止 `*` wildcard |
 | `OLLIE_WEB_APP_URL` | dev/frozen 預設網址 | 托盤「開啟 Ollie Reader」的網址 |
 
@@ -162,8 +147,7 @@ OLLIE_CORS_ORIGINS="https://reader.example.com,http://localhost:4173" \
 | POST | `/api/tts` | `SpeechRequest` JSON | Piper WAV |
 | POST | `/api/ktts` | `SpeechRequest` JSON | Kokoro WAV |
 | POST | `/api/etts` | `SpeechRequest` JSON | Edge MP3 |
-| POST | `/api/azure-tts` | `SpeechRequest` JSON | Azure MP3 |
-| GET | `/api/tts/voices` | `engine=edge|azure|kokoro|piper`、`locale=en` | 指定引擎的聲音清單；`locale=` 空字串代表不過濾 |
+| GET | `/api/tts/voices` | `engine=edge|kokoro|piper`、`locale=en` | 指定引擎的聲音清單；`locale=` 空字串代表不過濾 |
 | GET | `/api/oikid/booking-records` | — | 以 keychain 帳密取得 `{"Token":"…","Data":[…]}` |
 
 範例：
@@ -203,7 +187,7 @@ uv run --directory desktop pytest tests/test_app.py -q
 uv run --directory desktop pytest tests/test_verify_bundle.py -q
 ```
 
-測試涵蓋 API contract、CORS/PNA、PDF/URL/OIKID、四種 TTS、模型下載與 checksum、keychain adapter、single instance、PID/sidecar 管理、托盤 UI、版本同步及 bundle 安全掃描。網路服務、真實 keychain、完整模型與 Apple 公證流程皆以 mock 或獨立 release 步驟處理，不屬於一般單元測試。
+測試涵蓋 API contract、CORS/PNA、PDF/URL/OIKID、三種 TTS、模型下載與 checksum、keychain adapter、single instance、PID/sidecar 管理、托盤 UI、版本同步及 bundle 安全掃描。網路服務、真實 keychain、完整模型與 Apple 公證流程皆以 mock 或獨立 release 步驟處理，不屬於一般單元測試。
 
 ## 本機 PyInstaller 打包
 
@@ -228,7 +212,7 @@ make desktop-clean
 - `LSUIElement=true`，只顯示托盤 icon，不顯示 Dock icon
 - minimum macOS：12.0
 - `CFBundleShortVersionString` 與 `CFBundleVersion` 取自 `pyproject.toml`
-- 收入 Piper、Kokoro、Edge 與必要的 native/runtime 檔；標準 release 環境不安裝 Azure group，spec 也不主動 collect Azure SDK
+- 收入 Piper、Kokoro、Edge 與必要的 native/runtime 檔
 - 只收入固定四個模型檔；忽略 `models/` 內其他檔案
 - 移除未使用的 Qt QML/Quick/PDF/VirtualKeyboard payload，並只保留 Babel root/英文 locale data
 
@@ -290,7 +274,7 @@ make desktop-release
 
 - 正式 bundle 僅支援 macOS 12.0+ arm64；開機自啟與 release scripts 都是 macOS 專用。build pipeline 不會強制架構，必須由發佈者使用 arm64 host/Python。
 - 雖然 runtime 宣告 Python 3.10+，目前 PyInstaller spec 與 release version helper 使用 `tomllib`，打包／發佈需 Python 3.11+。
-- 預設正式 bundle 沒有 Azure SDK；spec 未強制 exclude，因此 release 環境也不應安裝 Azure group。Edge 與 Azure 都需要網路，Edge 又依賴非官方、可能變動的服務端點。
+- Edge 需要網路，且依賴非官方、可能變動的服務端點。
 - OIKID 需要網路與使用者憑證，也依賴第三方網站目前的登入／回應格式。
 - frozen app 不會補下載模型；缺少模型的 bundle 無法使用對應的離線引擎。
 - PDF 只做 PyMuPDF 文字層擷取，沒有 OCR；掃描型 PDF 不會自動辨識圖片文字。上傳內容會完整讀入記憶體後再處理。

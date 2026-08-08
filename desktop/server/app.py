@@ -16,11 +16,6 @@ from server.fetch_url import FetchError, fetch_url_content_async
 from server.oikid import OikidError, search_booking_records
 from server.models import SpeechRequest
 from server.pdf_extract import PDFError, extract_text_from_pdf
-from server.tts_azure import (
-    AzureTTSError,
-    azure_synthesize_speech,
-    list_azure_voices,
-)
 from server.tts_edge import EdgeTTSError, edge_synthesize_speech, list_edge_voices
 from server.tts_kokoro import (
     KokoroTTSError,
@@ -206,44 +201,18 @@ def create_app() -> FastAPI:
             headers={"Content-Disposition": 'attachment; filename="speech.mp3"'},
         )
 
-    @app.post("/api/azure-tts", tags=["tts"])
-    async def azure_tts(request: SpeechRequest):
-        """Azure AI Speech（雲端，需網路 + 使用者自備金鑰）。SDK 阻塞，走 threadpool。"""
-        try:
-            result = await run_in_threadpool(
-                azure_synthesize_speech,
-                request.text,
-                request.speed,
-                request.voice,
-            )
-        except AzureTTSError as e:
-            raise HTTPException(status_code=e.status_code, detail=e.message) from e
-        except Exception as e:
-            logger.exception("未預期的 Azure TTS 失敗")
-            raise HTTPException(status_code=500, detail="Azure 語音合成失敗") from e
-        return StreamingResponse(
-            io.BytesIO(result.audio_data),
-            media_type=result.content_type,
-            headers={"Content-Disposition": 'attachment; filename="speech.mp3"'},
-        )
-
     @app.get("/api/tts/voices", tags=["tts"])
     async def tts_voices(
-        engine: str = Query(..., description="edge | azure | kokoro | piper"),
+        engine: str = Query(..., description="edge | kokoro | piper"),
         locale: str = Query(
             "en", description="locale 前綴過濾；空字串=不過濾（全部語言）"
         ),
     ):
-        """給設定視窗的試聽頁列聲音清單。只有 edge/azure/kokoro 有真正的清單。"""
+        """給設定視窗的試聽頁列聲音清單。只有 edge/kokoro 有真正的清單。"""
         prefix = locale.strip() or None
         try:
             if engine == "edge":
                 return {"engine": engine, "voices": await list_edge_voices(prefix)}
-            if engine == "azure":
-                return {
-                    "engine": engine,
-                    "voices": await run_in_threadpool(list_azure_voices, prefix),
-                }
             if engine == "kokoro":
                 return {
                     "engine": engine,
@@ -252,7 +221,7 @@ def create_app() -> FastAPI:
             if engine == "piper":
                 # 目前只 bundle 單一 speaker 的 lessac-medium
                 return {"engine": engine, "voices": [{"id": "0", "label": "0（預設）"}]}
-        except (EdgeTTSError, AzureTTSError, KokoroTTSError) as e:
+        except (EdgeTTSError, KokoroTTSError) as e:
             raise HTTPException(status_code=e.status_code, detail=e.message) from e
         except Exception as e:
             logger.exception("取得聲音清單失敗")

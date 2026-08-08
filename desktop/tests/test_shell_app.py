@@ -66,8 +66,7 @@ class _StubManager:
 
 @pytest.fixture(autouse=True)
 def _isolate_voice_lab(monkeypatch):
-    """VoiceLabTab 建構時會讀 keychain 並打一次 sidecar HTTP；測試中兩者都要斷開。"""
-    monkeypatch.setattr(app_module, "get_azure_credentials", lambda: None)
+    """VoiceLabTab 建構時會打一次 sidecar HTTP；測試中要斷開。"""
     monkeypatch.setattr(app_module.VoiceLabTab, "_reload_voices", lambda self: None)
 
 
@@ -91,17 +90,16 @@ def test_settings_dialog_has_both_tabs(settings_dialog):
 
 def test_engine_combo_lists_every_engine_with_endpoint(voice_lab):
     ids = [voice_lab.engine_combo.itemData(i) for i in range(voice_lab.engine_combo.count())]
-    assert ids == ["edge", "azure", "piper", "kokoro"]
+    assert ids == ["edge", "piper", "kokoro"]
     assert voice_lab._endpoint("edge") == "/api/etts"
-    assert voice_lab._endpoint("azure") == "/api/azure-tts"
     assert voice_lab._endpoint("kokoro") == "/api/ktts"
 
 
 def test_engine_labels_mark_cloud_vs_offline(voice_lab):
     labels = [voice_lab.engine_combo.itemText(i) for i in range(voice_lab.engine_combo.count())]
     # compute-mode「本機」的語意：雲端引擎一定要標出來，否則會被當成離線可用
-    assert "雲端" in labels[0] and "雲端" in labels[1]
-    assert all("離線" in label for label in labels[2:])
+    assert "雲端" in labels[0]
+    assert all("離線" in label for label in labels[1:])
 
 
 def test_base_url_follows_manager_port(voice_lab):
@@ -152,38 +150,6 @@ def test_cleanup_removes_temp_audio(voice_lab):
     assert path.exists()
     voice_lab.cleanup()
     assert not path.exists()
-
-
-def test_blank_azure_key_with_no_existing_key_is_rejected(voice_lab, monkeypatch):
-    called = []
-    monkeypatch.setattr(app_module, "set_azure_credentials", lambda *a: called.append(a))
-    voice_lab.azure_key_edit.setText("")
-    voice_lab._save_azure_credentials()
-    assert called == []
-    assert "請輸入 Azure key" in voice_lab.status_label.text()
-
-
-def test_blank_azure_key_keeps_existing_key_when_changing_region(voice_lab, monkeypatch):
-    saved = {}
-    monkeypatch.setattr(app_module, "get_azure_credentials", lambda: ("OLDKEY", "eastasia"))
-    monkeypatch.setattr(
-        app_module, "set_azure_credentials", lambda k, r: saved.update(key=k, region=r)
-    )
-    voice_lab.azure_key_edit.setText("")
-    voice_lab.azure_region_edit.setText("westus")
-    voice_lab._save_azure_credentials()
-    assert saved == {"key": "OLDKEY", "region": "westus"}
-
-
-def test_azure_save_uses_default_region_when_blank(voice_lab, monkeypatch):
-    saved = {}
-    monkeypatch.setattr(
-        app_module, "set_azure_credentials", lambda k, r: saved.update(key=k, region=r)
-    )
-    voice_lab.azure_key_edit.setText("NEWKEY")
-    voice_lab.azure_region_edit.setText("")
-    voice_lab._save_azure_credentials()
-    assert saved == {"key": "NEWKEY", "region": app_module.DEFAULT_AZURE_REGION}
 
 
 def test_save_oikid_credentials_writes_to_keychain(settings_dialog, monkeypatch):

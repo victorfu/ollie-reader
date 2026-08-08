@@ -46,10 +46,6 @@ for _name in _BUNDLED_MODELS:
 if Path("assets").exists():
     datas.append(("assets", "assets"))
 
-# NOTE: the optional Azure SDK (uv group `azure`) is intentionally NOT collected.
-# /api/azure-tts needs a user-supplied subscription key, and a key can never be
-# bundled (release/verify_bundle.py enforces that), so the frozen build ships the
-# keyless Edge engine instead and reports 503 for Azure.
 for pkg in (
     "kokoro_onnx",
     "onnxruntime",

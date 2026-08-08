@@ -6,7 +6,7 @@
 
 **Ollie Reader** is a React + TypeScript + Vite web application for English learning. It uses Firebase (Auth, Firestore, Storage) and Gemini AI.
 
-An optional native macOS companion lives in `desktop/` (PySide6 tray + local FastAPI sidecar) providing offline TTS (Piper/Kokoro) plus two cloud engines that require network (Edge TTS, Azure AI Speech). It is a separate Python subproject managed with `uv`; see [Desktop App](#desktop-app-sidecar) and `desktop/README.md`.
+An optional native macOS companion lives in `desktop/` (PySide6 tray + local FastAPI sidecar) providing offline TTS (Piper/Kokoro) plus a cloud engine that requires network (Edge TTS). It is a separate Python subproject managed with `uv`; see [Desktop App](#desktop-app-sidecar) and `desktop/README.md`.
 
 ## Tech Stack
 

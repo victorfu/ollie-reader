@@ -8,7 +8,6 @@ from server.oikid import OikidError
 from server.pdf_extract import PDFError, PDFExtractResult, PageText
 from server.tts_piper import TTSError, TTSResult
 from server.tts_kokoro import KokoroTTSError, KokoroTTSResult
-from server.tts_azure import AzureTTSError, AzureTTSResult
 from server.tts_edge import EdgeTTSError, EdgeTTSResult
 
 
@@ -194,27 +193,6 @@ def test_etts_403_surfaces_as_502(client, monkeypatch):
     monkeypatch.setattr(app_module, "edge_synthesize_speech", boom)
     resp = client.post("/api/etts", json={"text": "hi"})
     assert resp.status_code == 502
-
-
-def test_azure_tts_503_when_key_missing(client, monkeypatch):
-    def boom(text, speed, voice):
-        raise AzureTTSError("尚未設定 Azure 金鑰。", status_code=503)
-
-    monkeypatch.setattr(app_module, "azure_synthesize_speech", boom)
-    resp = client.post("/api/azure-tts", json={"text": "hi"})
-    assert resp.status_code == 503
-    assert "金鑰" in resp.json()["detail"]
-
-
-def test_azure_tts_success_returns_mp3(client, monkeypatch):
-    monkeypatch.setattr(
-        app_module,
-        "azure_synthesize_speech",
-        lambda text, speed, voice: AzureTTSResult(audio_data=b"\xff\xf3az"),
-    )
-    resp = client.post("/api/azure-tts", json={"text": "hi"})
-    assert resp.status_code == 200
-    assert resp.headers["content-type"] == "audio/mpeg"
 
 
 def test_voices_edge(client, monkeypatch):

@@ -1,7 +1,7 @@
 """Edge TTS：走 Microsoft Edge「大聲朗讀」的線上服務。
 
 套件是 rany2/edge-tts（PyPI `edge-tts`，import `edge_tts`，LGPL-3.0），
-逆向 Edge 的未公開端點而來，**不是** Azure 官方 SDK（官方那條走 tts_azure.py）。
+逆向 Edge 的未公開端點而來，**不是** Azure 官方 SDK。
 
 注意這是**雲端**引擎，需要網路 —— 和 Piper/Kokoro 的離線定位不同，UI 要標清楚。
 它端出來的是 Azure Neural 的同一批聲音，但不需要任何金鑰。

@@ -41,7 +41,7 @@ The UI follows macOS Human Interface Guidelines adapted for the web: a collapsib
 | **Audio Library** (音訊庫) | Uploads and organises MP3, WAV, M4A, WebM, OGG, AAC, and MP4 learning audio. Firestore stores metadata and private Supabase Storage serves short-lived signed playback URLs. |
 | **Word Adventure & Gacha** | Runs vocabulary quiz stages and boss battles from the learner's word pool, with achievements and cloud-synced tokens used by the Popular Character Gacha collection. |
 | **Little Games** (小遊戲) | Includes Sweetheart Defenders (in development, cloud save), Mushroom Adventure, Meteor Glider, and Bunny Jumper, alongside the Word Adventure and Gacha entries in the game hub. |
-| **Desktop Companion** | Adds a loopback FastAPI service and PySide6 menu-bar app. Piper and Kokoro run offline; PDF extraction is local. Edge/Azure TTS, OIKID, and remote URL fetching still need network access. |
+| **Desktop Companion** | Adds a loopback FastAPI service and PySide6 menu-bar app. Piper and Kokoro run offline; PDF extraction is local. Edge TTS, OIKID, and remote URL fetching still need network access. |
 
 ## Tech stack
 
@@ -53,7 +53,7 @@ The UI follows macOS Human Interface Guidelines adapted for the web: a collapsib
 - **Supabase 2** for private audio/recording object storage, authenticated with Firebase ID tokens and protected by Storage RLS
 - **react-pdf** for browser PDF rendering and text extraction
 - **Web Speech API**, **MediaRecorder**, IndexedDB, and local storage for browser-native speech, recording, and device-local caches/preferences
-- **Desktop:** Python, PySide6, FastAPI, PyMuPDF, Piper, Kokoro ONNX, Edge TTS, optional Azure AI Speech, and PyInstaller
+- **Desktop:** Python, PySide6, FastAPI, PyMuPDF, Piper, Kokoro ONNX, Edge TTS, and PyInstaller
 
 ## Getting started
 
@@ -116,15 +116,14 @@ Reader settings separate three concerns:
 - **Speech:** the browser's system voices or backend AI speech.
 - **Compute location:** `auto` uses the desktop sidecar when it is available and otherwise the cloud API; `local` requires the sidecar; `cloud` skips local detection.
 
-The Web settings currently expose Piper, Kokoro, and Edge as backend TTS engines. Edge is available only through the desktop sidecar and requires network access. Azure is implemented in the desktop API and its native voice-lab UI, but it is not a selectable Web engine.
+The Web settings currently expose Piper, Kokoro, and Edge as backend TTS engines. Edge is available only through the desktop sidecar and requires network access.
 
 ## Desktop companion
 
-[`desktop/`](desktop/) is a separate Python project managed by [uv](https://docs.astral.sh/uv/). It provides a macOS menu-bar shell plus a loopback FastAPI sidecar for local PDF extraction, remote URL proxying, OIKID booking records, and four TTS endpoints:
+[`desktop/`](desktop/) is a separate Python project managed by [uv](https://docs.astral.sh/uv/). It provides a macOS menu-bar shell plus a loopback FastAPI sidecar for local PDF extraction, remote URL proxying, OIKID booking records, and three TTS endpoints:
 
 - Piper and Kokoro: offline WAV synthesis using bundled/downloaded models
 - Edge TTS: network-only MP3 synthesis without a user API key
-- Azure AI Speech: optional network-only MP3 synthesis with credentials stored in the OS keychain
 
 From the repository root:
 

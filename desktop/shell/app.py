@@ -33,12 +33,6 @@ from server.oikid_secrets import (
   get_oikid_credentials,
   set_oikid_credentials,
 )
-from server.tts_secrets import (
-  DEFAULT_AZURE_REGION,
-  clear_azure_credentials,
-  get_azure_credentials,
-  set_azure_credentials,
-)
 from shell import autostart
 from shell.sidecar import SidecarManager
 from shell.single_instance import SingleInstance
@@ -77,11 +71,10 @@ def _autostart_args(manager: SidecarManager) -> list[str]:
   return [sys.executable, manager.main_path, "--serve", "--port", str(manager.port)]
 
 
-# (id, 顯示名稱, sidecar 端點)。離線/雲端要標清楚 —— edge/azure 住在「本機
+# (id, 顯示名稱, sidecar 端點)。離線/雲端要標清楚 —— edge 住在「本機
 # sidecar」裡但其實是網路引擎，不標的話 compute-mode「本機」的語意會被誤解。
 TTS_ENGINES = [
   ("edge", "Edge TTS（雲端・免金鑰）", "/api/etts"),
-  ("azure", "Azure AI Speech（雲端・需金鑰）", "/api/azure-tts"),
   ("piper", "Piper（離線）", "/api/tts"),
   ("kokoro", "Kokoro（離線）", "/api/ktts"),
 ]
@@ -158,24 +151,6 @@ class VoiceLabTab(QWidget):
     self.status_label = QLabel("選好引擎與聲音後按「試聽」。")
     self.status_label.setWordWrap(True)
     layout.addRow("", self.status_label)
-
-    # ── Azure 金鑰（存 OS keychain，不落檔、不進 bundle）
-    creds = get_azure_credentials()
-    self.azure_key_edit = QLineEdit()
-    self.azure_key_edit.setEchoMode(QLineEdit.EchoMode.Password)
-    self.azure_key_edit.setMinimumWidth(320)
-    if creds:
-      self.azure_key_edit.setPlaceholderText("（已設定，留空則不變更）")
-    self.azure_region_edit = QLineEdit(creds[1] if creds else DEFAULT_AZURE_REGION)
-    layout.addRow(QLabel("<b>Azure 金鑰</b>（僅 Azure 引擎需要）"))
-    layout.addRow("Key：", self.azure_key_edit)
-    layout.addRow("Region：", self.azure_region_edit)
-
-    self.azure_save_button = QPushButton("儲存 Azure 金鑰")
-    self.azure_save_button.clicked.connect(self._save_azure_credentials)
-    self.azure_clear_button = QPushButton("清除 Azure 金鑰")
-    self.azure_clear_button.clicked.connect(self._clear_azure_credentials)
-    layout.addRow(self.azure_save_button, self.azure_clear_button)
 
     self._reload_voices()
 
@@ -299,28 +274,6 @@ class VoiceLabTab(QWidget):
     self.status_label.setText(
       f"播放中：{len(audio) / 1024:.1f} KB {suffix.lstrip('.').upper()}"
     )
-
-  # ── Azure 金鑰
-
-  def _save_azure_credentials(self, _checked: bool = False) -> None:
-    key = self.azure_key_edit.text().strip()
-    region = self.azure_region_edit.text().strip() or DEFAULT_AZURE_REGION
-    if not key:
-      existing = get_azure_credentials()
-      if not existing:
-        self.status_label.setText("請輸入 Azure key。")
-        return
-      key = existing[0]  # 只改 region，沿用既有 key
-    set_azure_credentials(key, region)
-    self.azure_key_edit.clear()
-    self.azure_key_edit.setPlaceholderText("（已設定，留空則不變更）")
-    self.status_label.setText(f"Azure 金鑰已儲存（region={region}）。")
-
-  def _clear_azure_credentials(self, _checked: bool = False) -> None:
-    clear_azure_credentials()
-    self.azure_key_edit.clear()
-    self.azure_key_edit.setPlaceholderText("")
-    self.status_label.setText("Azure 金鑰已清除。")
 
   def cleanup(self) -> None:
     self._player.stop()
