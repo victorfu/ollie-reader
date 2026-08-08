@@ -393,6 +393,16 @@ function AppContent() {
   }
 
   if (!user) {
+    // 未登入一律導到獨立的 /login 頁；記住原本要去的網址，登入後導回。
+    if (normalizedPathname !== "/login") {
+      return (
+        <Navigate
+          to="/login"
+          replace
+          state={{ from: location.pathname + location.search }}
+        />
+      );
+    }
     return (
       <div className="min-h-screen bg-background flex items-center justify-center px-4 py-12">
         <Suspense fallback={<AuthLoadingFallback />}>
@@ -400,6 +410,12 @@ function AppContent() {
         </Suspense>
       </div>
     );
+  }
+
+  // 已登入者不停留在 /login：導回登入前的頁面（沒有就進閱讀器）。
+  if (normalizedPathname === "/login") {
+    const from = (location.state as { from?: string } | null)?.from;
+    return <Navigate to={from && from !== "/login" ? from : "/reader"} replace />;
   }
 
   const handleSignOut = () => {
@@ -410,7 +426,7 @@ function AppContent() {
   const accountEmail = user.email;
   const accountInitial = accountLabel.charAt(0).toUpperCase();
   const navItems: { to: string; label: string; icon: typeof BookOpen }[] = [
-    { to: "/", label: "閱讀器", icon: BookOpen },
+    { to: "/reader", label: "閱讀器", icon: BookOpen },
     { to: "/vocabulary", label: "生詞本", icon: BookMarked },
     { to: "/travel", label: "旅遊英文", icon: Globe },
     { to: "/english-speech", label: "英文演講", icon: PenLine },
@@ -693,7 +709,9 @@ function AppContent() {
                 <PdfProvider>
                   <Suspense fallback={<RouteLoadingFallback />}>
                     <Routes>
-                      <Route path="/" element={<PdfReader />} />
+                      {/* 閱讀器有自己的 /reader 路由；根路徑只做轉址 */}
+                      <Route path="/" element={<Navigate to="/reader" replace />} />
+                      <Route path="/reader" element={<PdfReader />} />
                       <Route path="/vocabulary" element={<VocabularyBook />} />
                       <Route
                         path="/speech-practice"
