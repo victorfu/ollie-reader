@@ -13,7 +13,7 @@ interface SelectionToolbarProps {
 // Check if selected text is a single word (for vocabulary lookup)
 const isSingleWord = (text: string): boolean => {
   const trimmed = text.trim();
-  return trimmed.length > 0 && !trimmed.includes(" ");
+  return /^[\p{L}\p{M}]+(?:['’\-‐-―][\p{L}\p{M}]+)*$/u.test(trimmed);
 };
 
 export const SelectionToolbar = memo(
@@ -38,14 +38,15 @@ export const SelectionToolbar = memo(
 
   return (
     <div className={containerClasses} style={containerStyle}>
-      <div className="bg-accent text-accent-content rounded-full shadow-floating px-6 py-3 flex items-center gap-3 border border-accent/20">
+      <div className="flex items-center gap-3 rounded-full border border-accent/20 bg-accent px-3 py-2 text-accent-content shadow-floating sm:px-6 sm:py-3">
         <div className="flex gap-2">
           {/* Speak button */}
           <button
             type="button"
             onClick={onSpeak}
-            className="btn btn-sm btn-circle bg-accent-content text-accent hover:bg-accent-content/90 border-0 tooltip tooltip-top"
+            className="btn btn-circle size-11 border-0 bg-accent-content text-accent hover:bg-accent-content/90 sm:btn-sm tooltip tooltip-top"
             data-tip="朗讀"
+            aria-label="朗讀選取文字"
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -68,8 +69,9 @@ export const SelectionToolbar = memo(
             <button
               type="button"
               onClick={onAddToVocabulary}
-              className="btn btn-sm btn-circle bg-accent-content text-accent hover:bg-accent-content/90 border-0 tooltip tooltip-top"
+              className="btn btn-circle size-11 border-0 bg-accent-content text-accent hover:bg-accent-content/90 sm:btn-sm tooltip tooltip-top"
               data-tip="查詢單字"
+              aria-label="查詢選取單字"
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -93,8 +95,9 @@ export const SelectionToolbar = memo(
             <button
               type="button"
               onClick={onTranslate}
-              className="btn btn-sm btn-circle bg-accent-content text-accent hover:bg-accent-content/90 border-0 tooltip tooltip-top"
+              className="btn btn-circle size-11 border-0 bg-accent-content text-accent hover:bg-accent-content/90 sm:btn-sm tooltip tooltip-top"
               data-tip="翻譯"
+              aria-label="翻譯選取文字"
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -117,8 +120,9 @@ export const SelectionToolbar = memo(
           <button
             type="button"
             onClick={onClear}
-            className="btn btn-sm btn-circle bg-accent-content/20 text-accent-content hover:bg-accent-content/30 border-0 tooltip tooltip-top"
+            className="btn btn-circle size-11 border-0 bg-accent-content/20 text-accent-content hover:bg-accent-content/30 sm:btn-sm tooltip tooltip-top"
             data-tip="清除 (ESC)"
+            aria-label="清除文字選取"
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"

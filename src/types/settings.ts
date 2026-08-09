@@ -1,4 +1,4 @@
-import type { TTSMode, TTSEngine, ReadingMode, TextParsingMode } from "./pdf";
+import type { TTSMode, TTSEngine, ReadingMode } from "./pdf";
 
 export interface UserSettings {
   userId: string;
@@ -6,7 +6,6 @@ export interface UserSettings {
   ttsEngine?: TTSEngine;
   speechRate?: number;
   readingMode?: ReadingMode;
-  textParsingMode?: TextParsingMode;
   createdAt?: Date;
   updatedAt?: Date;
 }

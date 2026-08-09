@@ -27,7 +27,6 @@ vi.mock("../../hooks/useSettings", () => ({
     ttsEngine: settingsState.ttsEngine,
     speechRate: 1,
     readingMode: "word",
-    textParsingMode: "backend",
     computeMode: "cloud",
     loading: false,
     error: null,
@@ -35,7 +34,6 @@ vi.mock("../../hooks/useSettings", () => ({
     updateTtsEngine: updateSettingMock,
     updateSpeechRate: updateSettingMock,
     updateReadingMode: updateSettingMock,
-    updateTextParsingMode: updateSettingMock,
     updateComputeMode: vi.fn(),
   }),
 }));
@@ -74,6 +72,14 @@ function openAudioSettings(): void {
     (candidate) => candidate.textContent?.trim() === "語音",
   );
   if (!button) throw new Error("audio settings category not found");
+  act(() => button.click());
+}
+
+function openAdvancedSettings(): void {
+  const button = [...container.querySelectorAll("button")].find(
+    (candidate) => candidate.textContent?.trim() === "進階",
+  );
+  if (!button) throw new Error("advanced settings category not found");
   act(() => button.click());
 }
 
@@ -171,6 +177,27 @@ describe("Settings gacha preferences", () => {
   });
 });
 
+describe("Settings PDF interaction", () => {
+  it("does not expose an empty reading category", () => {
+    renderSettings();
+
+    const readingButton = [...container.querySelectorAll("button")].find(
+      (candidate) => candidate.textContent?.trim() === "閱讀",
+    );
+    expect(readingButton).toBeUndefined();
+    expect(container.textContent).not.toContain("PDF 閱讀操作");
+  });
+
+  it("does not expose a manual PDF text parsing mode", () => {
+    renderSettings();
+    openAdvancedSettings();
+
+    expect(container.querySelector('input[name="textParsingMode"]')).toBeNull();
+    expect(container.textContent).not.toContain("前端解析");
+    expect(container.textContent).not.toContain("後端解析");
+    expect(container.textContent).toContain("運算後端");
+  });
+});
 
 describe("Settings TTS engine picker", () => {
   it("offers Piper, Kokoro and Edge in API mode", () => {

@@ -9,9 +9,14 @@ import {
 } from "react";
 import type { ExtractResponse } from "../types/pdf";
 import { FETCH_URL_PATH, PDF_EXTRACT_PATH } from "../constants/api";
-import { fetchWithComputeBase, getComputeMode, localUnavailableMessage } from "../services/localBackend";
+import {
+  fetchWithComputeBase,
+  getComputeMode,
+  localUnavailableMessage,
+} from "../services/localBackend";
 import { pdfSessionCache } from "../services/pdfSessionCache";
 import { isAbortError } from "../utils/errorUtils";
+import { logger } from "../utils/logger";
 
 interface PdfState {
   selectedFile: File | null;
@@ -31,12 +36,31 @@ interface PdfContextType extends PdfState {
   saveScrollPosition: (position: number) => void;
 }
 
+type DocumentRequest = {
+  generation: number;
+  documentId: string;
+  controller: AbortController;
+};
+
+type ExtractDocumentOptions = DocumentRequest & {
+  file: File;
+  blob: Blob;
+  filename: string;
+};
+
 const PdfContext = createContext<PdfContextType | undefined>(undefined);
 
 export { PdfContext };
 
 interface PdfProviderProps {
   children: ReactNode;
+}
+
+function createDocumentId(): string {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID();
+  }
+  return `pdf-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
 export const PdfProvider = ({ children }: PdfProviderProps) => {
@@ -46,285 +70,401 @@ export const PdfProvider = ({ children }: PdfProviderProps) => {
   const [result, setResult] = useState<ExtractResponse | null>(null);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [isLoadingFromUrl, setIsLoadingFromUrl] = useState(false);
-  const [initialScrollPosition, setInitialScrollPosition] = useState<number | null>(null);
+  const [initialScrollPosition, setInitialScrollPosition] = useState<
+    number | null
+  >(null);
   const abortRef = useRef<AbortController | null>(null);
   const pdfUrlRef = useRef<string | null>(null);
-  const currentBlobRef = useRef<Blob | null>(null);
+  const documentIdRef = useRef<string | null>(null);
+  const requestGenerationRef = useRef(0);
 
-  // Restore PDF from cache on mount
+  const isCurrentRequest = useCallback(
+    (generation: number, documentId?: string): boolean =>
+      requestGenerationRef.current === generation &&
+      (documentId === undefined || documentIdRef.current === documentId),
+    [],
+  );
+
+  const revokeCurrentPdfUrl = useCallback(() => {
+    if (!pdfUrlRef.current) return;
+    URL.revokeObjectURL(pdfUrlRef.current);
+    pdfUrlRef.current = null;
+  }, []);
+
+  const startDocumentRequest = useCallback((): DocumentRequest => {
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    const generation = requestGenerationRef.current + 1;
+    const documentId = createDocumentId();
+    requestGenerationRef.current = generation;
+    abortRef.current = controller;
+    return { generation, documentId, controller };
+  }, []);
+
+  const cacheDocument = useCallback(
+    (
+      blob: Blob,
+      extraction: ExtractResponse | null,
+      filename: string,
+      documentId: string,
+      migratedScrollPosition?: number,
+    ) => {
+      void pdfSessionCache
+        .savePdfToCache(
+          blob,
+          extraction,
+          filename,
+          documentId,
+          migratedScrollPosition,
+        )
+        .catch((cacheError) => {
+          logger.warn("Failed to cache PDF document:", cacheError);
+        });
+    },
+    [],
+  );
+
+  const extractDocument = useCallback(
+    async ({
+      file,
+      blob,
+      filename,
+      generation,
+      documentId,
+      controller,
+    }: ExtractDocumentOptions) => {
+      try {
+        const form = new FormData();
+        form.append("file", file);
+
+        const response = await fetchWithComputeBase(PDF_EXTRACT_PATH, {
+          method: "POST",
+          body: form,
+          headers: { Accept: "application/json" },
+          signal: controller.signal,
+        });
+
+        if (!response.ok) {
+          const text = await response.text().catch(() => "");
+          throw new Error(text || `文字提取失敗: ${response.status}`);
+        }
+
+        const data = (await response.json()) as ExtractResponse;
+        if (!isCurrentRequest(generation, documentId)) return;
+
+        setResult(data);
+        setError(null);
+        cacheDocument(blob, data, filename, documentId);
+      } catch (extractError: unknown) {
+        if (!isCurrentRequest(generation, documentId)) return;
+        if (isAbortError(extractError)) return;
+
+        const message =
+          extractError instanceof Error
+            ? extractError.message
+            : "發生未知錯誤";
+        const isConnectionError = /Failed to fetch|CORS|NetworkError/i.test(
+          message,
+        );
+        if (getComputeMode() === "local" && isConnectionError) {
+          setError(localUnavailableMessage());
+        } else if (/Failed to fetch|CORS/i.test(message)) {
+          setError("PDF 已載入，但文字解析連線失敗。您仍可繼續閱讀 PDF。");
+        } else {
+          setError(message);
+        }
+      } finally {
+        if (isCurrentRequest(generation, documentId)) {
+          setIsUploading(false);
+        }
+      }
+    },
+    [cacheDocument, isCurrentRequest],
+  );
+
+  // Restore the PDF independently from its optional extracted text.
   useEffect(() => {
+    let cancelled = false;
+    const restoreGeneration = requestGenerationRef.current;
+
     const restoreFromCache = async () => {
       try {
         const cached = await pdfSessionCache.loadPdfFromCache();
-        if (cached) {
-          const { blob, result: cachedResult, filename, scrollPosition } = cached;
-          const objectUrl = URL.createObjectURL(blob);
-          pdfUrlRef.current = objectUrl;
-          currentBlobRef.current = blob;
-          setPdfUrl(objectUrl);
-          setResult(cachedResult);
-          const file = new File([blob], filename, { type: "application/pdf" });
-          setSelectedFile(file);
-          // Restore scroll position if available
-          if (scrollPosition !== undefined) {
-            setInitialScrollPosition(scrollPosition);
-          }
-        } else {
-          // Mark session as active for future saves
-          pdfSessionCache.markSessionActive();
+        if (
+          cancelled ||
+          requestGenerationRef.current !== restoreGeneration
+        ) {
+          return;
         }
-      } catch (err) {
-        console.warn("Failed to restore PDF from cache:", err);
-        // Mark session as active even on error
+
+        if (!cached) {
+          pdfSessionCache.markSessionActive();
+          return;
+        }
+
+        const documentId = cached.documentId ?? createDocumentId();
+        const objectUrl = URL.createObjectURL(cached.blob);
+        if (
+          cancelled ||
+          requestGenerationRef.current !== restoreGeneration
+        ) {
+          URL.revokeObjectURL(objectUrl);
+          return;
+        }
+
+        pdfUrlRef.current = objectUrl;
+        documentIdRef.current = documentId;
+        const restoredFile = new File([cached.blob], cached.filename, {
+          type: "application/pdf",
+        });
+        setPdfUrl(objectUrl);
+        setResult(cached.result);
+        setSelectedFile(restoredFile);
+        if (cached.scrollPosition !== undefined) {
+          setInitialScrollPosition(cached.scrollPosition);
+        }
+
+        if (!cached.documentId) {
+          cacheDocument(
+            cached.blob,
+            cached.result,
+            cached.filename,
+            documentId,
+            cached.scrollPosition,
+          );
+        }
+
+        // A refresh can happen after the blob is cached but before extraction
+        // finishes. Resume that hydration instead of leaving page actions
+        // permanently disabled for the restored document.
+        if (cached.result === null) {
+          const controller = new AbortController();
+          abortRef.current = controller;
+          setIsUploading(true);
+          void extractDocument({
+            file: restoredFile,
+            blob: cached.blob,
+            filename: cached.filename,
+            generation: restoreGeneration,
+            documentId,
+            controller,
+          });
+        }
+      } catch (restoreError) {
+        logger.warn("Failed to restore PDF from cache:", restoreError);
         pdfSessionCache.markSessionActive();
       }
     };
 
     void restoreFromCache();
-  }, []);
+    return () => {
+      cancelled = true;
+    };
+  }, [cacheDocument, extractDocument]);
 
-  // Cleanup object URLs on unmount to prevent memory leaks
   useEffect(() => {
     return () => {
-      if (pdfUrlRef.current) {
-        URL.revokeObjectURL(pdfUrlRef.current);
-        pdfUrlRef.current = null;
-      }
+      abortRef.current?.abort();
+      revokeCurrentPdfUrl();
     };
-  }, []);
-
-  const uploadAndExtract = useCallback(async (file: File) => {
-    setIsUploading(true);
-    setError(null);
-
-    abortRef.current?.abort();
-    const controller = new AbortController();
-    abortRef.current = controller;
-
-    try {
-      const form = new FormData();
-      form.append("file", file);
-
-      const res = await fetchWithComputeBase(PDF_EXTRACT_PATH, {
-        method: "POST",
-        body: form,
-        headers: { Accept: "application/json" },
-        signal: controller.signal,
-      });
-
-      if (!res.ok) {
-        const text = await res.text().catch(() => "");
-        throw new Error(text || `上傳失敗: ${res.status}`);
-      }
-
-      const data = (await res.json()) as ExtractResponse;
-      setResult(data);
-
-      // Save to session cache
-      if (currentBlobRef.current) {
-        void pdfSessionCache.savePdfToCache(
-          currentBlobRef.current,
-          data,
-          currentBlobRef.current instanceof File
-            ? (currentBlobRef.current as File).name
-            : "uploaded.pdf",
-        );
-      }
-    } catch (err: unknown) {
-      if (isAbortError(err)) return;
-      const message = err instanceof Error ? err.message : "發生未知錯誤";
-      const isConn = /Failed to fetch|CORS|NetworkError/i.test(message);
-      if (getComputeMode() === "local" && isConn) {
-        setError(localUnavailableMessage());
-      } else if (/Failed to fetch|CORS/i.test(message)) {
-        setError("連線失敗或 CORS 問題，請稍後再試。");
-      } else {
-        setError(message);
-      }
-    } finally {
-      setIsUploading(false);
-    }
-  }, []);
+  }, [revokeCurrentPdfUrl]);
 
   const handleFileChange = useCallback(
     (file: File | null) => {
-      // A newly selected document must not inherit the cached reader position.
-      // Cached positions are only for restoring the same PDF on app startup.
+      const request = startDocumentRequest();
       setInitialScrollPosition(null);
-
-      // Revoke previous object URL to prevent memory leaks
-      if (pdfUrlRef.current) {
-        URL.revokeObjectURL(pdfUrlRef.current);
-        pdfUrlRef.current = null;
-      }
+      setError(null);
+      setResult(null);
+      setIsLoadingFromUrl(false);
+      setIsUploading(false);
+      revokeCurrentPdfUrl();
+      documentIdRef.current = null;
 
       if (!file) {
         setSelectedFile(null);
         setPdfUrl(null);
+        void pdfSessionCache.clearPdfCache();
         return;
       }
+
       if (file.type !== "application/pdf") {
         setError("請上傳 PDF 檔案 (application/pdf)");
         setSelectedFile(null);
         setPdfUrl(null);
+        void pdfSessionCache.clearPdfCache();
         return;
       }
-      setError(null);
+
+      const objectUrl = URL.createObjectURL(file);
+      pdfUrlRef.current = objectUrl;
+      documentIdRef.current = request.documentId;
       setSelectedFile(file);
-      const url = URL.createObjectURL(file);
-      pdfUrlRef.current = url;
-      currentBlobRef.current = file;
-      setPdfUrl(url);
-      void uploadAndExtract(file);
+      setPdfUrl(objectUrl);
+      setIsUploading(true);
+      cacheDocument(file, null, file.name, request.documentId);
+      void extractDocument({
+        ...request,
+        file,
+        blob: file,
+        filename: file.name,
+      });
     },
-    [uploadAndExtract],
+    [
+      cacheDocument,
+      extractDocument,
+      revokeCurrentPdfUrl,
+      startDocumentRequest,
+    ],
   );
 
-  const loadPdfFromUrl = useCallback(async (url: string) => {
-    if (!url.trim()) {
-      setError("請輸入有效的 URL");
-      return;
-    }
-
-    // Revoke previous object URL to prevent memory leaks
-    if (pdfUrlRef.current) {
-      URL.revokeObjectURL(pdfUrlRef.current);
-      pdfUrlRef.current = null;
-    }
-
-    setIsLoadingFromUrl(true);
-    setError(null);
-    // Drawer course changes load a different document, so start it at the top
-    // instead of reusing the position restored for the previous cached PDF.
-    setInitialScrollPosition(null);
-    setResult(null);
-    setSelectedFile(null);
-    setPdfUrl(null);
-
-    abortRef.current?.abort();
-    const controller = new AbortController();
-    abortRef.current = controller;
-
-    try {
-      // 走 compute-mode：local/auto 用本機 sidecar 代抓，cloud 用雲端；
-      // auto 模式本機連不上時，fetchWithComputeBase 會自動退回雲端重試一次。
-      const params = new URLSearchParams({ url, follow_redirects: "true" });
-      const response = await fetchWithComputeBase(
-        `${FETCH_URL_PATH}?${params.toString()}`,
-        { signal: controller.signal },
-      );
-
-      if (!response.ok) {
-        let errorMessage = `無法載入 PDF: ${response.status}`;
-        switch (response.status) {
-          case 400:
-            errorMessage = "URL 格式錯誤或參數不正確";
-            break;
-          case 404:
-            errorMessage = "找不到指定的 PDF 檔案";
-            break;
-          case 408:
-            errorMessage = "請求超時，請稍後再試";
-            break;
-          case 429:
-            errorMessage = "請求過於頻繁，請稍後再試";
-            break;
-          case 500:
-            errorMessage = "伺服器錯誤，無法抓取檔案";
-            break;
-          default:
-            try {
-              const errorText = await response.text();
-              if (errorText) errorMessage = errorText;
-            } catch {
-              // ignore
-            }
-        }
-        throw new Error(errorMessage);
+  const loadPdfFromUrl = useCallback(
+    async (url: string) => {
+      if (!url.trim()) {
+        setError("請輸入有效的 URL");
+        throw new Error("請輸入有效的 URL");
       }
 
-      const contentType = response.headers.get("content-type");
-      if (!contentType?.includes("application/pdf")) {
-        throw new Error(`URL 未返回 PDF 檔案 (Content-Type: ${contentType})`);
-      }
-
-      const blob = await response.blob();
-      const currentTime = Date.now();
-      const filename = `downloaded_${currentTime}.pdf`;
-      const file = new File([blob], filename, { type: "application/pdf" });
-      const objectUrl = URL.createObjectURL(blob);
-      pdfUrlRef.current = objectUrl;
-      currentBlobRef.current = blob;
-      // 注意：暫時不設置 pdfUrl，等 extract API 成功後再設置，避免 race condition
-
-      setIsUploading(true);
-      const form = new FormData();
-      form.append("file", file);
-
-      const extractRes = await fetchWithComputeBase(PDF_EXTRACT_PATH, {
-        method: "POST",
-        body: form,
-        headers: { Accept: "application/json" },
-        signal: controller.signal,
-      });
-
-      if (!extractRes.ok) {
-        const text = await extractRes.text().catch(() => "");
-        throw new Error(text || `文字提取失敗: ${extractRes.status}`);
-      }
-
-      const data = (await extractRes.json()) as ExtractResponse;
-      // 先設置 result，再設置 pdfUrl，確保兩者都成功
-      setResult(data);
-      setPdfUrl(objectUrl);
-      setSelectedFile(file);
-
-      // Save to session cache
-      void pdfSessionCache.savePdfToCache(blob, data, filename);
-    } catch (err: unknown) {
-      if (isAbortError(err)) return;
-      const message =
-        err instanceof Error ? err.message : "載入 PDF 時發生未知錯誤";
-      const isConn = /Failed to fetch|CORS|NetworkError/i.test(message);
-      setError(
-        getComputeMode() === "local" && isConn ? localUnavailableMessage() : message,
-      );
+      const request = startDocumentRequest();
+      setInitialScrollPosition(null);
+      setError(null);
+      setResult(null);
       setSelectedFile(null);
       setPdfUrl(null);
-      setResult(null);
-    } finally {
-      setIsLoadingFromUrl(false);
       setIsUploading(false);
-    }
-  }, []);
+      setIsLoadingFromUrl(true);
+      revokeCurrentPdfUrl();
+      documentIdRef.current = null;
+
+      try {
+        const params = new URLSearchParams({
+          url,
+          follow_redirects: "true",
+        });
+        const response = await fetchWithComputeBase(
+          `${FETCH_URL_PATH}?${params.toString()}`,
+          { signal: request.controller.signal },
+        );
+
+        if (!response.ok) {
+          let errorMessage = `無法載入 PDF: ${response.status}`;
+          switch (response.status) {
+            case 400:
+              errorMessage = "URL 格式錯誤或參數不正確";
+              break;
+            case 404:
+              errorMessage = "找不到指定的 PDF 檔案";
+              break;
+            case 408:
+              errorMessage = "請求超時，請稍後再試";
+              break;
+            case 429:
+              errorMessage = "請求過於頻繁，請稍後再試";
+              break;
+            case 500:
+              errorMessage = "伺服器錯誤，無法抓取檔案";
+              break;
+            default: {
+              const errorText = await response.text().catch(() => "");
+              if (errorText) errorMessage = errorText;
+            }
+          }
+          throw new Error(errorMessage);
+        }
+
+        const contentType = response.headers.get("content-type");
+        if (!contentType?.includes("application/pdf")) {
+          throw new Error(
+            `URL 未返回 PDF 檔案 (Content-Type: ${contentType})`,
+          );
+        }
+
+        const blob = await response.blob();
+        if (!isCurrentRequest(request.generation)) return;
+
+        const filename = `downloaded_${Date.now()}.pdf`;
+        const file = new File([blob], filename, { type: "application/pdf" });
+        const objectUrl = URL.createObjectURL(blob);
+        if (!isCurrentRequest(request.generation)) {
+          URL.revokeObjectURL(objectUrl);
+          return;
+        }
+
+        pdfUrlRef.current = objectUrl;
+        documentIdRef.current = request.documentId;
+        setSelectedFile(file);
+        setPdfUrl(objectUrl);
+        setIsLoadingFromUrl(false);
+        setIsUploading(true);
+        cacheDocument(blob, null, filename, request.documentId);
+        void extractDocument({
+          ...request,
+          file,
+          blob,
+          filename,
+        });
+      } catch (loadError: unknown) {
+        if (!isCurrentRequest(request.generation)) return;
+        if (isAbortError(loadError)) return;
+
+        const message =
+          loadError instanceof Error
+            ? loadError.message
+            : "載入 PDF 時發生未知錯誤";
+        const isConnectionError = /Failed to fetch|CORS|NetworkError/i.test(
+          message,
+        );
+        setError(
+          getComputeMode() === "local" && isConnectionError
+            ? localUnavailableMessage()
+            : message,
+        );
+        setSelectedFile(null);
+        setPdfUrl(null);
+        setResult(null);
+        throw loadError;
+      } finally {
+        if (isCurrentRequest(request.generation)) {
+          setIsLoadingFromUrl(false);
+        }
+      }
+    },
+    [
+      cacheDocument,
+      extractDocument,
+      isCurrentRequest,
+      revokeCurrentPdfUrl,
+      startDocumentRequest,
+    ],
+  );
 
   const cancelUpload = useCallback(() => {
+    requestGenerationRef.current += 1;
     abortRef.current?.abort();
+    abortRef.current = null;
     setIsUploading(false);
+    setIsLoadingFromUrl(false);
   }, []);
 
   const clearPdfCache = useCallback(async () => {
-    // Clear IndexedDB cache
-    await pdfSessionCache.clearPdfCache();
-
-    // Revoke object URL to prevent memory leaks
-    if (pdfUrlRef.current) {
-      URL.revokeObjectURL(pdfUrlRef.current);
-      pdfUrlRef.current = null;
-    }
-
-    // Reset all PDF state to initial values
-    currentBlobRef.current = null;
+    requestGenerationRef.current += 1;
+    abortRef.current?.abort();
+    abortRef.current = null;
+    revokeCurrentPdfUrl();
+    documentIdRef.current = null;
     setSelectedFile(null);
     setPdfUrl(null);
     setResult(null);
     setError(null);
     setInitialScrollPosition(null);
-  }, []);
+    setIsUploading(false);
+    setIsLoadingFromUrl(false);
+    await pdfSessionCache.clearPdfCache();
+  }, [revokeCurrentPdfUrl]);
 
-  // Save scroll position to cache (debounced by caller)
   const saveScrollPosition = useCallback((position: number) => {
-    void pdfSessionCache.saveScrollPosition(position);
+    const documentId = documentIdRef.current;
+    if (!documentId) return;
+    void pdfSessionCache.saveScrollPosition(position, documentId);
   }, []);
 
   const value: PdfContextType = useMemo(
@@ -355,7 +495,7 @@ export const PdfProvider = ({ children }: PdfProviderProps) => {
       cancelUpload,
       clearPdfCache,
       saveScrollPosition,
-    ]
+    ],
   );
 
   return <PdfContext.Provider value={value}>{children}</PdfContext.Provider>;

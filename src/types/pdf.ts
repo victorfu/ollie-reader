@@ -19,9 +19,6 @@ export type TTSMode = "browser" | "api";
 // piper/kokoro 兩邊（雲端 + 本機 sidecar）都有；edge 目前只有本機 sidecar 提供
 export type TTSEngine = "piper" | "kokoro" | "edge";
 
-// 文字解析模式
-export type TextParsingMode = "frontend" | "backend";
-
 // 運算後端連線模式（per-device，存 localStorage，不同步 Firestore）
 export type ComputeMode = "auto" | "local" | "cloud";
 

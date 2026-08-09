@@ -3,27 +3,14 @@ import { useAuth } from "../hooks/useAuth";
 import { getUserSettings, saveUserSettings } from "../services/settingsService";
 import { SettingsContext } from "./SettingsContextType";
 import type { UserSettings } from "../types/settings";
-import type { TTSMode, TTSEngine, ReadingMode, TextParsingMode, ComputeMode } from "../types/pdf";
+import type { TTSMode, TTSEngine, ReadingMode, ComputeMode } from "../types/pdf";
 import { getComputeMode, setComputeMode } from "../services/localBackend";
 
 interface SettingsProviderProps {
   children: ReactNode;
 }
 
-const TEXT_PARSING_MODE_KEY = "ollie-reader-text-parsing-mode";
 const SHOW_CHINESE_TRANSLATION_KEY = "ollie-reader-show-chinese-translation";
-
-const getTextParsingModeFromStorage = (): TextParsingMode => {
-  try {
-    const stored = localStorage.getItem(TEXT_PARSING_MODE_KEY);
-    if (stored === "frontend" || stored === "backend") {
-      return stored;
-    }
-  } catch {
-    // localStorage not available
-  }
-  return "backend"; // default to backend
-};
 
 const getShowChineseTranslationFromStorage = (): boolean => {
   try {
@@ -42,7 +29,6 @@ export const SettingsProvider = ({ children }: SettingsProviderProps) => {
   const [ttsEngine, setTtsEngine] = useState<TTSEngine>("piper");
   const [speechRate, setSpeechRate] = useState<number>(1);
   const [readingMode, setReadingMode] = useState<ReadingMode>("word");
-  const [textParsingMode, setTextParsingMode] = useState<TextParsingMode>(getTextParsingModeFromStorage);
   const [showChineseTranslation, setShowChineseTranslation] = useState<boolean>(
     getShowChineseTranslationFromStorage,
   );
@@ -58,7 +44,6 @@ export const SettingsProvider = ({ children }: SettingsProviderProps) => {
         setTtsEngine("piper"); // Default when logged out
         setSpeechRate(1); // Default when logged out
         setReadingMode("word"); // Default when logged out
-        // textParsingMode is managed by localStorage, no need to reset
         setLoading(false);
         return;
       }
@@ -73,7 +58,6 @@ export const SettingsProvider = ({ children }: SettingsProviderProps) => {
           setTtsEngine(settings.ttsEngine ?? "piper");
           setSpeechRate(settings.speechRate ?? 1);
           setReadingMode(settings.readingMode ?? "word");
-          // textParsingMode is managed by localStorage
         } else {
           // No settings found, use defaults
           setTtsMode("browser");
@@ -157,19 +141,6 @@ export const SettingsProvider = ({ children }: SettingsProviderProps) => {
     [updateSetting],
   );
 
-  const updateTextParsingMode = useCallback(
-    async (mode: TextParsingMode) => {
-      // Save to localStorage only (local preference, not synced to Firestore)
-      try {
-        localStorage.setItem(TEXT_PARSING_MODE_KEY, mode);
-      } catch {
-        // localStorage not available
-      }
-      setTextParsingMode(mode);
-    },
-    [],
-  );
-
   const updateShowChineseTranslation = useCallback((show: boolean) => {
     try {
       localStorage.setItem(SHOW_CHINESE_TRANSLATION_KEY, String(show));
@@ -190,7 +161,6 @@ export const SettingsProvider = ({ children }: SettingsProviderProps) => {
       ttsEngine,
       speechRate,
       readingMode,
-      textParsingMode,
       showChineseTranslation,
       computeMode,
       loading,
@@ -199,7 +169,6 @@ export const SettingsProvider = ({ children }: SettingsProviderProps) => {
       updateTtsEngine,
       updateSpeechRate,
       updateReadingMode,
-      updateTextParsingMode,
       updateShowChineseTranslation,
       updateComputeMode,
     }),
@@ -208,7 +177,6 @@ export const SettingsProvider = ({ children }: SettingsProviderProps) => {
       ttsEngine,
       speechRate,
       readingMode,
-      textParsingMode,
       showChineseTranslation,
       computeMode,
       loading,
@@ -217,7 +185,6 @@ export const SettingsProvider = ({ children }: SettingsProviderProps) => {
       updateTtsEngine,
       updateSpeechRate,
       updateReadingMode,
-      updateTextParsingMode,
       updateShowChineseTranslation,
       updateComputeMode,
     ],

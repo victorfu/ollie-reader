@@ -1,12 +1,18 @@
-import { memo, useRef, useState, useEffect, useCallback } from "react";
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
+import { Volume2 } from "lucide-react";
 import { Document, Page } from "react-pdf";
-import type {
-  ExtractedPage,
-  ReadingMode,
-  TextParsingMode,
-} from "../../types/pdf";
-import { PageTextArea } from "./PageTextArea";
+import type { ExtractedPage } from "../../types/pdf";
 import { pdfDocumentOptions } from "../../utils/pdfConfig";
+import { selectWordAtPoint } from "../../utils/pdfTextSelection";
+import { ExternalAssistantToolbar } from "./ExternalAssistantToolbar";
 
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
@@ -14,104 +20,122 @@ import "react-pdf/dist/Page/TextLayer.css";
 interface PdfViewerProps {
   url: string;
   pagesByNumber: Map<number, ExtractedPage>;
-  readingMode: ReadingMode;
   onSpeak: (text: string) => void;
   onTextSelection: () => void;
   isLoadingAudio?: boolean;
   isSpeaking?: boolean;
   initialScrollPosition?: number | null;
   onScrollPositionChange?: (position: number) => void;
-  textParsingMode?: TextParsingMode;
+}
+
+type PointerStart = {
+  pointerId: number;
+  x: number;
+  y: number;
+};
+
+const CLICK_DISTANCE_PX = 6;
+const EMPTY_PDFJS_PAGES = new Map<number, string>();
+
+function isInteractiveAnnotationTarget(target: EventTarget | null): boolean {
+  return (
+    target instanceof Element &&
+    Boolean(target.closest("a, button, [role='link'], .annotationLayer"))
+  );
 }
 
 export const PdfViewer = memo(
   ({
     url,
     pagesByNumber,
-    readingMode,
     onSpeak,
     onTextSelection,
     isLoadingAudio,
     isSpeaking,
     initialScrollPosition,
     onScrollPositionChange,
-    textParsingMode = "backend",
   }: PdfViewerProps) => {
     const containerRef = useRef<HTMLDivElement | null>(null);
-    const pageRefs = useRef<(HTMLDivElement | null)[]>([]);
-    const [numPages, setNumPages] = useState<number>(0);
-    const [pdfReady, setPdfReady] = useState(false);
-    const [pdfPageWidth, setPdfPageWidth] = useState<number>(0);
+    const measureRef = useRef<HTMLDivElement | null>(null);
+    const pointerStartRef = useRef<PointerStart | null>(null);
     const scrollRestoredRef = useRef(false);
-    const [prevUrl, setPrevUrl] = useState(url);
     const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const [documentState, setDocumentState] = useState({
+      url,
+      numPages: 0,
+    });
+    const [pdfReadyState, setPdfReadyState] = useState({
+      url,
+      ready: false,
+    });
+    const [pdfPageWidth, setPdfPageWidth] = useState(0);
+    const [pdfJsPageState, setPdfJsPageState] = useState({
+      url,
+      pages: new Map<number, string>(),
+    });
 
-    // Frontend extracted text (when textParsingMode === "frontend")
-    const [frontendPages, setFrontendPages] = useState<Map<number, string>>(new Map());
+    const numPages = documentState.url === url ? documentState.numPages : 0;
+    const pdfReady = pdfReadyState.url === url && pdfReadyState.ready;
+    const pdfJsPages =
+      pdfJsPageState.url === url ? pdfJsPageState.pages : EMPTY_PDFJS_PAGES;
 
-    // Reset state when URL changes
-    if (prevUrl !== url) {
-      setPrevUrl(url);
-      setPdfReady(false);
-      setNumPages(0);
-      setPdfPageWidth(0);
-      setFrontendPages(new Map());
-    }
-
-    // A different PDF always starts at the top. Startup cache restoration runs
-    // separately once that PDF's pages are ready.
-    useEffect(() => {
-      scrollRestoredRef.current = false;
-      containerRef.current?.scrollTo({ top: 0, left: 0 });
-    }, [url]);
-
-    // Keep PDF page width synced with preview column width so large PDFs always fit.
-    useEffect(() => {
-      if (numPages <= 0) return;
-
-      const container = containerRef.current;
-      if (!container) return;
-
-      const measureTarget = container.querySelector<HTMLDivElement>(
-        '[data-pdf-measure="true"]',
-      );
-      if (!measureTarget) return;
+    // Measure a stable, capped single-column viewport before mounting any Page.
+    useLayoutEffect(() => {
+      const target = measureRef.current;
+      if (!target) return;
 
       const updateWidth = () => {
-        const nextWidth = Math.floor(measureTarget.clientWidth);
+        const nextWidth = Math.floor(target.clientWidth);
         if (nextWidth <= 0) return;
-
-        setPdfPageWidth((prevWidth) =>
-          prevWidth === nextWidth ? prevWidth : nextWidth,
+        setPdfPageWidth((previousWidth) =>
+          previousWidth === nextWidth ? previousWidth : nextWidth,
         );
       };
 
       updateWidth();
-
       if (typeof ResizeObserver !== "undefined") {
-        const observer = new ResizeObserver(() => {
-          updateWidth();
-        });
-        observer.observe(measureTarget);
+        const observer = new ResizeObserver(updateWidth);
+        observer.observe(target);
         return () => observer.disconnect();
       }
 
       window.addEventListener("resize", updateWidth);
       return () => window.removeEventListener("resize", updateWidth);
-    }, [numPages]);
+    }, []);
 
-    // Helper to get page text based on parsing mode
-    const getPageText = useCallback((pageNumber: number): string => {
-      if (textParsingMode === "frontend") {
-        return frontendPages.get(pageNumber) || "";
+    useEffect(() => {
+      scrollRestoredRef.current = false;
+      pointerStartRef.current = null;
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+        debounceTimerRef.current = null;
       }
-      return pagesByNumber.get(pageNumber)?.text || "";
-    }, [textParsingMode, frontendPages, pagesByNumber]);
+      containerRef.current?.scrollTo({ top: 0, left: 0 });
+    }, [url]);
 
-    // Debounced scroll position save for the actual PDF scroll container.
+    const handleDocumentLoadSuccess = useCallback(
+      ({ numPages: loadedPages }: { numPages: number }) => {
+        setDocumentState((previous) =>
+          previous.url === url && previous.numPages === loadedPages
+            ? previous
+            : { url, numPages: loadedPages },
+        );
+      },
+      [url],
+    );
+
+    const getPageText = useCallback(
+      (pageNumber: number): string => {
+        const backendText = pagesByNumber.get(pageNumber)?.text || "";
+        return backendText.trim()
+          ? backendText
+          : pdfJsPages.get(pageNumber) || "";
+      },
+      [pagesByNumber, pdfJsPages],
+    );
+
     const handleScroll = useCallback(() => {
       if (!onScrollPositionChange) return;
-
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current);
       }
@@ -121,147 +145,228 @@ export const PdfViewer = memo(
         if (container) {
           onScrollPositionChange(container.scrollTop);
         }
+        debounceTimerRef.current = null;
       }, 500);
     }, [onScrollPositionChange]);
 
-    // Clear a pending cache write when the viewer unmounts or its handler changes.
     useEffect(() => {
       return () => {
         if (debounceTimerRef.current) {
           clearTimeout(debounceTimerRef.current);
         }
       };
-    }, [handleScroll]);
+    }, []);
 
-    // Mark PDF as ready after pages are rendered
     useEffect(() => {
-      if (numPages > 0 && !pdfReady) {
-        // Wait for PDF pages to be rendered
-        const timer = setTimeout(() => {
-          setPdfReady(true);
-        }, 300);
-        return () => clearTimeout(timer);
-      }
-    }, [numPages, pdfReady]);
+      if (numPages <= 0 || pdfPageWidth <= 0 || pdfReady) return;
+      const timer = setTimeout(
+        () => setPdfReadyState({ url, ready: true }),
+        300,
+      );
+      return () => clearTimeout(timer);
+    }, [numPages, pdfPageWidth, pdfReady, url]);
 
-    // Restore the cached position inside the PDF viewport after pages are ready.
     useEffect(() => {
       if (
-        pdfReady &&
-        initialScrollPosition != null &&
-        initialScrollPosition > 0 &&
-        !scrollRestoredRef.current
+        !pdfReady ||
+        initialScrollPosition == null ||
+        initialScrollPosition <= 0 ||
+        scrollRestoredRef.current
       ) {
-        containerRef.current?.scrollTo({
-          top: initialScrollPosition,
-          left: 0,
-        });
-        scrollRestoredRef.current = true;
+        return;
       }
+
+      containerRef.current?.scrollTo({
+        top: initialScrollPosition,
+        left: 0,
+      });
+      scrollRestoredRef.current = true;
     }, [pdfReady, initialScrollPosition]);
 
+    const handlePointerDown = useCallback(
+      (event: ReactPointerEvent<HTMLDivElement>) => {
+        if (
+          event.button !== 0 ||
+          event.isPrimary === false ||
+          isInteractiveAnnotationTarget(event.target)
+        ) {
+          pointerStartRef.current = null;
+          return;
+        }
+        pointerStartRef.current = {
+          pointerId: event.pointerId,
+          x: event.clientX,
+          y: event.clientY,
+        };
+      },
+      [],
+    );
+
+    const handlePointerUp = useCallback(
+      (event: ReactPointerEvent<HTMLDivElement>) => {
+        const start = pointerStartRef.current;
+        pointerStartRef.current = null;
+        if (!start || start.pointerId !== event.pointerId) return;
+        if (
+          event.button !== 0 ||
+          event.isPrimary === false ||
+          isInteractiveAnnotationTarget(event.target)
+        ) {
+          return;
+        }
+
+        const selection = window.getSelection();
+        if (selection && !selection.isCollapsed && selection.toString().trim()) {
+          onTextSelection();
+          return;
+        }
+
+        const distance = Math.hypot(
+          event.clientX - start.x,
+          event.clientY - start.y,
+        );
+        if (distance <= CLICK_DISTANCE_PX) {
+          selectWordAtPoint(
+            event.currentTarget,
+            event.clientX,
+            event.clientY,
+          );
+        }
+        onTextSelection();
+      },
+      [onTextSelection],
+    );
+
     return (
-      <div className="w-full h-full flex flex-col">
-        <div className="flex items-center justify-between p-3 bg-base-200 border-b border-border-hairline rounded-t-xl sticky top-0 z-10">
+      <div className="flex h-full w-full flex-col">
+        <div className="sticky top-0 z-10 flex items-center justify-between rounded-t-xl border-b border-border-hairline bg-base-200/90 p-3 backdrop-blur-md">
           <span className="text-sm font-medium text-base-content">PDF 預覽</span>
+          <span className="text-xs text-base-content/55">
+            點擊單字，或拖曳選取片語與句子
+          </span>
         </div>
         <div
           ref={containerRef}
           onScroll={handleScroll}
-          className="w-full flex-1 overflow-y-auto overflow-x-auto rounded-b-xl p-3"
-          style={{ minHeight: "800px", height: "800px" }}
+          className="h-[calc(100dvh-11rem)] min-h-96 w-full flex-1 overflow-x-auto overflow-y-scroll rounded-b-xl p-3 sm:min-h-[32rem] lg:h-[800px] lg:min-h-[800px]"
         >
-          <Document
-            file={url}
-            onLoadSuccess={({ numPages }) => setNumPages(numPages)}
-            options={pdfDocumentOptions}
-            loading={
-              <div className="w-full h-64 grid place-items-center text-base-content/60">
-                <span className="loading loading-spinner loading-md text-primary"></span>
-                <span className="mt-2 text-sm">載入 PDF 中...</span>
-              </div>
-            }
-            error={
-              <div className="rounded-lg bg-error/10 border border-error/20 px-4 py-3 m-3">
-                <p className="text-sm text-error">PDF 載入失敗</p>
-              </div>
-            }
+          <div
+            ref={measureRef}
+            data-pdf-measure="true"
+            className="mx-auto w-full max-w-5xl"
           >
-            <div className="flex flex-col items-stretch gap-6">
-              {Array.from({ length: numPages }, (_, i) => i + 1).map(
-                (pageNumber) => (
-                  <div
-                    key={`page-wrap-${pageNumber}`}
-                    ref={(el) => {
-                      pageRefs.current[pageNumber - 1] = el;
-                    }}
-                    data-page-number={pageNumber}
-                    className="rounded-lg"
-                  >
-                    <div className="grid gap-4 items-start grid-cols-1 xl:grid-cols-[11fr_9fr]">
-                      <div className="xl:col-span-1">
-                        <div
-                          className="relative rounded-lg border border-border-hairline bg-base-100 shadow-soft overflow-hidden"
-                        >
-                          <div
-                            className="p-2 sm:p-3 select-text cursor-text"
-                            onMouseUp={onTextSelection}
-                            onTouchEnd={onTextSelection}
-                          >
-                            <div
-                              className="relative w-full"
-                              data-pdf-measure={pageNumber === 1 ? "true" : undefined}
+            <Document
+              key={url}
+              file={url}
+              onLoadSuccess={handleDocumentLoadSuccess}
+              options={pdfDocumentOptions}
+              loading={
+                <div className="grid h-64 w-full place-items-center text-base-content/60">
+                  <span className="loading loading-spinner loading-md text-primary" />
+                  <span className="mt-2 text-sm">載入 PDF 中...</span>
+                </div>
+              }
+              error={
+                <div className="m-3 rounded-lg border border-error/20 bg-error/10 px-4 py-3">
+                  <p className="text-sm text-error">PDF 載入失敗</p>
+                </div>
+              }
+            >
+              <div className="flex flex-col gap-6">
+                {Array.from({ length: numPages }, (_, index) => index + 1).map(
+                  (pageNumber) => {
+                    const pageText = getPageText(pageNumber);
+                    const textAvailable = pageText.trim().length > 0;
+                    return (
+                      <section
+                        key={`page-${pageNumber}`}
+                        data-page-number={pageNumber}
+                        className="overflow-visible rounded-xl bg-base-200/55 pt-2 shadow-soft"
+                      >
+                        <div className="sticky top-2 z-20 mx-2 mb-2 flex min-h-11 flex-wrap items-center justify-between gap-2 rounded-xl border border-border-hairline bg-base-100/92 px-2 py-1.5 shadow-lg backdrop-blur-xl sm:min-h-0">
+                          <span className="rounded-lg bg-accent/10 px-2.5 py-1 text-xs font-semibold text-accent">
+                            Page {pageNumber}
+                          </span>
+                          <div className="flex max-w-full flex-wrap items-center justify-end gap-1.5">
+                            <ExternalAssistantToolbar
+                              pageNumber={pageNumber}
+                              text={pageText}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => onSpeak(pageText)}
+                              disabled={
+                                !textAvailable || isLoadingAudio || isSpeaking
+                              }
+                              className="inline-flex h-11 items-center justify-center gap-1.5 rounded-md bg-success/90 px-3 text-xs font-semibold text-success-content shadow-sm transition-all duration-200 hover:bg-success active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:pointer-events-none disabled:opacity-50 sm:h-8"
+                              aria-label={`朗讀第 ${pageNumber} 頁`}
                             >
-                              <Page
-                                pageNumber={pageNumber}
-                                width={pdfPageWidth || undefined}
-                                renderTextLayer={true}
-                                renderAnnotationLayer
-                                onGetTextSuccess={({ items }) => {
-                                  // Extract page text from react-pdf
-                                  const pageText = items
-                                    .map((item) => {
-                                      if (!("str" in item)) return "";
-                                      return item.str + (item.hasEOL ? "\n" : " ");
-                                    })
-                                    .join("")
-                                    .trim();
-
-                                  // Store frontend extracted text
-                                  setFrontendPages((prev) => {
-                                    const next = new Map(prev);
-                                    next.set(pageNumber, pageText);
-                                    return next;
-                                  });
-
-                                  console.log(`[PDF Page ${pageNumber}] Frontend extracted:`, pageText.slice(0, 50));
-                                }}
-                                loading={
-                                  <div className="skeleton w-full h-150 rounded-lg" />
-                                }
-                              />
-                            </div>
+                              {isLoadingAudio ? (
+                                <span className="loading loading-spinner loading-xs" />
+                              ) : (
+                                <Volume2
+                                  className="size-4"
+                                  strokeWidth={1.8}
+                                />
+                              )}
+                              <span className="hidden sm:inline">朗讀此頁</span>
+                            </button>
                           </div>
                         </div>
-                      </div>
 
-                      <div className="xl:col-span-1">
-                        <PageTextArea
-                          pageNumber={pageNumber}
-                          text={getPageText(pageNumber)}
-                          readingMode={readingMode}
-                          onSpeak={onSpeak}
-                          onTextSelection={onTextSelection}
-                          isLoadingAudio={isLoadingAudio}
-                          isSpeaking={isSpeaking}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                ),
-              )}
-            </div>
-          </Document>
+                        <div
+                          data-pdf-page-surface="true"
+                          className="relative overflow-hidden rounded-lg bg-base-100 shadow-sm selection:bg-accent/25"
+                          onPointerDown={handlePointerDown}
+                          onPointerUp={handlePointerUp}
+                          onPointerCancel={() => {
+                            pointerStartRef.current = null;
+                          }}
+                        >
+                          {pdfPageWidth > 0 ? (
+                            <Page
+                              pageNumber={pageNumber}
+                              width={pdfPageWidth}
+                              renderTextLayer
+                              renderAnnotationLayer
+                              onGetTextSuccess={({ items }) => {
+                                const pageTextFromPdf = items
+                                  .map((item) => {
+                                    if (!("str" in item)) return "";
+                                    return `${item.str}${item.hasEOL ? "\n" : " "}`;
+                                  })
+                                  .join("")
+                                  .trim();
+                                setPdfJsPageState((previousState) => {
+                                  const previous =
+                                    previousState.url === url
+                                      ? previousState.pages
+                                      : EMPTY_PDFJS_PAGES;
+                                  if (
+                                    previous.get(pageNumber) === pageTextFromPdf
+                                  ) {
+                                    return previousState;
+                                  }
+                                  const next = new Map(previous);
+                                  next.set(pageNumber, pageTextFromPdf);
+                                  return { url, pages: next };
+                                });
+                              }}
+                              loading={
+                                <div className="skeleton h-150 w-full rounded-lg" />
+                              }
+                            />
+                          ) : (
+                            <div className="skeleton h-150 w-full rounded-lg" />
+                          )}
+                        </div>
+                      </section>
+                    );
+                  },
+                )}
+              </div>
+            </Document>
+          </div>
         </div>
       </div>
     );

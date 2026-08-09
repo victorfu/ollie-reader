@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { logger } from "../utils/logger";
 import { usePdfState } from "../hooks/usePdfState";
 import { useSpeechState } from "../hooks/useSpeechState";
-import { useSettings } from "../hooks/useSettings";
 import { useTextSelection } from "../hooks/useTextSelection";
 import { usePdfWorker } from "../hooks/usePdfWorker";
 import { useVocabulary, formatDefinitionsForDisplay } from "../hooks/useVocabulary";
@@ -11,7 +10,6 @@ import { useAuth } from "../hooks/useAuth";
 import { createTranslateFn } from "../utils/translateFactory";
 import { UploadArea } from "./PdfReader/UploadArea";
 import { PdfViewer } from "./PdfReader/PdfViewer";
-import { PageTextArea } from "./PdfReader/PageTextArea";
 import { SelectionToolbar } from "./PdfReader/SelectionToolbar";
 import { WordPanel } from "./PdfReader/WordPanel";
 import { ToastContainer } from "./common/ToastContainer";
@@ -46,8 +44,6 @@ function PdfReader() {
     stopSpeaking,
   } = useSpeechState();
 
-  const { textParsingMode, readingMode } = useSettings();
-
   const { user } = useAuth();
 
   const {
@@ -56,6 +52,11 @@ function PdfReader() {
     clearSelection,
     toolbarPosition,
   } = useTextSelection();
+
+  // A selection belongs to the rendered text layer of one PDF only.
+  useEffect(() => {
+    clearSelection();
+  }, [pdfUrl, clearSelection]);
 
   const {
     bookingRecords,
@@ -78,7 +79,7 @@ function PdfReader() {
 
   // Keyboard shortcut: Cmd/Ctrl+K to toggle the word panel
   useEffect(() => {
-    if (!result) return;
+    if (!pdfUrl) return;
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
         e.preventDefault();
@@ -87,7 +88,7 @@ function PdfReader() {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [result]);
+  }, [pdfUrl]);
 
   // Refs for race condition handling
   const loadingCourseIdRef = useRef<string | null>(null);
@@ -251,7 +252,7 @@ function PdfReader() {
           onDragOver={onDragOver}
           onCancel={cancelUpload}
           onOpenBookingDrawer={() => setDrawerOpen(true)}
-          onClearCache={result ? handleClearCache : undefined}
+          onClearCache={pdfUrl ? handleClearCache : undefined}
           isClearingCache={isClearingCache}
         />
       </div>
@@ -276,7 +277,7 @@ function PdfReader() {
       )}
 
       {/* Selection Toolbar */}
-      {readingMode === "selection" && result && (
+      {pdfUrl && (
         <SelectionToolbar
           selectedText={selectedText}
           onSpeak={speakSelection}
@@ -287,46 +288,21 @@ function PdfReader() {
         />
       )}
 
-      {/* Results */}
-      {result && (
+      {/* PDF is published as soon as its blob is available. Text hydrates later. */}
+      {pdfUrl && (
         <div className="space-y-6">
-          {/* PDF Viewer - Glass card with macOS HIG styling */}
-          {pdfUrl && (
-            <div className="rounded-xl border border-border-hairline bg-base-100 shadow-elevated overflow-hidden">
-              <div className="p-0">
-                <PdfViewer
-                  url={pdfUrl}
-                  pagesByNumber={pagesByNumber}
-                  readingMode={readingMode}
-                  onSpeak={speak}
-                  onTextSelection={handleTextSelection}
-                  isLoadingAudio={isLoadingAudio}
-                  isSpeaking={isSpeaking}
-                  initialScrollPosition={initialScrollPosition}
-                  onScrollPositionChange={saveScrollPosition}
-                  textParsingMode={textParsingMode}
-                />
-              </div>
-            </div>
-          )}
-
-          {/* All Pages Overview (when no PDF URL) */}
-          {!pdfUrl && (
-            <div className="space-y-6">
-              {result.pages.map((p) => (
-                <PageTextArea
-                  key={p.page_number}
-                  pageNumber={p.page_number}
-                  text={p.text || ""}
-                  readingMode={readingMode}
-                  onSpeak={speak}
-                  onTextSelection={handleTextSelection}
-                  isLoadingAudio={isLoadingAudio}
-                  isSpeaking={isSpeaking}
-                />
-              ))}
-            </div>
-          )}
+          <div className="overflow-hidden rounded-xl border border-border-hairline bg-base-100 shadow-elevated">
+            <PdfViewer
+              url={pdfUrl}
+              pagesByNumber={pagesByNumber}
+              onSpeak={speak}
+              onTextSelection={handleTextSelection}
+              isLoadingAudio={isLoadingAudio}
+              isSpeaking={isSpeaking}
+              initialScrollPosition={initialScrollPosition}
+              onScrollPositionChange={saveScrollPosition}
+            />
+          </div>
         </div>
       )}
 
@@ -374,7 +350,7 @@ function PdfReader() {
       )}
 
       {/* Word Panel Trigger Button — opens the unified lookup + vocabulary panel */}
-      {result && !wordPanelOpen && (
+      {pdfUrl && !wordPanelOpen && (
         <button
           type="button"
           onClick={() => setWordPanelOpen(true)}

@@ -5,7 +5,6 @@ import {
   Monitor,
   Palette,
   Volume2,
-  BookOpen,
   Eye,
   SlidersHorizontal,
   Gamepad2,
@@ -19,7 +18,7 @@ import { resetGameProgress } from "../../services/gameProgressService";
 import { ConfirmModal } from "../common/ConfirmModal";
 import { GlassCard } from "../common/GlassCard";
 import { Toast } from "../common/Toast";
-import type { TTSMode, TTSEngine, ReadingMode, TextParsingMode, ComputeMode } from "../../types/pdf";
+import type { TTSMode, TTSEngine, ComputeMode } from "../../types/pdf";
 import { getComputeStatusSync, refreshComputeBase, type ComputeStatus } from "../../services/localBackend";
 
 const THEME_OPTIONS = [
@@ -31,7 +30,6 @@ const THEME_OPTIONS = [
 const CATEGORIES = [
   { id: "appearance", label: "外觀", icon: Palette },
   { id: "audio", label: "語音", icon: Volume2 },
-  { id: "reading", label: "閱讀", icon: BookOpen },
   { id: "advanced", label: "進階", icon: SlidersHorizontal },
   { id: "game", label: "遊戲", icon: Gamepad2 },
 ] as const;
@@ -49,15 +47,11 @@ export const Settings = () => {
     ttsMode,
     ttsEngine,
     speechRate,
-    readingMode,
-    textParsingMode,
     loading,
     error,
     updateTtsMode,
     updateTtsEngine,
     updateSpeechRate,
-    updateReadingMode,
-    updateTextParsingMode,
     computeMode,
     updateComputeMode,
   } = useSettings();
@@ -104,34 +98,6 @@ export const Settings = () => {
 
     try {
       await updateSpeechRate(rate);
-      setSaveSuccess(true);
-    } catch (err) {
-      console.error("Failed to save settings:", err);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleReadingModeChange = async (mode: ReadingMode) => {
-    setSaving(true);
-    setSaveSuccess(false);
-
-    try {
-      await updateReadingMode(mode);
-      setSaveSuccess(true);
-    } catch (err) {
-      console.error("Failed to save settings:", err);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleTextParsingModeChange = async (mode: TextParsingMode) => {
-    setSaving(true);
-    setSaveSuccess(false);
-
-    try {
-      await updateTextParsingMode(mode);
       setSaveSuccess(true);
     } catch (err) {
       console.error("Failed to save settings:", err);
@@ -423,102 +389,9 @@ export const Settings = () => {
                 </div>
               )}
 
-              {/* Reading Mode Selection */}
-              {activeCategory === "reading" && (
-                <div>
-                  <h3 className="text-lg font-semibold mb-3">閱讀模式</h3>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    選擇點擊文字時的查詢方式
-                  </p>
-
-                  <div className="space-y-3">
-                    <label className="flex items-start gap-3 p-4 border border-border-hairline rounded-lg cursor-pointer hover:bg-base-200/60 transition-colors">
-                      <input
-                        type="radio"
-                        name="readingMode"
-                        className="radio radio-primary mt-1"
-                        checked={readingMode === "word"}
-                        onChange={() => handleReadingModeChange("word")}
-                        disabled={saving}
-                      />
-                      <div className="flex-1">
-                        <div className="font-medium">單字模式</div>
-                        <div className="text-sm text-muted-foreground">
-                          點擊單字即可查詢（推薦）
-                        </div>
-                      </div>
-                    </label>
-
-                    <label className="flex items-start gap-3 p-4 border border-border-hairline rounded-lg cursor-pointer hover:bg-base-200/60 transition-colors">
-                      <input
-                        type="radio"
-                        name="readingMode"
-                        className="radio radio-primary mt-1"
-                        checked={readingMode === "selection"}
-                        onChange={() => handleReadingModeChange("selection")}
-                        disabled={saving}
-                      />
-                      <div className="flex-1">
-                        <div className="font-medium">選取模式</div>
-                        <div className="text-sm text-muted-foreground">
-                          選取文字範圍後查詢，適合查詢片語或句子
-                        </div>
-                      </div>
-                    </label>
-                  </div>
-                </div>
-              )}
-
-              {/* Advanced: PDF parsing + compute backend */}
+              {/* Advanced: compute backend */}
               {activeCategory === "advanced" && (
                 <div className="space-y-6">
-                  {/* PDF Text Parsing Mode */}
-                  <div>
-                    <h3 className="text-lg font-semibold mb-3">PDF 文字解析</h3>
-                    <p className="text-sm text-muted-foreground mb-4">
-                      選擇如何從 PDF 擷取文字
-                    </p>
-
-                    <div className="space-y-3">
-                      <label className="flex items-start gap-3 p-4 border border-border-hairline rounded-lg cursor-pointer hover:bg-base-200/60 transition-colors">
-                        <input
-                          type="radio"
-                          name="textParsingMode"
-                          className="radio radio-primary mt-1"
-                          checked={textParsingMode === "backend"}
-                          onChange={() => handleTextParsingModeChange("backend")}
-                          disabled={saving}
-                        />
-                        <div className="flex-1">
-                          <div className="font-medium">後端解析</div>
-                          <div className="text-sm text-muted-foreground">
-                            上傳 PDF 至伺服器解析（較準確）
-                          </div>
-                        </div>
-                      </label>
-
-                      <label className="flex items-start gap-3 p-4 border border-border-hairline rounded-lg cursor-pointer hover:bg-base-200/60 transition-colors">
-                        <input
-                          type="radio"
-                          name="textParsingMode"
-                          className="radio radio-primary mt-1"
-                          checked={textParsingMode === "frontend"}
-                          onChange={() => handleTextParsingModeChange("frontend")}
-                          disabled={saving}
-                        />
-                        <div className="flex-1">
-                          <div className="font-medium">前端解析</div>
-                          <div className="text-sm text-muted-foreground">
-                            直接在瀏覽器中使用 react-pdf 解析（較快，不需上傳）
-                          </div>
-                        </div>
-                      </label>
-                    </div>
-                  </div>
-
-                  {/* Divider */}
-                  <div className="divider"></div>
-
                   {/* 運算後端 / 連線模式 */}
                   <div>
                     <h3 className="text-lg font-semibold mb-3">運算後端</h3>
