@@ -2,6 +2,20 @@ export type ExtractedPage = {
   page_number: number;
   text: string;
   text_length: number;
+  /** Width of the rendered, rotated CropBox viewport in PDF points. */
+  width?: number;
+  /** Height of the rendered, rotated CropBox viewport in PDF points. */
+  height?: number;
+  /** Optional PyMuPDF-native word boxes. Older backends and caches omit this. */
+  words?: PdfWord[];
+};
+
+export type PdfWord = {
+  text: string;
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
 };
 
 export type ExtractResponse = {
@@ -21,19 +35,3 @@ export type TTSEngine = "piper" | "kokoro" | "edge";
 
 // 運算後端連線模式（per-device，存 localStorage，不同步 Firestore）
 export type ComputeMode = "auto" | "local" | "cloud";
-
-// PDF 單字位置資訊
-export interface WordPosition {
-  word: string;
-  x: number; // 相對於頁面的 x (已縮放)
-  y: number; // 相對於頁面的 y (已縮放)
-  width: number; // 估算寬度
-  height: number; // 文字高度
-}
-
-// PDF 頁面尺寸資訊
-export interface PageDimensions {
-  originalWidth: number;
-  originalHeight: number;
-  scale: number; // pdfWidth / originalWidth
-}

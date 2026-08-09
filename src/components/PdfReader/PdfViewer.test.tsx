@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const pdfMocks = vi.hoisted(() => ({
   renderWidths: [] as Array<number | undefined>,
   pdfJsText: "PDF.js extracted page text",
+  renderTextLayerValues: [] as Array<boolean | undefined>,
 }));
 
 vi.mock("react-pdf", async () => {
@@ -26,15 +27,18 @@ vi.mock("react-pdf", async () => {
       width,
       onGetTextSuccess,
       renderTextLayer,
+      children,
     }: {
       width?: number;
       onGetTextSuccess?: (result: {
         items: Array<{ str: string; hasEOL: boolean }>;
       }) => void;
       renderTextLayer?: boolean;
+      children?: React.ReactNode;
     }) => {
       const didReportText = React.useRef(false);
       pdfMocks.renderWidths.push(width);
+      pdfMocks.renderTextLayerValues.push(renderTextLayer);
       React.useEffect(() => {
         if (!renderTextLayer || didReportText.current) return;
         didReportText.current = true;
@@ -49,6 +53,12 @@ vi.mock("react-pdf", async () => {
               <span>Learn proportional words</span>
             </div>
           )}
+          <div className="annotationLayer">
+            <a href="https://example.com" data-testid="pdf-annotation-link">
+              annotation
+            </a>
+          </div>
+          {children}
         </div>
       );
     },
@@ -70,7 +80,7 @@ const defaultProps = {
 
 function dispatchPointer(
   target: Element,
-  type: "pointerdown" | "pointerup",
+  type: "pointerdown" | "pointermove" | "pointerup" | "pointercancel",
   x: number,
   y: number,
   pointerId = 1,
@@ -121,6 +131,7 @@ beforeEach(() => {
     .IS_REACT_ACT_ENVIRONMENT = true;
   vi.useFakeTimers();
   pdfMocks.renderWidths.length = 0;
+  pdfMocks.renderTextLayerValues.length = 0;
   scrollToMock = vi.fn();
   HTMLElement.prototype.scrollTo =
     scrollToMock as unknown as typeof HTMLElement.prototype.scrollTo;
@@ -143,6 +154,8 @@ beforeEach(() => {
     disconnect() {}
     unobserve() {}
   } as unknown as typeof ResizeObserver;
+  HTMLElement.prototype.setPointerCapture = vi.fn();
+  HTMLElement.prototype.releasePointerCapture = vi.fn();
   host = document.createElement("div");
   document.body.appendChild(host);
   root = createRoot(host);
@@ -269,6 +282,130 @@ describe("PdfViewer PDF-only layout", () => {
 });
 
 describe("PdfViewer text-layer interaction", () => {
+  it("uses backend word boxes for click hit-testing while retaining the text layer", () => {
+    const onTextSelection = vi.fn();
+    const caretPositionFromPoint = vi.fn();
+    renderViewer("blob:native-words", null, vi.fn(), {
+      onTextSelection,
+      pagesByNumber: new Map([
+        [
+          1,
+          {
+            page_number: 1,
+            text: "Once upon a time",
+            text_length: 16,
+            width: 500,
+            height: 300,
+            words: [
+              { text: "Once", x0: 20, y0: 20, x1: 70, y1: 40 },
+              { text: "upon", x0: 80, y0: 20, x1: 130, y1: 40 },
+            ],
+          },
+        ],
+      ]),
+    });
+    const overlay = host.querySelector<HTMLElement>(
+      "[data-native-word-overlay]",
+    );
+    if (!overlay) throw new Error("native overlay was not rendered");
+    overlay.getBoundingClientRect = () =>
+      ({
+        left: 100,
+        top: 200,
+        right: 1_100,
+        bottom: 800,
+        width: 1_000,
+        height: 600,
+        x: 100,
+        y: 200,
+        toJSON: () => ({}),
+      }) as DOMRect;
+    Object.defineProperty(document, "caretPositionFromPoint", {
+      configurable: true,
+      value: caretPositionFromPoint,
+    });
+
+    act(() => {
+      dispatchPointer(overlay, "pointerdown", 190, 260);
+      dispatchPointer(overlay, "pointerup", 190, 260);
+    });
+
+    const payload = onTextSelection.mock.calls
+      .map(([value]) => value as { text?: string } | undefined)
+      .find((value) => value?.text);
+    expect(payload?.text).toBe("Once");
+    expect(caretPositionFromPoint).not.toHaveBeenCalled();
+    expect(host.querySelector(".textLayer")).not.toBeNull();
+    expect(pdfMocks.renderTextLayerValues).toContain(true);
+  });
+
+  it("keeps PDF annotations outside native word selection", () => {
+    const onTextSelection = vi.fn();
+    renderViewer("blob:native-annotation", null, vi.fn(), {
+      onTextSelection,
+      pagesByNumber: new Map([
+        [
+          1,
+          {
+            page_number: 1,
+            text: "Link",
+            text_length: 4,
+            width: 500,
+            height: 300,
+            words: [{ text: "Link", x0: 20, y0: 20, x1: 70, y1: 40 }],
+          },
+        ],
+      ]),
+    });
+    const annotation = host.querySelector('[data-testid="pdf-annotation-link"]');
+    if (!annotation) throw new Error("annotation was not rendered");
+
+    act(() => {
+      dispatchPointer(annotation, "pointerdown", 190, 260);
+      dispatchPointer(annotation, "pointerup", 190, 260);
+    });
+
+    expect(onTextSelection).not.toHaveBeenCalled();
+  });
+
+  it("falls back to the PDF.js caret path when optional word geometry is invalid", () => {
+    const onTextSelection = vi.fn();
+    renderViewer("blob:invalid-native-words", null, vi.fn(), {
+      onTextSelection,
+      pagesByNumber: new Map([
+        [
+          1,
+          {
+            page_number: 1,
+            text: "Backend text",
+            text_length: 12,
+            width: 0,
+            height: 300,
+            words: [{ text: "bad", x0: 0, y0: 0, x1: 10, y1: 10 }],
+          },
+        ],
+      ]),
+    });
+    expect(host.querySelector("[data-native-word-overlay]")).toBeNull();
+    const surface = host.querySelector('[data-pdf-page-surface="true"]');
+    const textNode = host.querySelector(".textLayer span")?.firstChild;
+    if (!surface || !(textNode instanceof Text)) {
+      throw new Error("mock PDF text layer was not rendered");
+    }
+    Object.defineProperty(document, "caretPositionFromPoint", {
+      configurable: true,
+      value: vi.fn(() => ({ offsetNode: textNode, offset: 10 })),
+    });
+
+    act(() => {
+      dispatchPointer(surface, "pointerdown", 20, 30);
+      dispatchPointer(surface, "pointerup", 20, 30);
+    });
+
+    expect(window.getSelection()?.toString()).toBe("proportional");
+    expect(onTextSelection).toHaveBeenCalledTimes(1);
+  });
+
   it("turns a short click into a real single-word selection", () => {
     const onTextSelection = vi.fn();
     renderViewer("blob:click-word", null, vi.fn(), { onTextSelection });

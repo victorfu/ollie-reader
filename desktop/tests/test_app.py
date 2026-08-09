@@ -45,6 +45,23 @@ def test_pdf_extract_contract(client):
     assert body["total_pages"] == 1
     assert "Hello Ollie" in body["pages"][0]["text"]
     assert body["pages"][0]["page_number"] == 1
+    page = body["pages"][0]
+    assert page["width"] == pytest.approx(595, abs=1)
+    assert page["height"] == pytest.approx(842, abs=1)
+    assert [word["text"] for word in page["words"]] == ["Hello", "Ollie"]
+    assert set(page["words"][0]) == {"text", "x0", "y0", "x1", "y1"}
+
+
+def test_pdf_extract_empty_page_contract(client):
+    files = {"file": ("empty.pdf", _pdf_bytes(""), "application/pdf")}
+    resp = client.post("/api/pdf/extract", files=files)
+
+    assert resp.status_code == 200
+    page = resp.json()["pages"][0]
+    assert page["text"] == ""
+    assert page["width"] == pytest.approx(595, abs=1)
+    assert page["height"] == pytest.approx(842, abs=1)
+    assert page["words"] == []
 
 
 def test_pdf_extract_runs_in_threadpool(client, monkeypatch):

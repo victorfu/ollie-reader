@@ -136,7 +136,10 @@ export function ShowSubtitlesPage() {
       )}
 
       {/* Episode list or Transcript viewer */}
-      <div className="surface-card p-4 sm:p-5 md:p-6" onMouseUp={handleTextSelection}>
+      <div
+        className="surface-card p-4 sm:p-5 md:p-6"
+        onMouseUp={() => handleTextSelection()}
+      >
           {selectedEpisode ? (
             <>
               <button

@@ -9,10 +9,13 @@ import {
 } from "react";
 import { Volume2 } from "lucide-react";
 import { Document, Page } from "react-pdf";
+import type { TextSelectionPayload } from "../../hooks/useTextSelection";
 import type { ExtractedPage } from "../../types/pdf";
 import { pdfDocumentOptions } from "../../utils/pdfConfig";
 import { selectWordAtPoint } from "../../utils/pdfTextSelection";
+import { hasPdfWordGeometry } from "../../utils/pdfWordSelection";
 import { ExternalAssistantToolbar } from "./ExternalAssistantToolbar";
+import { WordOverlay } from "./WordOverlay";
 
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
@@ -21,7 +24,7 @@ interface PdfViewerProps {
   url: string;
   pagesByNumber: Map<number, ExtractedPage>;
   onSpeak: (text: string) => void;
-  onTextSelection: () => void;
+  onTextSelection: (selection?: TextSelectionPayload) => void;
   isLoadingAudio?: boolean;
   isSpeaking?: boolean;
   initialScrollPosition?: number | null;
@@ -275,8 +278,10 @@ export const PdfViewer = memo(
               <div className="flex flex-col gap-6">
                 {Array.from({ length: numPages }, (_, index) => index + 1).map(
                   (pageNumber) => {
+                    const extractedPage = pagesByNumber.get(pageNumber);
                     const pageText = getPageText(pageNumber);
                     const textAvailable = pageText.trim().length > 0;
+                    const nativeWordGeometry = hasPdfWordGeometry(extractedPage);
                     return (
                       <section
                         key={`page-${pageNumber}`}
@@ -355,7 +360,16 @@ export const PdfViewer = memo(
                               loading={
                                 <div className="skeleton h-150 w-full rounded-lg" />
                               }
-                            />
+                            >
+                              {nativeWordGeometry && (
+                                <WordOverlay
+                                  pageWidth={extractedPage.width}
+                                  pageHeight={extractedPage.height}
+                                  words={extractedPage.words}
+                                  onTextSelection={onTextSelection}
+                                />
+                              )}
+                            </Page>
                           ) : (
                             <div className="skeleton h-150 w-full rounded-lg" />
                           )}

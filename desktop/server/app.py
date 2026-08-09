@@ -114,6 +114,18 @@ def create_app() -> FastAPI:
                     "page_number": p.page_number,
                     "text": p.text,
                     "text_length": p.text_length,
+                    "width": p.width,
+                    "height": p.height,
+                    "words": [
+                        {
+                            "text": word.text,
+                            "x0": word.x0,
+                            "y0": word.y0,
+                            "x1": word.x1,
+                            "y1": word.y1,
+                        }
+                        for word in p.words
+                    ],
                 }
                 for p in result.pages
             ],

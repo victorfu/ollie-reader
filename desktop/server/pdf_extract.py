@@ -1,17 +1,21 @@
-"""PDF 文字提取（複製自 purism-ev-bot services/pdf_service.py，合約一致）。
+"""PDF 文字提取。
+
+文字清洗管線複製自 purism-ev-bot services/pdf_service.py，pages[].text 合約一致；
+本機 sidecar 額外回傳原生 word bbox 與頁面 geometry。
 
 抽取管線（提升朗讀與選字精準度）：
 1. pymupdf blocks 模式 + 展開連字（ﬁ→fi）+ 行尾斷字接回
 2. 段落重排：block 內軟換行接成空格（CJK 相鄰不插空格），block 間留空行
 3. 頁首頁尾：跨頁重複出現在頁面上下帶的 block（頁碼數字先正規化）整份移除
 4. 閱讀順序：跨欄 block 當作分段線，帶內窄 block 依 x 區間分欄，由左欄到右欄
+5. 原生字框：輸出旋轉後 CropBox viewport 的 page geometry 與可見 word bbox
 """
 
 import logging
 import os
 import re
 import tempfile
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import PurePosixPath, PureWindowsPath
 from typing import Dict, List, Optional, Set, Tuple
 
@@ -30,10 +34,22 @@ _WIDE_BLOCK_RATIO = 0.6  # 佔內容寬度 60% 以上視為跨欄（標題/分�
 
 
 @dataclass
+class NativeWord:
+    text: str
+    x0: float
+    y0: float
+    x1: float
+    y1: float
+
+
+@dataclass
 class PageText:
     page_number: int
     text: str
     text_length: int
+    width: float = 0.0
+    height: float = 0.0
+    words: List[NativeWord] = field(default_factory=list)
 
 
 @dataclass
@@ -57,6 +73,7 @@ class _Block:
     x1: float
     y1: float
     text: str
+    words: List[NativeWord] = field(default_factory=list)
 
 
 def _is_path_like_filename(filename: str) -> bool:
@@ -97,16 +114,74 @@ def _reflow_lines(raw: str) -> str:
     return text
 
 
+def _rounded_coordinate(value: float) -> float:
+    rounded = round(float(value), 2)
+    return 0.0 if rounded == 0 else rounded
+
+
+def _display_rect(
+    coords: Tuple[float, float, float, float],
+    rotation_matrix: "pymupdf.Matrix",
+    page_rect: "pymupdf.Rect",
+) -> Optional["pymupdf.Rect"]:
+    """Normalize an unrotated, CropBox-relative bbox to the rendered viewport."""
+    rect = pymupdf.Rect(coords) * rotation_matrix
+    rect &= page_rect
+    if not rect.is_valid or rect.is_empty or rect.is_infinite:
+        return None
+    return rect
+
+
 def _collect_page_blocks(page: "pymupdf.Page") -> List[_Block]:
-    blocks: List[_Block] = []
-    for x0, y0, x1, y1, raw, _block_no, block_type in page.get_text(
-        "blocks", flags=_EXTRACT_FLAGS
+    page_rect = page.rect
+    rotation_matrix = page.rotation_matrix
+    text_page = page.get_textpage(flags=_EXTRACT_FLAGS)
+
+    words_by_block: Dict[int, List[Tuple[int, int, NativeWord]]] = {}
+    for x0, y0, x1, y1, text, block_no, line_no, word_no in (
+        text_page.extractWORDS()
     ):
+        rect = _display_rect((x0, y0, x1, y1), rotation_matrix, page_rect)
+        if rect is None or not text:
+            continue
+        word_x0 = _rounded_coordinate(rect.x0)
+        word_y0 = _rounded_coordinate(rect.y0)
+        word_x1 = _rounded_coordinate(rect.x1)
+        word_y1 = _rounded_coordinate(rect.y1)
+        if word_x0 >= word_x1 or word_y0 >= word_y1:
+            continue
+        word = NativeWord(
+            text=text,
+            x0=word_x0,
+            y0=word_y0,
+            x1=word_x1,
+            y1=word_y1,
+        )
+        words_by_block.setdefault(block_no, []).append((line_no, word_no, word))
+
+    blocks: List[_Block] = []
+    for x0, y0, x1, y1, raw, block_no, block_type in text_page.extractBLOCKS():
         if block_type != 0:  # 只取文字 block，略過圖片
             continue
         text = _reflow_lines(raw)
-        if text:
-            blocks.append(_Block(x0, y0, x1, y1, text))
+        rect = _display_rect((x0, y0, x1, y1), rotation_matrix, page_rect)
+        if text and rect is not None:
+            ordered_words = [
+                word
+                for _line_no, _word_no, word in sorted(
+                    words_by_block.get(block_no, []), key=lambda item: item[:2]
+                )
+            ]
+            blocks.append(
+                _Block(
+                    rect.x0,
+                    rect.y0,
+                    rect.x1,
+                    rect.y1,
+                    text,
+                    ordered_words,
+                )
+            )
     return blocks
 
 
@@ -197,19 +272,30 @@ def _order_blocks(blocks: List[_Block]) -> List[_Block]:
 
 
 def _pages_to_text(
-    page_blocks: List[List[_Block]], page_heights: List[float]
+    page_blocks: List[List[_Block]], page_sizes: List[Tuple[float, float]]
 ) -> List[PageText]:
+    page_heights = [height for _width, height in page_sizes]
     strip = _repeating_band_templates(page_blocks, page_heights)
     pages: List[PageText] = []
-    for index, (blocks, height) in enumerate(zip(page_blocks, page_heights)):
+    for index, (blocks, (width, height)) in enumerate(
+        zip(page_blocks, page_sizes)
+    ):
         body = [
             block
             for block in blocks
             if (entry := _band_entry(block, height)) is None or entry not in strip
         ]
         text = "\n\n".join(block.text for block in _order_blocks(body))
+        words = [word for block in _order_blocks(blocks) for word in block.words]
         pages.append(
-            PageText(page_number=index + 1, text=text, text_length=len(text))
+            PageText(
+                page_number=index + 1,
+                text=text,
+                text_length=len(text),
+                width=_rounded_coordinate(width),
+                height=_rounded_coordinate(height),
+                words=words,
+            )
         )
     return pages
 
@@ -233,9 +319,9 @@ def extract_text_from_pdf(file_content: bytes, filename: str) -> PDFExtractResul
                 doc = pymupdf.open(temp_file_path)
                 page_count = len(doc)
                 page_blocks: List[List[_Block]] = []
-                page_heights: List[float] = []
+                page_sizes: List[Tuple[float, float]] = []
                 for page in doc:
-                    page_heights.append(page.rect.height)
+                    page_sizes.append((page.rect.width, page.rect.height))
                     page_blocks.append(_collect_page_blocks(page))
             finally:
                 if doc is not None:
@@ -244,7 +330,7 @@ def extract_text_from_pdf(file_content: bytes, filename: str) -> PDFExtractResul
             return PDFExtractResult(
                 filename=filename,
                 total_pages=page_count,
-                pages=_pages_to_text(page_blocks, page_heights),
+                pages=_pages_to_text(page_blocks, page_sizes),
             )
     except PDFError:
         raise
