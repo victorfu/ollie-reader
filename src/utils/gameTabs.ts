@@ -22,8 +22,19 @@ export function openGameTab(to: string): Window | null {
     return existingTab;
   }
 
-  const openedTab = window.open(url.href, getGameTabTargetName(to));
+  // Open an empty URL first so a named browsing context that survived a hard
+  // Hub reload is returned without navigating (and therefore reloading) it.
+  const openedTab = window.open("", getGameTabTargetName(to));
   if (!openedTab) return null;
+
+  try {
+    if (openedTab.location.href.startsWith("about:blank")) {
+      openedTab.location.href = url.href;
+    }
+  } catch {
+    // A named tab may have navigated cross-origin. Its name still identifies
+    // the existing game context, so preserve and focus it instead of reloading.
+  }
 
   gameTabs.set(key, openedTab);
   openedTab.focus();

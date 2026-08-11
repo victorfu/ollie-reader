@@ -8,8 +8,10 @@ import {
 import { ELEMENT_COLOR } from "../data/elements";
 import { getEnemy } from "../data/enemies";
 import { getCharacter } from "../data/characters";
-import { getTowerStats } from "../engine/combat";
-import type { CompiledLevel } from "../engine/simulation";
+import {
+  getTowerStatsAtSlot,
+  type CompiledLevel,
+} from "../engine/simulation";
 import { pointAtDistance } from "../engine/path";
 import type { BattleState, LiveEnemy, Vec2 } from "../types";
 import { drawProps, drawZones } from "./scene";
@@ -661,7 +663,13 @@ function drawRangePreview(
       : null;
   if (!pet) return;
 
-  const stats = getTowerStats(pet, tower?.level ?? 1);
+  const stats = getTowerStatsAtSlot(
+    level,
+    view.selectedSlotId,
+    pet,
+    tower?.level ?? 1,
+    tower?.spec ?? null,
+  );
 
   ctx.fillStyle = "rgba(255,158,196,0.14)";
   ctx.beginPath();

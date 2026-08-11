@@ -124,7 +124,7 @@ describe("gacha phase transitions", () => {
 });
 
 describe("normalizeGachaSave", () => {
-  it("normalizes versions and counts while removing unknown character ids", () => {
+  it("normalizes counts while retaining keyed ownership for future ids", () => {
     expect(
       normalizeGachaSave({
         schemaVersion: 999,
@@ -140,8 +140,54 @@ describe("normalizeGachaSave", () => {
     ).toEqual({
       schemaVersion: 1,
       resetVersion: 4,
-      totalDraws: 2,
+      totalDraws: 52,
       ownedCounts: { "hello-kitty": 2 },
+      unknownOwnedCounts: { unknown: 50 },
+    });
+  });
+
+  it("keeps keyed future ownership through multiple-version round trips", () => {
+    const normalized = normalizeGachaSave({
+      schemaVersion: 1,
+      resetVersion: 2,
+      totalDraws: 1,
+      ownedCounts: {
+        kuromi: 2,
+        "future-character": 3,
+        "later-character": 1,
+      },
+      unknownOwnedCounts: {
+        "future-character": 2,
+        "older-hidden-character": 4,
+      },
+    });
+
+    const roundTripped = normalizeGachaSave(normalized);
+    expect(roundTripped).toEqual({
+      schemaVersion: 1,
+      resetVersion: 2,
+      totalDraws: 10,
+      ownedCounts: { kuromi: 2 },
+      unknownOwnedCounts: {
+        "future-character": 3,
+        "later-character": 1,
+        "older-hidden-character": 4,
+      },
+    });
+    expect(normalizeGachaSave(roundTripped)).toEqual(roundTripped);
+  });
+
+  it("promotes an id from hidden ownership when this client recognizes it", () => {
+    expect(normalizeGachaSave({
+      schemaVersion: 1,
+      totalDraws: 3,
+      ownedCounts: { kuromi: 1 },
+      unknownOwnedCounts: { kuromi: 3 },
+    })).toEqual({
+      schemaVersion: 1,
+      resetVersion: 0,
+      totalDraws: 3,
+      ownedCounts: { kuromi: 3 },
     });
   });
 

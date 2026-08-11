@@ -170,6 +170,10 @@ export function BattleScreen({
 
   const commandQueue = useRef<Command[]>([]);
   const pausedRef = useRef(false);
+  const onFinishedRef = useRef(onFinished);
+  // 結算是每場只能發生一次的事件。即使 React 因為 props 變動重建 rAF effect，
+  // 也不能重新發獎勵、音效或彩帶；這個 ref 的生命週期跟整場 BattleScreen 一致。
+  const reportedRef = useRef(false);
   const viewRef = useRef<ViewState>({
     selectedSlotId: null,
     hoveredSlotId: null,
@@ -190,6 +194,12 @@ export function BattleScreen({
   useEffect(() => {
     pausedRef.current = paused;
   }, [paused]);
+
+  // rAF 迴圈不應因呼叫端換了一個 inline callback 就拆掉重建；迴圈只在真正結算
+  // 時讀最新版本即可。
+  useEffect(() => {
+    onFinishedRef.current = onFinished;
+  }, [onFinished]);
 
   // 哪些角色已經站上塔位；沒上場的角色在絕招列裡是灰的。
   const placedCharacterIds = useMemo(
@@ -250,7 +260,6 @@ export function BattleScreen({
     let frame = 0;
     let previous = performance.now();
     let accumulator = 0;
-    let reported = false;
     // 音效靠比對前後幀的狀態觸發——模擬層不知道有喇叭這回事，也不該知道。
     let lastPhase = battle.phase;
     let lastCakes = battle.cakes;
@@ -307,8 +316,11 @@ export function BattleScreen({
       const next = snapshotOf(battle, level.waves.length);
       setHud((current) => (sameSnapshot(current, next) ? current : next));
 
-      if (!reported && (battle.phase === "cleared" || battle.phase === "lost")) {
-        reported = true;
+      if (
+        !reportedRef.current &&
+        (battle.phase === "cleared" || battle.phase === "lost")
+      ) {
+        reportedRef.current = true;
         const result: RunOutcome = {
           phase: battle.phase,
           cakes: battle.cakes,
@@ -317,7 +329,7 @@ export function BattleScreen({
           waveIndex: battle.waveIndex,
         };
         setOutcome(result);
-        onFinished(result);
+        onFinishedRef.current(result);
 
         stopMusic();
         if (battle.phase === "cleared") {
@@ -333,7 +345,7 @@ export function BattleScreen({
     return () => cancelAnimationFrame(frame);
     // level 是整個 prop 而不是 level.waves.length：迴圈現在也要靠它判斷這一波
     // 是不是 Boss 波。呼叫端用 key 綁定關卡，所以它在元件的生命週期內不會變。
-  }, [battle, compiled, level, onFinished]);
+  }, [battle, compiled, level]);
 
   const toLogicalPoint = useCallback((clientX: number, clientY: number) => {
     const canvas = canvasRef.current;

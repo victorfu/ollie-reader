@@ -182,8 +182,9 @@ describe("gacha cache", () => {
     expect(readGachaCache("player")).toEqual({
       schemaVersion: 1,
       resetVersion: 3,
-      totalDraws: 3,
+      totalDraws: 103,
       ownedCounts: { "hello-kitty": 3 },
+      unknownOwnedCounts: { unknown: 100 },
     });
   });
 
@@ -509,7 +510,7 @@ describe("recordGachaAttempt", () => {
     expect(transaction.update).not.toHaveBeenCalled();
   });
 
-  it("merges only the selected count for existing documents", async () => {
+  it("merges only the selected count while retaining raw unknown leaves", async () => {
     const transaction = transactionFor({
       schemaVersion: 1,
       resetVersion: 4,
@@ -522,11 +523,20 @@ describe("recordGachaAttempt", () => {
       async (_database, update) => update(transaction),
     );
 
-    await recordGachaAttempt(
+    const applied = await recordGachaAttempt(
       "existing-player",
       { kind: "character", characterId: "kuromi" },
       4,
     );
+
+    expect(applied.save).toEqual({
+      schemaVersion: 1,
+      resetVersion: 4,
+      totalDraws: 6,
+      ownedCounts: { kuromi: 3 },
+      unknownOwnedCounts: { futureCharacter: 3 },
+    });
+    expect(readGachaCache("existing-player")).toEqual(applied.save);
 
     expect(transaction.set).toHaveBeenCalledWith(
       documentRef,
@@ -672,6 +682,7 @@ describe("resetGachaCollection", () => {
       resetVersion: 4,
       totalDraws: 12,
       ownedCounts: { kuromi: 10, futureCharacter: 2 },
+      unknownOwnedCounts: { futureCharacter: 2 },
       createdAt: "original-created-at",
       futureTopLevelField: true,
     });
@@ -692,6 +703,7 @@ describe("resetGachaCollection", () => {
       resetVersion: 5,
       totalDraws: 0,
       ownedCounts: {},
+      unknownOwnedCounts: {},
       resetAt: serverTimestamp,
       updatedAt: serverTimestamp,
     });
@@ -712,6 +724,7 @@ describe("resetGachaCollection", () => {
       resetVersion: 1,
       totalDraws: 0,
       ownedCounts: {},
+      unknownOwnedCounts: {},
       createdAt: serverTimestamp,
       resetAt: serverTimestamp,
       updatedAt: serverTimestamp,

@@ -84,13 +84,31 @@ vi.mock("./GachaRevealDialog", () => ({
     onClose: () => void;
   }) =>
     isOpen ? (
-      <button type="button" data-testid="reveal-dialog" onClick={onClose}>
+      <button
+        type="button"
+        data-testid="reveal-dialog"
+        data-is-new={
+          result?.kind === "character" ? String(result.isNew) : undefined
+        }
+        data-owned-count={
+          result?.kind === "character" ? result.ownedCount : undefined
+        }
+        onClick={onClose}
+      >
         {result?.kind}
       </button>
     ) : null,
 }));
 
 import GachaMachine from "./GachaMachine";
+import {
+  GACHA_REVEAL_GUARD_HEARTBEAT_MS,
+  GACHA_REVEAL_GUARD_PREFIX,
+  beginGachaRevealGuard,
+  endGachaRevealGuard,
+  getGachaRevealGuardKey,
+  listActiveGachaRevealGuards,
+} from "./gachaRevealGuard";
 
 let container: HTMLDivElement;
 let root: Root;
@@ -187,9 +205,23 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount());
   container.remove();
+  vi.useRealTimers();
 });
 
 describe("GachaMachine page states", () => {
+  it("shows a retryable cloud error instead of a loading message", async () => {
+    storageMocks.loadGachaCloud.mockRejectedValue(new Error("offline"));
+
+    await renderAt("/games/gacha");
+
+    expect(container.textContent).toContain(
+      "無法同步雲端圖鑑，請重新同步後再試。",
+    );
+    expect(container.textContent).not.toContain("正在確認雲端圖鑑，請稍候。");
+    expect(container.textContent).toContain("雲端同步失敗");
+    expect(buttonWithText("重新同步")).toBeInstanceOf(HTMLButtonElement);
+  });
+
   it("uses the configured empty-capsule rate without showing the control in the game", async () => {
     const randomSpy = vi.spyOn(Math, "random").mockReturnValue(0.5);
     storageMocks.recordGachaAttempt.mockResolvedValue({
@@ -401,6 +433,492 @@ describe("GachaMachine page states", () => {
 });
 
 describe("GachaMachine draw guard", () => {
+  it("does not submit a draw when its durable reveal guard cannot be saved", async () => {
+    const originalSetItem = Storage.prototype.setItem;
+    const setItemSpy = vi
+      .spyOn(Storage.prototype, "setItem")
+      .mockImplementation(function setItem(
+        this: Storage,
+        key: string,
+        value: string,
+      ) {
+        if (key.startsWith(GACHA_REVEAL_GUARD_PREFIX)) {
+          throw new DOMException("blocked", "QuotaExceededError");
+        }
+        return originalSetItem.call(this, key, value);
+      });
+    storageMocks.recordGachaAttempt.mockResolvedValue({
+      coinsAfter: 450,
+      save: { ...EMPTY_SAVE, totalDraws: 1 },
+      result: { kind: "miss", totalDraws: 1 },
+    });
+
+    try {
+      await renderAt("/games/gacha");
+      act(() => buttonWithText("投入 50 代幣").click());
+      await act(async () => {
+        container
+          .querySelector<HTMLButtonElement>('button[aria-label="轉動扭蛋機把手"]')
+          ?.click();
+        await Promise.resolve();
+      });
+
+      expect(storageMocks.recordGachaAttempt).not.toHaveBeenCalled();
+      expect(container.textContent).toContain(
+        "無法建立安全的跨分頁開獎保護",
+      );
+      expect(container.textContent).toContain("這次沒有送出也沒有扣款");
+      expect(buttonWithText("投入 50 代幣").disabled).toBe(false);
+      expect(() => {
+        localStorage.setItem(
+          "ollie-gacha-machine-cache-v1:player-1",
+          JSON.stringify(EMPTY_SAVE),
+        );
+      }).not.toThrow();
+    } finally {
+      setItemSpy.mockRestore();
+    }
+  });
+
+  it("renews its guard during both the transaction and unopened capsule", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-11T10:00:00.000Z"));
+    let finishDraw: ((result: CommittedGachaAttempt) => void) | undefined;
+    storageMocks.recordGachaAttempt.mockReturnValue(
+      new Promise<CommittedGachaAttempt>((resolve) => {
+        finishDraw = resolve;
+      }),
+    );
+    await renderAt("/games/gacha");
+
+    act(() => buttonWithText("投入 50 代幣").click());
+    act(() => {
+      container
+        .querySelector<HTMLButtonElement>('button[aria-label="轉動扭蛋機把手"]')
+        ?.click();
+    });
+    const initialGuard = listActiveGachaRevealGuards(
+      "player-1",
+      localStorage,
+      Date.now(),
+    )[0];
+    if (!initialGuard) throw new Error("guard was not created");
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(GACHA_REVEAL_GUARD_HEARTBEAT_MS);
+    });
+    const inFlightGuard = listActiveGachaRevealGuards(
+      "player-1",
+      localStorage,
+      Date.now(),
+    )[0];
+    expect(inFlightGuard?.expiresAt).toBeGreaterThan(initialGuard.expiresAt);
+
+    await act(async () => {
+      finishDraw?.({
+        coinsAfter: 450,
+        save: {
+          ...EMPTY_SAVE,
+          totalDraws: 1,
+          ownedCounts: { "hello-kitty": 1 },
+        },
+        result: {
+          kind: "character",
+          characterId: "hello-kitty",
+          isNew: true,
+          ownedCount: 1,
+          totalDraws: 1,
+        },
+      });
+      await Promise.resolve();
+    });
+    expect(
+      container.querySelector('button[aria-label="膠囊已經出來，點擊開獎"]'),
+    ).toBeTruthy();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(GACHA_REVEAL_GUARD_HEARTBEAT_MS);
+    });
+    const pendingGuard = listActiveGachaRevealGuards(
+      "player-1",
+      localStorage,
+      Date.now(),
+    )[0];
+    expect(pendingGuard?.expiresAt).toBeGreaterThan(inFlightGuard?.expiresAt ?? 0);
+    expect(pendingGuard?.token).toBe(initialGuard.token);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(
+        GACHA_REVEAL_GUARD_HEARTBEAT_MS + 1,
+      );
+    });
+    expect(Date.now()).toBeGreaterThan(initialGuard.expiresAt);
+    expect(
+      listActiveGachaRevealGuards("player-1", localStorage, Date.now()),
+    ).toHaveLength(1);
+
+    act(() => {
+      container
+        .querySelector<HTMLButtonElement>('button[aria-label="膠囊已經出來，點擊開獎"]')
+        ?.click();
+    });
+    expect(
+      listActiveGachaRevealGuards("player-1", localStorage, Date.now()),
+    ).toHaveLength(0);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(GACHA_REVEAL_GUARD_HEARTBEAT_MS * 2);
+    });
+    expect(
+      listActiveGachaRevealGuards("player-1", localStorage, Date.now()),
+    ).toHaveLength(0);
+  });
+
+  it("opens a new tab on the safe pre-draw cache while a reveal is pending", async () => {
+    const baselineSave: GachaSaveV1 = {
+      schemaVersion: 1,
+      resetVersion: 0,
+      totalDraws: 4,
+      ownedCounts: { kuromi: 2 },
+    };
+    const pendingCache: GachaSaveV1 = {
+      schemaVersion: 1,
+      resetVersion: 0,
+      totalDraws: 5,
+      ownedCounts: { kuromi: 2, "hello-kitty": 1 },
+    };
+    const guard = beginGachaRevealGuard(
+      "player-1",
+      baselineSave,
+      localStorage,
+      Date.now(),
+      "already-pending-draw",
+    );
+    if (!guard) throw new Error("guard was not created");
+    storageMocks.readGachaCache.mockReturnValue(pendingCache);
+    storageMocks.loadGachaCloud.mockResolvedValue(pendingCache);
+
+    await renderAt("/games/gacha?view=collection");
+
+    expect(container.textContent).toContain("酷洛米");
+    expect(container.textContent).not.toContain("Hello Kitty");
+    expect(container.textContent).toContain("1 / 57");
+
+    act(() => {
+      endGachaRevealGuard(guard, localStorage);
+      window.dispatchEvent(
+        new StorageEvent("storage", {
+          key: getGachaRevealGuardKey(guard),
+          newValue: null,
+        }),
+      );
+    });
+
+    expect(container.textContent).toContain("Hello Kitty");
+    expect(container.textContent).toContain("2 / 57");
+  });
+
+  it("keeps another tab's committed draw hidden until that tab reveals it", async () => {
+    const guard = beginGachaRevealGuard(
+      "player-1",
+      EMPTY_SAVE,
+      localStorage,
+      Date.now(),
+      "other-tab-draw",
+    );
+    if (!guard) throw new Error("guard was not created");
+    await renderAt("/games/gacha?view=collection");
+
+    act(() => {
+      window.dispatchEvent(
+        new StorageEvent("storage", {
+          key: "ollie-gacha-machine-cache-v1:player-1",
+          newValue: JSON.stringify({
+            schemaVersion: 1,
+            resetVersion: 0,
+            totalDraws: 1,
+            ownedCounts: { kuromi: 1 },
+          }),
+        }),
+      );
+    });
+
+    expect(container.textContent).not.toContain("酷洛米");
+    expect(container.textContent).toContain("0 / 57");
+
+    act(() => buttonWithText("扭蛋機").click());
+    expect(container.textContent).toContain(
+      "另一個分頁有待開啟膠囊，開啟後就能繼續扭蛋。",
+    );
+    expect(buttonWithText("投入 50 代幣").disabled).toBe(true);
+
+    act(() => {
+      endGachaRevealGuard(guard, localStorage);
+      window.dispatchEvent(
+        new StorageEvent("storage", {
+          key: getGachaRevealGuardKey(guard),
+          newValue: null,
+        }),
+      );
+    });
+
+    expect(buttonWithText("投入 50 代幣").disabled).toBe(false);
+    act(() => buttonWithText("圖鑑").click());
+    expect(container.textContent).toContain("酷洛米");
+    expect(container.textContent).toContain("1 / 57");
+  });
+
+  it("publishes a cross-tab guard before saving and clears it on reveal", async () => {
+    let finishDraw: ((result: CommittedGachaAttempt) => void) | undefined;
+    storageMocks.recordGachaAttempt.mockReturnValue(
+      new Promise<CommittedGachaAttempt>((resolve) => {
+        finishDraw = resolve;
+      }),
+    );
+    await renderAt("/games/gacha");
+
+    act(() => buttonWithText("投入 50 代幣").click());
+    act(() => {
+      container
+        .querySelector<HTMLButtonElement>('button[aria-label="轉動扭蛋機把手"]')
+        ?.click();
+    });
+    expect(
+      listActiveGachaRevealGuards("player-1", localStorage),
+    ).toHaveLength(1);
+
+    await act(async () => {
+      finishDraw?.({
+        coinsAfter: 450,
+        save: {
+          schemaVersion: 1,
+          resetVersion: 0,
+          totalDraws: 1,
+          ownedCounts: { "hello-kitty": 1 },
+        },
+        result: {
+          kind: "character",
+          characterId: "hello-kitty",
+          isNew: true,
+          ownedCount: 1,
+          totalDraws: 1,
+        },
+      });
+      await Promise.resolve();
+    });
+
+    expect(
+      listActiveGachaRevealGuards("player-1", localStorage),
+    ).toHaveLength(1);
+    act(() => {
+      container
+        .querySelector<HTMLButtonElement>('button[aria-label="膠囊已經出來，點擊開獎"]')
+        ?.click();
+    });
+    expect(
+      listActiveGachaRevealGuards("player-1", localStorage),
+    ).toHaveLength(0);
+  });
+
+  it("reveals only its own result while another tab's draw is still guarded", async () => {
+    let finishDraw: ((result: CommittedGachaAttempt) => void) | undefined;
+    storageMocks.recordGachaAttempt.mockReturnValue(
+      new Promise<CommittedGachaAttempt>((resolve) => {
+        finishDraw = resolve;
+      }),
+    );
+    await renderAt("/games/gacha");
+
+    act(() => buttonWithText("投入 50 代幣").click());
+    act(() => {
+      container
+        .querySelector<HTMLButtonElement>('button[aria-label="轉動扭蛋機把手"]')
+        ?.click();
+    });
+
+    const otherGuard = beginGachaRevealGuard(
+      "player-1",
+      EMPTY_SAVE,
+      localStorage,
+      Date.now(),
+      "other-concurrent-draw",
+    );
+    if (!otherGuard) throw new Error("guard was not created");
+    act(() => {
+      window.dispatchEvent(
+        new StorageEvent("storage", {
+          key: getGachaRevealGuardKey(otherGuard),
+          newValue: JSON.stringify(otherGuard),
+        }),
+      );
+      window.dispatchEvent(
+        new StorageEvent("storage", {
+          key: "ollie-gacha-machine-cache-v1:player-1",
+          newValue: JSON.stringify({
+            schemaVersion: 1,
+            resetVersion: 0,
+            totalDraws: 2,
+            ownedCounts: { "hello-kitty": 1, kuromi: 1 },
+          }),
+        }),
+      );
+    });
+
+    await act(async () => {
+      finishDraw?.({
+        coinsAfter: 450,
+        save: {
+          schemaVersion: 1,
+          resetVersion: 0,
+          totalDraws: 1,
+          ownedCounts: { "hello-kitty": 1 },
+        },
+        result: {
+          kind: "character",
+          characterId: "hello-kitty",
+          isNew: true,
+          ownedCount: 1,
+          totalDraws: 1,
+        },
+      });
+      await Promise.resolve();
+    });
+
+    act(() => {
+      container
+        .querySelector<HTMLButtonElement>('button[aria-label="膠囊已經出來，點擊開獎"]')
+        ?.click();
+      buttonWithText("圖鑑").click();
+    });
+    expect(container.textContent).toContain("Hello Kitty");
+    expect(container.textContent).not.toContain("酷洛米");
+    expect(container.textContent).toContain("1 / 57");
+
+    act(() => {
+      endGachaRevealGuard(otherGuard, localStorage);
+      window.dispatchEvent(
+        new StorageEvent("storage", {
+          key: getGachaRevealGuardKey(otherGuard),
+          newValue: null,
+        }),
+      );
+    });
+    expect(container.textContent).toContain("酷洛米");
+    expect(container.textContent).toContain("2 / 57");
+  });
+
+  it("does not leak a same-character concurrent draw through reveal metadata", async () => {
+    let finishDraw: ((result: CommittedGachaAttempt) => void) | undefined;
+    storageMocks.recordGachaAttempt.mockReturnValue(
+      new Promise<CommittedGachaAttempt>((resolve) => {
+        finishDraw = resolve;
+      }),
+    );
+    await renderAt("/games/gacha");
+
+    act(() => buttonWithText("投入 50 代幣").click());
+    act(() => {
+      container
+        .querySelector<HTMLButtonElement>('button[aria-label="轉動扭蛋機把手"]')
+        ?.click();
+    });
+
+    const otherGuard = beginGachaRevealGuard(
+      "player-1",
+      EMPTY_SAVE,
+      localStorage,
+      Date.now(),
+      "same-character-draw",
+    );
+    if (!otherGuard) throw new Error("guard was not created");
+    act(() => {
+      window.dispatchEvent(
+        new StorageEvent("storage", {
+          key: getGachaRevealGuardKey(otherGuard),
+          newValue: JSON.stringify(otherGuard),
+        }),
+      );
+      window.dispatchEvent(
+        new StorageEvent("storage", {
+          key: "ollie-gacha-machine-cache-v1:player-1",
+          newValue: JSON.stringify({
+            schemaVersion: 1,
+            resetVersion: 0,
+            totalDraws: 1,
+            ownedCounts: { "hello-kitty": 1 },
+          }),
+        }),
+      );
+    });
+
+    await act(async () => {
+      finishDraw?.({
+        coinsAfter: 400,
+        save: {
+          schemaVersion: 1,
+          resetVersion: 0,
+          totalDraws: 2,
+          ownedCounts: { "hello-kitty": 2 },
+        },
+        result: {
+          kind: "character",
+          characterId: "hello-kitty",
+          isNew: false,
+          ownedCount: 2,
+          totalDraws: 2,
+        },
+      });
+      await Promise.resolve();
+    });
+
+    act(() => {
+      container
+        .querySelector<HTMLButtonElement>('button[aria-label="膠囊已經出來，點擊開獎"]')
+        ?.click();
+    });
+    const reveal = container.querySelector<HTMLElement>(
+      '[data-testid="reveal-dialog"]',
+    );
+    expect(reveal?.dataset.isNew).toBe("true");
+    expect(reveal?.dataset.ownedCount).toBe("1");
+
+    act(() => buttonWithText("圖鑑").click());
+    expect(
+      container.querySelector('button[aria-label*="Hello Kitty"]')
+        ?.getAttribute("aria-label"),
+    ).toContain("已遇見 1 次");
+
+    act(() => {
+      endGachaRevealGuard(otherGuard, localStorage);
+      window.dispatchEvent(
+        new StorageEvent("storage", {
+          key: getGachaRevealGuardKey(otherGuard),
+          newValue: null,
+        }),
+      );
+    });
+    expect(
+      container.querySelector('button[aria-label*="Hello Kitty"]')
+        ?.getAttribute("aria-label"),
+    ).toContain("已遇見 2 次");
+  });
+
+  it("clears a cross-tab guard when the draw fails", async () => {
+    storageMocks.recordGachaAttempt.mockRejectedValue(new Error("write failed"));
+    await renderAt("/games/gacha");
+
+    act(() => buttonWithText("投入 50 代幣").click());
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>('button[aria-label="轉動扭蛋機把手"]')
+        ?.click();
+      await Promise.resolve();
+    });
+
+    expect(
+      listActiveGachaRevealGuards("player-1", localStorage),
+    ).toHaveLength(0);
+  });
+
   it("only exposes collection clearing, not a local machine reset", async () => {
     await renderAt("/games/gacha");
 

@@ -1,6 +1,6 @@
 import confetti from "canvas-confetti";
 import { useReducedMotion } from "framer-motion";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { GAME_CONFIG } from "./lib/constants";
 import {
   GameState,
@@ -29,6 +29,17 @@ import {
   createCritter,
   createGust,
 } from "./lib/game-objects";
+import {
+  applyCritterKnockback,
+  compensatePausedTimers,
+  createPlatformRescuePosition,
+  createShieldFallbackPosition,
+  getPowerupIndicatorY,
+  positiveModulo,
+  resolvePlatformRescuePosition,
+  shouldKeepGust,
+  type BunnyRescuePosition,
+} from "./lib/bunny-gameplay";
 
 type CollectParticle = {
   x: number;
@@ -62,7 +73,7 @@ type GameData = {
   powerups: Powerup[];
   activePowerups: Map<PowerupType, number>;
   hasShield: boolean;
-  savedPosition: { x: number; y: number; cameraY: number } | null;
+  savedPosition: BunnyRescuePosition | null;
   cameraY: number;
   startY: number;
   maxHeight: number;
@@ -109,6 +120,7 @@ export default function BunnyJumper({ onExit }: BunnyJumperProps) {
   const lastScoreSyncRef = useRef(-Infinity);
   const gameLoopRef = useRef<number | undefined>(undefined);
   const gameDataRef = useRef<GameData | undefined>(undefined);
+  const pauseStartedAtRef = useRef<number | null>(null);
 
   useEffect(() => {
     setBestScoreState(getBestScore());
@@ -265,7 +277,7 @@ export default function BunnyJumper({ onExit }: BunnyJumperProps) {
       powerups: [],
       activePowerups: new Map(),
       hasShield: false,
-      savedPosition: null,
+      savedPosition: createPlatformRescuePosition(player, startPlatform, 0),
       cameraY: 0,
       startY: player.y,
       maxHeight: player.y,
@@ -287,6 +299,7 @@ export default function BunnyJumper({ onExit }: BunnyJumperProps) {
   };
 
   const startGame = () => {
+    pauseStartedAtRef.current = null;
     initGame(gapScale);
     renderedScoreRef.current = 0;
     lastScoreSyncRef.current = -Infinity;
@@ -300,18 +313,33 @@ export default function BunnyJumper({ onExit }: BunnyJumperProps) {
   };
 
   const handleMenu = () => {
+    pauseStartedAtRef.current = null;
     setGameState(GameState.Menu);
   };
 
   // 暫停：先清空按鍵，避免恢復時角色帶著舊輸入亂移
-  const pauseGame = () => {
+  const pauseGame = useCallback(() => {
     if (gameDataRef.current) gameDataRef.current.keys = {};
+    if (pauseStartedAtRef.current === null) {
+      pauseStartedAtRef.current = performance.now();
+    }
     setGameState(GameState.Paused);
-  };
+  }, []);
 
-  const resumeGame = () => {
+  const resumeGame = useCallback(() => {
+    const pauseStartedAt = pauseStartedAtRef.current;
+    const data = gameDataRef.current;
+    if (pauseStartedAt !== null && data) {
+      const pausedMs = Math.max(0, performance.now() - pauseStartedAt);
+      data.lastComboTime = compensatePausedTimers(
+        data.activePowerups,
+        data.lastComboTime,
+        pausedMs,
+      );
+    }
+    pauseStartedAtRef.current = null;
     setGameState(GameState.Playing);
-  };
+  }, []);
 
   // 遊玩中會捲動頁面的按鍵：方向鍵與空白鍵
   const isScrollKey = (key: string) =>
@@ -327,10 +355,9 @@ export default function BunnyJumper({ onExit }: BunnyJumperProps) {
       // Esc 切換暫停 / 繼續
       if (key === "escape") {
         if (playingRef.current) {
-          if (gameDataRef.current) gameDataRef.current.keys = {};
-          setGameState(GameState.Paused);
+          pauseGame();
         } else if (pausedRef.current) {
-          setGameState(GameState.Playing);
+          resumeGame();
         }
         return;
       }
@@ -352,7 +379,7 @@ export default function BunnyJumper({ onExit }: BunnyJumperProps) {
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("keyup", handleKeyUp);
     };
-  }, []);
+  }, [pauseGame, resumeGame]);
 
   const updateGame = (deltaTime: number, data: GameData) => {
     const {
@@ -414,11 +441,6 @@ export default function BunnyJumper({ onExit }: BunnyJumperProps) {
 
     player.onGround = false;
 
-    // 儲存護盾救回位置（當在安全位置時）
-    if (data.hasShield && player.velocity.y < 0) {
-      data.savedPosition = { x: player.x, y: player.y, cameraY: data.cameraY };
-    }
-
     platforms.forEach((platform) => {
       if (platform.isBreaking && platform.breakTimer !== undefined) {
         platform.breakTimer -= deltaTime * 1000;
@@ -461,6 +483,11 @@ export default function BunnyJumper({ onExit }: BunnyJumperProps) {
         player.velocity.y = -jumpForce;
         player.onGround = true;
         player.y = platform.y - player.height;
+        data.savedPosition = createPlatformRescuePosition(
+          player,
+          platform,
+          data.cameraY,
+        );
 
         data.playerSquash = 1.4;
         data.playerLandTime = performance.now() / 1000;
@@ -501,6 +528,13 @@ export default function BunnyJumper({ onExit }: BunnyJumperProps) {
           -GAME_CONFIG.JUMP_FORCE * GAME_CONFIG.CRITTER.BOUNCE_MULTIPLIER;
         player.onGround = true;
         player.y = critter.y - player.height;
+        if (platform) {
+          data.savedPosition = createPlatformRescuePosition(
+            player,
+            platform,
+            data.cameraY,
+          );
+        }
         data.playerSquash = 1.5;
         data.playerLandTime = performance.now() / 1000;
         critter.stomped = true;
@@ -514,8 +548,7 @@ export default function BunnyJumper({ onExit }: BunnyJumperProps) {
           color: "#F59E0B",
         });
       } else {
-        const knockDir = player.x < critter.x ? -1 : 1;
-        player.velocity.x = knockDir * GAME_CONFIG.CRITTER.KNOCKBACK;
+        applyCritterKnockback(player, critter.x, deltaTime);
       }
     });
 
@@ -589,6 +622,10 @@ export default function BunnyJumper({ onExit }: BunnyJumperProps) {
         const duration = POWERUP_DURATIONS_BY_TYPE[powerup.type];
         if (powerup.type === PowerupType.Shield) {
           data.hasShield = true;
+          data.savedPosition ??= createShieldFallbackPosition(
+            player,
+            data.cameraY,
+          );
         } else if (duration > 0) {
           activePowerups.set(powerup.type, currentTime + duration);
         }
@@ -630,11 +667,7 @@ export default function BunnyJumper({ onExit }: BunnyJumperProps) {
     data.critters = data.critters.filter(
       (c) => !c.stomped && c.y <= data.cameraY + GAME_CONFIG.HEIGHT + 80,
     );
-    data.gusts = data.gusts.filter(
-      (g) =>
-        g.y <= data.cameraY + GAME_CONFIG.HEIGHT + 120 &&
-        g.y >= data.cameraY - 200,
-    );
+    data.gusts = data.gusts.filter((g) => shouldKeepGust(g.y, data.cameraY));
 
     for (let i = data.collectParticles.length - 1; i >= 0; i--) {
       const particle = data.collectParticles[i];
@@ -1210,9 +1243,10 @@ export default function BunnyJumper({ onExit }: BunnyJumperProps) {
     ctx.fillStyle = "rgba(120, 180, 255, 0.45)";
     for (let i = 0; i < 6; i++) {
       const arrowX =
-        ((time * gust.direction * 120 + i * 90) %
-          (GAME_CONFIG.WIDTH + 60)) -
-        30;
+        positiveModulo(
+          time * gust.direction * 120 + i * 90,
+          GAME_CONFIG.WIDTH + 60,
+        ) - 30;
       ctx.beginPath();
       ctx.moveTo(arrowX, bandY);
       ctx.lineTo(arrowX - gust.direction * 18, bandY - 8);
@@ -1824,7 +1858,8 @@ export default function BunnyJumper({ onExit }: BunnyJumperProps) {
     const comboActive =
       performance.now() - data.lastComboTime <=
       GAME_CONFIG.SCORING.COMBO_WINDOW_MS;
-    if (comboActive && data.comboCount > 1) {
+    const comboVisible = comboActive && data.comboCount > 1;
+    if (comboVisible) {
       ctx.save();
       ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
       ctx.strokeStyle = "rgba(255, 182, 193, 0.6)";
@@ -1887,7 +1922,7 @@ export default function BunnyJumper({ onExit }: BunnyJumperProps) {
     if (activeEffects.length > 0) {
       ctx.save();
 
-      const indicatorY = 90;
+      const indicatorY = getPowerupIndicatorY(comboVisible);
       const indicatorSpacing = 45;
       const startX =
         GAME_CONFIG.WIDTH / 2 -
@@ -1986,7 +2021,7 @@ export default function BunnyJumper({ onExit }: BunnyJumperProps) {
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("blur", onBlur);
     };
-  }, [gameState]);
+  }, [gameState, pauseGame]);
 
   useEffect(() => {
     if (gameState !== GameState.Playing) return;
@@ -2028,12 +2063,19 @@ export default function BunnyJumper({ onExit }: BunnyJumperProps) {
       if (data.player.y > data.cameraY + GAME_CONFIG.HEIGHT + 100) {
         // 護盾效果：救回玩家到上次保存的平台位置
         if (data.hasShield && data.savedPosition) {
-          data.player.x = data.savedPosition.x;
-          data.player.y = data.savedPosition.y;
+          const rescuePosition =
+            resolvePlatformRescuePosition(
+              data.savedPosition,
+              data.platforms,
+              data.player,
+            ) ?? data.savedPosition;
+          data.savedPosition = rescuePosition;
+          data.player.x = rescuePosition.x;
+          data.player.y = rescuePosition.y;
+          data.cameraY = rescuePosition.cameraY;
           data.player.velocity.x = 0;
           data.player.velocity.y = 0;
           data.hasShield = false;
-          data.savedPosition = null;
           data.activePowerups.delete(PowerupType.Shield);
 
           // 顯示護盾救回特效

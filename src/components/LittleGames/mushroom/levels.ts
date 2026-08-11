@@ -154,21 +154,52 @@ const enemyAt = (
 
 const coinAt = (x: number, y: number): Coin => ({ x, y, r: 10, taken: false });
 
+const FLAT_RUN_PLATFORM_WIDTH = 500;
+const ENEMY_WIDTH = 36;
+const FLAT_RUN_FIRST_ENEMY_X = 60;
+const FLAT_RUN_LAST_ENEMY_X =
+  FLAT_RUN_PLATFORM_WIDTH - ENEMY_WIDTH - 24;
+
+function spreadFlatRunEnemyOffsets(count: number) {
+  const first = FLAT_RUN_FIRST_ENEMY_X;
+  const last = FLAT_RUN_LAST_ENEMY_X;
+  const spacing = count > 1 ? (last - first) / (count - 1) : 0;
+  return Array.from({ length: count }, (_, i) => first + i * spacing);
+}
+
+export function getFlatRunEnemyOffsets(
+  diff: number,
+  random: () => number = Math.random,
+) {
+  const requested = 2 + Math.floor(random() * (2 + diff * 0.8));
+  const count = Math.min(5, requested);
+  return spreadFlatRunEnemyOffsets(count);
+}
+
+export function getIslandChainStartY(candidateY: number) {
+  // A normal jump rises 144px from the ground at y=500. Keep 14px of
+  // collision tolerance so the first island never requires a feather pickup.
+  return Math.max(
+    clamp(candidateY, HEIGHT - 240, HEIGHT - 120),
+    HEIGHT - 170,
+  );
+}
+
 const PATTERNS: PatternDef[] = [
   {
     id: "flat-run",
     minLevel: 0,
     fn: (x, y, diff) => {
       const enemies: Enemy[] = [];
-      const count = 2 + Math.floor(Math.random() * (2 + diff * 0.8));
-      for (let i = 0; i < count; i++) {
+      const offsets = getFlatRunEnemyOffsets(diff);
+      for (const offset of offsets) {
         let type: EnemyType = "normal";
         if (diff >= 1 && Math.random() < 0.4) type = "fast";
         if (diff >= 2 && Math.random() < 0.3) type = "jumper";
         if (diff >= 3 && Math.random() < 0.2) type = "spiked";
         enemies.push(
           enemyAt(
-            x + 80 + i * 100,
+            x + offset,
             y - 32,
             80 + diff * 15 + Math.random() * 30,
             type,
@@ -177,7 +208,7 @@ const PATTERNS: PatternDef[] = [
         );
       }
       return {
-        plats: [{ x, y, w: 500, h: 16 }],
+        plats: [{ x, y, w: FLAT_RUN_PLATFORM_WIDTH, h: 16 }],
         enemies,
         coins: [
           coinAt(x + 100, y - 40),
@@ -299,7 +330,7 @@ const PATTERNS: PatternDef[] = [
     id: "island-chain",
     minLevel: 2,
     fn: (x, y) => {
-      const yy = clamp(y, HEIGHT - 240, HEIGHT - 120);
+      const yy = getIslandChainStartY(y);
       const island = (ix: number, iy: number): Platform => ({
         x: ix,
         y: iy,
@@ -472,11 +503,25 @@ export function extendLevel(
           5,
           Math.round(pat.enemies.length * settings.enemyMultiplier),
         );
+        const flatRunOffsets =
+          def.id === "flat-run" ? spreadFlatRunEnemyOffsets(target) : null;
+
+        // flat-run 的原始敵人會隨亂數落在 2–5 隻；倍率加出的敵人不能沿用共用的
+        // +50/+60 位移，否則低基數（2 隻）×2 時最後一隻會從本段 x=550 開始。
+        // 只在這個 pattern 重新均分全部位置，其他 pattern 維持原本複製語意。
+        if (flatRunOffsets) {
+          pat.enemies.forEach((enemy, index) => {
+            enemy.x = currentX + flatRunOffsets[index];
+          });
+        }
+
         for (let k = pat.enemies.length; k < target; k++) {
           const src = pat.enemies[k % pat.enemies.length];
           enemies.push({
             ...src,
-            x: src.x + 50 + (k - pat.enemies.length) * 60,
+            x: flatRunOffsets
+              ? currentX + flatRunOffsets[k]
+              : src.x + 50 + (k - pat.enemies.length) * 60,
             dir: (Math.random() > 0.5 ? 1 : -1) as 1 | -1,
           });
         }

@@ -1,7 +1,15 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { MUSHROOM_CONFIG } from "../lib/constants";
-import { HEIGHT } from "./constants";
-import { BASE_LEVELS, buildLevels, LEVEL_COUNT, TUTORIAL_LEVEL } from "./levels";
+import { GRAVITY, HEIGHT, JUMP_SPEED } from "./constants";
+import {
+  BASE_LEVELS,
+  buildLevels,
+  extendLevel,
+  getFlatRunEnemyOffsets,
+  getIslandChainStartY,
+  LEVEL_COUNT,
+  TUTORIAL_LEVEL,
+} from "./levels";
 import type { Level, Platform } from "./types";
 import { type MushroomSettings } from "../lib/types";
 
@@ -140,6 +148,62 @@ describe("mushroom buildLevels（程序化尾段）", () => {
       buildLevels({ ...DEFAULTS, powerupFrequency: 2 }),
     ).reduce((acc, lvl) => acc + lvl.powerups.length, 0);
     expect(total).toBeGreaterThan(basePowerups);
+  });
+
+  it("flat-run 的高難度敵人仍全部留在 500px 支撐平台內", () => {
+    const offsets = getFlatRunEnemyOffsets(9, () => 0.999);
+
+    expect(offsets).toHaveLength(5);
+    for (const x of offsets) {
+      expect(x).toBeGreaterThanOrEqual(0);
+      expect(x + 36).toBeLessThanOrEqual(500);
+    }
+  });
+
+  it("flat-run 低基數乘上敵人倍率後仍以完整寬度留在自己的平台內", () => {
+    // 全部回 0：每輪固定選第一個 pattern（flat-run），而它的基礎敵人數固定為 2。
+    vi.spyOn(Math, "random").mockReturnValue(0);
+    const base = BASE_LEVELS[LEVEL_COUNT - 1];
+    const extraOffset = base.flag.x + 200;
+    const level = extendLevel(base, LEVEL_COUNT - 1, {
+      ...DEFAULTS,
+      enemyMultiplier: 2,
+    });
+    const flatRunPlatforms = level.platforms.filter(
+      (platform) =>
+        platform.x >= extraOffset &&
+        platform.w === 500 &&
+        platform.h === 16,
+    );
+    // idx=9、random=0 時 flat-run 敵人速度固定為 80 + 9*15；共用的地面巡邏敵
+    // 是另一個速度，藉此只檢查屬於 flat-run 平台的 2×2 隻。
+    const flatRunSpeed = 80 + (LEVEL_COUNT - 1) * 15;
+    const flatRunEnemies = level.enemies.filter(
+      (enemy) => enemy.x >= extraOffset && enemy.speed === flatRunSpeed,
+    );
+
+    expect(flatRunPlatforms.length).toBeGreaterThan(0);
+    expect(flatRunEnemies).toHaveLength(flatRunPlatforms.length * 4);
+    for (const enemy of flatRunEnemies) {
+      const ownPlatform = flatRunPlatforms.find(
+        (platform) =>
+          enemy.y + enemy.h === platform.y &&
+          enemy.x >= platform.x &&
+          enemy.x + enemy.w <= platform.x + platform.w,
+      );
+      expect(
+        ownPlatform,
+        `敵人 [${enemy.x}, ${enemy.x + enemy.w}] 超出自己的 flat-run 平台`,
+      ).toBeDefined();
+    }
+  });
+
+  it("island-chain 第一座島不會高於普通跳躍可達範圍", () => {
+    const groundY = HEIGHT - 40;
+    const maxJumpRise = JUMP_SPEED ** 2 / (2 * GRAVITY);
+    const firstIslandY = getIslandChainStartY(HEIGHT - 300);
+
+    expect(groundY - firstIslandY).toBeLessThan(maxJumpRise);
   });
 });
 

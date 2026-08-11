@@ -28,6 +28,7 @@ import { GACHA_CHARACTERS } from "./gachaData";
 import {
   EMPTY_GACHA_SAVE,
   GACHA_DRAW_COST,
+  applyGachaAttempt,
   canTransitionGachaPhase,
   pickGachaOutcome,
   transitionGachaPhase,
@@ -44,6 +45,18 @@ import {
   recordGachaAttempt,
   resetGachaCollection,
 } from "./gachaStorage";
+import {
+  beginGachaRevealGuard,
+  clearGachaRevealGuards,
+  endGachaRevealGuard,
+  GACHA_REVEAL_GUARD_HEARTBEAT_MS,
+  getGachaRevealGuardKeyPrefix,
+  getGachaSaveBeforeGuards,
+  isGachaSaveGuarded,
+  listActiveGachaRevealGuards,
+  renewGachaRevealGuard,
+  type GachaRevealGuard,
+} from "./gachaRevealGuard";
 import type {
   AppliedGachaAttempt,
   GachaDrawResult,
@@ -114,6 +127,9 @@ const GACHA_STEPS = [
   { number: "3", title: "點擊膠囊開獎", description: "結果成功存檔後才會掉出來" },
 ] as const;
 
+const REVEAL_GUARD_RENEWAL_ERROR =
+  "無法延長跨分頁開獎保護；請保持此頁開啟，結果存檔後立即開啟膠囊。";
+
 function isKeyboardShortcutTarget(target: EventTarget | null): boolean {
   if (!(target instanceof Element)) return false;
   return Boolean(
@@ -128,6 +144,8 @@ function getStatusMessage(
   canDraw: boolean,
   isOffline: boolean,
   hasOfflineCache: boolean,
+  syncFailed: boolean,
+  hasExternalPendingReveal: boolean,
   coinBalance: number | null,
   coinLoadFailed: boolean,
 ): string {
@@ -135,6 +153,12 @@ function getStatusMessage(
     return hasOfflineCache
       ? "目前離線，圖鑑仍可查看；連線後就能繼續扭蛋。"
       : "目前離線，這台裝置尚無可用的圖鑑快取。";
+  }
+  if (phase === "idle" && syncFailed) {
+    return "無法同步雲端圖鑑，請重新同步後再試。";
+  }
+  if (phase === "idle" && hasExternalPendingReveal) {
+    return "另一個分頁有待開啟膠囊，開啟後就能繼續扭蛋。";
   }
   if (!canDraw && phase === "idle") return "正在確認雲端圖鑑，請稍候。";
   if (phase === "idle" && coinLoadFailed) {
@@ -196,6 +220,8 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
   const [phase, setPhase] = useState<GachaPhase>("idle");
   const [drawResult, setDrawResult] = useState<GachaDrawResult | null>(null);
   const [hasPendingCapsule, setHasPendingCapsule] = useState(false);
+  const [hasExternalPendingReveal, setHasExternalPendingReveal] =
+    useState(false);
   const [dispensedCapsuleStyleIndex, setDispensedCapsuleStyleIndex] = useState(0);
   const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
   const [isResettingCollection, setIsResettingCollection] = useState(false);
@@ -207,6 +233,11 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
   const saveRef = useRef<GachaSaveV1>(EMPTY_GACHA_SAVE);
   const pendingAttemptRef = useRef<AppliedGachaAttempt | null>(null);
   const bufferedSaveRef = useRef<GachaSaveV1 | null>(null);
+  const ownRevealGuardRef = useRef<GachaRevealGuard | null>(null);
+  const ownRevealGuardHeartbeatTimerRef = useRef<number | null>(null);
+  const activeRevealGuardsRef = useRef<GachaRevealGuard[]>([]);
+  const revealGuardExpiryTimerRef = useRef<number | null>(null);
+  const applyBufferedSaveRef = useRef<() => void>(() => undefined);
   const resetSubmissionStartedRef = useRef(false);
   const drawInFlightRef = useRef(false);
   const drawAttemptTokenRef = useRef(0);
@@ -232,17 +263,90 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
     setSave(incoming);
   }, []);
 
-  const clearPendingAttempt = useCallback(() => {
+  const clearPendingAttempt = useCallback((preserveBufferedSave = false) => {
     pendingAttemptRef.current = null;
-    bufferedSaveRef.current = null;
+    if (!preserveBufferedSave) bufferedSaveRef.current = null;
     setHasPendingCapsule(false);
   }, []);
 
+  const refreshRevealGuards = useCallback((uid: string) => {
+    const refresh = () => {
+      if (activeUidRef.current !== uid) return;
+      if (revealGuardExpiryTimerRef.current !== null) {
+        window.clearTimeout(revealGuardExpiryTimerRef.current);
+        revealGuardExpiryTimerRef.current = null;
+      }
+
+      const guards = listActiveGachaRevealGuards(uid);
+      activeRevealGuardsRef.current = guards;
+      setHasExternalPendingReveal(
+        guards.some((guard) => guard.token !== ownRevealGuardRef.current?.token),
+      );
+      const nextExpiry = guards.reduce(
+        (earliest, guard) => Math.min(earliest, guard.expiresAt),
+        Number.POSITIVE_INFINITY,
+      );
+      if (!Number.isFinite(nextExpiry)) return;
+
+      revealGuardExpiryTimerRef.current = window.setTimeout(() => {
+        refresh();
+        applyBufferedSaveRef.current();
+      }, Math.max(0, nextExpiry - Date.now() + 1));
+    };
+
+    refresh();
+  }, []);
+
+  const stopOwnRevealGuardHeartbeat = useCallback(() => {
+    if (ownRevealGuardHeartbeatTimerRef.current === null) return;
+    window.clearInterval(ownRevealGuardHeartbeatTimerRef.current);
+    ownRevealGuardHeartbeatTimerRef.current = null;
+  }, []);
+
+  const startOwnRevealGuardHeartbeat = useCallback(() => {
+    stopOwnRevealGuardHeartbeat();
+    ownRevealGuardHeartbeatTimerRef.current = window.setInterval(() => {
+      const current = ownRevealGuardRef.current;
+      if (!current) {
+        stopOwnRevealGuardHeartbeat();
+        return;
+      }
+      const renewed = renewGachaRevealGuard(current);
+      if (!renewed) {
+        setActionError(REVEAL_GUARD_RENEWAL_ERROR);
+        return;
+      }
+      ownRevealGuardRef.current = renewed;
+      setActionError((error) =>
+        error === REVEAL_GUARD_RENEWAL_ERROR ? null : error,
+      );
+      refreshRevealGuards(renewed.uid);
+    }, GACHA_REVEAL_GUARD_HEARTBEAT_MS);
+  }, [refreshRevealGuards, stopOwnRevealGuardHeartbeat]);
+
+  const clearOwnRevealGuard = useCallback(() => {
+    stopOwnRevealGuardHeartbeat();
+    endGachaRevealGuard(ownRevealGuardRef.current);
+    ownRevealGuardRef.current = null;
+    setActionError((error) =>
+      error === REVEAL_GUARD_RENEWAL_ERROR ? null : error,
+    );
+    const uid = activeUidRef.current;
+    if (uid) refreshRevealGuards(uid);
+  }, [refreshRevealGuards, stopOwnRevealGuardHeartbeat]);
+
   const applyBufferedSave = useCallback(() => {
     const buffered = bufferedSaveRef.current;
+    if (!buffered || drawInFlightRef.current || pendingAttemptRef.current) return;
+
+    const uid = activeUidRef.current;
+    if (uid) refreshRevealGuards(uid);
+    if (isGachaSaveGuarded(buffered, activeRevealGuardsRef.current)) return;
+
     bufferedSaveRef.current = null;
-    if (buffered) setVisibleSaveIfNewer(buffered);
-  }, [setVisibleSaveIfNewer]);
+    setVisibleSaveIfNewer(buffered);
+  }, [refreshRevealGuards, setVisibleSaveIfNewer]);
+  applyBufferedSaveRef.current = applyBufferedSave;
 
   const applyIncomingSave = useCallback(
     (incoming: GachaSaveV1) => {
@@ -253,8 +357,14 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
       const protectsActiveDraw =
         drawInFlightRef.current &&
         incoming.resetVersion === current.resetVersion;
+      const uid = activeUidRef.current;
+      if (uid) refreshRevealGuards(uid);
+      const protectsUnrevealedCrossTabDraw =
+        incoming.resetVersion === current.resetVersion &&
+        isGachaSaveGuarded(incoming, activeRevealGuardsRef.current);
       if (
         protectsActiveDraw ||
+        protectsUnrevealedCrossTabDraw ||
         (pending && incoming.resetVersion <= pending.save.resetVersion)
       ) {
         const buffered = bufferedSaveRef.current;
@@ -268,6 +378,12 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
       }
 
       if (incoming.resetVersion > current.resetVersion) {
+        if (uid) {
+          clearGachaRevealGuards(uid);
+          stopOwnRevealGuardHeartbeat();
+          ownRevealGuardRef.current = null;
+          refreshRevealGuards(uid);
+        }
         drawAttemptTokenRef.current += 1;
         drawInFlightRef.current = false;
         clearPendingAttempt();
@@ -280,22 +396,58 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
 
       setVisibleSaveIfNewer(incoming);
     },
-    [clearPendingAttempt, setVisibleSaveIfNewer],
+    [
+      clearPendingAttempt,
+      refreshRevealGuards,
+      setVisibleSaveIfNewer,
+      stopOwnRevealGuardHeartbeat,
+    ],
   );
 
   const applyPendingSave = useCallback((): AppliedGachaAttempt | null => {
     const pending = pendingAttemptRef.current;
     if (!pending) return null;
 
+    const uid = activeUidRef.current;
+    if (uid) refreshRevealGuards(uid);
+    const externalGuards = activeRevealGuardsRef.current.filter(
+      (guard) => guard.token !== ownRevealGuardRef.current?.token,
+    );
     const buffered = bufferedSaveRef.current;
-    let newest = pending.save;
-    if (buffered && compareGachaSaveVersions(newest, buffered) <= 0) {
-      newest = buffered;
+    let newestCommitted = pending.save;
+    if (
+      buffered &&
+      compareGachaSaveVersions(newestCommitted, buffered) <= 0
+    ) {
+      newestCommitted = buffered;
     }
-    setVisibleSaveIfNewer(newest);
-    clearPendingAttempt();
-    return pending;
-  }, [clearPendingAttempt, setVisibleSaveIfNewer]);
+
+    const guardedBaseline = getGachaSaveBeforeGuards(
+      pending.save,
+      externalGuards,
+    );
+    const ownVisibleAttempt = guardedBaseline
+      ? applyGachaAttempt(
+          guardedBaseline,
+          pending.result.kind === "miss"
+            ? { kind: "miss" }
+            : {
+                kind: "character",
+                characterId: pending.result.characterId,
+              },
+        )
+      : pending;
+    const retainCommittedSave = isGachaSaveGuarded(
+      newestCommitted,
+      externalGuards,
+    );
+    setVisibleSaveIfNewer(
+      retainCommittedSave ? ownVisibleAttempt.save : newestCommitted,
+    );
+    bufferedSaveRef.current = retainCommittedSave ? newestCommitted : null;
+    clearPendingAttempt(retainCommittedSave);
+    return ownVisibleAttempt;
+  }, [clearPendingAttempt, refreshRevealGuards, setVisibleSaveIfNewer]);
 
   const moveToPhase = (next: GachaPhase): boolean => {
     const current = phaseRef.current;
@@ -319,6 +471,16 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
 
   useEffect(
     () => () => {
+      endGachaRevealGuard(ownRevealGuardRef.current);
+      ownRevealGuardRef.current = null;
+      if (ownRevealGuardHeartbeatTimerRef.current !== null) {
+        window.clearInterval(ownRevealGuardHeartbeatTimerRef.current);
+        ownRevealGuardHeartbeatTimerRef.current = null;
+      }
+      if (revealGuardExpiryTimerRef.current !== null) {
+        window.clearTimeout(revealGuardExpiryTimerRef.current);
+        revealGuardExpiryTimerRef.current = null;
+      }
       activeUidRef.current = undefined;
       drawAttemptTokenRef.current += 1;
       loadSequenceRef.current += 1;
@@ -328,6 +490,7 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
 
   useEffect(() => {
     if (!user?.uid) {
+      clearOwnRevealGuard();
       loadSequenceRef.current += 1;
       loadedUidRef.current = undefined;
       setVisibleSave(EMPTY_GACHA_SAVE);
@@ -350,6 +513,7 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
 
     const uidChanged = loadedUidRef.current !== user.uid;
     if (uidChanged) {
+      clearOwnRevealGuard();
       loadedUidRef.current = user.uid;
       drawAttemptTokenRef.current += 1;
       drawInFlightRef.current = false;
@@ -367,8 +531,17 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
 
     const sequence = ++loadSequenceRef.current;
     const cached = readGachaCache(user.uid);
+    refreshRevealGuards(user.uid);
     if (uidChanged) {
-      setVisibleSave(cached ?? EMPTY_GACHA_SAVE);
+      if (cached && isGachaSaveGuarded(cached, activeRevealGuardsRef.current)) {
+        bufferedSaveRef.current = cached;
+        setVisibleSave(
+          getGachaSaveBeforeGuards(cached, activeRevealGuardsRef.current) ??
+            EMPTY_GACHA_SAVE,
+        );
+      } else {
+        setVisibleSave(cached ?? EMPTY_GACHA_SAVE);
+      }
     } else if (cached) {
       applyIncomingSave(cached);
     }
@@ -399,7 +572,9 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
   }, [
     applyIncomingSave,
     clearPendingAttempt,
+    clearOwnRevealGuard,
     isOnline,
+    refreshRevealGuards,
     setVisibleSave,
     user?.uid,
   ]);
@@ -407,15 +582,22 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
   useEffect(() => {
     if (!user?.uid) return;
     const cacheKey = getGachaCacheKey(user.uid);
+    const revealGuardKeyPrefix = getGachaRevealGuardKeyPrefix(user.uid);
     const handleStorage = (event: StorageEvent) => {
+      if (event.key?.startsWith(revealGuardKeyPrefix)) {
+        refreshRevealGuards(user.uid);
+        applyBufferedSaveRef.current();
+        return;
+      }
       if (event.key !== cacheKey || !event.newValue) return;
       const incoming = parseGachaCacheValue(event.newValue);
       if (incoming) applyIncomingSave(incoming);
     };
 
+    refreshRevealGuards(user.uid);
     window.addEventListener("storage", handleStorage);
     return () => window.removeEventListener("storage", handleStorage);
-  }, [applyIncomingSave, user?.uid]);
+  }, [applyIncomingSave, refreshRevealGuards, user?.uid]);
 
   const refreshCoinBalance = useCallback((uid: string) => {
     const sequence = ++coinLoadSequenceRef.current;
@@ -522,11 +704,15 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
   };
 
   const handleInsertCoin = () => {
+    if (user?.uid) refreshRevealGuards(user.uid);
     if (
       phaseRef.current !== "idle" ||
       !user ||
       !isOnline ||
       syncStatus !== "cloud" ||
+      activeRevealGuardsRef.current.some(
+        (guard) => guard.token !== ownRevealGuardRef.current?.token,
+      ) ||
       drawInFlightRef.current ||
       isResettingCollection ||
       coinBalance === null ||
@@ -542,6 +728,18 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
   };
 
   const handleTurn = async () => {
+    if (user?.uid) {
+      refreshRevealGuards(user.uid);
+      if (
+        activeRevealGuardsRef.current.some(
+          (guard) => guard.token !== ownRevealGuardRef.current?.token,
+        )
+      ) {
+        if (phaseRef.current === "coinInserted") moveToPhase("idle");
+        setActionNotice("另一個分頁還有待開啟膠囊，開啟後再試一次。");
+        return;
+      }
+    }
     if (
       phaseRef.current !== "coinInserted" ||
       drawInFlightRef.current ||
@@ -563,6 +761,22 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
       drawInFlightRef.current = false;
       return;
     }
+    clearOwnRevealGuard();
+    ownRevealGuardRef.current = beginGachaRevealGuard(
+      uid,
+      saveRef.current,
+    );
+    if (!ownRevealGuardRef.current) {
+      drawInFlightRef.current = false;
+      moveToPhase("idle");
+      setActionError(
+        "無法建立安全的跨分頁開獎保護，這次沒有送出也沒有扣款。請允許此網站使用本機儲存空間後再試。",
+      );
+      playSound("wrong");
+      return;
+    }
+    startOwnRevealGuardHeartbeat();
+    refreshRevealGuards(uid);
     playSound("click");
 
     try {
@@ -586,6 +800,7 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
         phaseAfterCommit !== "turning" ||
         committed.save.resetVersion !== saveRef.current.resetVersion
       ) {
+        clearOwnRevealGuard();
         if (phaseAfterCommit === "turning") moveToPhase("idle");
         setActionError(
           "圖鑑在抽取完成後被其他分頁重設，本次結果已隨重設清除。請重新投入代幣。",
@@ -607,6 +822,7 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
         return;
       }
       logger.error("Failed to record gacha draw", error);
+      clearOwnRevealGuard();
       playSound("wrong");
       moveToPhase("idle");
       if (isGachaResetConflictError(error)) {
@@ -653,7 +869,10 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
         drawAttemptTokenRef.current === attemptToken
       ) {
         drawInFlightRef.current = false;
-        if (!pendingAttemptRef.current) applyBufferedSave();
+        if (!pendingAttemptRef.current) {
+          clearOwnRevealGuard();
+          applyBufferedSave();
+        }
       }
     }
   };
@@ -664,6 +883,7 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
     const committed = applyPendingSave();
     if (!committed) return;
     setDrawResult(committed.result);
+    clearOwnRevealGuard();
   };
 
   const handleCloseReveal = () => {
@@ -715,6 +935,10 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
     try {
       const resetSave = await resetGachaCollection(uid);
       if (activeUidRef.current !== uid) return;
+      clearGachaRevealGuards(uid);
+      stopOwnRevealGuardHeartbeat();
+      ownRevealGuardRef.current = null;
+      refreshRevealGuards(uid);
       drawAttemptTokenRef.current += 1;
       drawInFlightRef.current = false;
       clearPendingAttempt();
@@ -741,7 +965,10 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
   };
 
   const canDraw =
-    isOnline && syncStatus === "cloud" && !isResettingCollection;
+    isOnline &&
+    syncStatus === "cloud" &&
+    !isResettingCollection &&
+    !hasExternalPendingReveal;
   const canResetCollection =
     isOnline &&
     syncStatus === "cloud" &&
@@ -805,6 +1032,8 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
     canDraw,
     !isOnline,
     syncStatus !== "offlineEmpty",
+    syncStatus === "error",
+    hasExternalPendingReveal,
     coinBalance,
     coinLoadError !== null,
   );
@@ -818,7 +1047,7 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
           : syncStatus === "offlineEmpty"
             ? "這台裝置沒有離線快取"
           : syncStatus === "error"
-            ? "顯示上次同步快取"
+            ? "雲端同步失敗"
             : "正在載入圖鑑…";
 
   return (

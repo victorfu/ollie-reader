@@ -1,4 +1,10 @@
 import { useEffect, useRef, useState } from "react";
+import {
+  getKeyboardSteeringDirection,
+  getTouchDirection,
+  isDashKey,
+  shouldCountTutorialDash,
+} from "./meteorGliderInput";
 
 type GameState = "menu" | "playing" | "paused" | "gameover" | "tutorialdone";
 type InputState = {
@@ -6,6 +12,7 @@ type InputState = {
   right: boolean;
   dashQueued: boolean;
   touchDir: -1 | 0 | 1;
+  touchPointers: Map<number, -1 | 1>;
 };
 
 type Meteor = {
@@ -201,43 +208,59 @@ export default function MeteorGlider({ onExit, onPlayBunny }: MeteorGliderProps)
       ) {
         e.preventDefault();
       }
-      if (!gameDataRef.current) return;
-      if (e.key === "ArrowLeft" || e.key === "a") gameDataRef.current.input.left = true;
-      if (e.key === "ArrowRight" || e.key === "d") gameDataRef.current.input.right = true;
-      if (e.key === " " || e.key.toLowerCase() === "k" || e.key === "Shift") {
+      if (!gameDataRef.current || gameState !== "playing") return;
+      const steeringDirection = getKeyboardSteeringDirection(e.key);
+      if (steeringDirection < 0) gameDataRef.current.input.left = true;
+      if (steeringDirection > 0) gameDataRef.current.input.right = true;
+      if (isDashKey(e.key)) {
         gameDataRef.current.input.dashQueued = true;
       }
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
       if (!gameDataRef.current) return;
-      if (e.key === "ArrowLeft" || e.key === "a") gameDataRef.current.input.left = false;
-      if (e.key === "ArrowRight" || e.key === "d") gameDataRef.current.input.right = false;
+      const steeringDirection = getKeyboardSteeringDirection(e.key);
+      if (steeringDirection < 0) gameDataRef.current.input.left = false;
+      if (steeringDirection > 0) gameDataRef.current.input.right = false;
     };
 
     const handlePointerDown = (e: PointerEvent) => {
-      if (!gameDataRef.current) return;
-      const rect = canvasRef.current?.getBoundingClientRect();
-      if (!rect) return;
+      const canvas = canvasRef.current;
+      if (!gameDataRef.current || gameState !== "playing" || !canvas) return;
+      const rect = canvas.getBoundingClientRect();
       const isLeft = e.clientX - rect.left < rect.width / 2;
-      gameDataRef.current.input.touchDir = isLeft ? -1 : 1;
+      const input = gameDataRef.current.input;
+      input.touchPointers.set(e.pointerId, isLeft ? -1 : 1);
+      input.touchDir = getTouchDirection(input.touchPointers);
+      try {
+        canvas.setPointerCapture(e.pointerId);
+      } catch {
+        // Some browsers can reject capture if the pointer was already cancelled.
+      }
     };
 
-    const handlePointerUp = () => {
+    const handlePointerUp = (e: PointerEvent) => {
       if (!gameDataRef.current) return;
-      gameDataRef.current.input.touchDir = 0;
+      const input = gameDataRef.current.input;
+      input.touchPointers.delete(e.pointerId);
+      input.touchDir = getTouchDirection(input.touchPointers);
     };
 
+    const canvas = canvasRef.current;
     window.addEventListener("keydown", handleKeyDown);
     window.addEventListener("keyup", handleKeyUp);
-    window.addEventListener("pointerdown", handlePointerDown);
-    window.addEventListener("pointerup", handlePointerUp);
+    canvas?.addEventListener("pointerdown", handlePointerDown);
+    canvas?.addEventListener("pointerup", handlePointerUp);
+    canvas?.addEventListener("pointercancel", handlePointerUp);
+    canvas?.addEventListener("lostpointercapture", handlePointerUp);
 
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("keyup", handleKeyUp);
-      window.removeEventListener("pointerdown", handlePointerDown);
-      window.removeEventListener("pointerup", handlePointerUp);
+      canvas?.removeEventListener("pointerdown", handlePointerDown);
+      canvas?.removeEventListener("pointerup", handlePointerUp);
+      canvas?.removeEventListener("pointercancel", handlePointerUp);
+      canvas?.removeEventListener("lostpointercapture", handlePointerUp);
     };
   }, [gameState]);
 
@@ -489,7 +512,7 @@ export default function MeteorGlider({ onExit, onPlayBunny }: MeteorGliderProps)
       data.dashFuel = Math.max(0, data.dashFuel - DASH_COST);
       data.shake = 8;
       data.input.dashQueued = false;
-      if (tut) tut.dashedCount += 1;
+      if (tut && shouldCountTutorialDash(tut.step)) tut.dashedCount += 1;
       spawnBurst(data, data.playerX, PLAYER_Y + 8, "rgba(160,200,255,ALPHA)", 8, 90);
     }
     data.input.dashQueued = false;
@@ -608,7 +631,9 @@ export default function MeteorGlider({ onExit, onPlayBunny }: MeteorGliderProps)
     if (data) {
       data.input.left = false;
       data.input.right = false;
+      data.input.dashQueued = false;
       data.input.touchDir = 0;
+      data.input.touchPointers.clear();
     }
   }, [gameState]);
 
@@ -687,7 +712,13 @@ export default function MeteorGlider({ onExit, onPlayBunny }: MeteorGliderProps)
     fuels: [],
     particles: [],
     stars: initStars(),
-    input: { left: false, right: false, dashQueued: false, touchDir: 0 },
+    input: {
+      left: false,
+      right: false,
+      dashQueued: false,
+      touchDir: 0,
+      touchPointers: new Map(),
+    },
     lastTime: performance.now(),
     tutorial,
   });
@@ -731,7 +762,9 @@ export default function MeteorGlider({ onExit, onPlayBunny }: MeteorGliderProps)
   };
 
   const dashButton = () => {
-    if (gameDataRef.current) gameDataRef.current.input.dashQueued = true;
+    if (gameState === "playing" && gameDataRef.current) {
+      gameDataRef.current.input.dashQueued = true;
+    }
   };
 
   return (
@@ -760,6 +793,7 @@ export default function MeteorGlider({ onExit, onPlayBunny }: MeteorGliderProps)
           <canvas
             ref={canvasRef}
             style={{
+              touchAction: "none",
               borderRadius: "22px",
               boxShadow: "0 28px 70px rgba(12,16,32,0.55)",
               border: "3px solid rgba(255,255,255,0.08)",

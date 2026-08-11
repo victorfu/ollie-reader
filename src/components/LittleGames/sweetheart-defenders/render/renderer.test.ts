@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { drawSpawnHint, renderBattle } from "./renderer";
-import { compileLevel, createBattle, stepSimulation } from "../engine/simulation";
+import {
+  SUGAR_POOL_RANGE_BONUS,
+  compileLevel,
+  createBattle,
+  stepSimulation,
+} from "../engine/simulation";
+import { getTowerStats } from "../engine/combat";
+import { getCharacter } from "../data/characters";
 import { LEVELS } from "../data/levels";
 import { ENEMIES } from "../data/enemies";
 import { HEIGHT, STEP_MS, WIDTH } from "../constants";
@@ -15,6 +22,7 @@ import type { BattleState, EnemyKind, LiveEnemy } from "../types";
  */
 function createRecordingContext() {
   const calls: string[] = [];
+  const arcArgs: unknown[][] = [];
   const record =
     (name: string) =>
     (...args: unknown[]) => {
@@ -23,6 +31,7 @@ function createRecordingContext() {
 
   const ctx = {
     calls,
+    arcArgs,
     canvas: { width: 960, height: 540 },
     fillStyle: "",
     strokeStyle: "",
@@ -52,7 +61,10 @@ function createRecordingContext() {
     closePath: record("closePath"),
     moveTo: record("moveTo"),
     lineTo: record("lineTo"),
-    arc: record("arc"),
+    arc: (...args: unknown[]) => {
+      calls.push(`arc(${args.length})`);
+      arcArgs.push(args);
+    },
     arcTo: record("arcTo"),
     ellipse: record("ellipse"),
     quadraticCurveTo: record("quadraticCurveTo"),
@@ -66,7 +78,10 @@ function createRecordingContext() {
     drawImage: record("drawImage"),
   };
 
-  return ctx as unknown as CanvasRenderingContext2D & { calls: string[] };
+  return ctx as unknown as CanvasRenderingContext2D & {
+    calls: string[];
+    arcArgs: unknown[][];
+  };
 }
 
 const LEVEL = compileLevel(LEVELS[0]);
@@ -204,6 +219,50 @@ describe("renderBattle", () => {
         previewCharacterId: "kuromi",
       }),
     ).not.toThrow();
+  });
+
+  it("draws the sugar-pool range bonus for both placement and occupied previews", () => {
+    const pooledSlotId = [...LEVEL.rangeBonusBySlot.keys()][0];
+    expect(pooledSlotId).toBeDefined();
+    const pet = getCharacter("shiro");
+    expect(pet).toBeDefined();
+    const expectedRadius =
+      getTowerStats(pet!, 1).range * (1 + SUGAR_POOL_RANGE_BONUS);
+
+    const state = createBattle(LEVEL, 1);
+    const placement = createRecordingContext();
+    renderBattle(placement, state, LEVEL, {
+      selectedSlotId: pooledSlotId,
+      hoveredSlotId: null,
+      previewCharacterId: pet!.id,
+    });
+    expect(placement.arcArgs.slice(-2).map((args) => args[2])).toEqual([
+      expectedRadius,
+      expectedRadius,
+    ]);
+
+    stepSimulation(
+      state,
+      LEVEL,
+      [
+        {
+          kind: "placeTower",
+          slotId: pooledSlotId,
+          characterId: pet!.id,
+        },
+      ],
+      0,
+    );
+    const occupied = createRecordingContext();
+    renderBattle(occupied, state, LEVEL, {
+      selectedSlotId: pooledSlotId,
+      hoveredSlotId: null,
+      previewCharacterId: null,
+    });
+    expect(occupied.arcArgs.slice(-2).map((args) => args[2])).toEqual([
+      expectedRadius,
+      expectedRadius,
+    ]);
   });
 
   it("ignores a selected slot that no longer exists", () => {

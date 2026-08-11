@@ -274,6 +274,7 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
   const nowRef = useRef(Date.now());
   const timeOffsetRef = useRef(0);
   const loadSequenceRef = useRef(0);
+  const loadedUidRef = useRef<string | undefined>(undefined);
   const speechTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingSpeechRef = useRef<string | null>(null);
   const actionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -516,15 +517,19 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
 
   useEffect(() => {
     const sequence = ++loadSequenceRef.current;
+    const identityChanged = loadedUidRef.current !== uid;
+    loadedUidRef.current = uid;
+    if (identityChanged) {
+      setPanel(null);
+      setPersonalizationMode(null);
+      setInsufficientProductId(null);
+    }
     if (!uid) {
       setSyncStatus("loading");
       setCoinBalance(null);
       setSyncError(null);
       return;
     }
-    setPanel(null);
-    setPersonalizationMode(null);
-    setInsufficientProductId(null);
 
     const loadNow = nowRef.current;
     if (isDemo) {
@@ -546,7 +551,12 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
       return;
     }
 
-    const cached = readCottageCache(uid, undefined, loadNow);
+    const persistedCache = readCottageCache(uid, undefined, loadNow);
+    // Connectivity changes should rehydrate from disk when possible, but a
+    // restricted/failed localStorage must not discard the already-visible save
+    // (or unmount an editor containing an unsaved draft). Never carry this
+    // fallback across an actual account change.
+    const cached = persistedCache ?? (identityChanged ? null : saveRef.current);
     if (cached) {
       setVisibleSave(cached);
       setSyncStatus(isOnline ? "cache" : "offline");
@@ -841,13 +851,13 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
         ? commitCottageCareAction(uid, action, actionNow)
         : null;
 
-      // Keep interactions immediate, but let Firestore own the authoritative
-      // transition. Writing this optimistic result to cache first would make
-      // the transaction apply the same care action twice.
+      // Start the transaction before caching the optimistic result so it has
+      // already captured the pre-action cache snapshot. Keeping the result in
+      // cache protects it if the browser reports a network change while the
+      // transaction is still pending.
       setVisibleSave(result.save);
-      if (isDemo) {
-        void writeCottageCache(uid, result.save);
-      } else if (cloudCommit) {
+      void writeCottageCache(uid, result.save);
+      if (cloudCommit) {
         void cloudCommit
           .then((committed) => {
             const stillShowingThisAction =
@@ -863,14 +873,13 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
             }
           })
           .catch((error: unknown) => {
-            const pending = saveRef.current;
-            void writeCottageCache(uid, pending);
-            queueCloudSave(pending);
+            setVisibleSaveIfNewer(result.save);
+            void writeCottageCache(uid, result.save);
+            queueCloudSave(result.save);
             logger.warn("Cloud Cottage care transaction deferred", error);
           });
       } else {
-        void writeCottageCache(uid, result.save);
-        queueCloudSave(result.save);
+        if (!isDemo) queueCloudSave(result.save);
       }
       triggerAction(animation, emoji, animation === "sleep");
       showPhrase(result.phraseId, fallback);

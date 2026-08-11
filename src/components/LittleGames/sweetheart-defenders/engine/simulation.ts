@@ -111,6 +111,26 @@ export function compileLevel(spec: LevelSpec): CompiledLevel {
   };
 }
 
+/**
+ * 套用塔位本身的地形加成後，這座塔在戰場上的實際數值。
+ *
+ * 普攻、絕招、應援範圍和畫面上的射程預覽都必須走同一條計算，否則糖霜池會
+ * 出現「圈畫得一樣大、普攻打得到、絕招卻打不到」的矛盾。
+ */
+export function getTowerStatsAtSlot(
+  level: CompiledLevel,
+  slotId: string,
+  pet: TowerCharacter,
+  towerLevel: TowerLevel,
+  spec: LiveTower["spec"] = null,
+): TowerStats {
+  const base = getTowerStats(pet, towerLevel, spec);
+  const rangeBonus = level.rangeBonusBySlot.get(slotId) ?? 0;
+  return rangeBonus === 0
+    ? base
+    : { ...base, range: base.range * (1 + rangeBonus) };
+}
+
 export function createBattle(level: CompiledLevel, seed: number): BattleState {
   return {
     levelId: level.spec.id,
@@ -447,10 +467,13 @@ function updateTowers(
     tower.frenzyMs = Math.max(0, tower.frenzyMs - dtMs);
 
     // 糖霜池只加射程，不動其他數值——站進去打得更遠，但不會變強。
-    const base = getTowerStats(pet, tower.level, tower.spec);
-    const rangeBonus = level.rangeBonusBySlot.get(tower.slotId) ?? 0;
-    const stats: TowerStats =
-      rangeBonus === 0 ? base : { ...base, range: base.range * (1 + rangeBonus) };
+    const stats = getTowerStatsAtSlot(
+      level,
+      tower.slotId,
+      pet,
+      tower.level,
+      tower.spec,
+    );
 
     if (stats.archetype === "cheer") {
       tower.cooldownMs -= dtMs;
@@ -525,7 +548,13 @@ function fireUltimate(
   pet: TowerCharacter,
   slot: Vec2,
 ): void {
-  const stats = getTowerStats(pet, tower.level, tower.spec);
+  const stats = getTowerStatsAtSlot(
+    level,
+    tower.slotId,
+    pet,
+    tower.level,
+    tower.spec,
+  );
   const color = ELEMENT_COLOR[stats.element];
   const secondaryElements = pet.elements.slice(1);
 
@@ -776,7 +805,13 @@ function computeCheerBonuses(
     const origin = level.slotById.get(cheerTower.slotId);
     if (!pet || !origin) continue;
 
-    const stats = getTowerStats(pet, cheerTower.level, cheerTower.spec);
+    const stats = getTowerStatsAtSlot(
+      level,
+      cheerTower.slotId,
+      pet,
+      cheerTower.level,
+      cheerTower.spec,
+    );
     if (stats.archetype !== "cheer") continue;
 
     const rangeSquared = stats.range * stats.range;

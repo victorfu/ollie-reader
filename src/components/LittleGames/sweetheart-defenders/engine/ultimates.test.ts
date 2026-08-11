@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
+  SUGAR_POOL_RANGE_BONUS,
   compileLevel,
   createBattle,
   stepSimulation,
   type CompiledLevel,
 } from "./simulation";
+import { getTowerStats } from "./combat";
 import { STEP_MS } from "../constants";
 import { CHARACTERS } from "../data/characters";
 import { ARCHETYPE_BY_ELEMENT } from "../data/elements";
@@ -257,6 +259,55 @@ describe("castUltimate", () => {
         (enemy) => enemy.slowFactor >= ULTIMATE_BASE.syrup.slowFactor,
       ),
     ).toBe(true);
+  });
+
+  it("extends range-based ultimate targeting for a tower in a sugar pool", () => {
+    const character = characterFor("cannon");
+    const dry = makeLevel();
+    const slot = dry.slots[0];
+    const pooled = makeLevel({
+      zones: [{ kind: "sugarPool", x: slot.x, y: slot.y, radius: 60 }],
+    });
+    const baseRange = getTowerStats(character, 1).range;
+
+    const damageFromUltimate = (level: CompiledLevel) => {
+      const state = createBattle(level, 1);
+      stepSimulation(
+        state,
+        level,
+        [
+          {
+            kind: "placeTower",
+            slotId: level.slots[0].id,
+            characterId: character.id,
+          },
+          { kind: "startWave" },
+        ],
+        0,
+      );
+
+      const enemy = state.enemies[0];
+      expect(enemy).toBeDefined();
+      // 放在原射程外、20% 糖霜池加成後的射程內。
+      enemy.x = level.slots[0].x + baseRange * (1 + SUGAR_POOL_RANGE_BONUS / 2);
+      enemy.y = level.slots[0].y;
+      enemy.hp = 10_000;
+      enemy.maxHp = 10_000;
+      state.towers[0].cooldownMs = 10_000;
+      state.ultimateCharge[character.id] = 1;
+
+      const before = enemy.hp;
+      stepSimulation(
+        state,
+        level,
+        [{ kind: "castUltimate", characterId: character.id }],
+        0,
+      );
+      return before - enemy.hp;
+    };
+
+    expect(damageFromUltimate(dry)).toBe(0);
+    expect(damageFromUltimate(pooled)).toBeGreaterThan(0);
   });
 
   it("speeds up the whole board with 大合唱", () => {

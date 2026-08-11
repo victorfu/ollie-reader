@@ -98,6 +98,20 @@ afterEach(() => {
 });
 
 describe("GachaCollection image viewer", () => {
+  it("does not count future-version owned characters as empty capsules", () => {
+    renderCollection({
+      ...EMPTY_SAVE,
+      totalDraws: 4,
+      ownedCounts: { kuromi: 1 },
+      unknownOwnedCounts: { "future-a": 1, "future-b": 1 },
+    });
+
+    const missLabel = [...container.querySelectorAll("p")].find(
+      (element) => element.textContent === "空膠囊",
+    );
+    expect(missLabel?.previousElementSibling?.textContent).toBe("1");
+  });
+
   it("opens an owned character image and restores focus after closing", () => {
     renderCollection({
       ...EMPTY_SAVE,

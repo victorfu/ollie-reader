@@ -337,6 +337,7 @@ export async function resetGachaCollection(
     const timestamp = serverTimestamp();
     const resetData: Record<string, unknown> = {
       ...resetSave,
+      unknownOwnedCounts: {},
       resetAt: timestamp,
       updatedAt: timestamp,
     };

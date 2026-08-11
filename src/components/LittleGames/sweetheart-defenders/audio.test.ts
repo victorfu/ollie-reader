@@ -1,5 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_AUDIO_SETTINGS, normalizeSettings } from "./audio";
+
+afterEach(() => {
+  vi.clearAllTimers();
+  vi.useRealTimers();
+  vi.unstubAllGlobals();
+});
 
 /**
  * 音量設定是從 localStorage 讀進來的，等於使用者可以隨手改壞。
@@ -58,5 +64,67 @@ describe("normalizeSettings", () => {
     // 預設靜音但音量是 0 的話，打開聲音還是沒聲音——那就等於壞掉。
     expect(DEFAULT_AUDIO_SETTINGS.music).toBeGreaterThan(0);
     expect(DEFAULT_AUDIO_SETTINGS.sfx).toBeGreaterThan(0);
+  });
+});
+
+describe("music lifecycle", () => {
+  it("resumes the same Vite asset after unmuting without reloading it", async () => {
+    vi.useFakeTimers();
+    vi.resetModules();
+
+    class FakeAudio {
+      static latest: FakeAudio | null = null;
+
+      loop = false;
+      volume = 0;
+      paused = true;
+      currentTime = 0;
+      srcAssignments = 0;
+      private source = "";
+
+      constructor() {
+        FakeAudio.latest = this;
+      }
+
+      get src() {
+        return this.source ? new URL(this.source, document.baseURI).href : "";
+      }
+
+      set src(value: string) {
+        this.source = value;
+        this.srcAssignments += 1;
+        // 瀏覽器重設 src 會把播放位置洗回開頭；這正是這條回歸測試要抓的事。
+        this.currentTime = 0;
+      }
+
+      play = vi.fn(async () => {
+        this.paused = false;
+      });
+
+      pause = vi.fn(() => {
+        this.paused = true;
+      });
+    }
+
+    vi.stubGlobal("Audio", FakeAudio);
+    const audio = await import("./audio");
+    const audible = { music: 0.4, sfx: 0.7, muted: false };
+
+    audio.applyAudioSettings(audible);
+    audio.playMusic("menu");
+    await Promise.resolve();
+
+    const element = FakeAudio.latest;
+    expect(element).not.toBeNull();
+    element!.currentTime = 23;
+
+    audio.applyAudioSettings({ ...audible, muted: true });
+    audio.applyAudioSettings(audible);
+    await Promise.resolve();
+
+    expect(element!.src).toMatch(/^http/);
+    expect(element!.srcAssignments).toBe(1);
+    expect(element!.currentTime).toBe(23);
+    expect(element!.play).toHaveBeenCalledTimes(2);
   });
 });

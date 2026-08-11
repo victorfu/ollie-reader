@@ -1,6 +1,7 @@
 import { act, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createInitialPetSave } from "./logic/petState";
 import type { PetSaveV1 } from "./types";
 
 const authState = vi.hoisted(() => ({
@@ -201,6 +202,8 @@ import CloudCottage from "./CloudCottage";
 
 type RenderedGameState = {
   sync: string;
+  panel: string | null;
+  personalizationMode: string | null;
   time: { now: number; period: string };
   action: string;
   bath: { rubCount: number; readyToRinse: boolean };
@@ -217,6 +220,7 @@ type RenderedGameState = {
   inventory: {
     freeFood: { milk: number; cookie: number };
     snacks: Record<string, number>;
+    outfits: string[];
   };
   coins: number | null;
 };
@@ -247,6 +251,35 @@ async function renderCottage(onExit = vi.fn()): Promise<ReturnType<typeof vi.fn>
     await Promise.resolve();
   });
   return onExit;
+}
+
+async function flushAsyncWork(): Promise<void> {
+  await act(async () => {
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+}
+
+async function renderSignedInCottage(initial: PetSaveV1): Promise<void> {
+  authState.user = { uid: "cloud-reader" };
+  storageMocks.readCottageCache.mockReturnValue(initial);
+  storageMocks.loadCottageCloud.mockResolvedValue(initial);
+  storageMocks.loadCottageCoins.mockResolvedValue(120);
+  await renderCottage();
+  await flushAsyncWork();
+}
+
+async function setOnlineState(online: boolean): Promise<void> {
+  Object.defineProperty(window.navigator, "onLine", {
+    configurable: true,
+    value: online,
+  });
+  await act(async () => {
+    window.dispatchEvent(new Event(online ? "online" : "offline"));
+    await Promise.resolve();
+  });
+  await flushAsyncWork();
 }
 
 beforeEach(() => {
@@ -313,6 +346,144 @@ describe("CloudCottage access", () => {
 
     act(() => button("header button").click());
     expect(onExit).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("CloudCottage network transitions", () => {
+  it("keeps an open room editor and its unsaved draft without a readable cache", async () => {
+    const initial = createInitialPetSave(Date.now());
+    await renderSignedInCottage(initial);
+
+    act(() => button('[data-toolbar="decorate"]').click());
+    const bed = button('button[data-placed-furniture-id="cloud-bed"]');
+    act(() => {
+      bed.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true }),
+      );
+    });
+    expect(gameState().personalizationDraft?.room?.placed[0]?.x).toBe(75);
+
+    storageMocks.readCottageCache.mockReturnValue(null);
+    await setOnlineState(false);
+    expect(gameState().personalizationMode).toBe("decorate");
+    expect(gameState().personalizationDraft?.room?.placed[0]?.x).toBe(75);
+    expect(container.querySelector("[data-room-editor]")).not.toBeNull();
+
+    await setOnlineState(true);
+    expect(gameState().personalizationMode).toBe("decorate");
+    expect(gameState().personalizationDraft?.room?.placed[0]?.x).toBe(75);
+  });
+
+  it("keeps an unsaved wardrobe preview across no-cache network flips", async () => {
+    const base = createInitialPetSave(Date.now());
+    const initial: PetSaveV1 = {
+      ...base,
+      inventory: {
+        ...base.inventory,
+        outfits: ["strawberry-clip"],
+      },
+    };
+    let resolveCloud!: (save: PetSaveV1) => void;
+    const cloudLoad = new Promise<PetSaveV1>((resolve) => {
+      resolveCloud = resolve;
+    });
+    authState.user = { uid: "cloud-reader" };
+    storageMocks.readCottageCache.mockReturnValue(initial);
+    storageMocks.loadCottageCloud.mockReturnValue(cloudLoad);
+    storageMocks.loadCottageCoins.mockResolvedValue(120);
+    await renderCottage();
+    await act(async () => {
+      resolveCloud(initial);
+      await cloudLoad;
+    });
+    await flushAsyncWork();
+    expect(gameState().inventory.outfits).toContain("strawberry-clip");
+
+    act(() => button('[data-toolbar="wardrobe"]').click());
+    const outfit = container.querySelector<HTMLInputElement>(
+      'input[data-outfit-id="strawberry-clip"][data-slot="head"]',
+    );
+    expect(outfit).not.toBeNull();
+    act(() => outfit?.click());
+    expect(gameState().personalizationDraft?.equipped?.head).toBe(
+      "strawberry-clip",
+    );
+
+    storageMocks.readCottageCache.mockReturnValue(null);
+    await setOnlineState(false);
+    expect(gameState().personalizationMode).toBe("wardrobe");
+    expect(gameState().personalizationDraft?.equipped?.head).toBe(
+      "strawberry-clip",
+    );
+    expect(container.querySelector("[data-wardrobe]")).not.toBeNull();
+
+    await setOnlineState(true);
+    expect(gameState().personalizationMode).toBe("wardrobe");
+    expect(gameState().personalizationDraft?.equipped?.head).toBe(
+      "strawberry-clip",
+    );
+  });
+
+  it("keeps ordinary care panels open when connectivity changes", async () => {
+    await renderSignedInCottage(createInitialPetSave(Date.now()));
+
+    act(() => button('[data-toolbar="food"]').click());
+    expect(gameState().panel).toBe("food");
+
+    await setOnlineState(false);
+    expect(gameState().panel).toBe("food");
+    expect(container.querySelector('[role="dialog"]')?.textContent).toContain(
+      "點心櫃",
+    );
+
+    await setOnlineState(true);
+    expect(gameState().panel).toBe("food");
+  });
+
+  it("restores and queues the captured optimistic care result after a transaction failure", async () => {
+    const initial = createInitialPetSave(Date.now());
+    let rejectCare!: (reason?: unknown) => void;
+    storageMocks.commitCottageCareAction.mockReturnValue(
+      new Promise((_resolve, reject) => {
+        rejectCare = reject;
+      }),
+    );
+    await renderSignedInCottage(initial);
+    storageMocks.writeCottageCache.mockClear();
+
+    act(() => button('[data-toolbar="food"]').click());
+    act(() => button('[data-food-id="milk"]').click());
+
+    const optimisticWrite = storageMocks.writeCottageCache.mock.calls.find(
+      ([uid, candidate]) =>
+        uid === "cloud-reader"
+        && (candidate as PetSaveV1).freeFood.milk === 1,
+    );
+    expect(optimisticWrite).toBeDefined();
+    const optimistic = optimisticWrite?.[1] as PetSaveV1;
+    expect(optimistic.stats.fullness).toBe(100);
+
+    // Reproduce the original race: the connectivity effect rehydrates the
+    // stale cached snapshot while the care transaction is still pending.
+    await setOnlineState(false);
+    expect(gameState().inventory.freeFood.milk).toBe(2);
+
+    await act(async () => {
+      rejectCare(new Error("network changed"));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    await flushAsyncWork();
+
+    expect(gameState().inventory.freeFood.milk).toBe(1);
+    expect(gameState().pet.stats.fullness).toBe(100);
+    const capturedWrites = storageMocks.writeCottageCache.mock.calls.filter(
+      ([uid, candidate]) =>
+        uid === "cloud-reader"
+        && (candidate as PetSaveV1).freeFood.milk === 1,
+    );
+    expect(capturedWrites).toHaveLength(2);
+    expect(capturedWrites[1]?.[1]).toEqual(optimistic);
   });
 });
 

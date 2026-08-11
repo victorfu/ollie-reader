@@ -56,24 +56,58 @@ export function normalizeGachaSave(value: unknown): GachaSaveV1 {
 
   const ownedCounts: Partial<Record<GachaCharacterId, number>> = {};
   const rawOwnedCounts = isRecord(value.ownedCounts) ? value.ownedCounts : {};
+  const rawUnknownOwnedCounts = isRecord(value.unknownOwnedCounts)
+    ? value.unknownOwnedCounts
+    : {};
+  const unknownOwnedCounts: Record<string, number> = {};
   let knownOwnedTotal = 0;
 
   for (const characterId of GACHA_CHARACTER_IDS) {
-    const count = toNonNegativeInteger(rawOwnedCounts[characterId]);
+    const count = Math.max(
+      toNonNegativeInteger(rawOwnedCounts[characterId]),
+      toNonNegativeInteger(rawUnknownOwnedCounts[characterId]),
+    );
     if (count > 0) {
       ownedCounts[characterId] = count;
       knownOwnedTotal += count;
     }
   }
 
+  for (const source of [rawOwnedCounts, rawUnknownOwnedCounts]) {
+    for (const [characterId, rawCount] of Object.entries(source)) {
+      if (isGachaCharacterId(characterId)) continue;
+      const count = toNonNegativeInteger(rawCount);
+      const previousCount = Object.prototype.hasOwnProperty.call(
+        unknownOwnedCounts,
+        characterId,
+      )
+        ? unknownOwnedCounts[characterId]
+        : 0;
+      if (count > previousCount) {
+        Object.defineProperty(unknownOwnedCounts, characterId, {
+          configurable: true,
+          enumerable: true,
+          writable: true,
+          value: count,
+        });
+      }
+    }
+  }
+
+  const unknownOwnedTotal = Object.values(unknownOwnedCounts).reduce(
+    (total, count) => total + count,
+    0,
+  );
+
   return {
     schemaVersion: 1,
     resetVersion: toNonNegativeInteger(value.resetVersion),
     totalDraws: Math.max(
       toNonNegativeInteger(value.totalDraws),
-      knownOwnedTotal,
+      knownOwnedTotal + unknownOwnedTotal,
     ),
     ownedCounts,
+    ...(unknownOwnedTotal > 0 ? { unknownOwnedCounts } : {}),
   };
 }
 

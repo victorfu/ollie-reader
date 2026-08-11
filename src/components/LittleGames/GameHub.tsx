@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { getBestScore } from "./lib/game-utils";
 import { GACHA_CHARACTER_IDS } from "./gacha-machine/gachaTypes";
 import { openGameTab } from "../../utils/gameTabs";
@@ -43,9 +43,28 @@ function readBest(key: string): number | null {
 }
 
 export default function GameHub() {
-  const [bunnyBest] = useState(() => getBestScore());
-  const [meteorBest] = useState(() => readBest(METEOR_BEST_KEY));
-  const [mushroomBest] = useState(() => readBest(MUSHROOM_BEST_KEY));
+  const [bunnyBest, setBunnyBest] = useState(() => getBestScore());
+  const [meteorBest, setMeteorBest] = useState(() => readBest(METEOR_BEST_KEY));
+  const [mushroomBest, setMushroomBest] = useState(() =>
+    readBest(MUSHROOM_BEST_KEY),
+  );
+
+  useEffect(() => {
+    const refreshBestScores = () => {
+      setBunnyBest(getBestScore());
+      setMeteorBest(readBest(METEOR_BEST_KEY));
+      setMushroomBest(readBest(MUSHROOM_BEST_KEY));
+    };
+
+    // Games run in separate tabs. Their localStorage writes surface here as
+    // `storage` events; focus is a fallback for browsers that coalesce events.
+    window.addEventListener("storage", refreshBestScores);
+    window.addEventListener("focus", refreshBestScores);
+    return () => {
+      window.removeEventListener("storage", refreshBestScores);
+      window.removeEventListener("focus", refreshBestScores);
+    };
+  }, []);
 
   const cards: GameCard[] = useMemo(
     () => [

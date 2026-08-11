@@ -53,7 +53,14 @@ export function GachaCollection({
     (total, count) => total + (count ?? 0),
     0,
   );
-  const missCount = Math.max(0, save.totalDraws - ownedTotal);
+  const unknownOwnedTotal = Object.values(save.unknownOwnedCounts ?? {}).reduce(
+    (total, count) => total + count,
+    0,
+  );
+  const missCount = Math.max(
+    0,
+    save.totalDraws - ownedTotal - unknownOwnedTotal,
+  );
 
   const selectedOwnedCount = selectedCharacter
     ? (save.ownedCounts[selectedCharacter.id] ?? 0)

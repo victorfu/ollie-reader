@@ -87,6 +87,8 @@ export type GachaSaveV1 = {
   resetVersion: number;
   totalDraws: number;
   ownedCounts: Partial<Record<GachaCharacterId, number>>;
+  /** Character counts written by newer clients, retained without rendering. */
+  unknownOwnedCounts?: Record<string, number>;
 };
 
 export type GachaOutcome =

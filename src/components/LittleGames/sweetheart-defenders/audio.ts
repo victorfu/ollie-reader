@@ -198,7 +198,9 @@ function startTrack(id: MusicId): void {
     musicElement.loop = true;
   }
 
-  if (musicElement.src !== MUSIC_SOURCE[id]) {
+  // HTMLMediaElement.src 讀回來是瀏覽器正規化後的絕對 URL，Vite 匯入的資產則可能
+  // 是相對路徑。直接比字串會永遠不相等，解除靜音時便重設 src、把歌曲洗回開頭。
+  if (!isSameSource(musicElement.src, MUSIC_SOURCE[id])) {
     musicElement.src = MUSIC_SOURCE[id];
   }
   musicElement.volume = 0;
@@ -207,6 +209,19 @@ function startTrack(id: MusicId): void {
     .play()
     .then(() => fadeTo(settings.music))
     .catch(() => queueUnlock(id));
+}
+
+function isSameSource(current: string, expected: string): boolean {
+  if (!current) return false;
+
+  try {
+    const base =
+      typeof document === "undefined" ? undefined : document.baseURI;
+    return current === new URL(expected, base).href;
+  } catch {
+    // 非瀏覽器測試環境或不合法 URL：退回原字串比較，音訊仍可 fail-soft。
+    return current === expected;
+  }
 }
 
 export function stopMusic(): void {

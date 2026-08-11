@@ -15,6 +15,13 @@ import {
 } from "./constants";
 import { buildLevels, LEVEL_COUNT, TUTORIAL_LEVEL } from "./levels";
 import {
+  advanceEnemyVerticalMotion,
+  clearJumpInput,
+  consumePlayerJump,
+  pressJump,
+  releaseJump,
+} from "./behavior";
+import {
   BTN_OUTLINE,
   BTN_PRIMARY,
   BTN_SECONDARY,
@@ -185,7 +192,7 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
     coins: currentLevels[0].coins.map((c) => ({ ...c })),
     powerups: currentLevels[0].powerups.map((p) => ({ ...p })),
     flag: currentLevels[0].flag,
-    keys: { left: false, right: false, jump: false },
+    keys: { left: false, right: false, jump: false, jumpQueued: false },
     invincibleTimer: 0,
     speedTimer: 0,
     featherTimer: 0,
@@ -269,7 +276,7 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
     const keys = stateRef.current.keys;
     keys.left = false;
     keys.right = false;
-    keys.jump = false;
+    clearJumpInput(keys);
     setGameState("paused");
   }, []);
 
@@ -296,14 +303,14 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
       const keys = stateRef.current.keys;
       if (key === "arrowleft" || key === "a") keys.left = true;
       if (key === "arrowright" || key === "d") keys.right = true;
-      if (key === "arrowup" || key === "w" || key === " ") keys.jump = true;
+      if (key === "arrowup" || key === "w" || key === " ") pressJump(keys);
     };
     const onKeyUp = (e: KeyboardEvent) => {
       const key = e.key.toLowerCase();
       const keys = stateRef.current.keys;
       if (key === "arrowleft" || key === "a") keys.left = false;
       if (key === "arrowright" || key === "d") keys.right = false;
-      if (key === "arrowup" || key === "w" || key === " ") keys.jump = false;
+      if (key === "arrowup" || key === "w" || key === " ") releaseJump(keys);
     };
     window.addEventListener("keydown", onKeyDown);
     window.addEventListener("keyup", onKeyUp);
@@ -364,6 +371,7 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
       coins: lvl.coins.map((c) => ({ ...c })),
       powerups: lvl.powerups.map((p) => ({ ...p })),
       flag: lvl.flag,
+      keys: { left: false, right: false, jump: false, jumpQueued: false },
       invincibleTimer: 0,
       speedTimer: 0,
       featherTimer: 0,
@@ -515,17 +523,7 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
       maxSpeed,
     );
 
-    const canDouble = s.featherTimer > 0;
-    if (s.keys.jump) {
-      if (p.onGround) {
-        p.vy = -JUMP_SPEED;
-        p.onGround = false;
-        p.jumps = 1;
-      } else if (canDouble && p.jumps < 2) {
-        p.vy = -JUMP_SPEED * 0.9;
-        p.jumps += 1;
-      }
-    }
+    consumePlayerJump(s.keys, p, s.featherTimer > 0);
 
     p.vy += GRAVITY * dt;
     p.x += p.vx * dt;
@@ -633,9 +631,9 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
       // 初始化基礎速度
       if (e.baseSpeed === undefined) e.baseSpeed = e.speed;
 
-      // Gravity
-      e.vy = (e.vy || 0) + GRAVITY * dt;
-      e.y += e.vy * dt;
+      // Jumper intent must run while a landed enemy still has vy === 0.
+      // The helper then applies gravity and integrates vertical movement.
+      advanceEnemyVerticalMotion(e, p.x + p.w / 2, dt);
 
       // 計算玩家距離
       const distToPlayer = Math.abs(p.x + p.w / 2 - (e.x + e.w / 2));
@@ -665,15 +663,6 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
 
       // Jumper: 跳躍並追蹤玩家方向
       if (e.type === "jumper") {
-        e.jumpTimer = (e.jumpTimer || 0) - dt;
-        if (e.jumpTimer <= 0 && e.vy === 0) {
-          e.vy = -650;
-          e.jumpTimer = 1.0 + Math.random() * 1.0;
-          // 跳躍時朝玩家方向
-          if (distToPlayer < 400) {
-            e.dir = playerDirection as 1 | -1;
-          }
-        }
         e.x += e.dir * e.speed * dt;
       }
 

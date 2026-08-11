@@ -6,14 +6,15 @@ import GameHub from "./GameHub";
 type FakeGameTab = {
   closed: boolean;
   focus: ReturnType<typeof vi.fn>;
+  location: { href: string };
 };
 
 let container: HTMLDivElement;
 let root: Root;
 let fakeTabs: FakeGameTab[];
 
-function createFakeGameTab(): FakeGameTab {
-  const tab = { closed: false, focus: vi.fn() };
+function createFakeGameTab(href = "about:blank"): FakeGameTab {
+  const tab = { closed: false, focus: vi.fn(), location: { href } };
   fakeTabs.push(tab);
   return tab;
 }
@@ -116,6 +117,28 @@ describe("GameHub card layout", () => {
       expect(card!.textContent).toContain(zh);
     }
   });
+
+  it("refreshes best scores when another game tab writes local storage", () => {
+    renderGameHub();
+
+    localStorage.setItem("bunnyJumperBestScore", "42");
+    localStorage.setItem("meteor-glider-best", "31");
+    localStorage.setItem("mushroom-adventure-best", "27");
+    act(() => window.dispatchEvent(new Event("storage")));
+
+    expect(container.textContent).toContain("最高星星 42");
+    expect(container.textContent).toContain("最高星星 31");
+    expect(container.textContent).toContain("最高星星 27");
+  });
+
+  it("refreshes best scores when the Hub regains focus", () => {
+    renderGameHub();
+
+    localStorage.setItem("meteor-glider-best", "88");
+    act(() => window.dispatchEvent(new Event("focus")));
+
+    expect(container.textContent).toContain("最高星星 88");
+  });
 });
 
 describe("GameHub single-tab game launcher", () => {
@@ -145,13 +168,14 @@ describe("GameHub single-tab game launcher", () => {
     entries.forEach(([, , path], index) => {
       const expectedUrl = new URL(path, window.location.href);
       const call = openMock.mock.calls[index];
-      expect(call?.[0]).toBe(expectedUrl.href);
+      expect(call?.[0]).toBe("");
       expect(call?.[1]).toBe(
         `ollie-game-${encodeURIComponent(`${expectedUrl.pathname}${expectedUrl.search}${expectedUrl.hash}`)}`,
       );
       expect(call).toHaveLength(2);
       targetNames.add(String(call?.[1]));
       expect(fakeTabs[index]?.focus).toHaveBeenCalledTimes(1);
+      expect(fakeTabs[index]?.location.href).toBe(expectedUrl.href);
     });
     expect(targetNames.size).toBe(entries.length);
   });
