@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
+  clearCache,
   createEmptySave,
   getCacheKey,
   mergeSaves,
@@ -18,6 +19,9 @@ function makeStorage(): SaveStorage & { data: Map<string, string> } {
     getItem: (key: string) => data.get(key) ?? null,
     setItem: (key: string, value: string) => {
       data.set(key, value);
+    },
+    removeItem: (key: string) => {
+      data.delete(key);
     },
   };
 }
@@ -213,6 +217,20 @@ describe("local cache", () => {
   it("keeps one account's progress out of another's", () => {
     writeCache("uid-a", makeSave({ levelStars: { [LEVEL_A]: 3 } }), storage);
 
+    expect(readCache("uid-b", storage)?.levelStars[LEVEL_A]).toBeUndefined();
+  });
+
+  it("consumes guest progress after it is migrated to one account", () => {
+    writeCache(null, makeSave({ levelStars: { [LEVEL_A]: 3 } }), storage);
+    const migrated = mergeSaves(
+      readCache("uid-a", storage) ?? createEmptySave(),
+      readCache(null, storage) ?? createEmptySave(),
+    );
+    writeCache("uid-a", migrated, storage);
+    clearCache(null, storage);
+
+    expect(readCache("uid-a", storage)?.levelStars[LEVEL_A]).toBe(3);
+    expect(readCache(null, storage)).toBeNull();
     expect(readCache("uid-b", storage)?.levelStars[LEVEL_A]).toBeUndefined();
   });
 

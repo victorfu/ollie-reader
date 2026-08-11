@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "./useAuth";
 import {
   completeTravelMission,
-  createDefaultTravelProgress,
   getOrCreateTravelProgress,
   markTravelMissionInProgress,
-  saveTravelProgress,
+  saveTravelMissionCompletion,
+  saveTravelMissionStep,
   type TravelProgress,
 } from "../services/travelProgressService";
 import type { TravelMissionStepKind } from "../components/TravelEnglish/travelMissionUtils";
@@ -15,53 +15,134 @@ export function useTravelProgress() {
   const [progress, setProgress] = useState<TravelProgress | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const activeUidRef = useRef<string | null>(user?.uid ?? null);
+  const progressRef = useRef<TravelProgress | null>(null);
+  const loadSequenceRef = useRef(0);
+  const mutationVersionRef = useRef(0);
+  const loadPromisesRef = useRef(
+    new Map<string, Promise<TravelProgress>>(),
+  );
+  const mutationQueuesRef = useRef(new Map<string, Promise<void>>());
+
+  activeUidRef.current = user?.uid ?? null;
+
+  const getProgressPromise = useCallback((uid: string) => {
+    const existing = loadPromisesRef.current.get(uid);
+    if (existing) return existing;
+
+    const created = getOrCreateTravelProgress(uid).finally(() => {
+      if (loadPromisesRef.current.get(uid) === created) {
+        loadPromisesRef.current.delete(uid);
+      }
+    });
+    loadPromisesRef.current.set(uid, created);
+    return created;
+  }, []);
 
   const loadProgress = useCallback(async () => {
-    if (!user) {
+    const uid = user?.uid ?? null;
+    const sequence = ++loadSequenceRef.current;
+    const mutationVersion = mutationVersionRef.current;
+    if (!uid) {
+      progressRef.current = null;
       setProgress(null);
+      setIsLoading(false);
       return;
     }
 
     setIsLoading(true);
     setError(null);
     try {
-      const nextProgress = await getOrCreateTravelProgress(user.uid);
+      const nextProgress = await getProgressPromise(uid);
+      if (
+        activeUidRef.current !== uid ||
+        loadSequenceRef.current !== sequence ||
+        mutationVersionRef.current !== mutationVersion
+      ) {
+        return;
+      }
+      progressRef.current = nextProgress;
       setProgress(nextProgress);
     } catch (err) {
+      if (
+        activeUidRef.current !== uid ||
+        loadSequenceRef.current !== sequence
+      ) {
+        return;
+      }
       console.error("Failed to load travel progress:", err);
       setError("無法同步旅遊任務進度");
     } finally {
-      setIsLoading(false);
+      if (
+        activeUidRef.current === uid &&
+        loadSequenceRef.current === sequence
+      ) {
+        setIsLoading(false);
+      }
     }
-  }, [user]);
+  }, [getProgressPromise, user?.uid]);
 
   useEffect(() => {
     void loadProgress();
   }, [loadProgress]);
 
   const updateProgress = useCallback(
-    (updater: (current: TravelProgress) => TravelProgress) => {
-      if (!user) return;
+    (
+      updater: (current: TravelProgress) => TravelProgress,
+      persist: (uid: string) => Promise<void>,
+    ) => {
+      const uid = user?.uid;
+      if (!uid) return;
 
-      setProgress((current) => {
-        const baseProgress = current ?? createDefaultTravelProgress(user.uid);
+      const runMutation = async () => {
+        if (activeUidRef.current !== uid) return;
+
+        let baseProgress =
+          progressRef.current?.uid === uid ? progressRef.current : null;
+        if (!baseProgress) {
+          try {
+            baseProgress = await getProgressPromise(uid);
+          } catch (err) {
+            if (activeUidRef.current !== uid) return;
+            console.error("Failed to load travel progress before update:", err);
+            setError("無法同步旅遊任務進度，請稍後再試");
+            return;
+          }
+        }
+
+        if (activeUidRef.current !== uid) return;
         const nextProgress = updater(baseProgress);
+        mutationVersionRef.current += 1;
+        progressRef.current = nextProgress;
+        setProgress(nextProgress);
 
-        saveTravelProgress(nextProgress).catch((err) => {
+        try {
+          await persist(uid);
+        } catch (err) {
           console.error("Failed to save travel progress:", err);
-          setError("任務已完成，但目前無法同步到帳號");
-        });
+          if (activeUidRef.current === uid) {
+            setError("任務已完成，但目前無法同步到帳號");
+          }
+        }
+      };
 
-        return nextProgress;
+      const previous = mutationQueuesRef.current.get(uid) ?? Promise.resolve();
+      const queued = previous.then(runMutation, runMutation).finally(() => {
+        if (mutationQueuesRef.current.get(uid) === queued) {
+          mutationQueuesRef.current.delete(uid);
+        }
       });
+      mutationQueuesRef.current.set(uid, queued);
     },
-    [user],
+    [getProgressPromise, user?.uid],
   );
 
   const markStep = useCallback(
     (topicId: string, step: TravelMissionStepKind) => {
-      updateProgress((current) =>
-        markTravelMissionInProgress(current, topicId, step),
+      const now = Date.now();
+      updateProgress(
+        (current) => markTravelMissionInProgress(current, topicId, step, now),
+        (uid) => saveTravelMissionStep(uid, topicId, step, now),
       );
     },
     [updateProgress],
@@ -69,13 +150,17 @@ export function useTravelProgress() {
 
   const completeMission = useCallback(
     (topicId: string) => {
-      updateProgress((current) => completeTravelMission(current, topicId));
+      const now = Date.now();
+      updateProgress(
+        (current) => completeTravelMission(current, topicId, now),
+        (uid) => saveTravelMissionCompletion(uid, topicId, now),
+      );
     },
     [updateProgress],
   );
 
   return {
-    progress,
+    progress: progress?.uid === (user?.uid ?? null) ? progress : null,
     isLoading,
     error,
     reload: loadProgress,

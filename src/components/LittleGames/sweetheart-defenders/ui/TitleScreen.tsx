@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { ArrowLeft, BookOpen, CakeSlice, Lock, Star } from "lucide-react";
 import { LEVELS } from "../data/levels";
+import { planSlots } from "../data/slotPlanner";
 import { CHARACTERS } from "../data/characters";
 import type { TowerCharacter } from "../types";
 import { getEnemy } from "../data/enemies";
@@ -12,6 +13,13 @@ import type { SyncStatus } from "../storage";
 import type { AudioControls } from "../useAudioSettings";
 import { AudioButton } from "./AudioControls";
 import { CharacterDex } from "./CharacterDex";
+
+const ACTUAL_SLOT_COUNTS = new Map(
+  LEVELS.map((level) => [
+    level.id,
+    planSlots(level.paths, level.slotPlan).length,
+  ]),
+);
 
 type Props = {
   levelStars: Record<string, Stars>;
@@ -210,7 +218,8 @@ export function TitleScreen({
                       {unlocked ? (
                         <>
                           <span className="text-xs text-slate-500">
-                            {level.waves.length} 波 · {level.slotPlan.count} 個塔位
+                            {level.waves.length} 波 ·{" "}
+                            {ACTUAL_SLOT_COUNTS.get(level.id) ?? 0} 個塔位
                             {level.paths.length > 1 &&
                               ` · ${level.paths.length} 條路`}
                           </span>

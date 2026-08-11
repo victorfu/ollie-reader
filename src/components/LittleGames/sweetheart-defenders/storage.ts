@@ -1,5 +1,12 @@
-import { getLevel } from "./data/levels";
-import type { CampaignProgress, Stars } from "./engine/progress";
+import { getLevel, LEVELS } from "./data/levels";
+import {
+  applyRunResult,
+  type CampaignProgress,
+  type CoinReward,
+  type RunApplication,
+  type RunOutcome,
+  type Stars,
+} from "./engine/progress";
 
 export const SWEETHEART_SCHEMA_VERSION = 1;
 export const SWEETHEART_CLOUD_DOC = "sweetheartDefenders";
@@ -12,7 +19,8 @@ export type SweetheartSaveV1 = CampaignProgress & {
   updatedAt: number;
 };
 
-export type SaveStorage = Pick<Storage, "getItem" | "setItem">;
+export type SaveStorage = Pick<Storage, "getItem" | "setItem"> &
+  Partial<Pick<Storage, "removeItem">>;
 
 export type SyncStatus = "idle" | "loading" | "saving" | "saved" | "offline";
 
@@ -152,6 +160,19 @@ export function writeCache(
   return merged;
 }
 
+/** 訪客進度登入後已搬進帳號快取，就不能再被下一個帳號重複承接。 */
+export function clearCache(
+  uid: string | null,
+  storage: SaveStorage | null = defaultStorage(),
+): void {
+  if (!storage?.removeItem) return;
+  try {
+    storage.removeItem(getCacheKey(uid));
+  } catch {
+    // 無痕模式或儲存空間不可用：清不掉快取不應中斷遊戲。
+  }
+}
+
 // === 雲端 ===
 
 function assertUid(uid: string): void {
@@ -185,15 +206,176 @@ export async function loadCloud(uid: string): Promise<SweetheartSaveV1> {
 export async function saveCloud(
   uid: string,
   save: SweetheartSaveV1,
-): Promise<void> {
+): Promise<SweetheartSaveV1> {
   assertUid(uid);
 
-  const [{ setDoc }, ref] = await Promise.all([
+  const [firestore, { db }] = await Promise.all([
     import("firebase/firestore"),
-    cloudDoc(uid),
+    import("../../../utils/firebaseUtil"),
   ]);
+  const ref = firestore.doc(
+    db,
+    "gameProgress",
+    uid,
+    "littleGames",
+    SWEETHEART_CLOUD_DOC,
+  );
 
-  await setDoc(ref, normalizeSave(save), { merge: true });
+  // merge:true 只會合併文件的第一層；stars map 與 claimed array 仍會整欄互蓋。
+  // 在 transaction 內讀最新版本再逐欄 union，兩台裝置同時同步才不會 lost update。
+  return firestore.runTransaction(db, async (transaction) => {
+    const snapshot = await transaction.get(ref);
+    const remote = snapshot.exists()
+      ? normalizeSave(snapshot.data())
+      : createEmptySave();
+    const merged = mergeSaves(remote, normalizeSave(save));
+    transaction.set(ref, merged);
+    return merged;
+  });
+}
+
+export type CloudRunSettlement = {
+  save: SweetheartSaveV1;
+  /** 這筆 transaction 實際發出的代幣；另一分頁先領走時會是 0。 */
+  coinsEarned: number;
+};
+
+async function importSettlementDependencies() {
+  const [service, firestore, firebase] = await Promise.all([
+    import("../../../services/gameProgressService"),
+    import("firebase/firestore"),
+    import("../../../utils/firebaseUtil"),
+  ]);
+  return { service, firestore, db: firebase.db };
+}
+
+let settlementDependencies:
+  | ReturnType<typeof importSettlementDependencies>
+  | null = null;
+
+function loadSettlementDependencies() {
+  if (!settlementDependencies) {
+    const pending = importSettlementDependencies().catch((error) => {
+      // A transient chunk/network failure must not poison every later online
+      // retry for the lifetime of this tab.
+      if (settlementDependencies === pending) settlementDependencies = null;
+      throw error;
+    });
+    settlementDependencies = pending;
+  }
+  return settlementDependencies;
+}
+
+/**
+ * 原子提交一場結果與首次獎勵。
+ *
+ * 關卡 claim 與共用 coin balance 放在同一筆 Firestore transaction：並行完成同一
+ * 關時只有第一筆會看到「未領」，不同關同時完成則會因 campaign 文件衝突而重試
+ * 並 union 兩邊進度。這同時避免「錢已發但 claim 沒存」和相反方向的半套結果。
+ */
+export async function settleCloudRunResult(
+  uid: string,
+  localBase: SweetheartSaveV1,
+  levelId: string,
+  outcome: RunOutcome,
+  reward: CoinReward,
+): Promise<CloudRunSettlement> {
+  return commitCloudProgress(uid, localBase, (base) =>
+    applyRunResult(base, levelId, outcome, reward),
+  );
+}
+
+/**
+ * 登入／重連時把離線進度補進雲端，並原子補發「有星數但還沒 claim」的獎勵。
+ * 訪客沒有可用的 coin wallet，因此訪客場次只記星數；第一次登入會走這裡發放。
+ */
+export async function syncCloudProgress(
+  uid: string,
+  localSave: SweetheartSaveV1,
+): Promise<CloudRunSettlement> {
+  return commitCloudProgress(uid, localSave, claimPendingRewards);
+}
+
+async function commitCloudProgress(
+  uid: string,
+  localBase: SweetheartSaveV1,
+  apply: (base: SweetheartSaveV1) => RunApplication,
+): Promise<CloudRunSettlement> {
+  assertUid(uid);
+
+  // 共用進度文件通常已存在；新玩家先建立完整預設欄位，transaction 才只需更新
+  // coins，不會留下只有餘額、缺少冒險進度欄位的半份文件。
+  const { service, firestore, db } = await loadSettlementDependencies();
+  await service.getOrCreateProgress(uid);
+
+  const campaignRef = firestore.doc(
+    db,
+    "gameProgress",
+    uid,
+    "littleGames",
+    SWEETHEART_CLOUD_DOC,
+  );
+  const progressRef = firestore.doc(db, "gameProgress", uid);
+
+  return firestore.runTransaction(db, async (transaction) => {
+    const [campaignSnapshot, progressSnapshot] = await Promise.all([
+      transaction.get(campaignRef),
+      transaction.get(progressRef),
+    ]);
+    if (!progressSnapshot.exists()) {
+      throw new Error("Player progress does not exist.");
+    }
+
+    const remote = campaignSnapshot.exists()
+      ? normalizeSave(campaignSnapshot.data())
+      : createEmptySave();
+    const base = mergeSaves(remote, normalizeSave(localBase));
+    const applied = apply(base);
+    const committed: SweetheartSaveV1 = {
+      ...base,
+      ...applied.progress,
+      updatedAt: Math.max(base.updatedAt, Date.now()),
+    };
+
+    const currentCoins = parseCoins(progressSnapshot.data().coins);
+    if (currentCoins > Number.MAX_SAFE_INTEGER - applied.coinsEarned) {
+      throw new RangeError("Token balance exceeds the safe integer limit.");
+    }
+
+    transaction.set(campaignRef, committed);
+    if (applied.coinsEarned > 0) {
+      transaction.update(progressRef, {
+        coins: currentCoins + applied.coinsEarned,
+        updatedAt: firestore.serverTimestamp(),
+      });
+    }
+
+    return { save: committed, coinsEarned: applied.coinsEarned };
+  });
+}
+
+function claimPendingRewards(progress: SweetheartSaveV1): RunApplication {
+  const claimedClear = [...progress.claimedClear];
+  const claimedThreeStars = [...progress.claimedThreeStars];
+  let coinsEarned = 0;
+
+  for (const level of LEVELS) {
+    const stars = progress.levelStars[level.id] ?? 0;
+    if (stars > 0 && !claimedClear.includes(level.id)) {
+      claimedClear.push(level.id);
+      coinsEarned += level.coinReward.clear;
+    }
+    if (stars >= 3 && !claimedThreeStars.includes(level.id)) {
+      claimedThreeStars.push(level.id);
+      coinsEarned += level.coinReward.threeStars;
+    }
+  }
+
+  if (coinsEarned === 0) return { progress, coinsEarned: 0 };
+  return {
+    coinsEarned,
+    progress: { ...progress, claimedClear, claimedThreeStars },
+  };
 }
 
 /** 領獎紀錄只留還存在的關卡 id，順便濾掉髒資料。 */
@@ -217,4 +399,10 @@ function toStars(value: unknown): Stars {
   const rounded = Math.floor(value);
   if (rounded <= 0) return 0;
   return (rounded >= 3 ? 3 : rounded) as Stars;
+}
+
+function parseCoins(value: unknown): number {
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0
+    ? value
+    : 0;
 }

@@ -1,10 +1,11 @@
 import pytest
 from keyring.backend import KeyringBackend
-from keyring.errors import PasswordDeleteError
+from keyring.errors import KeyringLocked, PasswordDeleteError
 
 import keyring as keyring_module
 
 from server.oikid_secrets import (
+    OikidSecretsError,
     get_oikid_credentials,
     set_oikid_credentials,
     clear_oikid_credentials,
@@ -80,3 +81,34 @@ def test_wrong_json_keys_treated_as_unset(memory_keyring):
         "ollie-reader-oikid", "credentials", json.dumps({"user": "alice", "pass": "x"})
     )
     assert get_oikid_credentials() is None
+
+
+def test_get_wraps_locked_keyring(monkeypatch):
+    def locked(*args):
+        raise KeyringLocked("locked")
+
+    monkeypatch.setattr(keyring_module, "get_password", locked)
+
+    with pytest.raises(OikidSecretsError, match="鑰匙圈"):
+        get_oikid_credentials()
+
+
+def test_set_wraps_locked_keyring(monkeypatch):
+    def locked(*args):
+        raise KeyringLocked("locked")
+
+    monkeypatch.setattr(keyring_module, "set_password", locked)
+
+    with pytest.raises(OikidSecretsError, match="鑰匙圈"):
+        set_oikid_credentials("alice", "secret")
+
+
+def test_clear_does_not_hide_real_password_delete_failure(monkeypatch):
+    def failed_delete(*args):
+        raise PasswordDeleteError("access denied")
+
+    monkeypatch.setattr(keyring_module, "delete_password", failed_delete)
+    monkeypatch.setattr(keyring_module, "get_password", lambda *args: "still-there")
+
+    with pytest.raises(OikidSecretsError, match="鑰匙圈"):
+        clear_oikid_credentials()

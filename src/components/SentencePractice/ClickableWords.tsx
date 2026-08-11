@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useSpeechState } from "../../hooks/useSpeechState";
 
 interface ClickableWordsProps {
@@ -14,6 +14,8 @@ export const ClickableWords = ({
   const [activeWordIndex, setActiveWordIndex] = useState<number | null>(null);
   const [definition, setDefinition] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const activeWordIndexRef = useRef<number | null>(null);
+  const lookupRequestIdRef = useRef(0);
 
   // Split text into words while preserving punctuation
   const splitTextIntoWords = (text: string): string[] => {
@@ -37,33 +39,53 @@ export const ClickableWords = ({
       speak(clean);
 
       // If clicking the same word index, toggle off
-      if (activeWordIndex === index) {
+      if (activeWordIndexRef.current === index) {
+        lookupRequestIdRef.current += 1;
+        activeWordIndexRef.current = null;
         setActiveWordIndex(null);
         setDefinition(null);
+        setIsLoading(false);
         return;
       }
 
+      const requestId = ++lookupRequestIdRef.current;
+      activeWordIndexRef.current = index;
       setActiveWordIndex(index);
       setDefinition(null);
       setIsLoading(true);
 
       try {
         const def = await getWordDefinition(clean);
+        if (requestId !== lookupRequestIdRef.current) return;
         setDefinition(def);
       } catch (error) {
+        if (requestId !== lookupRequestIdRef.current) return;
         console.error("Failed to get definition:", error);
         setDefinition("無法取得解釋");
       } finally {
-        setIsLoading(false);
+        if (requestId === lookupRequestIdRef.current) {
+          setIsLoading(false);
+        }
       }
     },
-    [speak, getWordDefinition, activeWordIndex],
+    [speak, getWordDefinition],
   );
 
   const handleCloseDropdown = useCallback(() => {
+    lookupRequestIdRef.current += 1;
+    activeWordIndexRef.current = null;
     setActiveWordIndex(null);
     setDefinition(null);
+    setIsLoading(false);
   }, []);
+
+  useEffect(() => {
+    lookupRequestIdRef.current += 1;
+    activeWordIndexRef.current = null;
+    setActiveWordIndex(null);
+    setDefinition(null);
+    setIsLoading(false);
+  }, [text]);
 
   const words = splitTextIntoWords(text);
 

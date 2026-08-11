@@ -33,8 +33,11 @@ export function SpeechPractice() {
   const {
     records,
     loading,
+    isLoadingMore,
+    hasMoreRecords,
     topicCounts,
     topicScripts,
+    loadMoreRecords,
     saveRecord,
     deleteRecord,
     saveScript,
@@ -54,9 +57,7 @@ export function SpeechPractice() {
     setNotes("");
     // Load saved script if available
     const savedScript = topicScripts.get(selectedTopic.id);
-    if (savedScript) {
-      setScript(savedScript);
-    }
+    setScript(savedScript ?? "");
     timer.reset();
     recorder.resetRecording();
   };
@@ -82,30 +83,46 @@ export function SpeechPractice() {
     // Save script to Firebase
     if (selectedTopic) {
       setIsSavingScript(true);
-      const result = await saveScript(selectedTopic.id, generatedScript);
-      setIsSavingScript(false);
+      try {
+        const result = await saveScript(selectedTopic.id, generatedScript);
 
-      if (result.success) {
-        setToastMessage({
-          message: "講稿已儲存",
-          type: "success",
-        });
-        setIsScriptModalOpen(false);
-      } else {
+        if (result.success) {
+          setToastMessage({
+            message: "講稿已儲存",
+            type: "success",
+          });
+          return true;
+        }
+
         setToastMessage({
           message: result.message,
           type: "error",
         });
+        return false;
+      } finally {
+        setIsSavingScript(false);
       }
     }
+
+    return true;
   };
 
-  // Unified start - starts both timer and recording
-  const handleStart = () => {
-    timer.start();
-    if (recorder.isSupported) {
-      void recorder.startRecording();
+  // Start the practice clock only after the recorder has actually acquired the
+  // microphone. Browsers without recording support retain timer-only mode.
+  const handleStart = async () => {
+    if (!recorder.isSupported) {
+      timer.start();
+      return;
     }
+    if (recorder.isStarting) return;
+    const recordingStarted = await recorder.startRecording();
+    if (recordingStarted) timer.start();
+  };
+
+  const handleIdleViewChange = (nextView: "select" | "history") => {
+    if (timer.isRunning) return;
+    if (recorder.isStarting) recorder.resetRecording();
+    setViewMode(nextView);
   };
 
   // Unified pause - pauses both timer and recording
@@ -127,13 +144,13 @@ export function SpeechPractice() {
   // Unified stop - stops both timer and recording
   const handleStop = () => {
     timer.stop();
-    if (recorder.isRecording) {
+    if (recorder.isSupported) {
       recorder.stopRecording();
     }
   };
 
   const handleSavePractice = async () => {
-    if (!selectedTopic) return;
+    if (!selectedTopic || recorder.isFinalizing) return;
 
     setIsSaving(true);
 
@@ -236,9 +253,7 @@ export function SpeechPractice() {
                   : "btn-ghost bg-transparent"
               }`}
               onClick={() => {
-                if (!timer.isRunning) {
-                  setViewMode("select");
-                }
+                handleIdleViewChange("select");
               }}
               disabled={timer.isRunning}
             >
@@ -252,9 +267,7 @@ export function SpeechPractice() {
                   : "btn-ghost bg-transparent"
               }`}
               onClick={() => {
-                if (!timer.isRunning) {
-                  setViewMode("history");
-                }
+                handleIdleViewChange("history");
               }}
               disabled={timer.isRunning}
             >
@@ -315,6 +328,15 @@ export function SpeechPractice() {
                       {recorder.isPaused ? "錄音暫停" : "錄音中"}
                     </span>
                   </div>
+                </div>
+              )}
+
+              {recorder.error && (
+                <div
+                  role="alert"
+                  className="rounded-xl border border-error/20 bg-error/10 px-4 py-3 text-sm text-error"
+                >
+                  {recorder.error}
                 </div>
               )}
 
@@ -397,9 +419,14 @@ export function SpeechPractice() {
                       type="button"
                       className="btn btn-primary flex-1 active:scale-[0.98]"
                       onClick={handleSavePractice}
-                      disabled={isSaving}
+                      disabled={isSaving || recorder.isFinalizing}
                     >
-                      {isSaving ? (
+                      {recorder.isFinalizing ? (
+                        <>
+                          <span className="loading loading-spinner loading-sm" />
+                          處理錄音中...
+                        </>
+                      ) : isSaving ? (
                         <>
                           <span className="loading loading-spinner loading-sm" />
                           儲存中...
@@ -427,6 +454,9 @@ export function SpeechPractice() {
             <PracticeHistory
               records={records}
               loading={loading}
+              isLoadingMore={isLoadingMore}
+              hasMore={hasMoreRecords}
+              onLoadMore={() => void loadMoreRecords()}
               onDelete={handleDeleteRecord}
             />
           )}
@@ -463,7 +493,8 @@ export function SpeechPractice() {
                     <button
                       type="button"
                       className="btn btn-primary btn-lg gap-2 flex-1 max-w-xs active:scale-[0.98]"
-                      onClick={handleStart}
+                      onClick={() => void handleStart()}
+                      disabled={recorder.isStarting}
                     >
                       <svg
                         xmlns="http://www.w3.org/2000/svg"
@@ -473,7 +504,14 @@ export function SpeechPractice() {
                       >
                         <path d="M8 5v14l11-7z" />
                       </svg>
-                      開始練習
+                      {recorder.isStarting ? (
+                        <>
+                          <span className="loading loading-spinner loading-sm" />
+                          啟動麥克風中...
+                        </>
+                      ) : (
+                        "開始練習"
+                      )}
                     </button>
                     <div className="w-16" /> {/* Spacer for balance */}
                   </>
@@ -561,7 +599,10 @@ export function SpeechPractice() {
               </div>
 
               {/* Recording status indicator */}
-              {!timer.isRunning && timer.time === 0 && recorder.isSupported && (
+              {!timer.isRunning &&
+                timer.time === 0 &&
+                recorder.isSupported &&
+                !recorder.error && (
                 <p className="text-center text-xs text-muted-foreground mt-2">
                   🎙️ 開始練習將自動錄音
                 </p>

@@ -3,7 +3,10 @@ import {
   advanceEnemyVerticalMotion,
   advancePlayerHorizontalMotion,
   consumePlayerJump,
+  expireMushroomCombo,
+  keepPlayerInsideWorldStart,
   pressJump,
+  registerMushroomComboHit,
   releaseJump,
   updateEnemiesUntilPlayerFrameEnds,
 } from "./behavior";
@@ -54,6 +57,14 @@ function makeEnemy(overrides: Partial<Enemy> = {}): Enemy {
 }
 
 describe("mushroom horizontal motion", () => {
+  it("keeps the player inside the left edge of the world", () => {
+    const player = { x: -12, vx: -180 };
+
+    keepPlayerInsideWorldStart(player);
+
+    expect(player).toEqual({ x: 0, vx: 0 });
+  });
+
   it("preserves the established 60 Hz acceleration and displacement", () => {
     const player = { x: 0, vx: 0 };
 
@@ -107,6 +118,30 @@ describe("mushroom horizontal motion", () => {
         expect(result.x).toBeCloseTo(baseline.x, 8);
       }
     }
+  });
+});
+
+describe("mushroom combo timing", () => {
+  it("expires visibly with game time and remains frozen while paused", () => {
+    const combo = { comboCount: 2, lastStompTime: 4 };
+
+    expireMushroomCombo(combo, 5.9, 2);
+    expect(combo.comboCount).toBe(2);
+
+    // A pause does not advance game time, so there is nothing to expire.
+    expireMushroomCombo(combo, 5.9, 2);
+    expect(combo.comboCount).toBe(2);
+
+    expireMushroomCombo(combo, 6.01, 2);
+    expect(combo.comboCount).toBe(0);
+  });
+
+  it("starts a new combo after expiry", () => {
+    const combo = { comboCount: 4, lastStompTime: 1 };
+    expireMushroomCombo(combo, 4, 2);
+
+    expect(registerMushroomComboHit(combo, 4, 2)).toBe(1);
+    expect(registerMushroomComboHit(combo, 5, 2)).toBe(2);
   });
 });
 

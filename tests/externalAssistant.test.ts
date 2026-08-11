@@ -1,5 +1,5 @@
-import test from "node:test";
 import assert from "node:assert/strict";
+import { test } from "vitest";
 
 import {
   buildExternalAssistantUrl,
@@ -31,14 +31,14 @@ test("defaults to ChatGPT and deep-links prompt-capable chat tools", () => {
   assert.equal(url, "https://chatgpt.com/?q=Explain%20this%20page");
 });
 
-test("opens Gemini homepage because it needs copied text pasted manually", () => {
-  const gemini = getExternalAssistantTarget("gemini");
+test("falls back to ChatGPT for an unknown assistant target", () => {
+  const fallback = getExternalAssistantTarget("unknown");
 
-  assert.equal(gemini.label, "Gemini");
-  assert.equal(gemini.behavior, "copy-then-open");
+  assert.equal(fallback.label, "ChatGPT");
+  assert.equal(fallback.behavior, "deep-link");
   assert.equal(
-    buildExternalAssistantUrl("gemini", "Explain this page"),
-    "https://gemini.google.com/",
+    buildExternalAssistantUrl("unknown", "Explain this page"),
+    "https://chatgpt.com/?q=Explain%20this%20page",
   );
 });
 

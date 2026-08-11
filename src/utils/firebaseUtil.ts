@@ -4,6 +4,10 @@ import { getAI, getGenerativeModel, GoogleAIBackend } from "firebase/ai";
 import { initializeAppCheck, ReCaptchaV3Provider } from "firebase/app-check";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
+import {
+  resolveAppCheckDebugToken,
+  type AppCheckDebugToken,
+} from "./appCheckDebug";
 
 // Firebase project configuration (Auth + Firestore + Gemini share one app)
 const firebaseConfig = {
@@ -18,7 +22,7 @@ const firebaseConfig = {
 let app: FirebaseApp;
 
 // Helper to set App Check debug token in development
-function setAppCheckDebugToken(token?: string): void {
+function setAppCheckDebugToken(token?: AppCheckDebugToken): void {
   if (import.meta.env.DEV && token) {
     // @ts-expect-error app-check debug token
     self.FIREBASE_APPCHECK_DEBUG_TOKEN = token;
@@ -31,7 +35,9 @@ if (!getApps().length) {
 
   // Set debug token before App Check initialization
   setAppCheckDebugToken(
-    import.meta.env.VITE_FIREBASE_APPCHECK_DEBUG_TOKEN || "true",
+    resolveAppCheckDebugToken(
+      import.meta.env.VITE_FIREBASE_APPCHECK_DEBUG_TOKEN,
+    ),
   );
 
   // Pass your reCAPTCHA v3 site key (public key) to activate(). Make sure this

@@ -24,7 +24,9 @@ def test_serve_writes_then_removes_pid_file(monkeypatch):
     monkeypatch.setattr(instance, "sidecar_alive", lambda port, timeout=1.0: False)
     events = []
     monkeypatch.setattr(
-        instance, "write_pid_file", lambda port: events.append(("write", port))
+        instance,
+        "claim_pid_file",
+        lambda port: events.append(("claim", port)) or True,
     )
     monkeypatch.setattr(
         instance,
@@ -38,14 +40,14 @@ def test_serve_writes_then_removes_pid_file(monkeypatch):
 
     main.main()
 
-    assert events == [("write", 8123), ("install", 8123), ("run",), ("remove", 8123)]
+    assert events == [("claim", 8123), ("install", 8123), ("run",), ("remove", 8123)]
 
 
 def test_serve_removes_pid_file_when_uvicorn_raises(monkeypatch):
     monkeypatch.setattr(sys, "argv", ["ollie-reader", "--serve", "--port", "8123"])
     monkeypatch.setattr(instance, "sidecar_alive", lambda port, timeout=1.0: False)
     events = []
-    monkeypatch.setattr(instance, "write_pid_file", lambda port: None)
+    monkeypatch.setattr(instance, "claim_pid_file", lambda port: True)
     monkeypatch.setattr(instance, "install_signal_cleanup", lambda port: None)
     monkeypatch.setattr(
         instance, "remove_pid_file", lambda port: events.append(("remove", port))
@@ -69,7 +71,7 @@ def test_serve_continues_when_pid_file_write_fails(monkeypatch):
     def bad_write(port):
         raise OSError("disk full")
 
-    monkeypatch.setattr(instance, "write_pid_file", bad_write)
+    monkeypatch.setattr(instance, "claim_pid_file", bad_write)
     monkeypatch.setattr(instance, "install_signal_cleanup", lambda port: None)
     monkeypatch.setattr(instance, "remove_pid_file", lambda port: None)
     monkeypatch.setattr(uvicorn, "run", lambda *a, **k: events.append(("run",)))
@@ -77,3 +79,16 @@ def test_serve_continues_when_pid_file_write_fails(monkeypatch):
     main.main()  # PID 檔寫失敗不致命
 
     assert events == [("run",)]
+
+
+def test_serve_exits_when_another_process_claimed_startup(monkeypatch):
+    monkeypatch.setattr(sys, "argv", ["ollie-reader", "--serve", "--port", "8123"])
+    monkeypatch.setattr(instance, "sidecar_alive", lambda port, timeout=1.0: False)
+    monkeypatch.setattr(instance, "claim_pid_file", lambda port: False)
+
+    def boom(*args, **kwargs):
+        raise AssertionError("uvicorn.run 不應被呼叫")
+
+    monkeypatch.setattr(uvicorn, "run", boom)
+
+    main.main()

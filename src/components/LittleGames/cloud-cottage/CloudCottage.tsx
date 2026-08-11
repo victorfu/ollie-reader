@@ -177,6 +177,8 @@ const ACTION_EMOJI: Record<string, string> = {
 };
 
 const DEMO_UID = "cloud-cottage-demo";
+const CLOUD_RETRY_BASE_MS = 1_000;
+const CLOUD_RETRY_MAX_MS = 30_000;
 
 declare global {
   interface Window {
@@ -283,8 +285,12 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
   const pendingCloudWriteOwnerUidRef = useRef<string | undefined>(undefined);
   const deferredToastAtRef = useRef(0);
   const cloudQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const cloudRetryTimerRef = useRef<number | null>(null);
+  const cloudRetryAttemptRef = useRef(0);
+  const coinRequestSequenceRef = useRef(0);
   const personalizationPreviewRef = useRef<PersonalizationPreview>(null);
   const visibleSaveOwnerUidRef = useRef<string | undefined>(undefined);
+  const loadErrorOwnerUidRef = useRef<string | undefined>(undefined);
   const observedSleepDeadlineRef = useRef<{
     uid: string;
     deadline: number;
@@ -295,6 +301,19 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
     && new URLSearchParams(window.location.search).get("demo") === "1";
   const uid = isDemo ? DEMO_UID : auth.user?.uid;
   const activeUidRef = useRef(uid);
+  const identityUidRef = useRef(uid);
+  const identityGenerationRef = useRef(0);
+  if (identityUidRef.current !== uid) {
+    identityUidRef.current = uid;
+    identityGenerationRef.current += 1;
+    // Ref ownership changes synchronously with render. This keeps the first
+    // frame after A -> B from exposing A's save or accepting an A-era action
+    // before the hydration effect has had a chance to run.
+    visibleSaveOwnerUidRef.current = undefined;
+    pendingCloudWriteOwnerUidRef.current = undefined;
+    loadErrorOwnerUidRef.current = undefined;
+    coinRequestSequenceRef.current += 1;
+  }
   activeUidRef.current = uid;
 
   const [save, setSave] = useState<PetSaveV1>(() => createInitialPetSave());
@@ -320,9 +339,51 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
   const [insufficientProductId, setInsufficientProductId] = useState<CottageProductId | null>(null);
   const [unlocks, setUnlocks] = useState<BondUnlock[]>([]);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [cloudRetryTick, setCloudRetryTick] = useState(0);
 
   nowRef.current = now;
   saveRef.current = save;
+
+  const isCurrentIdentity = useCallback(
+    (ownerUid: string, generation: number) =>
+      activeUidRef.current === ownerUid
+      && identityGenerationRef.current === generation,
+    [],
+  );
+
+  const clearCloudRetry = useCallback(() => {
+    if (cloudRetryTimerRef.current !== null) {
+      window.clearTimeout(cloudRetryTimerRef.current);
+      cloudRetryTimerRef.current = null;
+    }
+  }, []);
+
+  const resetCloudRetry = useCallback(() => {
+    clearCloudRetry();
+    cloudRetryAttemptRef.current = 0;
+  }, [clearCloudRetry]);
+
+  const scheduleCloudRetry = useCallback(
+    (ownerUid: string, generation: number) => {
+      if (
+        !isCurrentIdentity(ownerUid, generation)
+        || !navigator.onLine
+        || cloudRetryTimerRef.current !== null
+      ) return;
+
+      const delay = Math.min(
+        CLOUD_RETRY_BASE_MS * 2 ** cloudRetryAttemptRef.current,
+        CLOUD_RETRY_MAX_MS,
+      );
+      cloudRetryAttemptRef.current += 1;
+      cloudRetryTimerRef.current = window.setTimeout(() => {
+        cloudRetryTimerRef.current = null;
+        if (!isCurrentIdentity(ownerUid, generation)) return;
+        setCloudRetryTick((tick) => tick + 1);
+      }, delay);
+    },
+    [isCurrentIdentity],
+  );
 
   const setVisibleSave = useCallback((next: PetSaveV1, ownerUid: string) => {
     if (activeUidRef.current !== ownerUid) return false;
@@ -462,25 +523,28 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
   const queueCloudSave = useCallback(
     (next: PetSaveV1) => {
       if (!uid || isDemo) return;
+      const generation = identityGenerationRef.current;
       pendingCloudWriteOwnerUidRef.current = uid;
       cloudQueueRef.current = cloudQueueRef.current
         .catch(() => undefined)
         .then(async () => {
           if (!navigator.onLine) throw new Error("offline");
           const committed = await saveCottageCloud(uid, next);
-          if (activeUidRef.current !== uid) return;
+          if (!isCurrentIdentity(uid, generation)) return;
           setVisibleSaveIfNewer(committed, uid);
           if (pendingCloudWriteOwnerUidRef.current === uid) {
             pendingCloudWriteOwnerUidRef.current = undefined;
           }
+          resetCloudRetry();
           setSyncStatus("cloud");
           setSyncError(null);
         })
         .catch((error: unknown) => {
-          if (activeUidRef.current !== uid) return;
+          if (!isCurrentIdentity(uid, generation)) return;
           pendingCloudWriteOwnerUidRef.current = uid;
           setSyncStatus("offline");
           setSyncError("離線中，照顧紀錄已留在這台裝置，連線後會再同步。");
+          scheduleCloudRetry(uid, generation);
           if (Date.now() - deferredToastAtRef.current > 8_000) {
             deferredToastAtRef.current = Date.now();
             addToast("離線中，這次照顧已安全留在裝置上。", "info");
@@ -488,7 +552,15 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
           logger.warn("Cloud Cottage care save deferred", error);
         });
     },
-    [addToast, isDemo, setVisibleSaveIfNewer, uid],
+    [
+      addToast,
+      isCurrentIdentity,
+      isDemo,
+      resetCloudRetry,
+      scheduleCloudRetry,
+      setVisibleSaveIfNewer,
+      uid,
+    ],
   );
 
   const commitLocalSave = useCallback(
@@ -503,33 +575,49 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
 
   const refreshCoins = useCallback(
     async (activeUid: string) => {
+      const generation = identityGenerationRef.current;
+      const sequence = ++coinRequestSequenceRef.current;
       if (isDemo) {
-        setCoinBalance((current) => current ?? 500);
+        if (isCurrentIdentity(activeUid, generation)) {
+          setCoinBalance((current) => current ?? 500);
+        }
         return;
       }
       try {
         const coins = await loadCottageCoins(activeUid);
+        if (
+          !isCurrentIdentity(activeUid, generation)
+          || coinRequestSequenceRef.current !== sequence
+        ) return;
         setCoinBalance(coins);
         setCoinError(null);
       } catch (error) {
+        if (
+          !isCurrentIdentity(activeUid, generation)
+          || coinRequestSequenceRef.current !== sequence
+        ) return;
         logger.error("Failed to load Cloud Cottage coin balance", error);
         setCoinBalance(null);
         setCoinError("暫時讀不到扭蛋代幣，請稍後重試。");
       }
     },
-    [isDemo],
+    [isCurrentIdentity, isDemo],
   );
 
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
-    const handleOffline = () => setIsOnline(false);
+    const handleOffline = () => {
+      clearCloudRetry();
+      cloudRetryAttemptRef.current = 0;
+      setIsOnline(false);
+    };
     window.addEventListener("online", handleOnline);
     window.addEventListener("offline", handleOffline);
     return () => {
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
     };
-  }, []);
+  }, [clearCloudRetry]);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -545,16 +633,42 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
     const identityChanged = loadedUidRef.current !== uid;
     loadedUidRef.current = uid;
     if (identityChanged) {
+      resetCloudRetry();
+      coinRequestSequenceRef.current += 1;
+      if (speechTimerRef.current) {
+        clearTimeout(speechTimerRef.current);
+        speechTimerRef.current = null;
+      }
+      if (actionTimerRef.current) {
+        clearTimeout(actionTimerRef.current);
+        actionTimerRef.current = null;
+      }
+      pendingSpeechRef.current = null;
+      stopSpeaking();
       observedSleepDeadlineRef.current = null;
       visibleSaveOwnerUidRef.current = undefined;
       pendingCloudWriteOwnerUidRef.current = undefined;
+      loadErrorOwnerUidRef.current = undefined;
+      personalizationPreviewRef.current = null;
       setPanel(null);
       setPersonalizationMode(null);
+      setPersonalizationBusy(false);
+      setPurchasingId(null);
       setInsufficientProductId(null);
+      setUnlocks([]);
+      setSceneAction("idle");
+      setActionEmoji(undefined);
+      setSpeech(null);
+      setBathRubCount(0);
+      setCoinBalance(null);
+      setCoinError(null);
+      setSyncStatus("loading");
+      setSyncError(null);
     }
     if (!uid) {
       visibleSaveOwnerUidRef.current = undefined;
       pendingCloudWriteOwnerUidRef.current = undefined;
+      loadErrorOwnerUidRef.current = undefined;
       setSyncStatus("loading");
       setCoinBalance(null);
       setSyncError(null);
@@ -592,10 +706,12 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
       : null;
     const cached = persistedCache ?? inMemorySave;
     if (cached) {
+      loadErrorOwnerUidRef.current = undefined;
       setVisibleSave(cached, uid);
       setSyncStatus(isOnline ? "cache" : "offline");
     } else {
       setSyncStatus(isOnline ? "loading" : "error");
+      loadErrorOwnerUidRef.current = isOnline ? undefined : uid;
     }
 
     const finishLoad = async (loaded: PetSaveV1, firstVisit: boolean) => {
@@ -608,6 +724,7 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
           const committed = await saveCottageCloud(uid, prepared.save);
           if (loadSequenceRef.current !== sequence) return;
           setVisibleSaveIfNewer(committed, uid);
+          resetCloudRetry();
           setSyncStatus("cloud");
           setSyncError(null);
         } catch (error) {
@@ -618,6 +735,7 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
           pendingCloudWriteOwnerUidRef.current = uid;
           setSyncStatus("offline");
           setSyncError("離線中，稍後會自動同步。");
+          scheduleCloudRetry(uid, identityGenerationRef.current);
           logger.warn("Cloud Cottage visit save deferred", error);
         }
       }
@@ -663,6 +781,7 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
           setSyncError("離線中，正在使用上次的雲朵小窩存檔。");
           void finishLoad(cached, false);
         } else {
+          loadErrorOwnerUidRef.current = uid;
           setSyncStatus("error");
           setSyncError("雲朵飄遠了一點，暫時進不了小窩。請檢查連線再試一次。");
         }
@@ -672,7 +791,19 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
     return () => {
       loadSequenceRef.current += 1;
     };
-  }, [addToast, isDemo, isOnline, refreshCoins, setVisibleSave, setVisibleSaveIfNewer, triggerAction, uid]);
+  }, [
+    addToast,
+    isDemo,
+    isOnline,
+    refreshCoins,
+    resetCloudRetry,
+    scheduleCloudRetry,
+    setVisibleSave,
+    setVisibleSaveIfNewer,
+    stopSpeaking,
+    triggerAction,
+    uid,
+  ]);
 
   useEffect(() => {
     if (!uid || isDemo) return;
@@ -709,11 +840,13 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
       || pendingCloudWriteOwnerUidRef.current !== uid
       || visibleSaveOwnerUidRef.current !== uid
     ) return;
+    const generation = identityGenerationRef.current;
     const current = saveRef.current;
     void loadCottageCloud(uid, undefined, nowRef.current)
       .then(async (cloud) => {
         if (
-          activeUidRef.current !== uid
+          !isCurrentIdentity(uid, generation)
+          || pendingCloudWriteOwnerUidRef.current !== uid
           || visibleSaveOwnerUidRef.current !== uid
         ) return;
         if (comparePetSaveFreshness(cloud, current) > 0) {
@@ -721,34 +854,58 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
             pendingCloudWriteOwnerUidRef.current = undefined;
           }
           setVisibleSave(cloud, uid);
+          resetCloudRetry();
           setSyncStatus("cloud");
+          setSyncError(null);
           return;
         }
         const committed = await saveCottageCloud(uid, current);
         if (
-          activeUidRef.current !== uid
+          !isCurrentIdentity(uid, generation)
+          || pendingCloudWriteOwnerUidRef.current !== uid
           || visibleSaveOwnerUidRef.current !== uid
         ) return;
         setVisibleSaveIfNewer(committed, uid);
         if (pendingCloudWriteOwnerUidRef.current === uid) {
           pendingCloudWriteOwnerUidRef.current = undefined;
         }
+        resetCloudRetry();
         setSyncStatus("cloud");
         setSyncError(null);
       })
       .catch((error: unknown) => {
-        if (activeUidRef.current !== uid) return;
+        if (
+          !isCurrentIdentity(uid, generation)
+          || pendingCloudWriteOwnerUidRef.current !== uid
+          || visibleSaveOwnerUidRef.current !== uid
+        ) return;
+        scheduleCloudRetry(uid, generation);
         logger.warn("Cloud Cottage reconnect sync failed", error);
       });
-  }, [isDemo, isOnline, setVisibleSave, setVisibleSaveIfNewer, uid]);
+  }, [
+    cloudRetryTick,
+    isCurrentIdentity,
+    isDemo,
+    isOnline,
+    resetCloudRetry,
+    scheduleCloudRetry,
+    setVisibleSave,
+    setVisibleSaveIfNewer,
+    uid,
+  ]);
 
   useEffect(() => {
     const localDate = todayLocal(new Date(now));
-    if (!uid || save.wish.date === localDate && save.freeFood.restockDate === localDate) return;
-    let next = restockFreeFood(save, localDate, now);
+    if (!uid || visibleSaveOwnerUidRef.current !== uid) return;
+    const current = saveRef.current;
+    if (
+      current.wish.date === localDate
+      && current.freeFood.restockDate === localDate
+    ) return;
+    let next = restockFreeFood(current, localDate, now);
     const wish = refreshDailyWish(next.wish, uid, localDate, next.inventory.toys);
     if (wish !== next.wish) next = touchPetSave({ ...next, wish }, now);
-    if (next !== save) commitLocalSave(next);
+    if (next !== current) commitLocalSave(next);
   }, [commitLocalSave, now, save, uid]);
 
   useEffect(() => {
@@ -780,37 +937,59 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
     const previousRender = window.render_game_to_text;
     const previousAdvance = window.advanceTime;
     window.render_game_to_text = () => {
-      const current = saveRef.current;
       const currentNow = nowRef.current;
-      const personalizationPreview = personalizationPreviewRef.current;
+      const hasActiveSave = Boolean(
+        uid && visibleSaveOwnerUidRef.current === uid,
+      );
+      const ownsLoadError = Boolean(
+        uid
+        && loadErrorOwnerUidRef.current === uid
+        && syncStatus === "error",
+      );
+      const current = hasActiveSave
+        ? saveRef.current
+        : createInitialPetSave(
+            currentNow,
+            todayLocal(new Date(currentNow)),
+          );
+      const personalizationPreview = hasActiveSave
+        ? personalizationPreviewRef.current
+        : null;
       const stats = deriveStats(current, currentNow);
       const bond = getBondProgress(current.bond.total);
       const wish = getWishDefinition(current.wish);
+      const mode = !uid
+        ? "signed-out"
+        : !hasActiveSave || syncStatus === "loading"
+          ? "loading"
+          : "playing";
       return JSON.stringify({
-        mode: !uid ? "signed-out" : syncStatus === "loading" ? "loading" : "playing",
+        mode,
         coordinateSystem: "The DOM scene uses normalized percentages: origin top-left, x rightward, y downward.",
         time: { now: currentNow, period: timeOfDayAt(currentNow) },
-        sync: syncStatus,
-        syncError,
+        sync: hasActiveSave || ownsLoadError ? syncStatus : "loading",
+        syncError: hasActiveSave || ownsLoadError
+          ? syncError
+          : null,
         online: isOnline,
-        panel,
-        personalizationMode,
+        panel: hasActiveSave ? panel : null,
+        personalizationMode: hasActiveSave ? personalizationMode : null,
         personalizationDraft: personalizationPreview,
-        personalizationBusy,
+        personalizationBusy: hasActiveSave && personalizationBusy,
         shop: {
           category: shopKind,
-          purchasingId,
-          insufficientProductId,
+          purchasingId: hasActiveSave ? purchasingId : null,
+          insufficientProductId: hasActiveSave ? insufficientProductId : null,
         },
         bath: {
-          rubCount: bathRubCount,
-          readyToRinse: bathRubCount >= 3,
+          rubCount: hasActiveSave ? bathRubCount : 0,
+          readyToRinse: hasActiveSave && bathRubCount >= 3,
         },
-        unlocks,
+        unlocks: hasActiveSave ? unlocks : [],
         fullscreen: isFullscreen,
-        action: sceneAction,
-        actionEmoji: actionEmoji ?? null,
-        speech,
+        action: hasActiveSave ? sceneAction : "idle",
+        actionEmoji: hasActiveSave ? actionEmoji ?? null : null,
+        speech: hasActiveSave ? speech : null,
         pet: {
           sleeping: isSleeping(current, currentNow),
           stats: {
@@ -847,7 +1026,7 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
         room: personalizationPreview?.mode === "decorate"
           ? personalizationPreview.room
           : current.room,
-        coins: coinBalance,
+        coins: hasActiveSave ? coinBalance : null,
       });
     };
     window.advanceTime = (milliseconds: number) => {
@@ -882,10 +1061,11 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
   ]);
 
   useEffect(() => () => {
+    clearCloudRetry();
     if (speechTimerRef.current) clearTimeout(speechTimerRef.current);
     if (actionTimerRef.current) clearTimeout(actionTimerRef.current);
     stopSpeaking();
-  }, [stopSpeaking]);
+  }, [clearCloudRetry, stopSpeaking]);
 
   const performCare = useCallback(
     (
@@ -894,7 +1074,7 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
       fallback: CottageSpeechBubble,
       emoji?: string,
     ) => {
-      if (!uid) return;
+      if (!uid || visibleSaveOwnerUidRef.current !== uid) return;
       const previous = saveRef.current;
       const result = applyCareActionWithWish(previous, uid, action, nowRef.current);
       if (!result.applied) {
@@ -1093,6 +1273,7 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
   useEffect(() => {
     if (
       !uid
+      || visibleSaveOwnerUidRef.current !== uid
       || panel !== null
       || sceneAction !== "idle"
       || isSleeping(save, now)
@@ -1121,7 +1302,12 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
 
   const handlePurchase = useCallback(
     async (productId: CottageProductId) => {
-      if (!uid || purchasingId) return;
+      if (
+        !uid
+        || visibleSaveOwnerUidRef.current !== uid
+        || purchasingId
+      ) return;
+      const generation = identityGenerationRef.current;
       const product = getProduct(productId);
       if (!product) return;
       if (!isDemo && (!isOnline || syncStatus !== "cloud" || coinBalance === null)) {
@@ -1147,14 +1333,21 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
           commitLocalSave(purchased.save, false);
         } else {
           await cloudQueueRef.current.catch(() => undefined);
+          if (!isCurrentIdentity(uid, generation)) return;
           const purchased = await purchaseCottageProduct(uid, productId);
+          if (!isCurrentIdentity(uid, generation)) return;
           setVisibleSaveIfNewer(purchased.save, uid);
+          coinRequestSequenceRef.current += 1;
           setCoinBalance(purchased.coinsAfter);
+          setCoinError(null);
         }
+        if (!isCurrentIdentity(uid, generation)) return;
         playSelectSound();
         addToast(`買到 ${product.nameZh} ${product.nameEn}！`, "success");
       } catch (error) {
+        if (!isCurrentIdentity(uid, generation)) return;
         if (error instanceof CottageInsufficientCoinsError) {
+          coinRequestSequenceRef.current += 1;
           setCoinBalance(error.availableCoins);
           setPanel(null);
           setInsufficientProductId(productId);
@@ -1165,15 +1358,31 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
           addToast("雲朵打了個噴嚏，再試一次。", "error");
         }
       } finally {
-        setPurchasingId(null);
+        if (isCurrentIdentity(uid, generation)) setPurchasingId(null);
       }
     },
-    [addToast, coinBalance, commitLocalSave, isDemo, isOnline, purchasingId, setVisibleSaveIfNewer, syncStatus, uid],
+    [
+      addToast,
+      coinBalance,
+      commitLocalSave,
+      isCurrentIdentity,
+      isDemo,
+      isOnline,
+      purchasingId,
+      setVisibleSaveIfNewer,
+      syncStatus,
+      uid,
+    ],
   );
 
   const handlePersonalizationSave = useCallback(
     async (actions: PersonalizationAction[]) => {
-      if (!uid || personalizationBusy) return;
+      if (
+        !uid
+        || visibleSaveOwnerUidRef.current !== uid
+        || personalizationBusy
+      ) return;
+      const generation = identityGenerationRef.current;
       if (actions.length === 0) {
         setPersonalizationMode(null);
         return;
@@ -1202,11 +1411,13 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
           commitLocalSave(optimistic, !isDemo);
         } else {
           await cloudQueueRef.current.catch(() => undefined);
+          if (!isCurrentIdentity(uid, generation)) return;
           const committed = await commitCottagePersonalizationActions(
             uid,
             actions,
             actionNow,
           );
+          if (!isCurrentIdentity(uid, generation)) return;
           committedSave = committed.save;
           committedGifts.push(...committed.grantedGifts);
           // The batch rebases against the freshest cloud/cache snapshot and
@@ -1252,6 +1463,7 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
         playHeartSound();
         setPersonalizationMode(null);
       } catch (error) {
+        if (!isCurrentIdentity(uid, generation)) return;
         // A connection can disappear after the editor opened. Keep the exact
         // optimistic snapshot in cache and let the existing reconnect queue
         // synchronize it later instead of discarding the player's layout.
@@ -1260,12 +1472,15 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
         addToast("已先把佈置留在這台裝置，連線後會自動同步。", "info");
         logger.warn("Cloud Cottage personalization deferred", error);
       } finally {
-        setPersonalizationBusy(false);
+        if (isCurrentIdentity(uid, generation)) {
+          setPersonalizationBusy(false);
+        }
       }
     },
     [
       addToast,
       commitLocalSave,
+      isCurrentIdentity,
       isDemo,
       isOnline,
       personalizationBusy,
@@ -1277,6 +1492,14 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
   );
 
   const closePanel = useCallback(() => setPanel(null), []);
+  const hasActiveSave = Boolean(
+    uid && visibleSaveOwnerUidRef.current === uid,
+  );
+  const ownsLoadError = Boolean(
+    uid
+    && loadErrorOwnerUidRef.current === uid
+    && syncStatus === "error",
+  );
   const stats = useMemo(() => deriveStats(save, now), [now, save]);
   const bond = useMemo(() => getBondProgress(save.bond.total), [save.bond.total]);
   const wishDefinition = useMemo(() => getWishDefinition(save.wish), [save.wish]);
@@ -1289,7 +1512,9 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
     ? getProduct(insufficientProductId)
     : undefined;
   const canShop = isDemo || isOnline && syncStatus === "cloud" && coinBalance !== null;
-  const isHydrating = syncStatus === "loading" || syncStatus === "cache";
+  const isHydrating = !hasActiveSave
+    || syncStatus === "loading"
+    || syncStatus === "cache";
   const activeToolbarAction: CottageToolbarAction | null =
     personalizationMode ?? panel;
 
@@ -1329,6 +1554,20 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
             </button>
           </section>
         </main>
+      </div>
+    );
+  }
+
+  if (!hasActiveSave && !ownsLoadError) {
+    return (
+      <div
+        className="flex min-h-dvh items-center justify-center bg-gradient-to-b from-sky-100 to-pink-50"
+        role="status"
+      >
+        <div className="text-center text-sky-900">
+          <span className="loading loading-spinner loading-lg" />
+          <p className="mt-3 text-sm font-bold">正在同步這個帳號的小窩…</p>
+        </div>
       </div>
     );
   }

@@ -7,8 +7,9 @@
  * Usage: node scripts/fetch-transcripts.mjs
  */
 
-import { mkdirSync, writeFileSync } from "node:fs";
-import { join, dirname } from "node:path";
+import { randomUUID } from "node:crypto";
+import { mkdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { join, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parse as parseHTML } from "node-html-parser";
 
@@ -130,12 +131,11 @@ const SEASONS = [
   },
 ];
 
-function parseTranscriptHtml(html) {
+export function parseTranscriptHtml(html) {
   const root = parseHTML(html);
   const scriptDiv = root.querySelector(".full-script");
   if (!scriptDiv) {
-    console.warn("  Could not find .full-script element");
-    return [];
+    throw new Error("Transcript page is missing the required .full-script element");
   }
 
   // Replace <br> with newlines in the raw HTML, then extract text
@@ -148,23 +148,52 @@ function parseTranscriptHtml(html) {
     .map((line) => line.trim())
     .filter((line) => line.length > 0);
 
+  if (lines.length === 0) {
+    throw new Error("Transcript .full-script element contains no transcript lines");
+  }
+
   return lines.map((text, index) => ({ index, text }));
 }
 
-async function fetchTranscript(seasonNumber, slug) {
+export async function fetchTranscript(seasonNumber, slug, fetchImpl = fetch) {
   const url = `${BASE_URL}${SERIES_PATH}/season-${seasonNumber}/${slug}`;
-  const response = await fetch(url);
+  const response = await fetchImpl(url);
   if (!response.ok) {
     throw new Error(`HTTP ${response.status} for ${url}`);
   }
   return parseTranscriptHtml(await response.text());
 }
 
+export function writeTranscriptFile(outPath, lines) {
+  if (!Array.isArray(lines) || lines.length === 0) {
+    throw new Error("Refusing to replace a transcript with no lines");
+  }
+
+  const tempPath = `${outPath}.${process.pid}.${randomUUID()}.tmp`;
+  try {
+    writeFileSync(tempPath, JSON.stringify(lines, null, 2));
+    renameSync(tempPath, outPath);
+  } finally {
+    rmSync(tempPath, { force: true });
+  }
+}
+
+export async function fetchAndSaveTranscript(
+  seasonNumber,
+  slug,
+  outPath,
+  { fetchImpl = fetch } = {},
+) {
+  const lines = await fetchTranscript(seasonNumber, slug, fetchImpl);
+  writeTranscriptFile(outPath, lines);
+  return lines;
+}
+
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function main() {
+export async function main() {
   let success = 0;
   let failed = 0;
   const totalEpisodes = SEASONS.reduce((sum, s) => sum + s.episodes.length, 0);
@@ -179,8 +208,11 @@ async function main() {
       const outPath = join(seasonDir, `${episode.slug}.json`);
       try {
         process.stdout.write(`S${season.number}E${episode.number} ${episode.title}... `);
-        const lines = await fetchTranscript(season.number, episode.slug);
-        writeFileSync(outPath, JSON.stringify(lines, null, 2));
+        const lines = await fetchAndSaveTranscript(
+          season.number,
+          episode.slug,
+          outPath,
+        );
         console.log(`${lines.length} lines`);
         success++;
       } catch (err) {
@@ -192,9 +224,22 @@ async function main() {
   }
 
   console.log(`\nDone. ${success} succeeded, ${failed} failed out of ${totalEpisodes}.`);
-  if (failed > 0) {
-    process.exit(1);
-  }
+  return { success, failed, totalEpisodes };
 }
 
-main();
+const isDirectRun =
+  process.argv[1] !== undefined &&
+  fileURLToPath(import.meta.url) === resolve(process.argv[1]);
+
+if (isDirectRun) {
+  main()
+    .then(({ failed }) => {
+      if (failed > 0) {
+        process.exitCode = 1;
+      }
+    })
+    .catch((error) => {
+      console.error(error);
+      process.exitCode = 1;
+    });
+}

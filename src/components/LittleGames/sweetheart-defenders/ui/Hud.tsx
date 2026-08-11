@@ -15,6 +15,7 @@ type Props = {
   onToggleSpeed: () => void;
   onTogglePause: () => void;
   onExit: () => void;
+  exitDisabled?: boolean;
 };
 
 /**
@@ -34,6 +35,7 @@ export function Hud({
   onToggleSpeed,
   onTogglePause,
   onExit,
+  exitDisabled = false,
 }: Props) {
   const inPrep = hud.phase === "prep";
   const finished = hud.phase === "cleared" || hud.phase === "lost";
@@ -47,7 +49,8 @@ export function Hud({
         <button
           type="button"
           onClick={onExit}
-          className="flex min-h-11 items-center rounded-[8px] px-2 text-slate-600 transition hover:bg-black/5"
+          disabled={exitDisabled}
+          className="flex min-h-11 items-center rounded-[8px] px-2 text-slate-600 transition hover:bg-black/5 disabled:cursor-not-allowed disabled:opacity-40"
           aria-label="回到選單"
         >
           <ArrowLeft size={18} strokeWidth={2} aria-hidden="true" />

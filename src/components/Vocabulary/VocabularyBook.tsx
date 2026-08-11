@@ -128,6 +128,7 @@ export const VocabularyBook = () => {
     findExistingSentence,
     addTranslatedSentence,
     deleteSentence,
+    searchSentences,
   } = useSentenceTranslation();
   const { speak, isSpeaking, stopSpeaking } = useSpeechState();
   const isDesktop = useIsDesktop();
@@ -212,8 +213,8 @@ export const VocabularyBook = () => {
     [displayItems],
   );
 
-  // Unified search: words get local + remote prefix results, sentences a
-  // local filter over the loaded list.
+  // Unified search: show local matches immediately, then merge complete
+  // account-wide results from both streams.
   useEffect(() => {
     const searchText = debouncedSearchQuery.trim();
 
@@ -227,22 +228,25 @@ export const VocabularyBook = () => {
     const requestId = ++searchRequestIdRef.current;
     const searchLower = searchText.toLowerCase();
 
-    const sentenceMatches: FeedItem[] = sentences
+    const sentenceMatches = sentences
       .filter(
         (sentence) =>
           sentence.english.toLowerCase().includes(searchLower) ||
           sentence.chinese.includes(searchText),
       )
-      .map((sentence) => ({ kind: "sentence", sentence }));
+      .map((sentence) => ({ kind: "sentence" as const, sentence }));
 
     const localWordResults = sortBySearchRelevance(
       words.filter((word) => word.word.toLowerCase().includes(searchLower)),
       searchLower,
     );
 
-    const toItems = (wordResults: VocabularyWord[]): FeedItem[] => [
+    const toItems = (
+      wordResults: VocabularyWord[],
+      sentenceResults = sentenceMatches,
+    ): FeedItem[] => [
       ...wordResults.map((word) => ({ kind: "word" as const, word })),
-      ...sentenceMatches,
+      ...sentenceResults,
     ];
 
     setSearchItems(toItems(localWordResults));
@@ -250,13 +254,28 @@ export const VocabularyBook = () => {
 
     const performSearch = async () => {
       try {
-        const remoteResults = await searchWords(searchText, {
-          mode: "prefix",
-          limit: 120,
-        });
+        const [remoteWords, remoteSentences] = await Promise.all([
+          searchWords(searchText, {
+            mode: "contains",
+            limit: null,
+          }),
+          searchSentences(searchText),
+        ]);
         if (requestId !== searchRequestIdRef.current) return;
+        const seenSentenceIds = new Set(
+          sentenceMatches.map((item) => item.sentence.id),
+        );
+        const mergedSentences = [
+          ...sentenceMatches,
+          ...remoteSentences
+            .filter((sentence) => !seenSentenceIds.has(sentence.id))
+            .map((sentence) => ({ kind: "sentence" as const, sentence })),
+        ];
         setSearchItems(
-          toItems(mergeSearchResults(localWordResults, remoteResults, searchLower)),
+          toItems(
+            mergeSearchResults(localWordResults, remoteWords, searchLower),
+            mergedSentences,
+          ),
         );
       } catch (error) {
         console.error("Search failed:", error);
@@ -270,7 +289,7 @@ export const VocabularyBook = () => {
     };
 
     void performSearch();
-  }, [debouncedSearchQuery, words, sentences, searchWords]);
+  }, [debouncedSearchQuery, words, sentences, searchWords, searchSentences]);
 
   const handleUpdateWord = useCallback(
     async (wordId: string, updates: Partial<VocabularyWord>) => {
@@ -501,10 +520,16 @@ export const VocabularyBook = () => {
     setIsDeleting(true);
     try {
       if (pendingDelete.kind === "word") {
-        await deleteWord(pendingDelete.id);
+        const result = await deleteWord(pendingDelete.id);
+        if (!result.success) {
+          throw new Error(result.message || "Failed to delete word");
+        }
         await refreshTags();
       } else {
-        await deleteSentence(pendingDelete.id);
+        const result = await deleteSentence(pendingDelete.id);
+        if (!result.success) {
+          throw new Error(result.message || "Failed to delete sentence");
+        }
       }
       const selectedId =
         selected?.kind === "word"
@@ -522,10 +547,11 @@ export const VocabularyBook = () => {
     } catch (error) {
       console.error("Error deleting item:", error);
       setToastMessage({ message: "刪除失敗，請稍後再試", type: "error" });
+      return;
     } finally {
       setIsDeleting(false);
-      setPendingDelete(null);
     }
+    setPendingDelete(null);
   };
 
   const handleLoadMore = useCallback(async () => {

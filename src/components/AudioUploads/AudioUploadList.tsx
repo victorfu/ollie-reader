@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { AudioUpload } from "../../types/audioUpload";
 import { Toast } from "../common/Toast";
 
@@ -27,6 +27,16 @@ export function AudioUploadList({
   const [isPlaying, setIsPlaying] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const audioRefs = useRef<Map<string, HTMLAudioElement>>(new Map());
+  const activeIdRef = useRef<string | null>(null);
+  const playRequestRef = useRef(0);
+
+  useEffect(() => {
+    const audios = audioRefs.current;
+    return () => {
+      playRequestRef.current += 1;
+      audios.forEach((audio) => audio.pause());
+    };
+  }, []);
 
   const formatDuration = (seconds: number): string => {
     if (seconds === 0) return "--:--";
@@ -67,6 +77,22 @@ export function AudioUploadList({
   };
 
   const handlePlayPause = async (uploadId: string, audioUrl: string) => {
+    const requestId = ++playRequestRef.current;
+    const currentId = activeIdRef.current;
+    const currentAudio = currentId
+      ? audioRefs.current.get(currentId)
+      : undefined;
+
+    if (currentId === uploadId && currentAudio && !currentAudio.paused) {
+      currentAudio.pause();
+      return;
+    }
+
+    if (currentId && currentId !== uploadId) currentAudio?.pause();
+    activeIdRef.current = uploadId;
+    setActiveId(uploadId);
+    setIsPlaying(false);
+
     // If URL not loaded yet, load it first
     if (!audioUrls.has(uploadId)) {
       setLoadingUrls((prev) => new Set(prev).add(uploadId));
@@ -76,14 +102,26 @@ export function AudioUploadList({
         next.delete(uploadId);
         return next;
       });
+      if (
+        requestId !== playRequestRef.current ||
+        activeIdRef.current !== uploadId
+      ) {
+        return;
+      }
       if (!url) {
+        activeIdRef.current = null;
+        setActiveId(null);
         setAudioErrors((prev) => new Set(prev).add(uploadId));
         setErrorMessage("音訊載入失敗，請點擊重試按鈕");
         return;
       }
-      // Set active and wait for audio element to render
-      setActiveId(uploadId);
       setTimeout(() => {
+        if (
+          requestId !== playRequestRef.current ||
+          activeIdRef.current !== uploadId
+        ) {
+          return;
+        }
         const audio = audioRefs.current.get(uploadId);
         audio?.play().catch((err) => console.error("Playback failed:", err));
       }, 50);
@@ -93,29 +131,11 @@ export function AudioUploadList({
     const audio = audioRefs.current.get(uploadId);
     if (!audio) return;
 
-    if (activeId === uploadId) {
-      if (isPlaying) {
-        audio.pause();
-      } else {
-        audio.play().catch((err) => console.error("Playback failed:", err));
-      }
-    } else {
-      // Pause any currently playing audio
-      if (activeId) {
-        const currentAudio = audioRefs.current.get(activeId);
-        currentAudio?.pause();
-      }
-      setActiveId(uploadId);
-      // Allow a brief moment for state to update if needed, though refs are immediate
-      setTimeout(() => {
-        const newAudio = audioRefs.current.get(uploadId);
-        newAudio?.play().catch((err) => console.error("Playback failed:", err));
-      }, 0);
-    }
+    audio.play().catch((err) => console.error("Playback failed:", err));
   };
 
   const handleAudioEnded = (uploadId: string) => {
-    if (activeId === uploadId) {
+    if (activeIdRef.current === uploadId) {
       setIsPlaying(false);
       // Optional: keep player open or close it.
       // Keeping it open allows easy replay.
@@ -359,10 +379,14 @@ export function AudioUploadList({
                         preload="metadata"
                         onEnded={() => handleAudioEnded(upload.id!)}
                         onPlay={() => {
-                          if (activeId === upload.id) setIsPlaying(true);
+                          if (activeIdRef.current === upload.id) {
+                            setIsPlaying(true);
+                          }
                         }}
                         onPause={() => {
-                          if (activeId === upload.id) setIsPlaying(false);
+                          if (activeIdRef.current === upload.id) {
+                            setIsPlaying(false);
+                          }
                         }}
                         onError={() =>
                           handleAudioError(upload.id!, upload.audioUrl)

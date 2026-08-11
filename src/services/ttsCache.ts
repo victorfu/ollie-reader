@@ -197,7 +197,9 @@ class TTSCacheService {
     // Clean up after the request completes
     promise
       .finally(() => {
-        this.pendingRequests.delete(key);
+        if (this.pendingRequests.get(key)?.promise === promise) {
+          this.pendingRequests.delete(key);
+        }
       })
       .catch(() => {
         // Error already handled by caller

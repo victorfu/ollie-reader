@@ -22,6 +22,49 @@ export type HorizontallyMovingPlayer = {
   vx: number;
 };
 
+export type MushroomComboState = {
+  comboCount: number;
+  lastStompTime: number;
+};
+
+export function keepPlayerInsideWorldStart(
+  player: HorizontallyMovingPlayer,
+): void {
+  if (player.x >= 0) return;
+  player.x = 0;
+  if (player.vx < 0) player.vx = 0;
+}
+
+export function expireMushroomCombo(
+  combo: MushroomComboState,
+  nowSeconds: number,
+  windowSeconds: number,
+): void {
+  if (
+    combo.comboCount > 0 &&
+    nowSeconds - combo.lastStompTime > windowSeconds
+  ) {
+    combo.comboCount = 0;
+  }
+}
+
+export function registerMushroomComboHit(
+  combo: MushroomComboState,
+  nowSeconds: number,
+  windowSeconds: number,
+): number {
+  if (
+    combo.comboCount > 0 &&
+    nowSeconds - combo.lastStompTime <= windowSeconds
+  ) {
+    combo.comboCount += 1;
+  } else {
+    combo.comboCount = 1;
+  }
+  combo.lastStompTime = nowSeconds;
+  return combo.comboCount;
+}
+
 export type EnemyContactPlayer = {
   x: number;
   y: number;

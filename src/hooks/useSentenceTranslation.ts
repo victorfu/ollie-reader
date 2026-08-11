@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useAuth } from "./useAuth";
 import {
   findExistingTranslation,
@@ -6,6 +6,7 @@ import {
   getUserSentenceTranslations,
   deleteSentenceTranslation,
   deleteAllSentenceTranslations,
+  searchUserSentenceTranslations,
 } from "../services/sentenceTranslationService";
 import type {
   SentenceKeyWord,
@@ -21,25 +22,57 @@ export const useSentenceTranslation = () => {
   const [hasMore, setHasMore] = useState(false);
   const [lastDocId, setLastDocId] = useState<string | undefined>();
   const [error, setError] = useState<string | null>(null);
+  const loadRequestIdRef = useRef(0);
+  const activeUidRef = useRef(user?.uid);
+
+  useEffect(() => {
+    activeUidRef.current = user?.uid;
+    loadRequestIdRef.current += 1;
+    setSentences([]);
+    setHasMore(false);
+    setLastDocId(undefined);
+    setIsLoading(false);
+    setError(null);
+  }, [user?.uid]);
 
   // Load sentence translations
   const loadSentences = useCallback(
     async (filters?: SentenceTranslationFilters) => {
       if (!user) return;
 
+      const uid = user.uid;
+      const requestId = ++loadRequestIdRef.current;
+
       setIsLoading(true);
       setError(null);
 
       try {
-        const result = await getUserSentenceTranslations(user.uid, filters);
+        const result = await getUserSentenceTranslations(uid, filters);
+        if (
+          requestId !== loadRequestIdRef.current ||
+          activeUidRef.current !== uid
+        ) {
+          return;
+        }
         setSentences(result.sentences);
         setHasMore(result.hasMore);
         setLastDocId(result.lastDocId);
       } catch (err) {
+        if (
+          requestId !== loadRequestIdRef.current ||
+          activeUidRef.current !== uid
+        ) {
+          return;
+        }
         logger.error("Failed to load sentence translations:", err);
         setError("載入失敗");
       } finally {
-        setIsLoading(false);
+        if (
+          requestId === loadRequestIdRef.current &&
+          activeUidRef.current === uid
+        ) {
+          setIsLoading(false);
+        }
       }
     },
     [user]
@@ -50,22 +83,52 @@ export const useSentenceTranslation = () => {
     async (filters?: Omit<SentenceTranslationFilters, "cursor">) => {
       if (!user || !hasMore || !lastDocId) return;
 
+      const uid = user.uid;
+      const requestId = loadRequestIdRef.current;
+      const cursor = lastDocId;
+
       setIsLoading(true);
 
       try {
-        const result = await getUserSentenceTranslations(user.uid, {
+        const result = await getUserSentenceTranslations(uid, {
           ...filters,
-          cursor: lastDocId,
+          cursor,
         });
 
-        setSentences((prev) => [...prev, ...result.sentences]);
+        if (
+          requestId !== loadRequestIdRef.current ||
+          activeUidRef.current !== uid
+        ) {
+          return;
+        }
+
+        setSentences((prev) => {
+          const existingIds = new Set(prev.map((sentence) => sentence.id));
+          return [
+            ...prev,
+            ...result.sentences.filter(
+              (sentence) => !existingIds.has(sentence.id),
+            ),
+          ];
+        });
         setHasMore(result.hasMore);
         setLastDocId(result.lastDocId);
       } catch (err) {
+        if (
+          requestId !== loadRequestIdRef.current ||
+          activeUidRef.current !== uid
+        ) {
+          return;
+        }
         logger.error("Failed to load more sentences:", err);
         setError("載入更多失敗");
       } finally {
-        setIsLoading(false);
+        if (
+          requestId === loadRequestIdRef.current &&
+          activeUidRef.current === uid
+        ) {
+          setIsLoading(false);
+        }
       }
     },
     [user, hasMore, lastDocId]
@@ -78,9 +141,11 @@ export const useSentenceTranslation = () => {
 
       const trimmedEnglish = english.trim();
       if (!trimmedEnglish) return null;
+      const uid = user.uid;
 
       try {
-        return await findExistingTranslation(user.uid, trimmedEnglish);
+        const existing = await findExistingTranslation(uid, trimmedEnglish);
+        return activeUidRef.current === uid ? existing : null;
       } catch (err) {
         logger.error("Failed to check existing translation:", err);
         return null;
@@ -108,8 +173,10 @@ export const useSentenceTranslation = () => {
           chinese,
           keyWords: keyWords?.length ? keyWords : undefined,
         };
-        const id = await addSentenceTranslation(sentence);
-        return { ...sentence, id, createdAt: new Date() };
+        const added = await addSentenceTranslation(sentence);
+        if (activeUidRef.current !== user.uid) return null;
+        if (!added.created && added.sentence) return added.sentence;
+        return { ...sentence, id: added.id, createdAt: new Date() };
       } catch (err) {
         logger.error("Failed to save translated sentence:", err);
         setError("儲存句子失敗");
@@ -121,13 +188,24 @@ export const useSentenceTranslation = () => {
 
   // Delete a sentence
   const deleteSentence = useCallback(
-    async (id: string) => {
+    async (id: string): Promise<{ success: boolean; message?: string }> => {
+      const uid = activeUidRef.current;
+      if (!uid) return { success: false, message: "尚未登入" };
+
       try {
         await deleteSentenceTranslation(id);
+        if (activeUidRef.current !== uid) {
+          return { success: false, message: "帳號已切換" };
+        }
         setSentences((prev) => prev.filter((s) => s.id !== id));
+        return { success: true };
       } catch (err) {
+        if (activeUidRef.current !== uid) {
+          return { success: false, message: "帳號已切換" };
+        }
         logger.error("Failed to delete sentence:", err);
         setError("刪除失敗");
+        return { success: false, message: "刪除失敗" };
       }
     },
     []
@@ -136,17 +214,35 @@ export const useSentenceTranslation = () => {
   // Clear all sentences
   const clearAll = useCallback(async () => {
     if (!user) return;
+    const uid = user.uid;
 
     try {
-      await deleteAllSentenceTranslations(user.uid);
+      await deleteAllSentenceTranslations(uid);
+      if (activeUidRef.current !== uid) return;
       setSentences([]);
       setHasMore(false);
       setLastDocId(undefined);
     } catch (err) {
+      if (activeUidRef.current !== uid) return;
       logger.error("Failed to clear all sentences:", err);
       setError("清除失敗");
     }
   }, [user]);
+
+  const searchSentences = useCallback(
+    async (searchText: string): Promise<SentenceTranslation[]> => {
+      if (!user) return [];
+      const uid = user.uid;
+      try {
+        const result = await searchUserSentenceTranslations(uid, searchText);
+        return activeUidRef.current === uid ? result : [];
+      } catch (err) {
+        logger.error("Failed to search sentence translations:", err);
+        return [];
+      }
+    },
+    [user],
+  );
 
   return {
     sentences,
@@ -159,5 +255,6 @@ export const useSentenceTranslation = () => {
     addTranslatedSentence,
     deleteSentence,
     clearAll,
+    searchSentences,
   };
 };

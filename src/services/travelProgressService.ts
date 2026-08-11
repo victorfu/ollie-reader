@@ -1,4 +1,15 @@
 import type { TravelMissionStepKind } from "../components/TravelEnglish/travelMissionUtils";
+import {
+  deleteField,
+  doc,
+  FieldPath,
+  getDoc,
+  increment,
+  serverTimestamp,
+  setDoc,
+  updateDoc,
+} from "firebase/firestore";
+import { db } from "../utils/firebaseUtil";
 
 const TRAVEL_PROGRESS_COLLECTION = "travelProgress";
 
@@ -100,26 +111,17 @@ function normalizeTravelProgress(uid: string, data: Record<string, unknown>): Tr
     inProgress:
       (data.inProgress as Partial<Record<string, TravelMissionProgressEntry>> | undefined) ??
       {},
-    totalCompleted:
-      typeof data.totalCompleted === "number"
-        ? data.totalCompleted
-        : Object.keys((data.stamps as Record<string, unknown> | undefined) ?? {}).length,
+    // Derive this value from the topic-keyed stamps. Older clients wrote the
+    // aggregate independently, so it can be stale after concurrent tabs.
+    totalCompleted: Object.keys(
+      (data.stamps as Record<string, unknown> | undefined) ?? {},
+    ).length,
     createdAt: normalizeTimestamp(data.createdAt),
     updatedAt: normalizeTimestamp(data.updatedAt),
   };
 }
 
-async function loadFirestore() {
-  const [{ doc, getDoc, serverTimestamp, setDoc }, { db }] = await Promise.all([
-    import("firebase/firestore"),
-    import("../utils/firebaseUtil"),
-  ]);
-
-  return { doc, getDoc, serverTimestamp, setDoc, db };
-}
-
 export async function fetchTravelProgress(uid: string): Promise<TravelProgress | null> {
-  const { doc, getDoc, db } = await loadFirestore();
   const docRef = doc(db, TRAVEL_PROGRESS_COLLECTION, uid);
   const docSnap = await getDoc(docRef);
 
@@ -127,29 +129,60 @@ export async function fetchTravelProgress(uid: string): Promise<TravelProgress |
   return normalizeTravelProgress(uid, docSnap.data());
 }
 
-export async function saveTravelProgress(progress: TravelProgress): Promise<void> {
-  const { doc, serverTimestamp, setDoc, db } = await loadFirestore();
-  const docRef = doc(db, TRAVEL_PROGRESS_COLLECTION, progress.uid);
-
-  await setDoc(
-    docRef,
-    {
-      uid: progress.uid,
-      stamps: progress.stamps,
-      inProgress: progress.inProgress,
-      totalCompleted: progress.totalCompleted,
-      createdAt: progress.createdAt,
-      updatedAt: serverTimestamp(),
-    },
-    { merge: true },
-  );
-}
-
 export async function getOrCreateTravelProgress(uid: string): Promise<TravelProgress> {
   const existing = await fetchTravelProgress(uid);
   if (existing) return existing;
 
   const progress = createDefaultTravelProgress(uid);
-  await saveTravelProgress(progress);
+  const docRef = doc(db, TRAVEL_PROGRESS_COLLECTION, uid);
+  // Only create identity/timestamps. Empty map fields would erase another
+  // tab's progress if that tab wins the race after our initial read.
+  await setDoc(
+    docRef,
+    {
+      uid,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true },
+  );
   return progress;
+}
+
+export async function saveTravelMissionStep(
+  uid: string,
+  topicId: string,
+  step: TravelMissionStepKind,
+  now = Date.now(),
+): Promise<void> {
+  const docRef = doc(db, TRAVEL_PROGRESS_COLLECTION, uid);
+  await updateDoc(
+    docRef,
+    new FieldPath("inProgress", topicId),
+    { step, updatedAt: now },
+    "updatedAt",
+    serverTimestamp(),
+  );
+}
+
+export async function saveTravelMissionCompletion(
+  uid: string,
+  topicId: string,
+  now = Date.now(),
+  stars = 3,
+): Promise<void> {
+  const docRef = doc(db, TRAVEL_PROGRESS_COLLECTION, uid);
+  await updateDoc(
+    docRef,
+    new FieldPath("stamps", topicId, "completedAt"),
+    now,
+    new FieldPath("stamps", topicId, "stars"),
+    stars,
+    new FieldPath("stamps", topicId, "attempts"),
+    increment(1),
+    new FieldPath("inProgress", topicId),
+    deleteField(),
+    "updatedAt",
+    serverTimestamp(),
+  );
 }

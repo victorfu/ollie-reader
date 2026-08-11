@@ -26,10 +26,18 @@ def main():
             print(f"ollie-reader sidecar 已在 port {port} 執行，不重複啟動。")
             return
 
+        claimed_pid = False
+        claim_failed = False
         try:
-            instance.write_pid_file(port)
+            claimed_pid = instance.claim_pid_file(port)
         except OSError as exc:
-            print(f"無法寫入 sidecar PID 檔（{exc}），照常啟動。")
+            claim_failed = True
+            print(f"無法原子取得 sidecar PID 檔（{exc}），照常啟動。")
+        if not claimed_pid and not claim_failed:
+            # Another process claimed the PID before it finished binding the
+            # port. Treat it as an in-progress sidecar instead of racing it.
+            print(f"ollie-reader sidecar 正在 port {port} 啟動，不重複啟動。")
+            return
         instance.install_signal_cleanup(port)
         try:
             uvicorn.run(
@@ -42,7 +50,8 @@ def main():
             # finally 涵蓋正常 return 與例外；signal 路徑（SIGTERM/SIGINT）則由
             # install_signal_cleanup 的 handler 處理 —— uvicorn 優雅關閉後會還原
             # 預設 handler 並重放訊號，所以清檔動作要搶在重放之前完成。
-            instance.remove_pid_file(port)
+            if claimed_pid:
+                instance.remove_pid_file(port)
     else:
         try:
             from shell.app import run_shell

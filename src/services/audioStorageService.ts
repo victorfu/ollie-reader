@@ -4,12 +4,38 @@ import { supabase, STORAGE_BUCKET } from "../utils/supabaseClient";
 export const MAX_AUDIO_SIZE_BYTES = 10 * 1024 * 1024;
 export const MAX_AUDIO_SIZE_MB = 10;
 
-/** 取得錄音檔在 storage 的路徑。 */
-function getAudioPath(userId: string, recordId: string): string {
-  return `speech-practice/${userId}/${recordId}.webm`;
+const AUDIO_EXTENSION_BY_TYPE: Record<string, string> = {
+  "audio/webm": "webm",
+  "audio/mp4": "mp4",
+  "audio/ogg": "ogg",
+  "audio/mpeg": "mp3",
+  "audio/wav": "wav",
+  "audio/x-wav": "wav",
+};
+
+function normalizeAudioContentType(audioBlob: Blob): string {
+  return audioBlob.type.split(";", 1)[0].trim().toLowerCase() || "audio/webm";
 }
 
-/** 上傳練習錄音（webm）。回傳儲存路徑。 */
+/** 取得錄音檔在 storage 的路徑。 */
+function getAudioPath(
+  userId: string,
+  recordId: string,
+  contentType: string,
+): string {
+  const extension = AUDIO_EXTENSION_BY_TYPE[contentType] ?? "webm";
+  return `speech-practice/${userId}/${recordId}.${extension}`;
+}
+
+export function getPracticeAudioPath(
+  userId: string,
+  recordId: string,
+  audioBlob: Blob,
+): string {
+  return getAudioPath(userId, recordId, normalizeAudioContentType(audioBlob));
+}
+
+/** 上傳練習錄音。保留瀏覽器產生的 MIME type 並回傳儲存路徑。 */
 export async function uploadPracticeAudio(
   userId: string,
   recordId: string,
@@ -25,11 +51,12 @@ export async function uploadPracticeAudio(
     );
   }
 
-  const path = getAudioPath(userId, recordId);
+  const contentType = normalizeAudioContentType(audioBlob);
+  const path = getPracticeAudioPath(userId, recordId, audioBlob);
 
   const { error } = await supabase.storage
     .from(STORAGE_BUCKET)
-    .upload(path, audioBlob, { contentType: "audio/webm", upsert: true });
+    .upload(path, audioBlob, { contentType, upsert: true });
 
   if (error) {
     throw new Error(error.message || "上傳錄音失敗");
@@ -42,13 +69,18 @@ export async function uploadPracticeAudio(
 export async function deletePracticeAudio(
   userId: string,
   recordId: string,
+  storedPath?: string,
 ): Promise<void> {
-  const path = getAudioPath(userId, recordId);
+  const expectedPrefix = `speech-practice/${userId}/${recordId}.`;
+  const path = storedPath ?? getAudioPath(userId, recordId, "audio/webm");
+  if (!path.startsWith(expectedPrefix)) {
+    throw new Error("錄音儲存路徑與使用者不符");
+  }
 
   const { error } = await supabase.storage.from(STORAGE_BUCKET).remove([path]);
 
   if (error) {
-    if (error.message?.includes("not found")) {
+    if (error.message?.toLowerCase().includes("not found")) {
       console.warn(`Audio file not found: ${path}`);
       return;
     }

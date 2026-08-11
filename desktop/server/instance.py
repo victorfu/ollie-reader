@@ -1,5 +1,7 @@
 """sidecar 行程協調：PID 檔 + 存活探測（shell 與 --serve 兩邊共用）。"""
 
+from contextlib import contextmanager
+import fcntl
 import json
 import os
 import signal
@@ -13,10 +15,74 @@ def pid_file_path(port: int) -> str:
     return os.path.join(tempfile.gettempdir(), f"ollie-reader-sidecar-{port}.pid")
 
 
+def _pid_lock_path(port: int) -> str:
+    return f"{pid_file_path(port)}.lock"
+
+
+@contextmanager
+def _pid_file_lock(port: int):
+    """Serialize PID ownership changes on a stable, process-released lock."""
+    lock_fd = os.open(_pid_lock_path(port), os.O_CREAT | os.O_RDWR, 0o600)
+    try:
+        fcntl.flock(lock_fd, fcntl.LOCK_EX)
+        yield
+    finally:
+        try:
+            fcntl.flock(lock_fd, fcntl.LOCK_UN)
+        finally:
+            os.close(lock_fd)
+
+
 def write_pid_file(port: int) -> None:
     """寫入目前行程的 PID。OSError 往外拋，由呼叫端決定是否致命。"""
     with open(pid_file_path(port), "w", encoding="utf-8") as f:
         f.write(str(os.getpid()))
+
+
+def claim_pid_file(port: int) -> bool:
+    """Atomically claim the sidecar PID file without overwriting a live owner.
+
+    A stable advisory lock serializes the stale-owner check, unlink, and hard-link
+    publication. Therefore another cooperating starter cannot replace the stale
+    inode between our check and unlink and then have its new claim deleted.
+    The candidate is fully written before ``os.link`` publishes it, avoiding an
+    empty-file window between exclusive creation and writing the PID. A stale
+    or corrupt target is removed and retried; a live PID means another sidecar
+    is already starting or running.
+    """
+    target = pid_file_path(port)
+    with _pid_file_lock(port):
+        candidate_path: Optional[str] = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                mode="w",
+                encoding="utf-8",
+                dir=tempfile.gettempdir(),
+                prefix=f"ollie-reader-sidecar-{port}-",
+                suffix=".pid.tmp",
+                delete=False,
+            ) as candidate:
+                candidate.write(str(os.getpid()))
+                candidate_path = candidate.name
+
+            while True:
+                try:
+                    os.link(candidate_path, target)
+                    return True
+                except FileExistsError:
+                    owner = read_pid(port)
+                    if owner is not None and pid_alive(owner):
+                        return False
+                    try:
+                        os.unlink(target)
+                    except FileNotFoundError:
+                        continue
+        finally:
+            if candidate_path is not None:
+                try:
+                    os.unlink(candidate_path)
+                except FileNotFoundError:
+                    pass
 
 
 def read_pid(port: int) -> Optional[int]:
@@ -39,10 +105,14 @@ def remove_pid_file(port: int) -> None:
     os.getpid() 才真的刪除。並行啟動時，輸掉 bind 的那方不可刪掉贏家的
     PID 檔。
     """
-    if read_pid(port) != os.getpid():
-        return
     try:
-        os.unlink(pid_file_path(port))
+        with _pid_file_lock(port):
+            if read_pid(port) != os.getpid():
+                return
+            try:
+                os.unlink(pid_file_path(port))
+            except OSError:
+                pass
     except OSError:
         pass
 

@@ -1,6 +1,5 @@
 import {
   collection,
-  addDoc,
   updateDoc,
   deleteDoc,
   doc,
@@ -16,6 +15,7 @@ import {
   endAt,
   increment,
   getCountFromServer,
+  runTransaction,
   type DocumentData,
   type QueryDocumentSnapshot,
 } from "firebase/firestore";
@@ -29,8 +29,21 @@ import type {
   VocabularySearchOptions,
 } from "../types/vocabulary";
 import { DEFAULT_PAGE_SIZE } from "../types/vocabulary";
+import {
+  createOwnedTextDocumentId,
+  normalizeUniqueText,
+} from "../utils/firestoreIdentity";
 
 const COLLECTION_NAME = "vocabulary";
+
+function isMissingDocumentError(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    error.code === "not-found"
+  );
+}
 
 // Helper function to remove undefined values from an object
 const removeUndefinedFields = <T extends Record<string, unknown>>(
@@ -73,21 +86,98 @@ const convertToVocabularyWord = (
   };
 };
 
+async function reuseLegacyVocabularyDocument(
+  document: QueryDocumentSnapshot<DocumentData>,
+  normalizedWord: string,
+): Promise<VocabularyWord | null> {
+  try {
+    await updateDoc(document.ref, { normalizedWord });
+  } catch (error) {
+    // A legacy record can disappear between the account scan and migration.
+    // Only a confirmed missing document permits creating a replacement;
+    // ambiguous network failures must not create a duplicate.
+    if (isMissingDocumentError(error)) return null;
+  }
+
+  return convertToVocabularyWord(document.id, document.data());
+}
+
+async function findLegacyVocabularyWordForAdd(
+  userId: string,
+  normalizedWord: string,
+): Promise<QueryDocumentSnapshot<DocumentData> | null> {
+  const snapshot = await getDocs(
+    query(
+      collection(db, COLLECTION_NAME),
+      where("userId", "==", userId),
+    ),
+  );
+
+  return (
+    snapshot.docs.find(
+      (document: QueryDocumentSnapshot<DocumentData>) =>
+        normalizeUniqueText(String(document.data().word ?? "")) ===
+        normalizedWord,
+    ) ?? null
+  );
+}
+
 // Add a new word to vocabulary
 export const addVocabularyWord = async (
   word: Omit<VocabularyWord, "id" | "createdAt" | "updatedAt" | "reviewCount">,
-): Promise<string> => {
+): Promise<{ id: string; created: boolean; word?: VocabularyWord }> => {
   const now = Timestamp.now();
 
   const docData = removeUndefinedFields({
     ...word,
+    normalizedWord: normalizeUniqueText(word.word),
     createdAt: now,
     updatedAt: now,
     reviewCount: 0,
   });
 
-  const docRef = await addDoc(collection(db, COLLECTION_NAME), docData);
-  return docRef.id;
+  const documentId = await createOwnedTextDocumentId(
+    "vocabulary",
+    word.userId,
+    word.word,
+  );
+  const docRef = doc(db, COLLECTION_NAME, documentId);
+
+  // Existing releases used random document ids and did not store a normalized
+  // value. Scan only on the actual add path, then reuse/backfill an equivalent
+  // legacy record instead of creating a second deterministic document.
+  const normalizedWord = normalizeUniqueText(word.word);
+  const legacyDocument = await findLegacyVocabularyWordForAdd(
+    word.userId,
+    normalizedWord,
+  );
+  if (legacyDocument) {
+    const legacyWord = await reuseLegacyVocabularyDocument(
+      legacyDocument,
+      normalizedWord,
+    );
+    if (legacyWord) {
+      return {
+        id: legacyDocument.id,
+        created: false,
+        word: legacyWord,
+      };
+    }
+  }
+
+  return runTransaction(db, async (transaction) => {
+    const existing = await transaction.get(docRef);
+    if (existing.exists()) {
+      return {
+        id: existing.id,
+        created: false,
+        word: convertToVocabularyWord(existing.id, existing.data()),
+      };
+    }
+
+    transaction.set(docRef, docData);
+    return { id: docRef.id, created: true };
+  });
 };
 
 // Get all vocabulary words for a user with pagination
@@ -321,16 +411,54 @@ export const checkWordExists = async (
   userId: string,
   word: string,
 ): Promise<VocabularyWord | null> => {
-  const q = query(
+  const trimmedWord = word.trim();
+  const normalizedWord = normalizeUniqueText(trimmedWord);
+  if (!normalizedWord) return null;
+
+  // New records use a deterministic id, so the common lookup is O(1).
+  const deterministicId = await createOwnedTextDocumentId(
+    "vocabulary",
+    userId,
+    trimmedWord,
+  );
+  const deterministicSnapshot = await getDoc(
+    doc(db, COLLECTION_NAME, deterministicId),
+  );
+  if (deterministicSnapshot.exists()) {
+    const data = deterministicSnapshot.data();
+    if (data.userId === userId) {
+      return convertToVocabularyWord(deterministicSnapshot.id, data);
+    }
+  }
+
+  // Migrated auto-id records are found by their normalized field without an
+  // account-wide scan.
+  const normalizedQuery = query(
     collection(db, COLLECTION_NAME),
     where("userId", "==", userId),
-    where("word", "==", word.toLowerCase()),
+    where("normalizedWord", "==", normalizedWord),
+    limit(1),
+  );
+  const normalizedSnapshot = await getDocs(normalizedQuery);
+  if (!normalizedSnapshot.empty) {
+    const document = normalizedSnapshot.docs[0];
+    return convertToVocabularyWord(document.id, document.data());
+  }
+
+  // Preserve the cheap exact lookup for unmigrated legacy records. The full
+  // normalized legacy scan is intentionally reserved for addVocabularyWord.
+  const exactQuery = query(
+    collection(db, COLLECTION_NAME),
+    where("userId", "==", userId),
+    where("word", "==", trimmedWord.toLowerCase()),
+    limit(1),
   );
 
-  const querySnapshot = await getDocs(q);
+  const querySnapshot = await getDocs(exactQuery);
   if (!querySnapshot.empty) {
-    const doc = querySnapshot.docs[0];
-    return convertToVocabularyWord(doc.id, doc.data());
+    const document = querySnapshot.docs[0];
+    void updateDoc(document.ref, { normalizedWord }).catch(() => undefined);
+    return convertToVocabularyWord(document.id, document.data());
   }
   return null;
 };
@@ -388,7 +516,8 @@ export const searchUserVocabulary = async (
     }
 
     const searchLower = searchQuery.toLowerCase().trim();
-    const maxResults = options.limit || DEFAULT_PAGE_SIZE;
+    const maxResults =
+      options.limit === null ? null : (options.limit ?? DEFAULT_PAGE_SIZE);
     const mode = options.mode || "prefix";
     let filteredWords: VocabularyWord[] = [];
     let shouldUseContainsFallback = mode === "contains";
@@ -401,7 +530,7 @@ export const searchUserVocabulary = async (
           orderBy("word"),
           startAt(searchLower),
           endAt(`${searchLower}\uf8ff`),
-          limit(maxResults),
+          limit(maxResults ?? DEFAULT_PAGE_SIZE),
         );
         const querySnapshot = await getDocs(prefixQuery);
         filteredWords = querySnapshot.docs.map(
@@ -425,9 +554,9 @@ export const searchUserVocabulary = async (
           convertToVocabularyWord(doc.id, doc.data()),
       );
 
-      filteredWords = words
-        .filter((word) => word.word.toLowerCase().includes(searchLower))
-        .slice(0, maxResults);
+      filteredWords = words.filter((word) =>
+        word.word.toLowerCase().includes(searchLower),
+      );
     }
 
     // Sort by relevance: exact match first, then starts with, then contains
@@ -449,7 +578,9 @@ export const searchUserVocabulary = async (
       return aWord.localeCompare(bWord);
     });
 
-    return filteredWords.slice(0, maxResults);
+    return maxResults === null
+      ? filteredWords
+      : filteredWords.slice(0, maxResults);
   } catch (error) {
     console.error("Error searching user vocabulary:", error);
     throw error;

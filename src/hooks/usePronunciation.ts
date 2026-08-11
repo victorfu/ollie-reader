@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { cleanText } from "../utils/textUtils";
+import { matchesPronunciation } from "../utils/textUtils";
 
 interface UsePronunciationResult {
   isListening: boolean;
@@ -54,14 +54,7 @@ export const usePronunciation = (
   }, [isSupported]);
 
   const checkMatch = useCallback((spokenText: string) => {
-    const cleanedSpoken = cleanText(spokenText);
-    const cleanedTarget = cleanText(activeTargetRef.current);
-
-    // Exact match or contains the word
-    if (
-      cleanedSpoken === cleanedTarget ||
-      cleanedSpoken.includes(cleanedTarget)
-    ) {
+    if (matchesPronunciation(spokenText, activeTargetRef.current)) {
       onMatchRef.current?.();
       return true;
     }

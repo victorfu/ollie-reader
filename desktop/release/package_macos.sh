@@ -11,6 +11,11 @@ ENT="$SCRIPT_DIR/entitlements.plist"
 
 PY=(uv run --directory "$DESKTOP_DIR" python)
 
+# A signed release asset must be reproducible from one committed source tree.
+# Capture HEAD before any build work and fail early on tracked/untracked source
+# changes (gitignored credentials, models and generated assets are unaffected).
+SOURCE_COMMIT="$("${PY[@]}" release/provenance.py check "$REPO_ROOT")"
+
 # --- credentials ------------------------------------------------------------
 [ -f "$ENV_FILE" ] || { echo "missing $ENV_FILE" >&2; exit 1; }
 set -a; source "$ENV_FILE"; set +a
@@ -21,6 +26,8 @@ done
 VERSION="$("${PY[@]}" release/version.py)"
 APP="$DESKTOP_DIR/dist/ollie-reader.app"
 DMG="$DESKTOP_DIR/dist/ollie-reader-$VERSION.dmg"
+PROVENANCE="$DMG.commit"
+rm -f "$PROVENANCE"
 
 # --- build ------------------------------------------------------------------
 make -C "$REPO_ROOT" desktop-icon
@@ -130,4 +137,5 @@ spctl -a -t open --context context:primary-signature -v "$DMG"
 
 # --- checksum ---------------------------------------------------------------
 ( cd "$DESKTOP_DIR/dist" && shasum -a 256 "ollie-reader-$VERSION.dmg" > "ollie-reader-$VERSION.dmg.sha256" )
+"${PY[@]}" release/provenance.py record "$REPO_ROOT" "$PROVENANCE" "$SOURCE_COMMIT" >/dev/null
 echo "built and notarized: $DMG"

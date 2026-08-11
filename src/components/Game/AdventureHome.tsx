@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import type { DefLanguage, PlayerProgress } from "../../types/game";
-import { LEVEL_EXP_TABLE } from "../../services/gameProgressService";
 import { COIN_REWARDS } from "../../services/economyService";
 import { getGameTabTargetName } from "../../utils/gameTabs";
 import { AchievementsPanel } from "./AchievementsPanel";
 import { ACHIEVEMENTS } from "../../constants/achievements";
+import { getAdventureLevelProgress } from "./adventureLevelProgress";
 
 interface AdventureHomeProps {
   progress: PlayerProgress;
@@ -27,14 +27,9 @@ export function AdventureHome({
 }: AdventureHomeProps) {
   const [showAchievements, setShowAchievements] = useState(false);
 
-  // 計算經驗條百分比
-  const currentLevelExp = LEVEL_EXP_TABLE[progress.level - 1] || 0;
-  const nextLevelExp = LEVEL_EXP_TABLE[progress.level] || progress.exp;
-  const expInCurrentLevel = progress.exp - currentLevelExp;
-  const expNeededForLevel = nextLevelExp - currentLevelExp;
-  const expPercentage = Math.min(
-    (expInCurrentLevel / expNeededForLevel) * 100,
-    100,
+  const levelProgress = getAdventureLevelProgress(
+    progress.level,
+    progress.exp,
   );
 
   // 計算已解鎖成就數量
@@ -104,7 +99,9 @@ export function AdventureHome({
             <div className="flex items-center justify-between mb-2">
               <span className="text-sm font-medium">等級 {progress.level}</span>
               <span className="text-xs text-muted-foreground">
-                {expInCurrentLevel} / {expNeededForLevel} EXP
+                {levelProgress.isMaxLevel
+                  ? "最高等級"
+                  : `${levelProgress.expInCurrentLevel} / ${levelProgress.expNeededForLevel} EXP`}
               </span>
             </div>
 
@@ -113,7 +110,7 @@ export function AdventureHome({
               <motion.div
                 className="h-full bg-gradient-to-r from-primary to-secondary rounded-full"
                 initial={{ width: 0 }}
-                animate={{ width: `${expPercentage}%` }}
+                animate={{ width: `${levelProgress.percentage}%` }}
                 transition={{ duration: 0.5, ease: "easeOut" }}
               />
             </div>

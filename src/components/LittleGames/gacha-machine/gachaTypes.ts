@@ -117,3 +117,22 @@ export type AppliedGachaAttempt = {
 export type CommittedGachaAttempt = AppliedGachaAttempt & {
   coinsAfter: number;
 };
+
+/**
+ * Server-owned single-slot receipt for a paid result that the user has not
+ * finished revealing yet. Keeping one bounded receipt also serializes draws
+ * across tabs and devices.
+ */
+export type GachaCloudPendingReveal = {
+  schemaVersion: 1;
+  attemptId: string;
+  resetVersion: number;
+  baselineSave: GachaSaveV1;
+  committedAttempt: CommittedGachaAttempt;
+  createdAt: number;
+};
+
+export type GachaMachineState = {
+  save: GachaSaveV1;
+  pendingReveal: GachaCloudPendingReveal | null;
+};

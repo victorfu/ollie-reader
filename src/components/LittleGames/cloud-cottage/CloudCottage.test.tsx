@@ -202,11 +202,13 @@ vi.mock("./ui/CottagePanel", () => ({
 import CloudCottage from "./CloudCottage";
 
 type RenderedGameState = {
+  mode: string;
   sync: string;
   panel: string | null;
   personalizationMode: string | null;
   time: { now: number; period: string };
   action: string;
+  speech: { en: string; zh: string } | null;
   bath: { rubCount: number; readyToRinse: boolean };
   personalizationDraft: null | {
     mode: string;
@@ -363,6 +365,114 @@ describe("CloudCottage access", () => {
 });
 
 describe("CloudCottage network transitions", () => {
+  it("never exposes or daily-refreshes the previous uid's save while the next uid hydrates", async () => {
+    const accountABase = createInitialPetSave(Date.now());
+    const accountA: PetSaveV1 = {
+      ...accountABase,
+      revision: 100,
+      bond: {
+        total: 900,
+        earnedToday: 0,
+        earnedDate: "2026-07-29",
+      },
+      freeFood: {
+        ...accountABase.freeFood,
+        restockDate: "2026-07-29",
+      },
+      wish: {
+        ...accountABase.wish,
+        date: "2026-07-29",
+      },
+    };
+    await renderSignedInCottage(accountA, "account-a");
+    expect(gameState().pet.bond.total).toBe(900);
+
+    authState.user = { uid: "account-b" };
+    storageMocks.readCottageCache.mockReturnValue(null);
+    storageMocks.loadCottageCloud.mockReturnValue(
+      new Promise<PetSaveV1>(() => undefined),
+    );
+    storageMocks.loadCottageCoins.mockResolvedValue(40);
+    storageMocks.writeCottageCache.mockClear();
+    storageMocks.saveCottageCloud.mockClear();
+    await act(async () => {
+      root.render(<CloudCottage onExit={vi.fn()} />);
+      await Promise.resolve();
+    });
+
+    expect(gameState().mode).toBe("loading");
+    expect(gameState().pet.bond.total).toBe(0);
+    expect(gameState().speech).toBeNull();
+    expect(container.textContent).toContain("正在同步這個帳號的小窩");
+    expect(storageMocks.writeCottageCache).not.toHaveBeenCalled();
+    expect(storageMocks.saveCottageCloud).not.toHaveBeenCalled();
+  });
+
+  it("daily-refreshes the cached save for the new uid instead of the stale render", async () => {
+    const accountABase = createInitialPetSave(Date.now());
+    const accountA: PetSaveV1 = {
+      ...accountABase,
+      revision: 100,
+      bond: {
+        total: 900,
+        earnedToday: 0,
+        earnedDate: "2026-07-29",
+      },
+      freeFood: {
+        ...accountABase.freeFood,
+        restockDate: "2026-07-29",
+      },
+      wish: {
+        ...accountABase.wish,
+        date: "2026-07-29",
+      },
+    };
+    await renderSignedInCottage(accountA, "daily-a");
+
+    const accountB: PetSaveV1 = {
+      ...createInitialPetSave(Date.now()),
+      revision: 1,
+      bond: {
+        total: 50,
+        earnedToday: 0,
+        earnedDate: "2026-07-30",
+      },
+      wish: {
+        date: "2026-07-30",
+        wishId: "pet-five",
+        fulfilled: false,
+        progress: 0,
+        target: 5,
+      },
+    };
+    authState.user = { uid: "daily-b" };
+    storageMocks.readCottageCache.mockReturnValue(accountB);
+    storageMocks.loadCottageCloud.mockReturnValue(
+      new Promise<PetSaveV1>(() => undefined),
+    );
+    storageMocks.loadCottageCoins.mockResolvedValue(40);
+    storageMocks.writeCottageCache.mockClear();
+    storageMocks.saveCottageCloud.mockClear();
+    await act(async () => {
+      root.render(<CloudCottage onExit={vi.fn()} />);
+      await Promise.resolve();
+    });
+
+    expect(gameState().pet.bond.total).toBe(50);
+    expect(gameState().action).toBe("idle");
+    expect(gameState().speech).toBeNull();
+    expect(
+      storageMocks.writeCottageCache.mock.calls.filter(
+        ([targetUid]) => targetUid === "daily-b",
+      ),
+    ).toHaveLength(0);
+    expect(
+      storageMocks.saveCottageCloud.mock.calls.filter(
+        ([targetUid]) => targetUid === "daily-b",
+      ),
+    ).toHaveLength(0);
+  });
+
   it("keeps an open room editor and its unsaved draft without a readable cache", async () => {
     const initial = createInitialPetSave(Date.now());
     await renderSignedInCottage(initial);
@@ -667,6 +777,357 @@ describe("CloudCottage network transitions", () => {
     });
 
     expect(gameState().pet.bond.total).toBe(50);
+  });
+
+  it("ignores a purchase result that resolves after the active uid changes", async () => {
+    const accountA = createInitialPetSave(Date.now());
+    await renderSignedInCottage(accountA, "purchase-a");
+
+    let resolvePurchase!: (result: {
+      save: PetSaveV1;
+      coinsAfter: number;
+    }) => void;
+    const pendingPurchase = new Promise<{
+      save: PetSaveV1;
+      coinsAfter: number;
+    }>((resolve) => {
+      resolvePurchase = resolve;
+    });
+    storageMocks.purchaseCottageProduct.mockReturnValue(pendingPurchase);
+
+    act(() => button('[data-toolbar="shop"]').click());
+    await act(async () => {
+      button('[data-product-id="apple"]').click();
+      await Promise.resolve();
+    });
+    expect(storageMocks.purchaseCottageProduct).toHaveBeenCalledWith(
+      "purchase-a",
+      "apple",
+    );
+
+    const accountB: PetSaveV1 = {
+      ...createInitialPetSave(Date.now()),
+      bond: {
+        total: 50,
+        earnedToday: 0,
+        earnedDate: "2026-07-30",
+      },
+    };
+    authState.user = { uid: "purchase-b" };
+    storageMocks.readCottageCache.mockReturnValue(accountB);
+    storageMocks.loadCottageCloud.mockResolvedValue(accountB);
+    storageMocks.loadCottageCoins.mockResolvedValue(40);
+    await act(async () => {
+      root.render(<CloudCottage onExit={vi.fn()} />);
+      await Promise.resolve();
+    });
+    await flushAsyncWork();
+    expect(gameState().coins).toBe(40);
+    hookMocks.addToast.mockClear();
+    audioMocks.playSelectSound.mockClear();
+
+    const purchasedA: PetSaveV1 = {
+      ...accountA,
+      revision: accountA.revision + 1,
+      inventory: {
+        ...accountA.inventory,
+        snacks: { ...accountA.inventory.snacks, apple: 1 },
+      },
+    };
+    await act(async () => {
+      resolvePurchase({ save: purchasedA, coinsAfter: 105 });
+      await pendingPurchase;
+    });
+    await flushAsyncWork();
+
+    expect(gameState().pet.bond.total).toBe(50);
+    expect(gameState().coins).toBe(40);
+    expect(hookMocks.addToast).not.toHaveBeenCalled();
+    expect(audioMocks.playSelectSound).not.toHaveBeenCalled();
+  });
+
+  it("ignores a personalization continuation from the previous uid", async () => {
+    const accountA = createInitialPetSave(Date.now());
+    await renderSignedInCottage(accountA, "decorate-a");
+
+    let resolvePersonalization!: (result: {
+      save: PetSaveV1;
+      applied: boolean;
+      grantedGifts: never[];
+    }) => void;
+    const pendingPersonalization = new Promise<{
+      save: PetSaveV1;
+      applied: boolean;
+      grantedGifts: never[];
+    }>((resolve) => {
+      resolvePersonalization = resolve;
+    });
+    storageMocks.commitCottagePersonalizationActions.mockReturnValue(
+      pendingPersonalization,
+    );
+
+    act(() => button('[data-toolbar="decorate"]').click());
+    const bed = button('button[data-placed-furniture-id="cloud-bed"]');
+    act(() => {
+      bed.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true }),
+      );
+    });
+    const saveButton = [...container.querySelectorAll("button")].find(
+      (candidate) => candidate.textContent?.trim() === "儲存",
+    );
+    expect(saveButton).toBeDefined();
+    await act(async () => {
+      saveButton?.click();
+      await Promise.resolve();
+    });
+    expect(
+      storageMocks.commitCottagePersonalizationActions,
+    ).toHaveBeenCalledWith(
+      "decorate-a",
+      expect.any(Array),
+      expect.any(Number),
+    );
+
+    const accountB: PetSaveV1 = {
+      ...createInitialPetSave(Date.now()),
+      bond: {
+        total: 50,
+        earnedToday: 0,
+        earnedDate: "2026-07-30",
+      },
+    };
+    authState.user = { uid: "decorate-b" };
+    storageMocks.readCottageCache.mockReturnValue(accountB);
+    storageMocks.loadCottageCloud.mockResolvedValue(accountB);
+    storageMocks.loadCottageCoins.mockResolvedValue(40);
+    await act(async () => {
+      root.render(<CloudCottage onExit={vi.fn()} />);
+      await Promise.resolve();
+    });
+    await flushAsyncWork();
+    expect(gameState().action).toBe("idle");
+    audioMocks.playHeartSound.mockClear();
+    hookMocks.speakAsync.mockClear();
+
+    const personalizedA: PetSaveV1 = {
+      ...accountA,
+      revision: accountA.revision + 1,
+      room: {
+        ...accountA.room,
+        placed: accountA.room.placed.map((item) =>
+          item.id === "cloud-bed" ? { ...item, x: item.x - 5 } : item),
+      },
+    };
+    await act(async () => {
+      resolvePersonalization({
+        save: personalizedA,
+        applied: true,
+        grantedGifts: [],
+      });
+      await pendingPersonalization;
+    });
+    await flushAsyncWork();
+
+    expect(gameState().pet.bond.total).toBe(50);
+    expect(gameState().action).toBe("idle");
+    expect(gameState().personalizationMode).toBeNull();
+    expect(audioMocks.playHeartSound).not.toHaveBeenCalled();
+    expect(hookMocks.speakAsync).not.toHaveBeenCalled();
+  });
+
+  it("keeps a purchase balance when an older coin refresh resolves later", async () => {
+    const initial = createInitialPetSave(Date.now());
+    await renderSignedInCottage(initial, "coin-reader");
+    expect(gameState().coins).toBe(120);
+
+    let resolveStaleCoins!: (coins: number) => void;
+    const staleCoins = new Promise<number>((resolve) => {
+      resolveStaleCoins = resolve;
+    });
+    storageMocks.loadCottageCoins.mockClear();
+    storageMocks.loadCottageCoins.mockReturnValueOnce(staleCoins);
+    await act(async () => {
+      window.dispatchEvent(new Event("focus"));
+      await Promise.resolve();
+    });
+    expect(storageMocks.loadCottageCoins).toHaveBeenCalledWith("coin-reader");
+
+    storageMocks.purchaseCottageProduct.mockResolvedValue({
+      save: {
+        ...initial,
+        revision: initial.revision + 1,
+        inventory: {
+          ...initial.inventory,
+          snacks: { ...initial.inventory.snacks, apple: 1 },
+        },
+      },
+      coinsAfter: 105,
+    });
+    act(() => button('[data-toolbar="shop"]').click());
+    await act(async () => {
+      button('[data-product-id="apple"]').click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(gameState().coins).toBe(105);
+
+    await act(async () => {
+      resolveStaleCoins(120);
+      await staleCoins;
+    });
+    await flushAsyncWork();
+    expect(gameState().coins).toBe(105);
+  });
+
+  it("ignores a coin response owned by the previous uid", async () => {
+    const accountA = createInitialPetSave(Date.now());
+    let resolveAccountACoins!: (coins: number) => void;
+    const accountACoins = new Promise<number>((resolve) => {
+      resolveAccountACoins = resolve;
+    });
+    authState.user = { uid: "coins-a" };
+    storageMocks.readCottageCache.mockReturnValue(accountA);
+    storageMocks.loadCottageCloud.mockResolvedValue(accountA);
+    storageMocks.loadCottageCoins.mockReturnValue(accountACoins);
+    await renderCottage();
+    await flushAsyncWork();
+    expect(gameState().coins).toBeNull();
+
+    const accountB: PetSaveV1 = {
+      ...createInitialPetSave(Date.now()),
+      bond: {
+        total: 50,
+        earnedToday: 0,
+        earnedDate: "2026-07-30",
+      },
+    };
+    authState.user = { uid: "coins-b" };
+    storageMocks.readCottageCache.mockReturnValue(accountB);
+    storageMocks.loadCottageCloud.mockResolvedValue(accountB);
+    storageMocks.loadCottageCoins.mockResolvedValue(40);
+    await act(async () => {
+      root.render(<CloudCottage onExit={vi.fn()} />);
+      await Promise.resolve();
+    });
+    await flushAsyncWork();
+    expect(gameState().coins).toBe(40);
+
+    await act(async () => {
+      resolveAccountACoins(120);
+      await accountACoins;
+    });
+    await flushAsyncWork();
+    expect(gameState().coins).toBe(40);
+  });
+
+  it("retries an online transient save with deterministic exponential backoff", async () => {
+    const initial = createInitialPetSave(Date.now());
+    await renderSignedInCottage(initial, "retry-reader");
+    storageMocks.loadCottageCloud.mockClear();
+    storageMocks.saveCottageCloud.mockClear();
+    storageMocks.commitCottageCareAction.mockRejectedValue(
+      new Error("care transaction unavailable"),
+    );
+    storageMocks.loadCottageCloud.mockResolvedValue(initial);
+    storageMocks.saveCottageCloud
+      .mockRejectedValueOnce(new Error("queue save unavailable"))
+      .mockRejectedValueOnce(new Error("first retry unavailable"))
+      .mockImplementation(async (_uid: string, save: PetSaveV1) => save);
+
+    act(() => button('[data-toolbar="food"]').click());
+    act(() => button('[data-food-id="milk"]').click());
+    await flushAsyncWork();
+    expect(gameState().sync).toBe("offline");
+    expect(storageMocks.saveCottageCloud).toHaveBeenCalledTimes(1);
+    expect(storageMocks.loadCottageCloud).not.toHaveBeenCalled();
+
+    await act(async () => {
+      vi.advanceTimersByTime(999);
+      await Promise.resolve();
+    });
+    expect(storageMocks.loadCottageCloud).not.toHaveBeenCalled();
+
+    await act(async () => {
+      vi.advanceTimersByTime(1);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    await flushAsyncWork();
+    expect(storageMocks.loadCottageCloud).toHaveBeenCalledTimes(1);
+    expect(storageMocks.saveCottageCloud).toHaveBeenCalledTimes(2);
+
+    await act(async () => {
+      vi.advanceTimersByTime(1_999);
+      await Promise.resolve();
+    });
+    expect(storageMocks.loadCottageCloud).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      vi.advanceTimersByTime(1);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    await flushAsyncWork();
+    expect(storageMocks.loadCottageCloud).toHaveBeenCalledTimes(2);
+    expect(storageMocks.saveCottageCloud).toHaveBeenCalledTimes(3);
+    expect(gameState().sync).toBe("cloud");
+  });
+
+  it("abandons an in-flight retry after a newer queued save succeeds", async () => {
+    const base = createInitialPetSave(Date.now());
+    const initial: PetSaveV1 = {
+      ...base,
+      stats: { ...base.stats, fullness: 20 },
+    };
+    await renderSignedInCottage(initial, "retry-race-reader");
+
+    let resolveRetryLoad!: (save: PetSaveV1) => void;
+    const retryLoad = new Promise<PetSaveV1>((resolve) => {
+      resolveRetryLoad = resolve;
+    });
+    storageMocks.loadCottageCloud.mockClear();
+    storageMocks.loadCottageCloud.mockReturnValue(retryLoad);
+    storageMocks.saveCottageCloud.mockClear();
+    storageMocks.saveCottageCloud
+      .mockRejectedValueOnce(new Error("queue save unavailable"))
+      .mockImplementation(async (_uid: string, save: PetSaveV1) => save);
+    storageMocks.commitCottageCareAction.mockRejectedValue(
+      new Error("care transaction unavailable"),
+    );
+
+    act(() => button('[data-toolbar="food"]').click());
+    act(() => button('[data-food-id="milk"]').click());
+    await flushAsyncWork();
+    expect(gameState().sync).toBe("offline");
+
+    await act(async () => {
+      vi.advanceTimersByTime(1_000);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(storageMocks.loadCottageCloud).toHaveBeenCalledTimes(1);
+
+    act(() => button('[data-toolbar="food"]').click());
+    act(() => button('[data-food-id="cookie"]').click());
+    await flushAsyncWork();
+    expect(gameState().sync).toBe("cloud");
+    const latestBond = gameState().pet.bond.total;
+
+    const obsoleteCloud: PetSaveV1 = {
+      ...initial,
+      revision: initial.revision + 100,
+      clientUpdatedAt: initial.clientUpdatedAt + 100,
+      bond: { ...initial.bond, total: 999 },
+    };
+    await act(async () => {
+      resolveRetryLoad(obsoleteCloud);
+      await retryLoad;
+    });
+    await flushAsyncWork();
+
+    expect(gameState().pet.bond.total).toBe(latestBond);
+    expect(gameState().pet.bond.total).not.toBe(999);
   });
 });
 

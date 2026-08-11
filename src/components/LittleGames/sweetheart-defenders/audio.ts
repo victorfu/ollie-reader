@@ -90,6 +90,7 @@ const lastPlayedAt = new Map<SfxId, number>();
 /** 瀏覽器要等使用者互動過才准播音樂；擋下來的話先記著，等第一次互動再補播。 */
 let pendingMusic: MusicId | null = null;
 let unlockListenerAttached = false;
+let unlockListener: (() => void) | null = null;
 
 export function readAudioSettings(): AudioSettings {
   if (typeof window === "undefined") return DEFAULT_AUDIO_SETTINGS;
@@ -207,8 +208,20 @@ function startTrack(id: MusicId): void {
 
   void musicElement
     .play()
-    .then(() => fadeTo(settings.music))
-    .catch(() => queueUnlock(id));
+    .then(() => {
+      // 這次 play 完成前可能已經離開遊戲或換曲；舊 Promise 不可以把音樂復活。
+      if (currentMusicId !== id) {
+        // 所有曲目共用同一個 audio element；若已切到另一首，不能由舊 Promise
+        // pause，否則反而會把新曲停掉。真正的 stop 已有 fade/pause 負責收尾。
+        return;
+      }
+      clearPendingMusic();
+      fadeTo(settings.music);
+    })
+    .catch(() => {
+      // autoplay 的拒絕也是非同步的。若期間已 stop，就不要再掛一個過期的補播。
+      if (currentMusicId === id) queueUnlock(id);
+    });
 }
 
 function isSameSource(current: string, expected: string): boolean {
@@ -225,6 +238,7 @@ function isSameSource(current: string, expected: string): boolean {
 }
 
 export function stopMusic(): void {
+  clearPendingMusic();
   playMusic(null);
 }
 
@@ -261,6 +275,7 @@ function queueUnlock(id: MusicId | null): void {
     window.removeEventListener("pointerdown", resume);
     window.removeEventListener("keydown", resume);
     unlockListenerAttached = false;
+    unlockListener = null;
 
     const queued = pendingMusic;
     pendingMusic = null;
@@ -270,8 +285,20 @@ function queueUnlock(id: MusicId | null): void {
     }
   };
 
+  unlockListener = resume;
   window.addEventListener("pointerdown", resume, { once: true });
   window.addEventListener("keydown", resume, { once: true });
+}
+
+/** 離開遊戲或成功開始播放後，取消仍在等待手勢的舊曲。 */
+function clearPendingMusic(): void {
+  pendingMusic = null;
+  if (!unlockListener || typeof window === "undefined") return;
+
+  window.removeEventListener("pointerdown", unlockListener);
+  window.removeEventListener("keydown", unlockListener);
+  unlockListener = null;
+  unlockListenerAttached = false;
 }
 
 function clampVolume(value: unknown, fallback: number): number {

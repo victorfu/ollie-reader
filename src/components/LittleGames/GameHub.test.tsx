@@ -139,6 +139,16 @@ describe("GameHub card layout", () => {
 
     expect(container.textContent).toContain("最高星星 88");
   });
+
+  it("still renders when local storage reads are blocked", () => {
+    vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+      throw new DOMException("blocked", "SecurityError");
+    });
+
+    expect(() => renderGameHub()).not.toThrow();
+    expect(container.textContent).toContain("Meteor Glider");
+    expect(container.textContent).toContain("Mushroom Adventure");
+  });
 });
 
 describe("GameHub single-tab game launcher", () => {

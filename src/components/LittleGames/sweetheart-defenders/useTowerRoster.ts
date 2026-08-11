@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "../../../hooks/useAuth";
 import { logger } from "../../../utils/logger";
 import {
+  getGachaCacheKey,
   loadGachaCloud,
   readGachaCache,
 } from "../gacha-machine/gachaStorage";
@@ -18,6 +19,18 @@ export type TowerRoster = {
   isSignedIn: boolean;
 };
 
+type RosterSession = {
+  uid: string | null;
+  owned: GachaSaveV1["ownedCounts"];
+};
+
+function localRoster(uid: string | null): RosterSession {
+  return {
+    uid,
+    owned: uid ? (readGachaCache(uid)?.ownedCounts ?? {}) : {},
+  };
+}
+
 /**
  * 可以當塔的角色 = 扭蛋機收藏 ∪ 預設班底。
  *
@@ -30,30 +43,76 @@ export function useTowerRoster(): TowerRoster {
   const { user } = useAuth();
   const uid = user?.uid ?? null;
 
-  const [owned, setOwned] = useState<GachaSaveV1["ownedCounts"]>(() =>
-    uid ? (readGachaCache(uid)?.ownedCounts ?? {}) : {},
+  const [session, setSession] = useState<RosterSession>(() => localRoster(uid));
+  const visibleSession = useMemo(
+    () => (session.uid === uid ? session : localRoster(uid)),
+    [session, uid],
   );
+  const sessionRef = useRef(visibleSession);
+  useLayoutEffect(() => {
+    sessionRef.current = visibleSession;
+  }, [visibleSession]);
 
   useEffect(() => {
     if (!uid) return;
     let cancelled = false;
+    let requestSequence = 0;
+    const cacheKey = getGachaCacheKey(uid);
 
-    loadGachaCloud(uid)
-      .then((save) => {
-        if (!cancelled) setOwned(save.ownedCounts);
-      })
-      .catch((error) => {
-        // 讀不到雲端就用本機那份，玩得下去比較重要。
-        logger.warn("甜心防衛隊：讀取扭蛋收藏失敗，改用本機快取", error);
-      });
+    const applyOwned = (owned: GachaSaveV1["ownedCounts"]): void => {
+      if (cancelled || sessionRef.current.uid !== uid) return;
+      const next = { uid, owned };
+      sessionRef.current = next;
+      setSession(next);
+    };
+    const refreshFromCache = (): void => {
+      requestSequence += 1;
+      applyOwned(readGachaCache(uid)?.ownedCounts ?? {});
+    };
+    const refreshFromCloud = (): void => {
+      const sequence = ++requestSequence;
+      void loadGachaCloud(uid)
+        .then((save) => {
+          if (sequence !== requestSequence) return;
+          applyOwned(save.ownedCounts);
+        })
+        .catch((error) => {
+          if (cancelled || sequence !== requestSequence) return;
+          // 讀不到雲端就用本機那份，玩得下去比較重要。
+          logger.warn("甜心防衛隊：讀取扭蛋收藏失敗，改用本機快取", error);
+        });
+    };
+    const refreshOnReturn = (): void => {
+      // Same-tab acknowledgements update localStorage without a storage event.
+      refreshFromCache();
+      refreshFromCloud();
+    };
+    const handleStorage = (event: StorageEvent): void => {
+      if (event.key !== cacheKey) return;
+      // Apply the spoiler-safe local baseline immediately, then reconcile the
+      // authoritative cloud state. This also invalidates any older response.
+      refreshOnReturn();
+    };
+    const handleVisibilityChange = (): void => {
+      if (document.visibilityState === "visible") refreshOnReturn();
+    };
+
+    window.addEventListener("storage", handleStorage);
+    window.addEventListener("focus", refreshOnReturn);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    refreshFromCloud();
 
     return () => {
       cancelled = true;
+      requestSequence += 1;
+      window.removeEventListener("storage", handleStorage);
+      window.removeEventListener("focus", refreshOnReturn);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, [uid]);
 
   return useMemo(() => {
-    const ownedIds = Object.entries(owned)
+    const ownedIds = Object.entries(visibleSession.owned)
       .filter(([, count]) => (count ?? 0) > 0)
       .map(([id]) => id);
 
@@ -66,5 +125,5 @@ export function useTowerRoster(): TowerRoster {
       ownedCount: ownedIds.length,
       isSignedIn: uid !== null,
     };
-  }, [owned, uid]);
+  }, [visibleSession.owned, uid]);
 }

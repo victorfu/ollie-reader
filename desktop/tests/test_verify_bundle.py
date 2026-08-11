@@ -1,4 +1,7 @@
-from release.verify_bundle import scan_bundle
+import hashlib
+
+from release.verify_bundle import scan_bundle, scan_model_integrity
+from server.model_download import ModelFile
 
 
 def _app(tmp_path):
@@ -80,3 +83,35 @@ def test_certifi_cacert_pem_is_not_flagged(tmp_path):
         "-----BEGIN CERTIFICATE-----\nMIIFake\n-----END CERTIFICATE-----\n"
     )
     assert scan_bundle(app) == []
+
+
+def test_model_integrity_requires_every_manifest_file(tmp_path):
+    app = _app(tmp_path)
+    data = b"model"
+    model = ModelFile(
+        "voice.onnx",
+        "https://example.test/voice",
+        hashlib.sha256(data).hexdigest(),
+        len(data),
+    )
+
+    findings = scan_model_integrity(app, [model])
+
+    assert len(findings) == 1
+    assert "缺少模型檔" in findings[0]
+
+
+def test_model_integrity_accepts_matching_bundled_model(tmp_path):
+    app = _app(tmp_path)
+    models = app / "Contents" / "Resources" / "models"
+    models.mkdir()
+    data = b"model"
+    model = ModelFile(
+        "voice.onnx",
+        "https://example.test/voice",
+        hashlib.sha256(data).hexdigest(),
+        len(data),
+    )
+    (models / model.filename).write_bytes(data)
+
+    assert scan_model_integrity(app, [model]) == []

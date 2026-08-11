@@ -38,7 +38,7 @@ export function AudioUploadEditModal({
 
     onSave(upload.id, {
       title: title.trim(),
-      description: description.trim() || undefined,
+      description: description.trim(),
     });
   };
 

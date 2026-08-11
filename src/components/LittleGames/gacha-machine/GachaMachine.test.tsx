@@ -6,7 +6,12 @@ import {
   GACHA_MISS_RATE_STORAGE_KEY,
   SHOW_ALL_GACHA_ENTRIES_STORAGE_KEY,
 } from "../../../services/gachaPreferences";
-import type { CommittedGachaAttempt, GachaSaveV1 } from "./gachaTypes";
+import type {
+  CommittedGachaAttempt,
+  GachaCloudPendingReveal,
+  GachaMachineState,
+  GachaSaveV1,
+} from "./gachaTypes";
 
 const authState = vi.hoisted(() => ({
   user: { uid: "player-1" } as { uid: string } | null,
@@ -24,13 +29,21 @@ const storageMocks = vi.hoisted(() => ({
     return Math.sign(left.totalDraws - right.totalDraws);
   }),
   getGachaCacheKey: vi.fn((uid: string) => `ollie-gacha-machine-cache-v1:${uid}`),
+  acknowledgeGachaPendingReveal: vi.fn(),
   isGachaResetConflictError: vi.fn(() => false),
+  isGachaPendingRevealConflictError: vi.fn(() => false),
   parseGachaCacheValue: vi.fn((raw: string | null) =>
     raw ? (JSON.parse(raw) as GachaSaveV1) : null,
   ),
+  parseGachaMachineCacheState: vi.fn((raw: string | null): GachaMachineState | null => {
+    const save = raw ? (JSON.parse(raw) as GachaSaveV1) : null;
+    return save ? { save, pendingReveal: null } : null;
+  }),
   isGachaInsufficientCoinsError: vi.fn(() => false),
   readGachaCache: vi.fn(),
+  readGachaMachineCacheState: vi.fn(),
   loadGachaCloud: vi.fn(),
+  loadGachaMachineState: vi.fn(),
   loadPlayerCoins: vi.fn(),
   recordGachaAttempt: vi.fn(),
   resetGachaCollection: vi.fn(),
@@ -109,6 +122,11 @@ import {
   getGachaRevealGuardKey,
   listActiveGachaRevealGuards,
 } from "./gachaRevealGuard";
+import {
+  beginGachaPendingReveal,
+  commitGachaPendingReveal,
+  GACHA_PENDING_REVEAL_COMMITTED_EVENT,
+} from "./gachaPendingReveal";
 
 let container: HTMLDivElement;
 let root: Root;
@@ -120,6 +138,21 @@ const EMPTY_SAVE: GachaSaveV1 = {
   ownedCounts: {},
 };
 
+function cloudPendingReveal(
+  attemptId: string,
+  committedAttempt: CommittedGachaAttempt,
+  baselineSave: GachaSaveV1 = EMPTY_SAVE,
+): GachaCloudPendingReveal {
+  return {
+    schemaVersion: 1,
+    attemptId,
+    resetVersion: committedAttempt.save.resetVersion,
+    baselineSave,
+    committedAttempt,
+    createdAt: 1_723_456_789_000,
+  };
+}
+
 function setOnline(value: boolean): void {
   Object.defineProperty(window.navigator, "onLine", {
     configurable: true,
@@ -127,11 +160,14 @@ function setOnline(value: boolean): void {
   });
 }
 
-async function renderAt(entry: string): Promise<void> {
+async function renderAt(
+  entry: string,
+  onExit: () => void = vi.fn(),
+): Promise<void> {
   await act(async () => {
     root.render(
       <MemoryRouter initialEntries={[entry]}>
-        <GachaMachine onExit={vi.fn()} />
+        <GachaMachine onExit={onExit} />
       </MemoryRouter>,
     );
   });
@@ -166,11 +202,23 @@ function dispatchShortcut(
   return event;
 }
 
+async function flushRevealAcknowledgement(): Promise<void> {
+  await act(async () => {
+    if (vi.isFakeTimers()) {
+      await vi.advanceTimersByTimeAsync(0);
+    } else {
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+    }
+    await Promise.resolve();
+  });
+}
+
 beforeEach(() => {
   (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean })
     .IS_REACT_ACT_ENVIRONMENT = true;
   setOnline(true);
   localStorage.clear();
+  sessionStorage.clear();
   authState.user = { uid: "player-1" };
   authState.loading = false;
   authState.authError = null;
@@ -191,11 +239,27 @@ beforeEach(() => {
     },
   });
   storageMocks.readGachaCache.mockReset().mockReturnValue(null);
+  storageMocks.readGachaMachineCacheState.mockReset().mockImplementation(
+    (uid: string) => {
+      const save = storageMocks.readGachaCache(uid);
+      return save ? { save, pendingReveal: null } : null;
+    },
+  );
   storageMocks.loadGachaCloud.mockReset().mockResolvedValue(EMPTY_SAVE);
+  storageMocks.loadGachaMachineState.mockReset().mockImplementation(
+    async (uid: string) => ({
+      save: await storageMocks.loadGachaCloud(uid),
+      pendingReveal: null,
+    }),
+  );
+  storageMocks.acknowledgeGachaPendingReveal.mockReset().mockResolvedValue(true);
   storageMocks.loadPlayerCoins.mockReset().mockResolvedValue(500);
   storageMocks.recordGachaAttempt.mockReset();
   storageMocks.resetGachaCollection.mockReset();
   storageMocks.isGachaResetConflictError.mockReset().mockReturnValue(false);
+  storageMocks.isGachaPendingRevealConflictError
+    .mockReset()
+    .mockReturnValue(false);
   storageMocks.isGachaInsufficientCoinsError.mockReset().mockReturnValue(false);
   container = document.createElement("div");
   document.body.appendChild(container);
@@ -265,6 +329,7 @@ describe("GachaMachine page states", () => {
       "player-1",
       { kind: "miss" },
       0,
+      expect.any(String),
     );
     randomSpy.mockRestore();
   });
@@ -433,6 +498,753 @@ describe("GachaMachine page states", () => {
 });
 
 describe("GachaMachine draw guard", () => {
+  it("recovers an atomically committed result when the original callback was lost", async () => {
+    const committed: CommittedGachaAttempt = {
+      coinsAfter: 450,
+      save: {
+        ...EMPTY_SAVE,
+        totalDraws: 1,
+        ownedCounts: { kuromi: 1 },
+      },
+      result: {
+        kind: "character",
+        characterId: "kuromi",
+        isNew: true,
+        ownedCount: 1,
+        totalDraws: 1,
+      },
+    };
+    const pendingReveal = cloudPendingReveal(
+      "server-committed-attempt",
+      committed,
+    );
+    storageMocks.loadGachaMachineState.mockResolvedValue({
+      save: committed.save,
+      pendingReveal,
+    });
+
+    await renderAt("/games/gacha");
+
+    expect(storageMocks.recordGachaAttempt).not.toHaveBeenCalled();
+    expect(container.querySelector('[data-testid="reveal-dialog"]')).toBeNull();
+    act(() => buttonWithText("圖鑑").click());
+    expect(container.textContent).not.toContain("酷洛米");
+    act(() => buttonWithText("扭蛋機").click());
+    act(() => {
+      container
+        .querySelector<HTMLButtonElement>('button[aria-label="膠囊已經出來，點擊開獎"]')
+        ?.click();
+    });
+    expect(
+      container.querySelector('[data-testid="reveal-dialog"]')?.textContent,
+    ).toBe("character");
+    await flushRevealAcknowledgement();
+  });
+
+  it("recovers an atomically committed miss without inventing a character", async () => {
+    const committed: CommittedGachaAttempt = {
+      coinsAfter: 450,
+      save: { ...EMPTY_SAVE, totalDraws: 1 },
+      result: { kind: "miss", totalDraws: 1 },
+    };
+    storageMocks.loadGachaMachineState.mockResolvedValue({
+      save: committed.save,
+      pendingReveal: cloudPendingReveal("server-miss-attempt", committed),
+    });
+
+    await renderAt("/games/gacha");
+    expect(container.querySelector('[data-testid="reveal-dialog"]')).toBeNull();
+    act(() => {
+      container
+        .querySelector<HTMLButtonElement>('button[aria-label="膠囊已經出來，點擊開獎"]')
+        ?.click();
+    });
+    expect(
+      container.querySelector('[data-testid="reveal-dialog"]')?.textContent,
+    ).toBe("miss");
+    await flushRevealAcknowledgement();
+  });
+
+  it("replays the closed capsule after reveal acknowledgement crashes", async () => {
+    const committed: CommittedGachaAttempt = {
+      coinsAfter: 450,
+      save: { ...EMPTY_SAVE, totalDraws: 1 },
+      result: { kind: "miss", totalDraws: 1 },
+    };
+    const pendingReveal = cloudPendingReveal("ack-crash-attempt", committed);
+    storageMocks.loadGachaMachineState.mockResolvedValue({
+      save: committed.save,
+      pendingReveal,
+    });
+    storageMocks.acknowledgeGachaPendingReveal.mockRejectedValue(
+      new Error("ack offline"),
+    );
+    await renderAt("/games/gacha");
+    act(() => {
+      container
+        .querySelector<HTMLButtonElement>('button[aria-label="膠囊已經出來，點擊開獎"]')
+        ?.click();
+    });
+    await flushRevealAcknowledgement();
+    expect(container.textContent).toContain("雲端確認暫時失敗");
+
+    act(() => root.unmount());
+    root = createRoot(container);
+    storageMocks.acknowledgeGachaPendingReveal.mockResolvedValue(true);
+    await renderAt("/games/gacha");
+
+    expect(container.querySelector('[data-testid="reveal-dialog"]')).toBeNull();
+    expect(
+      container.querySelector('button[aria-label="膠囊已經出來，點擊開獎"]'),
+    ).toBeTruthy();
+    act(() => {
+      container
+        .querySelector<HTMLButtonElement>('button[aria-label="膠囊已經出來，點擊開獎"]')
+        ?.click();
+    });
+    expect(
+      container.querySelector('[data-testid="reveal-dialog"]')?.textContent,
+    ).toBe("miss");
+  });
+
+  it("replaces a crashed submitting guard with the authoritative server capsule", async () => {
+    const staleGuard = beginGachaRevealGuard(
+      "player-1",
+      EMPTY_SAVE,
+      localStorage,
+      Date.now(),
+      "stale-submitting-attempt",
+    );
+    if (!staleGuard) throw new Error("stale guard was not created");
+    expect(
+      beginGachaPendingReveal(
+        "player-1",
+        staleGuard,
+        { kind: "miss" },
+        sessionStorage,
+      ),
+    ).not.toBeNull();
+
+    const baselineSave: GachaSaveV1 = {
+      ...EMPTY_SAVE,
+      totalDraws: 2,
+      ownedCounts: { "hello-kitty": 1, kuromi: 1 },
+    };
+    const committed: CommittedGachaAttempt = {
+      coinsAfter: 350,
+      save: {
+        ...baselineSave,
+        totalDraws: 3,
+        ownedCounts: { "hello-kitty": 1, kuromi: 2 },
+      },
+      result: {
+        kind: "character",
+        characterId: "kuromi",
+        isNew: false,
+        ownedCount: 2,
+        totalDraws: 3,
+      },
+    };
+    const authoritativeState = {
+      save: committed.save,
+      pendingReveal: cloudPendingReveal(
+        "authoritative-attempt",
+        committed,
+        baselineSave,
+      ),
+    };
+    storageMocks.readGachaMachineCacheState.mockReturnValue(
+      authoritativeState,
+    );
+    storageMocks.loadGachaMachineState.mockReturnValue(
+      new Promise<GachaMachineState>(() => undefined),
+    );
+
+    await renderAt("/games/gacha");
+
+    expect(
+      listActiveGachaRevealGuards("player-1", localStorage).map(
+        (guard) => guard.token,
+      ),
+    ).toEqual(["authoritative-attempt"]);
+    act(() => {
+      container
+        .querySelector<HTMLButtonElement>('button[aria-label="膠囊已經出來，點擊開獎"]')
+        ?.click();
+    });
+    const dialog = container.querySelector<HTMLElement>(
+      '[data-testid="reveal-dialog"]',
+    );
+    expect(dialog?.dataset.isNew).toBe("false");
+    expect(dialog?.dataset.ownedCount).toBe("2");
+    await flushRevealAcknowledgement();
+    act(() => dialog?.click());
+    act(() => buttonWithText("圖鑑").click());
+
+    expect(container.textContent).toContain("Hello Kitty");
+    expect(container.textContent).toContain("酷洛米");
+    expect(container.textContent).toContain("2 / 57");
+    expect(listActiveGachaRevealGuards("player-1", localStorage)).toHaveLength(0);
+  });
+
+  it("lets an authoritative revealed save supersede a crashed submitting guard", async () => {
+    const staleGuard = beginGachaRevealGuard(
+      "player-1",
+      EMPTY_SAVE,
+      localStorage,
+      Date.now(),
+      "stale-no-pending-attempt",
+    );
+    if (!staleGuard) throw new Error("stale guard was not created");
+    expect(
+      beginGachaPendingReveal(
+        "player-1",
+        staleGuard,
+        { kind: "miss" },
+        sessionStorage,
+      ),
+    ).not.toBeNull();
+    const revealedSave: GachaSaveV1 = {
+      ...EMPTY_SAVE,
+      totalDraws: 2,
+      ownedCounts: { "hello-kitty": 1, kuromi: 1 },
+    };
+    storageMocks.loadGachaMachineState.mockResolvedValue({
+      save: revealedSave,
+      pendingReveal: null,
+    });
+
+    await renderAt("/games/gacha?view=collection");
+
+    expect(container.textContent).toContain("Hello Kitty");
+    expect(container.textContent).toContain("酷洛米");
+    expect(container.textContent).toContain("2 / 57");
+    expect(listActiveGachaRevealGuards("player-1", localStorage)).toHaveLength(0);
+    expect(sessionStorage.length).toBe(0);
+  });
+
+  it("applies a newer revealed save when acknowledging an obsolete capsule", async () => {
+    const obsoleteAttempt: CommittedGachaAttempt = {
+      coinsAfter: 450,
+      save: {
+        ...EMPTY_SAVE,
+        totalDraws: 1,
+        ownedCounts: { "hello-kitty": 1 },
+      },
+      result: {
+        kind: "character",
+        characterId: "hello-kitty",
+        isNew: true,
+        ownedCount: 1,
+        totalDraws: 1,
+      },
+    };
+    const newerSave: GachaSaveV1 = {
+      ...EMPTY_SAVE,
+      totalDraws: 3,
+      ownedCounts: {
+        "hello-kitty": 1,
+        "my-melody": 1,
+        kuromi: 1,
+      },
+    };
+    storageMocks.loadGachaMachineState
+      .mockResolvedValueOnce({
+        save: obsoleteAttempt.save,
+        pendingReveal: cloudPendingReveal(
+          "obsolete-attempt",
+          obsoleteAttempt,
+        ),
+      })
+      .mockResolvedValueOnce({ save: newerSave, pendingReveal: null });
+    storageMocks.acknowledgeGachaPendingReveal.mockResolvedValue(false);
+
+    await renderAt("/games/gacha");
+    act(() => {
+      container
+        .querySelector<HTMLButtonElement>('button[aria-label="膠囊已經出來，點擊開獎"]')
+        ?.click();
+    });
+    await flushRevealAcknowledgement();
+    act(() => {
+      container.querySelector<HTMLElement>('[data-testid="reveal-dialog"]')
+        ?.click();
+      buttonWithText("圖鑑").click();
+    });
+
+    expect(container.textContent).toContain("Hello Kitty");
+    expect(container.textContent).toContain("My Melody");
+    expect(container.textContent).toContain("酷洛米");
+    expect(container.textContent).toContain("3 / 57");
+  });
+
+  it("restores a valid callback-loss event only when its cache receipt still matches", async () => {
+    await renderAt("/games/gacha");
+    const committed: CommittedGachaAttempt = {
+      coinsAfter: 450,
+      save: { ...EMPTY_SAVE, totalDraws: 1 },
+      result: { kind: "miss", totalDraws: 1 },
+    };
+    const pendingReveal = cloudPendingReveal(
+      "callback-loss-attempt",
+      committed,
+    );
+    storageMocks.readGachaMachineCacheState.mockReturnValue({
+      save: committed.save,
+      pendingReveal,
+    });
+
+    act(() => {
+      window.dispatchEvent(
+        new CustomEvent(GACHA_PENDING_REVEAL_COMMITTED_EVENT, {
+          detail: { uid: "player-1", pendingReveal },
+        }),
+      );
+    });
+
+    expect(
+      container.querySelector('button[aria-label="膠囊已經出來，點擊開獎"]'),
+    ).toBeTruthy();
+    expect(container.querySelector('[data-testid="reveal-dialog"]')).toBeNull();
+  });
+
+  it("keeps an opened cached capsule visible when the same cloud receipt arrives", async () => {
+    const committed: CommittedGachaAttempt = {
+      coinsAfter: 450,
+      save: {
+        ...EMPTY_SAVE,
+        totalDraws: 1,
+        ownedCounts: { "hello-kitty": 1 },
+      },
+      result: {
+        kind: "character",
+        characterId: "hello-kitty",
+        isNew: true,
+        ownedCount: 1,
+        totalDraws: 1,
+      },
+    };
+    const pendingReveal = cloudPendingReveal(
+      "cached-open-attempt",
+      committed,
+    );
+    const machineState: GachaMachineState = {
+      save: committed.save,
+      pendingReveal,
+    };
+    let resolveCloud: ((state: GachaMachineState) => void) | undefined;
+    storageMocks.readGachaMachineCacheState.mockReturnValue(machineState);
+    storageMocks.loadGachaMachineState.mockReturnValue(
+      new Promise<GachaMachineState>((resolve) => {
+        resolveCloud = resolve;
+      }),
+    );
+    await renderAt("/games/gacha");
+
+    act(() => {
+      container
+        .querySelector<HTMLButtonElement>('button[aria-label="膠囊已經出來，點擊開獎"]')
+        ?.click();
+    });
+    expect(
+      container.querySelector('[data-testid="reveal-dialog"]')?.textContent,
+    ).toBe("character");
+
+    await act(async () => {
+      resolveCloud?.(machineState);
+      await Promise.resolve();
+    });
+
+    expect(
+      container.querySelector('[data-testid="reveal-dialog"]')?.textContent,
+    ).toBe("character");
+    expect(
+      container.querySelector<HTMLElement>('[data-testid="reveal-dialog"]')
+        ?.dataset.ownedCount,
+    ).toBe("1");
+    await flushRevealAcknowledgement();
+    expect(
+      container.querySelector('[data-testid="reveal-dialog"]')?.textContent,
+    ).toBe("character");
+    act(() => {
+      container.querySelector<HTMLElement>('[data-testid="reveal-dialog"]')
+        ?.click();
+    });
+    expect(container.querySelector('[data-testid="reveal-dialog"]')).toBeNull();
+  });
+
+  it("ignores an ABA late callback after the server cache has advanced", async () => {
+    const newerSave: GachaSaveV1 = {
+      ...EMPTY_SAVE,
+      totalDraws: 2,
+      ownedCounts: { "hello-kitty": 1, kuromi: 1 },
+    };
+    storageMocks.readGachaMachineCacheState.mockReturnValue({
+      save: newerSave,
+      pendingReveal: null,
+    });
+    storageMocks.loadGachaMachineState.mockResolvedValue({
+      save: newerSave,
+      pendingReveal: null,
+    });
+    await renderAt("/games/gacha?view=collection");
+
+    const staleAttempt: CommittedGachaAttempt = {
+      coinsAfter: 450,
+      save: {
+        ...EMPTY_SAVE,
+        totalDraws: 1,
+        ownedCounts: { "hello-kitty": 1 },
+      },
+      result: {
+        kind: "character",
+        characterId: "hello-kitty",
+        isNew: true,
+        ownedCount: 1,
+        totalDraws: 1,
+      },
+    };
+    const stalePendingReveal = cloudPendingReveal(
+      "old-a-attempt",
+      staleAttempt,
+    );
+    act(() => {
+      window.dispatchEvent(
+        new CustomEvent(GACHA_PENDING_REVEAL_COMMITTED_EVENT, {
+          detail: {
+            uid: "player-1",
+            pendingReveal: stalePendingReveal,
+          },
+        }),
+      );
+    });
+
+    expect(container.textContent).toContain("Hello Kitty");
+    expect(container.textContent).toContain("酷洛米");
+    expect(container.textContent).toContain("2 / 57");
+    expect(
+      container.querySelector('button[aria-label="膠囊已經出來，點擊開獎"]'),
+    ).toBeNull();
+  });
+
+  it("never restores another uid's server pending reveal after account switch", async () => {
+    const committed: CommittedGachaAttempt = {
+      coinsAfter: 450,
+      save: { ...EMPTY_SAVE, totalDraws: 1 },
+      result: { kind: "miss", totalDraws: 1 },
+    };
+    const pendingReveal = cloudPendingReveal("player-a-attempt", committed);
+    authState.user = { uid: "player-a" };
+    storageMocks.loadGachaMachineState.mockImplementation(
+      async (uid: string) =>
+        uid === "player-a"
+          ? { save: committed.save, pendingReveal }
+          : { save: EMPTY_SAVE, pendingReveal: null },
+    );
+    await renderAt("/games/gacha");
+    expect(
+      container.querySelector('button[aria-label="膠囊已經出來，點擊開獎"]'),
+    ).toBeTruthy();
+
+    authState.user = { uid: "player-b" };
+    await act(async () => {
+      root.render(
+        <MemoryRouter initialEntries={["/games/gacha"]}>
+          <GachaMachine onExit={vi.fn()} />
+        </MemoryRouter>,
+      );
+      await Promise.resolve();
+    });
+
+    expect(
+      container.querySelector('button[aria-label="膠囊已經出來，點擊開獎"]'),
+    ).toBeNull();
+    expect(container.querySelector('[data-testid="reveal-dialog"]')).toBeNull();
+    expect(container.textContent).not.toContain("已找回尚未開啟的膠囊");
+  });
+
+  it("submits B's acknowledgement while A's acknowledgement is still pending", async () => {
+    const committedA: CommittedGachaAttempt = {
+      coinsAfter: 450,
+      save: { ...EMPTY_SAVE, totalDraws: 1 },
+      result: { kind: "miss", totalDraws: 1 },
+    };
+    const committedB: CommittedGachaAttempt = {
+      coinsAfter: 400,
+      save: { ...EMPTY_SAVE, totalDraws: 1 },
+      result: { kind: "miss", totalDraws: 1 },
+    };
+    storageMocks.loadGachaMachineState.mockImplementation(
+      async (uid: string) => {
+        const committed = uid === "player-a" ? committedA : committedB;
+        return {
+          save: committed.save,
+          pendingReveal: cloudPendingReveal(`${uid}-attempt`, committed),
+        };
+      },
+    );
+    let resolveA: ((value: boolean) => void) | undefined;
+    let resolveB: ((value: boolean) => void) | undefined;
+    storageMocks.acknowledgeGachaPendingReveal.mockImplementation(
+      (uid: string) =>
+        new Promise<boolean>((resolve) => {
+          if (uid === "player-a") resolveA = resolve;
+          else resolveB = resolve;
+        }),
+    );
+    authState.user = { uid: "player-a" };
+    await renderAt("/games/gacha");
+    act(() => {
+      container
+        .querySelector<HTMLButtonElement>('button[aria-label="膠囊已經出來，點擊開獎"]')
+        ?.click();
+    });
+    await act(async () => {
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+    });
+    expect(storageMocks.acknowledgeGachaPendingReveal).toHaveBeenCalledWith(
+      "player-a",
+      "player-a-attempt",
+    );
+
+    authState.user = { uid: "player-b" };
+    await act(async () => {
+      root.render(
+        <MemoryRouter initialEntries={["/games/gacha"]}>
+          <GachaMachine onExit={vi.fn()} />
+        </MemoryRouter>,
+      );
+      await Promise.resolve();
+    });
+    act(() => {
+      container
+        .querySelector<HTMLButtonElement>('button[aria-label="膠囊已經出來，點擊開獎"]')
+        ?.click();
+    });
+    await act(async () => {
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+    });
+    expect(storageMocks.acknowledgeGachaPendingReveal).toHaveBeenCalledWith(
+      "player-b",
+      "player-b-attempt",
+    );
+
+    await act(async () => {
+      resolveB?.(true);
+      await Promise.resolve();
+    });
+    expect(
+      container.querySelector('button[aria-label="膠囊已經出來，點擊開獎"]'),
+    ).toBeNull();
+    await act(async () => {
+      resolveA?.(true);
+      await Promise.resolve();
+    });
+    expect(authState.user?.uid).toBe("player-b");
+    expect(
+      container.querySelector('button[aria-label="膠囊已經出來，點擊開獎"]'),
+    ).toBeNull();
+  });
+
+  it("restores a paid character capsule after unmount without revealing it", async () => {
+    localStorage.setItem(GACHA_MISS_RATE_STORAGE_KEY, "0");
+    const randomSpy = vi.spyOn(Math, "random").mockReturnValue(0);
+    const committed: CommittedGachaAttempt = {
+      coinsAfter: 450,
+      save: {
+        ...EMPTY_SAVE,
+        totalDraws: 1,
+        ownedCounts: { "hello-kitty": 1 },
+      },
+      result: {
+        kind: "character",
+        characterId: "hello-kitty",
+        isNew: true,
+        ownedCount: 1,
+        totalDraws: 1,
+      },
+    };
+    storageMocks.recordGachaAttempt.mockResolvedValue(committed);
+
+    await renderAt("/games/gacha");
+    act(() => buttonWithText("投入 50 代幣").click());
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>('button[aria-label="轉動扭蛋機把手"]')
+        ?.click();
+      await Promise.resolve();
+    });
+    expect(container.querySelector('[data-testid="reveal-dialog"]')).toBeNull();
+    expect(
+      container.querySelector('button[aria-label="膠囊已經出來，點擊開獎"]'),
+    ).toBeTruthy();
+
+    storageMocks.readGachaCache.mockReturnValue(committed.save);
+    storageMocks.loadGachaCloud.mockResolvedValue(committed.save);
+    act(() => root.unmount());
+    root = createRoot(container);
+    await renderAt("/games/gacha");
+
+    expect(container.textContent).toContain("已找回尚未開啟的膠囊");
+    expect(container.querySelector('[data-testid="reveal-dialog"]')).toBeNull();
+    act(() => {
+      container
+        .querySelector<HTMLButtonElement>('button[aria-label="膠囊已經出來，點擊開獎"]')
+        ?.click();
+    });
+    await flushRevealAcknowledgement();
+    expect(
+      container.querySelector('[data-testid="reveal-dialog"]')?.textContent,
+    ).toBe("character");
+    expect(listActiveGachaRevealGuards("player-1", localStorage)).toHaveLength(0);
+    expect(sessionStorage.length).toBe(0);
+    randomSpy.mockRestore();
+  });
+
+  it("restores a paid empty capsule with its miss outcome intact", async () => {
+    localStorage.setItem(GACHA_MISS_RATE_STORAGE_KEY, "100");
+    const committed: CommittedGachaAttempt = {
+      coinsAfter: 450,
+      save: { ...EMPTY_SAVE, totalDraws: 1 },
+      result: { kind: "miss", totalDraws: 1 },
+    };
+    storageMocks.recordGachaAttempt.mockResolvedValue(committed);
+
+    await renderAt("/games/gacha");
+    act(() => buttonWithText("投入 50 代幣").click());
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>('button[aria-label="轉動扭蛋機把手"]')
+        ?.click();
+      await Promise.resolve();
+    });
+    storageMocks.readGachaCache.mockReturnValue(committed.save);
+    storageMocks.loadGachaCloud.mockResolvedValue(committed.save);
+    act(() => root.unmount());
+    root = createRoot(container);
+    await renderAt("/games/gacha");
+
+    expect(container.querySelector('[data-testid="reveal-dialog"]')).toBeNull();
+    act(() => {
+      container
+        .querySelector<HTMLButtonElement>('button[aria-label="膠囊已經出來，點擊開獎"]')
+        ?.click();
+    });
+    await flushRevealAcknowledgement();
+    expect(
+      container.querySelector('[data-testid="reveal-dialog"]')?.textContent,
+    ).toBe("miss");
+  });
+
+  it("blocks the page Back action while a paid transaction is settling", async () => {
+    const onExit = vi.fn();
+    storageMocks.recordGachaAttempt.mockReturnValue(
+      new Promise<CommittedGachaAttempt>(() => undefined),
+    );
+    await renderAt("/games/gacha", onExit);
+
+    act(() => buttonWithText("投入 50 代幣").click());
+    act(() => {
+      container
+        .querySelector<HTMLButtonElement>('button[aria-label="轉動扭蛋機把手"]')
+        ?.click();
+      container
+        .querySelector<HTMLButtonElement>('button[aria-label="返回小遊戲"]')
+        ?.click();
+    });
+
+    expect(onExit).not.toHaveBeenCalled();
+    expect(container.textContent).toContain("請等膠囊掉出後再返回");
+    const event = new Event("beforeunload", { cancelable: true });
+    window.dispatchEvent(event);
+    expect(event.defaultPrevented).toBe(true);
+  });
+
+  it("restores the server capsule after an in-flight draw hits a pending conflict", async () => {
+    const serverAttempt: CommittedGachaAttempt = {
+      coinsAfter: 450,
+      save: { ...EMPTY_SAVE, totalDraws: 1 },
+      result: { kind: "miss", totalDraws: 1 },
+    };
+    const pendingReveal = cloudPendingReveal(
+      "other-device-attempt",
+      serverAttempt,
+    );
+    storageMocks.loadGachaMachineState
+      .mockResolvedValueOnce({ save: EMPTY_SAVE, pendingReveal: null })
+      .mockResolvedValueOnce({ save: serverAttempt.save, pendingReveal });
+    storageMocks.recordGachaAttempt.mockRejectedValue({
+      code: "GACHA_PENDING_REVEAL_CONFLICT",
+    });
+    storageMocks.isGachaPendingRevealConflictError.mockReturnValue(true);
+
+    await renderAt("/games/gacha");
+    act(() => buttonWithText("投入 50 代幣").click());
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>('button[aria-label="轉動扭蛋機把手"]')
+        ?.click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).toContain("已有一顆付費膠囊等待開啟");
+    expect(
+      container.querySelector('button[aria-label="膠囊已經出來，點擊開獎"]'),
+    ).toBeTruthy();
+    act(() => {
+      container
+        .querySelector<HTMLButtonElement>('button[aria-label="膠囊已經出來，點擊開獎"]')
+        ?.click();
+    });
+    expect(
+      container.querySelector('[data-testid="reveal-dialog"]')?.textContent,
+    ).toBe("miss");
+  });
+
+  it("discards a recovered capsule after a newer reset generation", async () => {
+    const guard = beginGachaRevealGuard(
+      "player-1",
+      EMPTY_SAVE,
+      localStorage,
+      Date.now(),
+      "pre-reset-draw",
+    );
+    if (!guard) throw new Error("guard was not created");
+    const pending = beginGachaPendingReveal(
+      "player-1",
+      guard,
+      { kind: "miss" },
+      sessionStorage,
+    );
+    if (!pending) throw new Error("pending reveal was not created");
+    expect(
+      commitGachaPendingReveal(
+        pending,
+        {
+          coinsAfter: 450,
+          save: { ...EMPTY_SAVE, totalDraws: 1 },
+          result: { kind: "miss", totalDraws: 1 },
+        },
+        sessionStorage,
+      ),
+    ).not.toBeNull();
+    const resetSave: GachaSaveV1 = {
+      ...EMPTY_SAVE,
+      resetVersion: 1,
+    };
+    storageMocks.readGachaCache.mockReturnValue(resetSave);
+    storageMocks.loadGachaCloud.mockResolvedValue(resetSave);
+
+    await renderAt("/games/gacha");
+
+    expect(
+      container.querySelector('button[aria-label="膠囊已經出來，點擊開獎"]'),
+    ).toBeNull();
+    expect(sessionStorage.length).toBe(0);
+    expect(listActiveGachaRevealGuards("player-1", localStorage)).toHaveLength(0);
+  });
+
   it("does not submit a draw when its durable reveal guard cannot be saved", async () => {
     const originalSetItem = Storage.prototype.setItem;
     const setItemSpy = vi
@@ -562,6 +1374,7 @@ describe("GachaMachine draw guard", () => {
         .querySelector<HTMLButtonElement>('button[aria-label="膠囊已經出來，點擊開獎"]')
         ?.click();
     });
+    await flushRevealAcknowledgement();
     expect(
       listActiveGachaRevealGuards("player-1", localStorage, Date.now()),
     ).toHaveLength(0);
@@ -573,7 +1386,7 @@ describe("GachaMachine draw guard", () => {
     ).toHaveLength(0);
   });
 
-  it("opens a new tab on the safe pre-draw cache while a reveal is pending", async () => {
+  it("opens a new tab on the safe baseline until its restored capsule is opened", async () => {
     const baselineSave: GachaSaveV1 = {
       schemaVersion: 1,
       resetVersion: 0,
@@ -594,8 +1407,30 @@ describe("GachaMachine draw guard", () => {
       "already-pending-draw",
     );
     if (!guard) throw new Error("guard was not created");
-    storageMocks.readGachaCache.mockReturnValue(pendingCache);
-    storageMocks.loadGachaCloud.mockResolvedValue(pendingCache);
+    const committed: CommittedGachaAttempt = {
+      coinsAfter: 250,
+      save: pendingCache,
+      result: {
+        kind: "character",
+        characterId: "hello-kitty",
+        isNew: true,
+        ownedCount: 1,
+        totalDraws: 5,
+      },
+    };
+    const pendingReveal = cloudPendingReveal(
+      guard.token,
+      committed,
+      baselineSave,
+    );
+    storageMocks.readGachaMachineCacheState.mockReturnValue({
+      save: pendingCache,
+      pendingReveal,
+    });
+    storageMocks.loadGachaMachineState.mockResolvedValue({
+      save: pendingCache,
+      pendingReveal,
+    });
 
     await renderAt("/games/gacha?view=collection");
 
@@ -603,14 +1438,17 @@ describe("GachaMachine draw guard", () => {
     expect(container.textContent).not.toContain("Hello Kitty");
     expect(container.textContent).toContain("1 / 57");
 
+    act(() => buttonWithText("回到扭蛋機").click());
     act(() => {
-      endGachaRevealGuard(guard, localStorage);
-      window.dispatchEvent(
-        new StorageEvent("storage", {
-          key: getGachaRevealGuardKey(guard),
-          newValue: null,
-        }),
-      );
+      container
+        .querySelector<HTMLButtonElement>('button[aria-label="膠囊已經出來，點擊開獎"]')
+        ?.click();
+    });
+    await flushRevealAcknowledgement();
+    act(() => {
+      container.querySelector<HTMLElement>('[data-testid="reveal-dialog"]')
+        ?.click();
+      buttonWithText("圖鑑").click();
     });
 
     expect(container.textContent).toContain("Hello Kitty");
@@ -618,6 +1456,8 @@ describe("GachaMachine draw guard", () => {
   });
 
   it("keeps another tab's committed draw hidden until that tab reveals it", async () => {
+    await renderAt("/games/gacha?view=collection");
+
     const guard = beginGachaRevealGuard(
       "player-1",
       EMPTY_SAVE,
@@ -626,7 +1466,26 @@ describe("GachaMachine draw guard", () => {
       "other-tab-draw",
     );
     if (!guard) throw new Error("guard was not created");
-    await renderAt("/games/gacha?view=collection");
+    const committed: CommittedGachaAttempt = {
+      coinsAfter: 450,
+      save: {
+        ...EMPTY_SAVE,
+        totalDraws: 1,
+        ownedCounts: { kuromi: 1 },
+      },
+      result: {
+        kind: "character",
+        characterId: "kuromi",
+        isNew: true,
+        ownedCount: 1,
+        totalDraws: 1,
+      },
+    };
+    const pendingReveal = cloudPendingReveal(guard.token, committed);
+    storageMocks.parseGachaMachineCacheState.mockReturnValueOnce({
+      save: committed.save,
+      pendingReveal,
+    });
 
     act(() => {
       window.dispatchEvent(
@@ -646,17 +1505,18 @@ describe("GachaMachine draw guard", () => {
     expect(container.textContent).toContain("0 / 57");
 
     act(() => buttonWithText("扭蛋機").click());
-    expect(container.textContent).toContain(
-      "另一個分頁有待開啟膠囊，開啟後就能繼續扭蛋。",
-    );
     expect(buttonWithText("投入 50 代幣").disabled).toBe(true);
 
+    storageMocks.parseGachaMachineCacheState.mockReturnValueOnce({
+      save: committed.save,
+      pendingReveal: null,
+    });
     act(() => {
       endGachaRevealGuard(guard, localStorage);
       window.dispatchEvent(
         new StorageEvent("storage", {
-          key: getGachaRevealGuardKey(guard),
-          newValue: null,
+          key: "ollie-gacha-machine-cache-v1:player-1",
+          newValue: JSON.stringify(committed.save),
         }),
       );
     });
@@ -714,6 +1574,7 @@ describe("GachaMachine draw guard", () => {
         .querySelector<HTMLButtonElement>('button[aria-label="膠囊已經出來，點擊開獎"]')
         ?.click();
     });
+    await flushRevealAcknowledgement();
     expect(
       listActiveGachaRevealGuards("player-1", localStorage),
     ).toHaveLength(0);
@@ -789,6 +1650,7 @@ describe("GachaMachine draw guard", () => {
         ?.click();
       buttonWithText("圖鑑").click();
     });
+    await flushRevealAcknowledgement();
     expect(container.textContent).toContain("Hello Kitty");
     expect(container.textContent).not.toContain("酷洛米");
     expect(container.textContent).toContain("1 / 57");
@@ -875,6 +1737,7 @@ describe("GachaMachine draw guard", () => {
         .querySelector<HTMLButtonElement>('button[aria-label="膠囊已經出來，點擊開獎"]')
         ?.click();
     });
+    await flushRevealAcknowledgement();
     const reveal = container.querySelector<HTMLElement>(
       '[data-testid="reveal-dialog"]',
     );
@@ -955,6 +1818,7 @@ describe("GachaMachine draw guard", () => {
       "player-1",
       expect.objectContaining({ kind: expect.any(String) }),
       0,
+      expect.any(String),
     );
 
     await act(async () => {
@@ -1265,6 +2129,7 @@ describe("GachaMachine draw guard", () => {
       "player-1",
       expect.objectContaining({ kind: expect.any(String) }),
       1,
+      expect.any(String),
     );
 
     await act(async () => {
@@ -1556,6 +2421,7 @@ describe("GachaMachine draw guard", () => {
       expect(capsule?.outerHTML).not.toContain("kuromi");
       expect(capsule?.outerHTML).not.toContain("hello-kitty");
       act(() => capsule?.click());
+      await flushRevealAcknowledgement();
       act(() => {
         container
           .querySelector<HTMLButtonElement>('[data-testid="reveal-dialog"]')

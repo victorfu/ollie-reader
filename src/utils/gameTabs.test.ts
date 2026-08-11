@@ -62,4 +62,30 @@ describe("openGameTab", () => {
     expect(navigationCount).toBe(1);
     expect(tab.focus).toHaveBeenCalledTimes(2);
   });
+
+  it("navigates a live game tab back to the game after it returned to the Hub", async () => {
+    let href = new URL("/games", window.location.href).href;
+    let navigationCount = 0;
+    const tab: NamedTab = {
+      closed: false,
+      focus: vi.fn(),
+      location: {
+        get href() {
+          return href;
+        },
+        set href(value: string) {
+          navigationCount += 1;
+          href = value;
+        },
+      },
+    };
+    vi.spyOn(window, "open").mockReturnValue(tab as unknown as Window);
+
+    const gameTabs = await import("./gameTabs");
+    gameTabs.openGameTab("/games/meteor");
+
+    expect(href).toBe(new URL("/games/meteor", window.location.href).href);
+    expect(navigationCount).toBe(1);
+    expect(tab.focus).toHaveBeenCalledTimes(1);
+  });
 });

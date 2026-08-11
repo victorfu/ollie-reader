@@ -24,6 +24,7 @@ interface QuizCardProps {
   lastAnswerCorrect: boolean | null;
   /** 本題推進後就會結算（沒命了 / 最後一題），按鈕改成「看結果」 */
   isLastStep?: boolean;
+  isSettling?: boolean;
   onAnswer: (answer: number | string) => void;
   /** 答錯／逾時後手動推進。答對時由父層自動推進，不顯示按鈕 */
   onNext?: () => void;
@@ -55,6 +56,7 @@ export function QuizCard({
   isAnswered,
   lastAnswerCorrect,
   isLastStep = false,
+  isSettling = false,
   onAnswer,
   onNext,
   speak,
@@ -91,7 +93,12 @@ export function QuizCard({
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
       if (isAnswered) {
-        if (onNext && lastAnswerCorrect === false && e.key === "Enter") {
+        if (
+          onNext &&
+          !isSettling &&
+          lastAnswerCorrect === false &&
+          e.key === "Enter"
+        ) {
           e.preventDefault();
           onNext();
         }
@@ -101,7 +108,14 @@ export function QuizCard({
       const map: Record<string, number> = { "1": 0, "2": 1, "3": 2, "4": 3 };
       if (map[e.key] !== undefined) onAnswer(map[e.key]);
     },
-    [isAnswered, lastAnswerCorrect, question.kind, onAnswer, onNext],
+    [
+      isAnswered,
+      isSettling,
+      lastAnswerCorrect,
+      question.kind,
+      onAnswer,
+      onNext,
+    ],
   );
   useEffect(() => {
     window.addEventListener("keydown", handleKeyDown);
@@ -297,10 +311,15 @@ export function QuizCard({
                 <button
                   type="button"
                   onClick={onNext}
+                  disabled={isSettling}
                   autoFocus
                   className="btn btn-primary btn-sm mt-3 min-h-11 gap-1 px-5 active:scale-[0.98]"
                 >
-                  {isLastStep ? "看結果" : "下一題"}
+                  {isSettling
+                    ? "結算中..."
+                    : isLastStep
+                      ? "看結果"
+                      : "下一題"}
                   <ArrowRight
                     className="h-4 w-4"
                     strokeWidth={2}

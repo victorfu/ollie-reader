@@ -1,6 +1,7 @@
 import os
 import subprocess
 import sys
+import threading
 
 from server import instance
 
@@ -26,6 +27,97 @@ def test_pid_file_roundtrip(tmp_path, monkeypatch):
 
     instance.remove_pid_file(8765)
     assert instance.read_pid(8765) is None
+
+
+def test_claim_pid_file_is_atomic_between_competing_starters(tmp_path, monkeypatch):
+    monkeypatch.setattr("server.instance.tempfile.gettempdir", lambda: str(tmp_path))
+    pid = {"value": 111}
+    monkeypatch.setattr("server.instance.os.getpid", lambda: pid["value"])
+    monkeypatch.setattr("server.instance.pid_alive", lambda _pid: True)
+
+    assert instance.claim_pid_file(8765) is True
+    pid["value"] = 222
+    assert instance.claim_pid_file(8765) is False
+
+    # The losing starter's cleanup must not remove the winner's claim.
+    instance.remove_pid_file(8765)
+    assert instance.read_pid(8765) == 111
+
+
+def test_claim_pid_file_replaces_dead_owner(tmp_path, monkeypatch):
+    monkeypatch.setattr("server.instance.tempfile.gettempdir", lambda: str(tmp_path))
+    with open(instance.pid_file_path(8765), "w", encoding="utf-8") as f:
+        f.write("111")
+    monkeypatch.setattr("server.instance.pid_alive", lambda _pid: False)
+    monkeypatch.setattr("server.instance.os.getpid", lambda: 222)
+
+    assert instance.claim_pid_file(8765) is True
+    assert instance.read_pid(8765) == 222
+
+
+def test_claim_pid_file_serializes_stale_owner_replacement(tmp_path, monkeypatch):
+    """A stale check cannot unlink the winner that replaced the stale inode."""
+    monkeypatch.setattr("server.instance.tempfile.gettempdir", lambda: str(tmp_path))
+    with open(instance.pid_file_path(8765), "w", encoding="utf-8") as f:
+        f.write("999")
+
+    actual_pid = os.getpid()
+    thread_pids = {"claim-a": 111, "claim-b": 222}
+    monkeypatch.setattr(
+        "server.instance.os.getpid",
+        lambda: thread_pids.get(threading.current_thread().name, actual_pid),
+    )
+
+    stale_checked = threading.Event()
+    allow_a_to_replace = threading.Event()
+
+    def fake_pid_alive(pid):
+        if pid == 999:
+            stale_checked.set()
+            assert allow_a_to_replace.wait(timeout=5)
+            return False
+        return True
+
+    monkeypatch.setattr("server.instance.pid_alive", fake_pid_alive)
+
+    original_flock = instance.fcntl.flock
+    b_waiting_on_lock = threading.Event()
+
+    def tracked_flock(fd, operation):
+        if (
+            threading.current_thread().name == "claim-b"
+            and operation == instance.fcntl.LOCK_EX
+        ):
+            b_waiting_on_lock.set()
+        return original_flock(fd, operation)
+
+    monkeypatch.setattr("server.instance.fcntl.flock", tracked_flock)
+
+    results = {}
+    errors = []
+
+    def claim(name):
+        try:
+            results[name] = instance.claim_pid_file(8765)
+        except BaseException as exc:  # surface thread failures in the test thread
+            errors.append(exc)
+
+    starter_a = threading.Thread(target=claim, args=("a",), name="claim-a")
+    starter_b = threading.Thread(target=claim, args=("b",), name="claim-b")
+    starter_a.start()
+    assert stale_checked.wait(timeout=5)
+    starter_b.start()
+    assert b_waiting_on_lock.wait(timeout=5)
+
+    allow_a_to_replace.set()
+    starter_a.join(timeout=5)
+    starter_b.join(timeout=5)
+
+    assert not starter_a.is_alive()
+    assert not starter_b.is_alive()
+    assert errors == []
+    assert results == {"a": True, "b": False}
+    assert instance.read_pid(8765) == 111
 
 
 def test_read_pid_missing_file_returns_none(tmp_path, monkeypatch):

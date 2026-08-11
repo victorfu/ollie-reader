@@ -6,12 +6,18 @@ import { getAudioSignedUrl } from "../../services/audioStorageService";
 interface PracticeHistoryProps {
   records: PracticeRecord[];
   loading: boolean;
+  isLoadingMore: boolean;
+  hasMore: boolean;
+  onLoadMore: () => void;
   onDelete: (recordId: string) => void;
 }
 
 export function PracticeHistory({
   records,
   loading,
+  isLoadingMore,
+  hasMore,
+  onLoadMore,
   onDelete,
 }: PracticeHistoryProps) {
   const [expandedScriptId, setExpandedScriptId] = useState<string | null>(null);
@@ -274,6 +280,26 @@ export function PracticeHistory({
           );
         })}
       </div>
+
+      {hasMore && (
+        <div className="flex justify-center pt-2">
+          <button
+            type="button"
+            className="btn btn-outline btn-primary"
+            onClick={onLoadMore}
+            disabled={isLoadingMore}
+          >
+            {isLoadingMore ? (
+              <>
+                <span className="loading loading-spinner loading-sm" />
+                載入中...
+              </>
+            ) : (
+              "載入更多記錄"
+            )}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

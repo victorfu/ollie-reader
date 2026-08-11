@@ -36,10 +36,8 @@ type GameCard = {
 };
 
 function readBest(key: string): number | null {
-  const stored = localStorage.getItem(key);
-  if (!stored) return null;
-  const parsed = parseInt(stored, 10);
-  return Number.isNaN(parsed) ? null : parsed;
+  const stored = getBestScore(key);
+  return stored > 0 ? stored : null;
 }
 
 export default function GameHub() {

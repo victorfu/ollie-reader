@@ -6,6 +6,8 @@ type Props = {
   outcome: RunOutcome;
   /** 這一場賺到的扭蛋代幣；0 表示這關的獎勵早就領過了 */
   coinsEarned: number;
+  isSettling: boolean;
+  settlementError: string | null;
   totalWaves: number;
   onRetry: () => void;
   onExit: () => void;
@@ -14,6 +16,8 @@ type Props = {
 export function ResultDialog({
   outcome,
   coinsEarned,
+  isSettling,
+  settlementError,
   totalWaves,
   onRetry,
   onExit,
@@ -70,18 +74,40 @@ export function ResultDialog({
           </p>
         )}
 
+        {isSettling && (
+          <p
+            role="status"
+            className="mt-3 flex items-center justify-center gap-2 text-sm font-medium text-slate-600"
+          >
+            <span className="loading loading-spinner loading-sm" />
+            結算中...
+          </p>
+        )}
+
+        {!isSettling && settlementError && (
+          <p role="alert" className="mt-3 text-sm font-medium text-amber-700">
+            {settlementError}
+          </p>
+        )}
+
         <div className="mt-5 flex flex-col gap-2">
           <button
             type="button"
             onClick={onRetry}
-            className="min-h-11 rounded-[10px] bg-[#ff6f9f] px-4 text-sm font-semibold text-white shadow-sm transition hover:brightness-105 active:scale-[0.99]"
+            disabled={isSettling}
+            className="min-h-11 rounded-[10px] bg-[#ff6f9f] px-4 text-sm font-semibold text-white shadow-sm transition hover:brightness-105 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {cleared ? "再玩一次" : "再試一次"}
+            {isSettling
+              ? "結算中..."
+              : cleared
+                ? "再玩一次"
+                : "再試一次"}
           </button>
           <button
             type="button"
             onClick={onExit}
-            className="min-h-11 rounded-[10px] border border-black/5 bg-white px-4 text-sm font-medium text-slate-600 shadow-sm transition hover:bg-slate-50"
+            disabled={isSettling}
+            className="min-h-11 rounded-[10px] border border-black/5 bg-white px-4 text-sm font-medium text-slate-600 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
           >
             回到選單
           </button>

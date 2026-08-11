@@ -29,6 +29,7 @@ from PySide6.QtWidgets import (
 
 from server.config import DEFAULT_PORT, HOST, VERSION
 from server.oikid_secrets import (
+  OikidSecretsError,
   clear_oikid_credentials,
   get_oikid_credentials,
   set_oikid_credentials,
@@ -80,6 +81,7 @@ TTS_ENGINES = [
 ]
 
 SAMPLE_TEXT = "she got stung by a bee"
+AuditionContext = tuple[str, str, float, str | None]
 
 
 class _TaskSignals(QObject):
@@ -109,6 +111,10 @@ class VoiceLabTab(QWidget):
     self.manager = manager
     self.pool = QThreadPool.globalInstance()
     self._audio_path: Path | None = None
+    self._voices_request_id = 0
+    self._voices_pending_request_id: int | None = None
+    self._audition_request_id = 0
+    self._audition_pending: tuple[int, AuditionContext] | None = None
 
     self._player = QMediaPlayer(self)
     self._audio_out = QAudioOutput(self)
@@ -168,9 +174,28 @@ class VoiceLabTab(QWidget):
   def _base_url(self) -> str:
     return f"http://{HOST}:{self.manager.port}"
 
-  def _set_busy(self, busy: bool) -> None:
+  def _update_busy(self) -> None:
+    busy = (
+      self._voices_pending_request_id is not None
+      or self._audition_pending is not None
+    )
     self.play_button.setEnabled(not busy)
     self.reload_button.setEnabled(not busy)
+
+  def _audition_context(self) -> AuditionContext:
+    return (
+      self._engine_id(),
+      self.text_edit.text().strip(),
+      self.speed_spin.value(),
+      self.voice_combo.currentData() or None,
+    )
+
+  def _invalidate_audition(self) -> None:
+    if self._audition_pending is None:
+      return
+    self._audition_request_id += 1
+    self._audition_pending = None
+    self._update_busy()
 
   @staticmethod
   def _describe(error: Exception) -> str:
@@ -187,12 +212,16 @@ class VoiceLabTab(QWidget):
   # ── 聲音清單
 
   def _on_engine_changed(self, _index: int) -> None:
+    self._invalidate_audition()
     self._reload_voices()
 
   def _reload_voices(self) -> None:
     engine_id = self._engine_id()
     locale = "en" if self.en_only_cb.isChecked() else ""
     url = f"{self._base_url()}/api/tts/voices"
+    self._voices_request_id += 1
+    request_id = self._voices_request_id
+    self._voices_pending_request_id = request_id
 
     def fetch():
       resp = httpx.get(
@@ -201,14 +230,37 @@ class VoiceLabTab(QWidget):
       resp.raise_for_status()
       return resp.json().get("voices", [])
 
-    self._set_busy(True)
+    self._update_busy()
     self.status_label.setText("載入聲音清單…")
     task = _Task(fetch)
-    task.signals.done.connect(self._on_voices_loaded)
+    task.signals.done.connect(
+      lambda voices, error, rid=request_id, engine=engine_id: self._on_voices_loaded(
+        voices,
+        error,
+        request_id=rid,
+        engine_id=engine,
+      )
+    )
     self.pool.start(task)
 
-  def _on_voices_loaded(self, voices, error) -> None:
-    self._set_busy(False)
+  def _on_voices_loaded(
+    self,
+    voices,
+    error,
+    *,
+    request_id: int | None = None,
+    engine_id: str | None = None,
+  ) -> None:
+    if request_id is not None and request_id != self._voices_request_id:
+      return
+    if engine_id is not None and engine_id != self._engine_id():
+      if self._voices_pending_request_id == request_id:
+        self._voices_pending_request_id = None
+        self._update_busy()
+      return
+    if request_id is None or self._voices_pending_request_id == request_id:
+      self._voices_pending_request_id = None
+    self._update_busy()
     self.voice_combo.clear()
     if error is not None:
       self.voice_combo.addItem("（預設）", "")
@@ -225,17 +277,25 @@ class VoiceLabTab(QWidget):
   # ── 試聽
 
   def _audition(self) -> None:
-    text = self.text_edit.text().strip()
+    context = self._audition_context()
+    engine_id, text, speed, voice = context
     if not text:
       self.status_label.setText("請先輸入試聽文字。")
       return
+    if self._voices_pending_request_id is not None:
+      self.status_label.setText("聲音清單仍在載入，請稍候再試聽。")
+      return
+    if self._audition_pending is not None:
+      _pending_id, pending_context = self._audition_pending
+      if pending_context == context:
+        self.status_label.setText(f"合成中（{engine_id}）…")
+        return
 
-    engine_id = self._engine_id()
     url = f"{self._base_url()}{self._endpoint(engine_id)}"
     payload = {
       "text": text,
-      "speed": self.speed_spin.value(),
-      "voice": self.voice_combo.currentData() or None,
+      "speed": speed,
+      "voice": voice,
     }
 
     def synthesize():
@@ -243,14 +303,39 @@ class VoiceLabTab(QWidget):
       resp.raise_for_status()
       return resp.content, resp.headers.get("content-type", "audio/wav")
 
-    self._set_busy(True)
+    self._audition_request_id += 1
+    request_id = self._audition_request_id
+    self._audition_pending = (request_id, context)
+    self._update_busy()
     self.status_label.setText(f"合成中（{engine_id}）…")
     task = _Task(synthesize)
-    task.signals.done.connect(self._on_audio_ready)
+    task.signals.done.connect(
+      lambda result, error, rid=request_id, ctx=context: self._on_audio_ready(
+        result,
+        error,
+        request_id=rid,
+        context=ctx,
+      )
+    )
     self.pool.start(task)
 
-  def _on_audio_ready(self, result, error) -> None:
-    self._set_busy(False)
+  def _on_audio_ready(
+    self,
+    result,
+    error,
+    *,
+    request_id: int,
+    context: AuditionContext,
+  ) -> None:
+    if self._audition_pending != (request_id, context):
+      return
+    if context != self._audition_context():
+      self._audition_pending = None
+      self._update_busy()
+      self.status_label.setText("試聽設定已變更，請重新試聽。")
+      return
+    self._audition_pending = None
+    self._update_busy()
     if error is not None:
       self.status_label.setText(f"試聽失敗 — {self._describe(error)}")
       return
@@ -276,6 +361,11 @@ class VoiceLabTab(QWidget):
     )
 
   def cleanup(self) -> None:
+    self._voices_request_id += 1
+    self._voices_pending_request_id = None
+    self._audition_request_id += 1
+    self._audition_pending = None
+    self._update_busy()
     self._player.stop()
     self._player.setSource(QUrl())
     if self._audio_path is not None:
@@ -327,7 +417,13 @@ class SettingsDialog(QDialog):
     self.stop_button.clicked.connect(self._stop_sidecar)
     layout.addRow(self.start_button, self.stop_button)
 
-    creds = get_oikid_credentials()
+    credential_error = ""
+    try:
+      creds = get_oikid_credentials()
+    except OikidSecretsError as exc:
+      creds = None
+      credential_error = str(exc)
+    self._oikid_existing_password = creds[1] if creds else None
     self.oikid_user_edit = QLineEdit(creds[0] if creds else "")
     self.oikid_user_edit.setMinimumWidth(280)
     self.oikid_pw_edit = QLineEdit()
@@ -338,7 +434,8 @@ class SettingsDialog(QDialog):
     layout.addRow("OIKID 帳號：", self.oikid_user_edit)
     layout.addRow("OIKID 密碼：", self.oikid_pw_edit)
 
-    self.oikid_status_label = QLabel("")
+    self.oikid_status_label = QLabel(credential_error)
+    self.oikid_status_label.setWordWrap(True)
     layout.addRow("", self.oikid_status_label)
 
     self.oikid_save_button = QPushButton("儲存 OIKID 帳密")
@@ -364,17 +461,28 @@ class SettingsDialog(QDialog):
 
   def _save_oikid_credentials(self, _checked: bool = False) -> None:
     username = self.oikid_user_edit.text().strip()
-    password = self.oikid_pw_edit.text()
+    entered_password = self.oikid_pw_edit.text()
+    password = entered_password or self._oikid_existing_password
     if not username or not password:
       self.oikid_status_label.setText("請輸入 OIKID 帳號與密碼")
       return
-    set_oikid_credentials(username, password)
+    try:
+      set_oikid_credentials(username, password)
+    except OikidSecretsError as exc:
+      self.oikid_status_label.setText(str(exc))
+      return
+    self._oikid_existing_password = password
     self.oikid_pw_edit.clear()
     self.oikid_pw_edit.setPlaceholderText("（已設定，留空則不變更）")
     self.oikid_status_label.setText("OIKID 帳密已儲存")
 
   def _clear_oikid_credentials(self, _checked: bool = False) -> None:
-    clear_oikid_credentials()
+    try:
+      clear_oikid_credentials()
+    except OikidSecretsError as exc:
+      self.oikid_status_label.setText(str(exc))
+      return
+    self._oikid_existing_password = None
     self.oikid_user_edit.clear()
     self.oikid_pw_edit.clear()
     self.oikid_pw_edit.setPlaceholderText("")

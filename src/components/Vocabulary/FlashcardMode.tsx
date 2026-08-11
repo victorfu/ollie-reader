@@ -9,7 +9,10 @@ import { shuffleArray } from "../../utils/arrayUtils";
 interface FlashcardModeProps {
   words: VocabularyWord[];
   onClose: () => void;
-  onUpdateReview: (wordId: string, remembered: boolean) => void;
+  onUpdateReview: (
+    wordId: string,
+    remembered: boolean,
+  ) => Promise<{ success: boolean; message?: string }>;
 }
 
 interface ReviewStats {
@@ -34,8 +37,11 @@ export const FlashcardMode = ({
     "correct" | "incorrect" | null
   >(null);
   const [isAutoPlaying, setIsAutoPlaying] = useState(false);
+  const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+  const [reviewError, setReviewError] = useState<string | null>(null);
   const autoPlayIndexRef = useRef<number>(0);
   const wasPlayingRef = useRef(false);
+  const reviewSubmissionRef = useRef(false);
 
   const { speak, stopSpeaking, isSpeaking } = useSpeechState();
 
@@ -97,7 +103,7 @@ export const FlashcardMode = ({
   }, [isSpeaking, isAutoPlaying, cards, speak]);
 
   const handleStartAutoPlay = useCallback(() => {
-    if (cards.length === 0) return;
+    if (cards.length === 0 || reviewSubmissionRef.current) return;
     stopListening();
     setIsAutoPlaying(true);
     autoPlayIndexRef.current = 0;
@@ -116,6 +122,7 @@ export const FlashcardMode = ({
   }, [stopSpeaking]);
 
   const handleFlip = useCallback(() => {
+    if (reviewSubmissionRef.current) return;
     setIsFlipped((prev) => !prev);
   }, []);
 
@@ -126,30 +133,49 @@ export const FlashcardMode = ({
     setShowFeedback(null);
 
     if (currentIndex < cards.length - 1) {
-      setTimeout(() => setCurrentIndex((prev) => prev + 1), 200);
+      setCurrentIndex((prev) => prev + 1);
     } else {
       setIsFinished(true);
     }
   }, [currentIndex, cards.length, stopSpeaking, stopListening]);
 
   const handleNext = useCallback(
-    (remembered: boolean) => {
-      if (currentCard?.id) {
-        onUpdateReview(currentCard.id, remembered);
+    async (remembered: boolean) => {
+      if (!currentCard?.id || reviewSubmissionRef.current) return;
+
+      reviewSubmissionRef.current = true;
+      setIsSubmittingReview(true);
+      setReviewError(null);
+      setIsAutoPlaying(false);
+      stopSpeaking();
+
+      try {
+        const result = await onUpdateReview(currentCard.id, remembered);
+        if (!result.success) {
+          setReviewError(result.message || "複習紀錄儲存失敗，請再試一次");
+          return;
+        }
+
+        setStats((prev) => ({
+          ...prev,
+          remembered: remembered ? prev.remembered + 1 : prev.remembered,
+          forgot: !remembered ? prev.forgot + 1 : prev.forgot,
+        }));
+
+        goToNext();
+      } catch (error) {
+        console.error("Failed to save review result:", error);
+        setReviewError("複習紀錄儲存失敗，請再試一次");
+      } finally {
+        reviewSubmissionRef.current = false;
+        setIsSubmittingReview(false);
       }
-
-      setStats((prev) => ({
-        ...prev,
-        remembered: remembered ? prev.remembered + 1 : prev.remembered,
-        forgot: !remembered ? prev.forgot + 1 : prev.forgot,
-      }));
-
-      goToNext();
     },
-    [currentCard, onUpdateReview, goToNext],
+    [currentCard, onUpdateReview, goToNext, stopSpeaking],
   );
 
   const handlePrev = useCallback(() => {
+    if (reviewSubmissionRef.current) return;
     if (currentIndex > 0) {
       stopSpeaking();
       stopListening();
@@ -160,6 +186,7 @@ export const FlashcardMode = ({
   }, [currentIndex, stopSpeaking, stopListening]);
 
   const handleNextCard = useCallback(() => {
+    if (reviewSubmissionRef.current) return;
     if (currentIndex < cards.length - 1) {
       stopSpeaking();
       stopListening();
@@ -170,17 +197,19 @@ export const FlashcardMode = ({
   }, [currentIndex, cards.length, stopSpeaking, stopListening]);
 
   const handleRestart = () => {
+    if (reviewSubmissionRef.current) return;
     setCards(shuffleArray(initialWords));
     setCurrentIndex(0);
     setIsFlipped(false);
     setIsFinished(false);
     setStats({ remembered: 0, forgot: 0 });
+    setReviewError(null);
   };
 
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (isFinished) return;
+      if (isFinished || isSubmittingReview || e.repeat) return;
 
       if (e.code === "Space") {
         e.preventDefault();
@@ -201,6 +230,7 @@ export const FlashcardMode = ({
   }, [
     isFlipped,
     isFinished,
+    isSubmittingReview,
     handleNext,
     handleFlip,
     handlePrev,
@@ -277,6 +307,7 @@ export const FlashcardMode = ({
             isAutoPlaying ? "btn-error" : "btn-ghost"
           }`}
           onClick={isAutoPlaying ? handleStopAutoPlay : handleStartAutoPlay}
+          disabled={isSubmittingReview}
           title={isAutoPlaying ? "停止自動播放" : "自動播放全部單字"}
         >
           {isAutoPlaying ? (
@@ -300,7 +331,11 @@ export const FlashcardMode = ({
             </svg>
           )}
         </button>
-        <button className="btn btn-circle btn-ghost" onClick={onClose}>
+        <button
+          className="btn btn-circle btn-ghost"
+          onClick={onClose}
+          disabled={isSubmittingReview}
+        >
           <svg
             xmlns="http://www.w3.org/2000/svg"
             className="h-6 w-6"
@@ -568,6 +603,7 @@ export const FlashcardMode = ({
               <button
                 className="btn btn-primary btn-lg w-full shadow-soft gap-2 active:scale-[0.98]"
                 onClick={handleFlip}
+                disabled={isSubmittingReview}
               >
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
@@ -589,7 +625,7 @@ export const FlashcardMode = ({
                 <button
                   className="btn btn-ghost btn-sm text-muted-foreground gap-1"
                   onClick={handlePrev}
-                  disabled={currentIndex === 0}
+                  disabled={isSubmittingReview || currentIndex === 0}
                 >
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
@@ -610,7 +646,9 @@ export const FlashcardMode = ({
                 <button
                   className="btn btn-ghost btn-sm text-muted-foreground gap-1"
                   onClick={handleNextCard}
-                  disabled={currentIndex === cards.length - 1}
+                  disabled={
+                    isSubmittingReview || currentIndex === cards.length - 1
+                  }
                 >
                   下一個
                   <svg
@@ -640,6 +678,7 @@ export const FlashcardMode = ({
             >
               <button
                 className="btn btn-outline flex-1 btn-lg gap-2 border-error/50 text-error hover:bg-error hover:text-white hover:border-error"
+                disabled={isSubmittingReview}
                 onClick={(e) => {
                   e.stopPropagation();
                   handleNext(false);
@@ -659,10 +698,11 @@ export const FlashcardMode = ({
                     d="M6 18L18 6M6 6l12 12"
                   />
                 </svg>
-                忘記了
+                {isSubmittingReview ? "儲存中…" : "忘記了"}
               </button>
               <button
                 className="btn btn-success flex-1 btn-lg text-white gap-2"
+                disabled={isSubmittingReview}
                 onClick={(e) => {
                   e.stopPropagation();
                   handleNext(true);
@@ -682,11 +722,16 @@ export const FlashcardMode = ({
                     d="M5 13l4 4L19 7"
                   />
                 </svg>
-                記住了
+                {isSubmittingReview ? "儲存中…" : "記住了"}
               </button>
             </motion.div>
           )}
         </AnimatePresence>
+        {reviewError && (
+          <p role="alert" className="mt-3 text-center text-sm text-error">
+            {reviewError}
+          </p>
+        )}
       </div>
     </div>
   );

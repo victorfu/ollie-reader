@@ -13,12 +13,35 @@ export function getGameTabTargetName(to: string): string {
   return `ollie-game-${encodeURIComponent(key)}`;
 }
 
+function focusOrNavigateGameTab(tab: Window, targetUrl: URL): void {
+  try {
+    if (tab.location.href.startsWith("about:blank")) {
+      tab.location.href = targetUrl.href;
+      tab.focus();
+      return;
+    }
+    const currentUrl = new URL(tab.location.href, targetUrl);
+    const currentLocation = `${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`;
+    const targetLocation = `${targetUrl.pathname}${targetUrl.search}${targetUrl.hash}`;
+    if (
+      currentUrl.origin === targetUrl.origin &&
+      currentLocation !== targetLocation
+    ) {
+      tab.location.href = targetUrl.href;
+    }
+  } catch {
+    // A named context may have navigated cross-origin. We cannot inspect or
+    // safely redirect it, so leave that user-controlled page untouched.
+  }
+  tab.focus();
+}
+
 export function openGameTab(to: string): Window | null {
   const { url, key } = resolveGameUrl(to);
   const existingTab = gameTabs.get(key);
 
   if (existingTab && !existingTab.closed) {
-    existingTab.focus();
+    focusOrNavigateGameTab(existingTab, url);
     return existingTab;
   }
 
@@ -27,16 +50,8 @@ export function openGameTab(to: string): Window | null {
   const openedTab = window.open("", getGameTabTargetName(to));
   if (!openedTab) return null;
 
-  try {
-    if (openedTab.location.href.startsWith("about:blank")) {
-      openedTab.location.href = url.href;
-    }
-  } catch {
-    // A named tab may have navigated cross-origin. Its name still identifies
-    // the existing game context, so preserve and focus it instead of reloading.
-  }
+  focusOrNavigateGameTab(openedTab, url);
 
   gameTabs.set(key, openedTab);
-  openedTab.focus();
   return openedTab;
 }

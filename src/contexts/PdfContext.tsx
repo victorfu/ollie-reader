@@ -17,6 +17,8 @@ import {
 import { pdfSessionCache } from "../services/pdfSessionCache";
 import { isAbortError } from "../utils/errorUtils";
 import { logger } from "../utils/logger";
+import { useAuth } from "../hooks/useAuth";
+import { isSupportedPdfFile } from "../utils/pdfFile";
 
 interface PdfState {
   selectedFile: File | null;
@@ -64,6 +66,8 @@ function createDocumentId(): string {
 }
 
 export const PdfProvider = ({ children }: PdfProviderProps) => {
+  const { user } = useAuth();
+  const ownerUid = user?.uid ?? null;
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -77,6 +81,7 @@ export const PdfProvider = ({ children }: PdfProviderProps) => {
   const pdfUrlRef = useRef<string | null>(null);
   const documentIdRef = useRef<string | null>(null);
   const requestGenerationRef = useRef(0);
+  const restoredOwnerUidRef = useRef<string | null>(null);
 
   const isCurrentRequest = useCallback(
     (generation: number, documentId?: string): boolean =>
@@ -109,8 +114,10 @@ export const PdfProvider = ({ children }: PdfProviderProps) => {
       documentId: string,
       migratedScrollPosition?: number,
     ) => {
+      if (!ownerUid) return;
       void pdfSessionCache
         .savePdfToCache(
+          ownerUid,
           blob,
           extraction,
           filename,
@@ -121,7 +128,7 @@ export const PdfProvider = ({ children }: PdfProviderProps) => {
           logger.warn("Failed to cache PDF document:", cacheError);
         });
     },
-    [],
+    [ownerUid],
   );
 
   const extractDocument = useCallback(
@@ -184,12 +191,31 @@ export const PdfProvider = ({ children }: PdfProviderProps) => {
 
   // Restore the PDF independently from its optional extracted text.
   useEffect(() => {
+    if (restoredOwnerUidRef.current !== ownerUid) {
+      restoredOwnerUidRef.current = ownerUid;
+      requestGenerationRef.current += 1;
+      abortRef.current?.abort();
+      abortRef.current = null;
+      revokeCurrentPdfUrl();
+      documentIdRef.current = null;
+      setSelectedFile(null);
+      setPdfUrl(null);
+      setResult(null);
+      setError(null);
+      setInitialScrollPosition(null);
+      setIsUploading(false);
+      setIsLoadingFromUrl(false);
+    }
+
+    if (!ownerUid) return;
+
     let cancelled = false;
     const restoreGeneration = requestGenerationRef.current;
 
     const restoreFromCache = async () => {
       try {
-        const cached = await pdfSessionCache.loadPdfFromCache();
+        await pdfSessionCache.clearLegacyPdfCache();
+        const cached = await pdfSessionCache.loadPdfFromCache(ownerUid);
         if (
           cancelled ||
           requestGenerationRef.current !== restoreGeneration
@@ -198,7 +224,6 @@ export const PdfProvider = ({ children }: PdfProviderProps) => {
         }
 
         if (!cached) {
-          pdfSessionCache.markSessionActive();
           return;
         }
 
@@ -252,7 +277,6 @@ export const PdfProvider = ({ children }: PdfProviderProps) => {
         }
       } catch (restoreError) {
         logger.warn("Failed to restore PDF from cache:", restoreError);
-        pdfSessionCache.markSessionActive();
       }
     };
 
@@ -260,7 +284,7 @@ export const PdfProvider = ({ children }: PdfProviderProps) => {
     return () => {
       cancelled = true;
     };
-  }, [cacheDocument, extractDocument]);
+  }, [cacheDocument, extractDocument, ownerUid, revokeCurrentPdfUrl]);
 
   useEffect(() => {
     return () => {
@@ -283,15 +307,15 @@ export const PdfProvider = ({ children }: PdfProviderProps) => {
       if (!file) {
         setSelectedFile(null);
         setPdfUrl(null);
-        void pdfSessionCache.clearPdfCache();
+        if (ownerUid) void pdfSessionCache.clearPdfCache(ownerUid);
         return;
       }
 
-      if (file.type !== "application/pdf") {
+      if (!isSupportedPdfFile(file)) {
         setError("請上傳 PDF 檔案 (application/pdf)");
         setSelectedFile(null);
         setPdfUrl(null);
-        void pdfSessionCache.clearPdfCache();
+        if (ownerUid) void pdfSessionCache.clearPdfCache(ownerUid);
         return;
       }
 
@@ -312,6 +336,7 @@ export const PdfProvider = ({ children }: PdfProviderProps) => {
     [
       cacheDocument,
       extractDocument,
+      ownerUid,
       revokeCurrentPdfUrl,
       startDocumentRequest,
     ],
@@ -458,24 +483,35 @@ export const PdfProvider = ({ children }: PdfProviderProps) => {
     setInitialScrollPosition(null);
     setIsUploading(false);
     setIsLoadingFromUrl(false);
-    await pdfSessionCache.clearPdfCache();
-  }, [revokeCurrentPdfUrl]);
+    if (ownerUid) await pdfSessionCache.clearPdfCache(ownerUid);
+  }, [ownerUid, revokeCurrentPdfUrl]);
 
   const saveScrollPosition = useCallback((position: number) => {
+    if (!ownerUid) return;
     const documentId = documentIdRef.current;
     if (!documentId) return;
-    void pdfSessionCache.saveScrollPosition(position, documentId);
-  }, []);
+    void pdfSessionCache.saveScrollPosition(ownerUid, position, documentId);
+  }, [ownerUid]);
+
+  // Auth changes render before passive effects run. Never expose the previous
+  // owner's document during that commit; the effect above will then clear the
+  // backing state and restore only the new owner's cache.
+  const stateBelongsToCurrentOwner =
+    restoredOwnerUidRef.current === ownerUid;
 
   const value: PdfContextType = useMemo(
     () => ({
-      selectedFile,
-      isUploading,
-      error,
-      result,
-      pdfUrl,
-      isLoadingFromUrl,
-      initialScrollPosition,
+      selectedFile: stateBelongsToCurrentOwner ? selectedFile : null,
+      isUploading: stateBelongsToCurrentOwner ? isUploading : false,
+      error: stateBelongsToCurrentOwner ? error : null,
+      result: stateBelongsToCurrentOwner ? result : null,
+      pdfUrl: stateBelongsToCurrentOwner ? pdfUrl : null,
+      isLoadingFromUrl: stateBelongsToCurrentOwner
+        ? isLoadingFromUrl
+        : false,
+      initialScrollPosition: stateBelongsToCurrentOwner
+        ? initialScrollPosition
+        : null,
       handleFileChange,
       loadPdfFromUrl,
       cancelUpload,
@@ -495,6 +531,7 @@ export const PdfProvider = ({ children }: PdfProviderProps) => {
       cancelUpload,
       clearPdfCache,
       saveScrollPosition,
+      stateBelongsToCurrentOwner,
     ],
   );
 

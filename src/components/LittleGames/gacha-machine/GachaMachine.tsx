@@ -34,14 +34,16 @@ import {
   transitionGachaPhase,
 } from "./gachaLogic";
 import {
+  acknowledgeGachaPendingReveal,
   compareGachaSaveVersions,
   getGachaCacheKey,
   isGachaInsufficientCoinsError,
+  isGachaPendingRevealConflictError,
   isGachaResetConflictError,
-  loadGachaCloud,
+  loadGachaMachineState,
   loadPlayerCoins,
-  parseGachaCacheValue,
-  readGachaCache,
+  parseGachaMachineCacheState,
+  readGachaMachineCacheState,
   recordGachaAttempt,
   resetGachaCollection,
 } from "./gachaStorage";
@@ -57,9 +59,20 @@ import {
   renewGachaRevealGuard,
   type GachaRevealGuard,
 } from "./gachaRevealGuard";
+import {
+  beginGachaPendingReveal,
+  clearGachaPendingReveal,
+  commitGachaPendingReveal,
+  GACHA_PENDING_REVEAL_COMMITTED_EVENT,
+  readGachaPendingReveal,
+  renewGachaPendingReveal,
+  type GachaPendingReveal,
+} from "./gachaPendingReveal";
 import type {
   AppliedGachaAttempt,
+  GachaCloudPendingReveal,
   GachaDrawResult,
+  GachaMachineState,
   GachaPhase,
   GachaSaveV1,
   GachaView,
@@ -129,6 +142,8 @@ const GACHA_STEPS = [
 
 const REVEAL_GUARD_RENEWAL_ERROR =
   "無法延長跨分頁開獎保護；請保持此頁開啟，結果存檔後立即開啟膠囊。";
+const PENDING_REVEAL_RENEWAL_ERROR =
+  "無法延長待開獎紀錄；請不要離開此頁，並立即開啟膠囊。";
 
 function isKeyboardShortcutTarget(target: EventTarget | null): boolean {
   if (!(target instanceof Element)) return false;
@@ -220,6 +235,8 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
   const [phase, setPhase] = useState<GachaPhase>("idle");
   const [drawResult, setDrawResult] = useState<GachaDrawResult | null>(null);
   const [hasPendingCapsule, setHasPendingCapsule] = useState(false);
+  const [cloudPendingReveal, setCloudPendingRevealState] =
+    useState<GachaCloudPendingReveal | null>(null);
   const [hasExternalPendingReveal, setHasExternalPendingReveal] =
     useState(false);
   const [dispensedCapsuleStyleIndex, setDispensedCapsuleStyleIndex] = useState(0);
@@ -232,6 +249,9 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
   const phaseRef = useRef<GachaPhase>("idle");
   const saveRef = useRef<GachaSaveV1>(EMPTY_GACHA_SAVE);
   const pendingAttemptRef = useRef<AppliedGachaAttempt | null>(null);
+  const pendingRevealRecordRef = useRef<GachaPendingReveal | null>(null);
+  const cloudPendingRevealRef = useRef<GachaCloudPendingReveal | null>(null);
+  const revealAcksInFlightRef = useRef(new Set<string>());
   const bufferedSaveRef = useRef<GachaSaveV1 | null>(null);
   const ownRevealGuardRef = useRef<GachaRevealGuard | null>(null);
   const ownRevealGuardHeartbeatTimerRef = useRef<number | null>(null);
@@ -263,8 +283,21 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
     setSave(incoming);
   }, []);
 
+  const setCloudPendingReveal = useCallback(
+    (pendingReveal: GachaCloudPendingReveal | null) => {
+      cloudPendingRevealRef.current = pendingReveal;
+      setCloudPendingRevealState(pendingReveal);
+    },
+    [],
+  );
+
   const clearPendingAttempt = useCallback((preserveBufferedSave = false) => {
     pendingAttemptRef.current = null;
+    const pendingRecord = pendingRevealRecordRef.current;
+    if (pendingRecord) {
+      clearGachaPendingReveal(pendingRecord.uid, pendingRecord.guardToken);
+      pendingRevealRecordRef.current = null;
+    }
     if (!preserveBufferedSave) bufferedSaveRef.current = null;
     setHasPendingCapsule(false);
   }, []);
@@ -317,8 +350,22 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
         return;
       }
       ownRevealGuardRef.current = renewed;
+      const pendingRecord = pendingRevealRecordRef.current;
+      let pendingRecordRenewed = true;
+      if (pendingRecord) {
+        const renewedPending = renewGachaPendingReveal(pendingRecord, renewed);
+        if (renewedPending) {
+          pendingRevealRecordRef.current = renewedPending;
+        } else {
+          pendingRecordRenewed = false;
+          setActionError(PENDING_REVEAL_RENEWAL_ERROR);
+        }
+      }
       setActionError((error) =>
-        error === REVEAL_GUARD_RENEWAL_ERROR ? null : error,
+        error === REVEAL_GUARD_RENEWAL_ERROR ||
+        (pendingRecordRenewed && error === PENDING_REVEAL_RENEWAL_ERROR)
+          ? null
+          : error,
       );
       refreshRevealGuards(renewed.uid);
     }, GACHA_REVEAL_GUARD_HEARTBEAT_MS);
@@ -326,14 +373,195 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
 
   const clearOwnRevealGuard = useCallback(() => {
     stopOwnRevealGuardHeartbeat();
-    endGachaRevealGuard(ownRevealGuardRef.current);
+    const guard = ownRevealGuardRef.current;
+    const pendingRecord = pendingRevealRecordRef.current;
+    if (pendingRecord) {
+      clearGachaPendingReveal(pendingRecord.uid, pendingRecord.guardToken);
+      pendingRevealRecordRef.current = null;
+    }
+    endGachaRevealGuard(guard);
     ownRevealGuardRef.current = null;
     setActionError((error) =>
-      error === REVEAL_GUARD_RENEWAL_ERROR ? null : error,
+      error === REVEAL_GUARD_RENEWAL_ERROR ||
+      error === PENDING_REVEAL_RENEWAL_ERROR
+        ? null
+        : error,
     );
     const uid = activeUidRef.current;
     if (uid) refreshRevealGuards(uid);
   }, [refreshRevealGuards, stopOwnRevealGuardHeartbeat]);
+
+  const reconcileAuthoritativeRevealArtifacts = useCallback(
+    (uid: string, pendingAttemptId: string | null): boolean => {
+      if (activeUidRef.current !== uid) return false;
+
+      const ownAttemptId = ownRevealGuardRef.current?.token ?? null;
+      if (
+        drawInFlightRef.current &&
+        ownAttemptId !== null &&
+        ownAttemptId !== pendingAttemptId
+      ) {
+        // A transaction that was already submitted may still commit after this
+        // read. Keep its guard until the transaction resolves or conflicts.
+        return false;
+      }
+
+      for (const guard of listActiveGachaRevealGuards(uid)) {
+        if (guard.token !== pendingAttemptId) endGachaRevealGuard(guard);
+      }
+      const storedPending = readGachaPendingReveal(uid);
+      if (storedPending?.guardToken !== pendingAttemptId) {
+        clearGachaPendingReveal(uid, storedPending?.guardToken);
+      }
+      if (
+        pendingRevealRecordRef.current?.guardToken !== pendingAttemptId
+      ) {
+        pendingRevealRecordRef.current = null;
+      }
+      if (ownAttemptId !== pendingAttemptId) {
+        stopOwnRevealGuardHeartbeat();
+        ownRevealGuardRef.current = null;
+      }
+      refreshRevealGuards(uid);
+      return true;
+    },
+    [refreshRevealGuards, stopOwnRevealGuardHeartbeat],
+  );
+
+  const restoreOwnPendingReveal = useCallback(
+    (uid: string): boolean => {
+      const pendingRecord = readGachaPendingReveal(uid);
+      if (!pendingRecord) return false;
+      const guard = activeRevealGuardsRef.current.find(
+        (candidate) => candidate.token === pendingRecord.guardToken,
+      );
+      if (
+        !guard ||
+        guard.baselineSave.resetVersion !==
+          pendingRecord.baselineSave.resetVersion ||
+        guard.baselineSave.totalDraws !== pendingRecord.baselineSave.totalDraws ||
+        saveRef.current.resetVersion > pendingRecord.baselineSave.resetVersion
+      ) {
+        clearGachaPendingReveal(uid, pendingRecord.guardToken);
+        if (guard) endGachaRevealGuard(guard);
+        refreshRevealGuards(uid);
+        return false;
+      }
+
+      // A submitting marker deliberately remains a cross-tab guard only. The
+      // native beforeunload protection prevents routine navigation mid-write;
+      // after an actual crash, the existing lease TTL safely releases it.
+      if (
+        pendingRecord.status !== "committed" ||
+        !pendingRecord.committedAttempt
+      ) {
+        return false;
+      }
+
+      ownRevealGuardRef.current = guard;
+      pendingRevealRecordRef.current = pendingRecord;
+      pendingAttemptRef.current = pendingRecord.committedAttempt;
+      drawInFlightRef.current = false;
+      setHasPendingCapsule(true);
+      setDrawResult(null);
+      phaseRef.current = "capsuleReady";
+      setPhase("capsuleReady");
+      setActionNotice("已找回尚未開啟的膠囊，點擊膠囊即可親手揭曉。");
+      startOwnRevealGuardHeartbeat();
+      refreshRevealGuards(uid);
+      return true;
+    },
+    [refreshRevealGuards, startOwnRevealGuardHeartbeat],
+  );
+
+  const restoreCloudPendingReveal = useCallback(
+    (uid: string, pendingReveal: GachaCloudPendingReveal): void => {
+      if (
+        uid.length === 0 ||
+        activeUidRef.current !== uid ||
+        compareGachaSaveVersions(
+          saveRef.current,
+          pendingReveal.committedAttempt.save,
+        ) > 0 ||
+        pendingReveal.resetVersion !== pendingReveal.baselineSave.resetVersion ||
+        pendingReveal.committedAttempt.save.resetVersion !==
+          pendingReveal.resetVersion
+      ) {
+        return;
+      }
+
+      const preserveRevealedUi =
+        phaseRef.current === "revealed" &&
+        cloudPendingRevealRef.current?.attemptId === pendingReveal.attemptId;
+
+      if (
+        ownRevealGuardRef.current &&
+        ownRevealGuardRef.current.token !== pendingReveal.attemptId
+      ) {
+        clearOwnRevealGuard();
+      }
+      let guard = activeRevealGuardsRef.current.find(
+        (candidate) => candidate.token === pendingReveal.attemptId,
+      );
+      guard ??= beginGachaRevealGuard(
+        uid,
+        pendingReveal.baselineSave,
+        undefined,
+        Date.now(),
+        pendingReveal.attemptId,
+      ) ?? undefined;
+      ownRevealGuardRef.current = guard ?? null;
+
+      if (guard) {
+        const outcome =
+          pendingReveal.committedAttempt.result.kind === "miss"
+            ? ({ kind: "miss" } as const)
+            : ({
+                kind: "character",
+                characterId:
+                  pendingReveal.committedAttempt.result.characterId,
+              } as const);
+        let localPending = readGachaPendingReveal(uid);
+        if (localPending?.guardToken !== pendingReveal.attemptId) {
+          localPending = beginGachaPendingReveal(uid, guard, outcome);
+        }
+        if (localPending?.status === "submitting") {
+          localPending = commitGachaPendingReveal(
+            localPending,
+            pendingReveal.committedAttempt,
+          );
+        }
+        pendingRevealRecordRef.current = localPending;
+        startOwnRevealGuardHeartbeat();
+      }
+
+      setCloudPendingReveal(pendingReveal);
+      pendingAttemptRef.current = pendingReveal.committedAttempt;
+      bufferedSaveRef.current = pendingReveal.committedAttempt.save;
+      coinLoadSequenceRef.current += 1;
+      setCoinLoadError(null);
+      setCoinBalance(pendingReveal.committedAttempt.coinsAfter);
+      drawInFlightRef.current = false;
+      if (preserveRevealedUi) {
+        refreshRevealGuards(uid);
+        return;
+      }
+      setVisibleSave(pendingReveal.baselineSave);
+      setHasPendingCapsule(true);
+      setDrawResult(null);
+      phaseRef.current = "capsuleReady";
+      setPhase("capsuleReady");
+      setActionNotice("已找回尚未開啟的膠囊，點擊膠囊即可親手揭曉。");
+      refreshRevealGuards(uid);
+    },
+    [
+      clearOwnRevealGuard,
+      refreshRevealGuards,
+      setCloudPendingReveal,
+      setVisibleSave,
+      startOwnRevealGuardHeartbeat,
+    ],
+  );
 
   const applyBufferedSave = useCallback(() => {
     const buffered = bufferedSaveRef.current;
@@ -409,50 +637,103 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
     ],
   );
 
-  const applyPendingSave = useCallback((): AppliedGachaAttempt | null => {
-    const pending = pendingAttemptRef.current;
-    if (!pending) return null;
+  const applyIncomingMachineState = useCallback(
+    (incoming: GachaMachineState) => {
+      const uid = activeUidRef.current;
+      if (!uid) return;
 
-    const uid = activeUidRef.current;
-    if (uid) refreshRevealGuards(uid);
-    const externalGuards = activeRevealGuardsRef.current.filter(
-      (guard) => guard.token !== ownRevealGuardRef.current?.token,
-    );
-    const buffered = bufferedSaveRef.current;
-    let newestCommitted = pending.save;
-    if (
-      buffered &&
-      compareGachaSaveVersions(newestCommitted, buffered) <= 0
-    ) {
-      newestCommitted = buffered;
-    }
+      if (incoming.pendingReveal) {
+        if (
+          !reconcileAuthoritativeRevealArtifacts(
+            uid,
+            incoming.pendingReveal.attemptId,
+          )
+        ) {
+          applyIncomingSave(incoming.pendingReveal.baselineSave);
+          return;
+        }
+        restoreCloudPendingReveal(uid, incoming.pendingReveal);
+        return;
+      }
 
-    const guardedBaseline = getGachaSaveBeforeGuards(
-      pending.save,
-      externalGuards,
-    );
-    const ownVisibleAttempt = guardedBaseline
-      ? applyGachaAttempt(
-          guardedBaseline,
-          pending.result.kind === "miss"
-            ? { kind: "miss" }
-            : {
-                kind: "character",
-                characterId: pending.result.characterId,
-              },
-        )
-      : pending;
-    const retainCommittedSave = isGachaSaveGuarded(
-      newestCommitted,
-      externalGuards,
-    );
-    setVisibleSaveIfNewer(
-      retainCommittedSave ? ownVisibleAttempt.save : newestCommitted,
-    );
-    bufferedSaveRef.current = retainCommittedSave ? newestCommitted : null;
-    clearPendingAttempt(retainCommittedSave);
-    return ownVisibleAttempt;
-  }, [clearPendingAttempt, refreshRevealGuards, setVisibleSaveIfNewer]);
+      if (!reconcileAuthoritativeRevealArtifacts(uid, null)) {
+        applyIncomingSave(incoming.save);
+        return;
+      }
+
+      const previousPending = cloudPendingRevealRef.current;
+      if (previousPending) {
+        clearPendingAttempt();
+        setCloudPendingReveal(null);
+        clearOwnRevealGuard();
+        if (phaseRef.current === "capsuleReady") {
+          phaseRef.current = "idle";
+          setPhase("idle");
+          setActionNotice("待開啟膠囊已在另一個分頁完成揭曉。");
+        }
+      }
+      bufferedSaveRef.current = null;
+      applyIncomingSave(incoming.save);
+    },
+    [
+      applyIncomingSave,
+      clearOwnRevealGuard,
+      clearPendingAttempt,
+      reconcileAuthoritativeRevealArtifacts,
+      restoreCloudPendingReveal,
+      setCloudPendingReveal,
+    ],
+  );
+
+  const applyPendingSave = useCallback(
+    (preservePendingReveal = false): AppliedGachaAttempt | null => {
+      const pending = pendingAttemptRef.current;
+      if (!pending) return null;
+
+      const uid = activeUidRef.current;
+      if (uid) refreshRevealGuards(uid);
+      const externalGuards = activeRevealGuardsRef.current.filter(
+        (guard) => guard.token !== ownRevealGuardRef.current?.token,
+      );
+      const buffered = bufferedSaveRef.current;
+      let newestCommitted = pending.save;
+      if (
+        buffered &&
+        compareGachaSaveVersions(newestCommitted, buffered) <= 0
+      ) {
+        newestCommitted = buffered;
+      }
+
+      const guardedBaseline = getGachaSaveBeforeGuards(
+        pending.save,
+        externalGuards,
+      );
+      const ownVisibleAttempt = guardedBaseline
+        ? applyGachaAttempt(
+            guardedBaseline,
+            pending.result.kind === "miss"
+              ? { kind: "miss" }
+              : {
+                  kind: "character",
+                  characterId: pending.result.characterId,
+                },
+          )
+        : pending;
+      const retainCommittedSave = isGachaSaveGuarded(
+        newestCommitted,
+        externalGuards,
+      );
+      setVisibleSaveIfNewer(
+        retainCommittedSave ? ownVisibleAttempt.save : newestCommitted,
+      );
+      bufferedSaveRef.current = retainCommittedSave ? newestCommitted : null;
+      if (!preservePendingReveal) {
+        clearPendingAttempt(retainCommittedSave);
+      }
+      return ownVisibleAttempt;
+    },
+    [clearPendingAttempt, refreshRevealGuards, setVisibleSaveIfNewer],
+  );
 
   const moveToPhase = (next: GachaPhase): boolean => {
     const current = phaseRef.current;
@@ -474,9 +755,29 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
     };
   }, []);
 
+  useEffect(() => {
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (
+        phaseRef.current !== "turning" ||
+        !drawInFlightRef.current
+      ) {
+        return;
+      }
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, []);
+
   useEffect(
     () => () => {
-      endGachaRevealGuard(ownRevealGuardRef.current);
+      const guard = ownRevealGuardRef.current;
+      const hasRecoverableReveal =
+        drawInFlightRef.current ||
+        cloudPendingRevealRef.current?.attemptId === guard?.token ||
+        pendingRevealRecordRef.current?.guardToken === guard?.token;
+      if (!hasRecoverableReveal) endGachaRevealGuard(guard);
       ownRevealGuardRef.current = null;
       if (ownRevealGuardHeartbeatTimerRef.current !== null) {
         window.clearInterval(ownRevealGuardHeartbeatTimerRef.current);
@@ -509,6 +810,7 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
       setPhase("idle");
       setDrawResult(null);
       clearPendingAttempt();
+      setCloudPendingReveal(null);
       setIsResetConfirmOpen(false);
       setIsResettingCollection(false);
       setResetError(null);
@@ -526,6 +828,7 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
       setPhase("idle");
       setDrawResult(null);
       clearPendingAttempt();
+      setCloudPendingReveal(null);
       setActionError(null);
       setActionNotice(null);
       setIsResetConfirmOpen(false);
@@ -535,7 +838,8 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
     }
 
     const sequence = ++loadSequenceRef.current;
-    const cached = readGachaCache(user.uid);
+    const cachedState = readGachaMachineCacheState(user.uid);
+    const cached = cachedState?.save ?? null;
     refreshRevealGuards(user.uid);
     if (uidChanged) {
       if (cached && isGachaSaveGuarded(cached, activeRevealGuardsRef.current)) {
@@ -550,6 +854,10 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
     } else if (cached) {
       applyIncomingSave(cached);
     }
+    restoreOwnPendingReveal(user.uid);
+    if (cachedState?.pendingReveal) {
+      applyIncomingMachineState(cachedState);
+    }
     setSyncError(null);
 
     if (!isOnline) {
@@ -558,10 +866,10 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
     }
 
     setSyncStatus(cached ? "cache" : "loading");
-    void loadGachaCloud(user.uid)
-      .then((cloudSave) => {
+    void loadGachaMachineState(user.uid)
+      .then((cloudState) => {
         if (loadSequenceRef.current !== sequence) return;
-        applyIncomingSave(cloudSave);
+        applyIncomingMachineState(cloudState);
         setSyncStatus("cloud");
       })
       .catch((error: unknown) => {
@@ -575,12 +883,16 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
         );
       });
   }, [
+    applyIncomingMachineState,
     applyIncomingSave,
     clearPendingAttempt,
     clearOwnRevealGuard,
     isOnline,
     refreshRevealGuards,
+    restoreOwnPendingReveal,
+    restoreCloudPendingReveal,
     setVisibleSave,
+    setCloudPendingReveal,
     user?.uid,
   ]);
 
@@ -595,14 +907,50 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
         return;
       }
       if (event.key !== cacheKey || !event.newValue) return;
-      const incoming = parseGachaCacheValue(event.newValue);
-      if (incoming) applyIncomingSave(incoming);
+      const incoming = parseGachaMachineCacheState(event.newValue);
+      if (incoming) applyIncomingMachineState(incoming);
+    };
+    const handlePendingRevealCommitted = (event: Event) => {
+      const detail = (
+        event as CustomEvent<{
+          uid?: unknown;
+          pendingReveal?: GachaCloudPendingReveal;
+        }>
+      ).detail;
+      if (detail?.uid !== user.uid || !detail.pendingReveal) return;
+      const cachedState = readGachaMachineCacheState(user.uid);
+      if (
+        !cachedState ||
+        cachedState.pendingReveal?.attemptId !==
+          detail.pendingReveal.attemptId ||
+        (cloudPendingRevealRef.current !== null &&
+          cloudPendingRevealRef.current.attemptId !==
+            detail.pendingReveal.attemptId) ||
+        compareGachaSaveVersions(saveRef.current, cachedState.save) > 0
+      ) {
+        return;
+      }
+      applyIncomingMachineState(cachedState);
     };
 
     refreshRevealGuards(user.uid);
     window.addEventListener("storage", handleStorage);
-    return () => window.removeEventListener("storage", handleStorage);
-  }, [applyIncomingSave, refreshRevealGuards, user?.uid]);
+    window.addEventListener(
+      GACHA_PENDING_REVEAL_COMMITTED_EVENT,
+      handlePendingRevealCommitted,
+    );
+    return () => {
+      window.removeEventListener("storage", handleStorage);
+      window.removeEventListener(
+        GACHA_PENDING_REVEAL_COMMITTED_EVENT,
+        handlePendingRevealCommitted,
+      );
+    };
+  }, [
+    applyIncomingMachineState,
+    refreshRevealGuards,
+    user?.uid,
+  ]);
 
   const refreshCoinBalance = useCallback((uid: string) => {
     const sequence = ++coinLoadSequenceRef.current;
@@ -702,6 +1050,17 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
     setSearchParams(nextParams, { replace: true });
   };
 
+  const handleExit = () => {
+    if (phaseRef.current === "turning" && drawInFlightRef.current) {
+      setActionError(null);
+      setActionNotice(
+        "正在完成抽獎交易，為避免已扣款結果遺失，請等膠囊掉出後再返回。",
+      );
+      return;
+    }
+    onExit();
+  };
+
   const handleSignIn = () => {
     void signInWithGoogle().catch((error: unknown) => {
       logger.error("Gacha sign-in failed", error);
@@ -718,6 +1077,7 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
       activeRevealGuardsRef.current.some(
         (guard) => guard.token !== ownRevealGuardRef.current?.token,
       ) ||
+      cloudPendingRevealRef.current !== null ||
       drawInFlightRef.current ||
       isResettingCollection ||
       coinBalance === null ||
@@ -767,11 +1127,12 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
       return;
     }
     clearOwnRevealGuard();
-    ownRevealGuardRef.current = beginGachaRevealGuard(
+    const drawGuard = beginGachaRevealGuard(
       uid,
       saveRef.current,
     );
-    if (!ownRevealGuardRef.current) {
+    ownRevealGuardRef.current = drawGuard;
+    if (!drawGuard) {
       drawInFlightRef.current = false;
       moveToPhase("idle");
       setActionError(
@@ -779,6 +1140,14 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
       );
       playSound("wrong");
       return;
+    }
+    const pendingRevealRecord = beginGachaPendingReveal(
+      uid,
+      drawGuard,
+      outcome,
+    );
+    if (pendingRevealRecord) {
+      pendingRevealRecordRef.current = pendingRevealRecord;
     }
     startOwnRevealGuardHeartbeat();
     refreshRevealGuards(uid);
@@ -789,8 +1158,25 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
         uid,
         outcome,
         expectedResetVersion,
+        drawGuard.token,
       );
+      const committedPendingReveal = pendingRevealRecord
+        ? commitGachaPendingReveal(pendingRevealRecord, committed)
+        : null;
+      const committedCloudPendingReveal: GachaCloudPendingReveal = {
+        schemaVersion: 1,
+        attemptId: drawGuard.token,
+        resetVersion: committed.save.resetVersion,
+        baselineSave: drawGuard.baselineSave,
+        committedAttempt: committed,
+        createdAt: Date.now(),
+      };
       if (activeUidRef.current !== uid) {
+        window.dispatchEvent(
+          new CustomEvent(GACHA_PENDING_REVEAL_COMMITTED_EVENT, {
+            detail: { uid, pendingReveal: committedCloudPendingReveal },
+          }),
+        );
         return;
       }
       if (drawAttemptTokenRef.current !== attemptToken) {
@@ -806,6 +1192,10 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
       coinLoadSequenceRef.current += 1;
       setCoinLoadError(null);
       setCoinBalance(committed.coinsAfter);
+      if (committedPendingReveal) {
+        pendingRevealRecordRef.current = committedPendingReveal;
+      }
+      setCloudPendingReveal(committedCloudPendingReveal);
       const phaseAfterCommit = phaseRef.current as GachaPhase;
       if (
         phaseAfterCommit !== "turning" ||
@@ -836,16 +1226,34 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
       clearOwnRevealGuard();
       playSound("wrong");
       moveToPhase("idle");
-      if (isGachaResetConflictError(error)) {
+      if (isGachaPendingRevealConflictError(error)) {
         try {
-          const cloudSave = await loadGachaCloud(uid);
+          const cloudState = await loadGachaMachineState(uid);
           if (
             activeUidRef.current !== uid ||
             drawAttemptTokenRef.current !== attemptToken
           ) {
             return;
           }
-          applyIncomingSave(cloudSave);
+          applyIncomingMachineState(cloudState);
+          setSyncStatus("cloud");
+          setActionError(null);
+          setActionNotice("已有一顆付費膠囊等待開啟，請先親手完成揭曉。");
+        } catch (syncFailure) {
+          logger.error("Failed to recover pending gacha reveal", syncFailure);
+          setSyncStatus("error");
+          setSyncError("有一筆待開獎結果，但目前無法載入；請稍後重新同步。");
+        }
+      } else if (isGachaResetConflictError(error)) {
+        try {
+          const cloudState = await loadGachaMachineState(uid);
+          if (
+            activeUidRef.current !== uid ||
+            drawAttemptTokenRef.current !== attemptToken
+          ) {
+            return;
+          }
+          applyIncomingMachineState(cloudState);
           setSyncStatus("cloud");
         } catch (syncFailure) {
           if (
@@ -888,17 +1296,87 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
     }
   };
 
+  const acknowledgeRevealedCapsule = async (
+    uid: string,
+    attemptId: string,
+  ) => {
+    const ackKey = `${uid}:${attemptId}`;
+    if (revealAcksInFlightRef.current.has(ackKey)) return;
+    revealAcksInFlightRef.current.add(ackKey);
+    try {
+      const acknowledged = await acknowledgeGachaPendingReveal(uid, attemptId);
+      if (activeUidRef.current !== uid) return;
+      if (!acknowledged) {
+        const cloudState = await loadGachaMachineState(uid);
+        if (activeUidRef.current !== uid) return;
+        applyIncomingMachineState(cloudState);
+        if (cloudState.pendingReveal) {
+          setActionError("待開獎確認尚未完成，請再次開啟膠囊重試。");
+          return;
+        }
+      }
+      if (cloudPendingRevealRef.current?.attemptId === attemptId) {
+        clearPendingAttempt(true);
+        setCloudPendingReveal(null);
+        clearOwnRevealGuard();
+        applyBufferedSave();
+      }
+      setActionError(null);
+    } catch (error) {
+      logger.error("Failed to acknowledge gacha reveal", error);
+      if (
+        activeUidRef.current === uid &&
+        cloudPendingRevealRef.current?.attemptId === attemptId
+      ) {
+        setActionError(
+          "結果已揭曉，但雲端確認暫時失敗；此膠囊會保留，請再次開啟重試。",
+        );
+        setHasPendingCapsule(true);
+        if (phaseRef.current === "idle") {
+          phaseRef.current = "capsuleReady";
+          setPhase("capsuleReady");
+        }
+      }
+    } finally {
+      revealAcksInFlightRef.current.delete(ackKey);
+    }
+  };
+
   const handleOpenCapsule = () => {
     const pending = pendingAttemptRef.current;
     if (!pending || !moveToPhase("revealed")) return;
-    const committed = applyPendingSave();
+    const committed = applyPendingSave(true);
     if (!committed) return;
     setDrawResult(committed.result);
-    clearOwnRevealGuard();
+    const uid = activeUidRef.current;
+    const attemptId = cloudPendingRevealRef.current?.attemptId;
+    if (uid && attemptId) {
+      window.setTimeout(() => {
+        void acknowledgeRevealedCapsule(uid, attemptId);
+      }, 0);
+    } else {
+      clearPendingAttempt();
+      clearOwnRevealGuard();
+    }
   };
 
   const handleCloseReveal = () => {
-    if (phaseRef.current === "revealed") moveToPhase("idle");
+    const pendingReveal = cloudPendingRevealRef.current;
+    const activeUid = activeUidRef.current;
+    const ackKey =
+      pendingReveal && activeUid
+        ? `${activeUid}:${pendingReveal.attemptId}`
+        : null;
+    if (
+      pendingReveal &&
+      (!ackKey || !revealAcksInFlightRef.current.has(ackKey))
+    ) {
+      phaseRef.current = "capsuleReady";
+      setPhase("capsuleReady");
+      setActionNotice("請再次開啟膠囊，以重試雲端確認。");
+    } else if (phaseRef.current === "revealed") {
+      moveToPhase("idle");
+    }
     setDrawResult(null);
   };
 
@@ -908,10 +1386,10 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
     const sequence = ++loadSequenceRef.current;
     setSyncStatus("loading");
     setSyncError(null);
-    void loadGachaCloud(user.uid)
-      .then((cloudSave) => {
+    void loadGachaMachineState(user.uid)
+      .then((cloudState) => {
         if (loadSequenceRef.current !== sequence) return;
-        applyIncomingSave(cloudSave);
+        applyIncomingMachineState(cloudState);
         setSyncStatus("cloud");
       })
       .catch((error: unknown) => {
@@ -953,6 +1431,7 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
       drawAttemptTokenRef.current += 1;
       drawInFlightRef.current = false;
       clearPendingAttempt();
+      setCloudPendingReveal(null);
       setDrawResult(null);
       phaseRef.current = "idle";
       setPhase("idle");
@@ -979,7 +1458,8 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
     isOnline &&
     syncStatus === "cloud" &&
     !isResettingCollection &&
-    !hasExternalPendingReveal;
+    !hasExternalPendingReveal &&
+    cloudPendingReveal === null;
   const canResetCollection =
     isOnline &&
     syncStatus === "cloud" &&
@@ -1076,7 +1556,7 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
         <div className="flex min-w-0 items-center gap-2 sm:gap-3">
           <button
             type="button"
-            onClick={onExit}
+            onClick={handleExit}
             className="inline-flex size-11 shrink-0 items-center justify-center rounded-[10px] border border-border-hairline bg-card text-foreground shadow-sm transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
             aria-label="返回小遊戲"
             title="返回小遊戲"

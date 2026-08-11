@@ -6,6 +6,8 @@ from PyInstaller.utils.hooks import collect_all, collect_submodules
 import os
 import tomllib
 
+from server.model_download import MANIFEST, validate_model_files
+
 
 def _bundle_version() -> str:
     env = os.environ.get("OLLIE_BUNDLE_VERSION")
@@ -29,19 +31,19 @@ hiddenimports += collect_submodules("server")
 hiddenimports += collect_submodules("shell")
 
 # Bundle only the model files the sidecar actually loads (see server/config.py
-# and server/model_download.py). No wholesale models/ copy: the dev models dir
-# may hold extra variants (fp32/int8 Kokoro, experiments) that would silently
-# bloat the release.
-_BUNDLED_MODELS = (
-    "en_US-lessac-medium.onnx",       # Piper
-    "en_US-lessac-medium.onnx.json",  # Piper voice config
-    "kokoro-v1.0.fp16.onnx",          # Kokoro (the variant config.py points at)
-    "voices-v1.0.bin",                # Kokoro voices
-)
-for _name in _BUNDLED_MODELS:
-    _f = Path("models") / _name
-    if _f.exists():
-        datas.append((str(_f), "models"))
+# and server/model_download.py). A frozen app never auto-downloads them, so a
+# missing or corrupt input is a hard build error rather than a silently broken
+# offline TTS release. No wholesale models/ copy: the dev models dir may hold
+# extra variants (fp32/int8 Kokoro, experiments) that would bloat the release.
+_MODEL_ERRORS = validate_model_files(Path("models"))
+if _MODEL_ERRORS:
+    raise SystemExit(
+        "TTS model preflight failed. Run 'make desktop-models' first:\n- "
+        + "\n- ".join(_MODEL_ERRORS)
+    )
+for _model in MANIFEST:
+    _f = Path("models") / _model.filename
+    datas.append((str(_f), "models"))
 
 if Path("assets").exists():
     datas.append(("assets", "assets"))

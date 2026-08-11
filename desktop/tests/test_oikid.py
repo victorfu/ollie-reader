@@ -3,6 +3,7 @@ import pytest
 
 import server.oikid as oikid_module
 from server.oikid import OikidError, search_booking_records
+from server.oikid_secrets import OikidSecretsError
 
 
 def _client(handler):
@@ -14,6 +15,19 @@ def test_missing_credentials_raises_400(monkeypatch):
     with pytest.raises(OikidError) as exc:
         search_booking_records(client=_client(lambda r: httpx.Response(200)))
     assert exc.value.status_code == 400
+
+
+def test_keyring_failure_raises_actionable_503(monkeypatch):
+    def locked():
+        raise OikidSecretsError("無法存取系統鑰匙圈")
+
+    monkeypatch.setattr(oikid_module, "get_oikid_credentials", locked)
+
+    with pytest.raises(OikidError) as exc:
+        search_booking_records(client=_client(lambda r: httpx.Response(200)))
+
+    assert exc.value.status_code == 503
+    assert "鑰匙圈" in exc.value.message
 
 
 def test_success_maps_fields(monkeypatch):

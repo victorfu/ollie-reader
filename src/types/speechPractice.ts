@@ -52,6 +52,13 @@ export interface PracticeFilters {
   sortBy?: "createdAt" | "durationSeconds";
   sortOrder?: "asc" | "desc";
   limit?: number;
+  cursor?: string;
+}
+
+export interface PracticeRecordPage {
+  records: PracticeRecord[];
+  hasMore: boolean;
+  lastDocId?: string;
 }
 
 export const SPEECH_TOPICS: SpeechPracticeTopic[] = [

@@ -14,6 +14,7 @@ interface QuizGameProps {
   onAdvanceQuestion: () => void;
   onTickTimer: () => void;
   onQuit: () => void;
+  isSettling: boolean;
 }
 
 export function QuizGame({
@@ -24,6 +25,7 @@ export function QuizGame({
   onAdvanceQuestion,
   onTickTimer,
   onQuit,
+  isSettling,
 }: QuizGameProps) {
   const currentQuestion = quizState.questions[quizState.currentIndex];
   const progressPercentage =
@@ -52,6 +54,7 @@ export function QuizGame({
         <div className="flex items-center justify-between mb-4 mt-10">
           <button
             onClick={onQuit}
+            disabled={isSettling}
             className="btn btn-ghost btn-sm glass gap-1 rounded-full active:scale-[0.98]"
           >
             <X className="h-4 w-4" strokeWidth={2} aria-hidden="true" />
@@ -130,6 +133,7 @@ export function QuizGame({
               isAnswered={quizState.isAnswered}
               lastAnswerCorrect={quizState.lastAnswerCorrect}
               isLastStep={isLastStep}
+              isSettling={isSettling}
               onAnswer={onSubmitAnswer}
               onNext={onAdvanceQuestion}
               speak={speak}

@@ -1,7 +1,7 @@
 import {
   doc,
   getDoc,
-  setDoc,
+  getDocFromServer,
   updateDoc,
   runTransaction,
   deleteField,
@@ -10,9 +10,14 @@ import {
 } from "firebase/firestore";
 import { db } from "../utils/firebaseUtil";
 import type { PlayerProgress, Stage } from "../types/game";
+import { computeDailyBonus, type DailyBonusResult } from "./economyService";
 
 // Firestore 文件路徑
 const GAME_PROGRESS_PATH = "gameProgress";
+const DAILY_CLAIM_CLOCK_FIELD = "dailyClaimServerClock";
+const ADVENTURE_SETTLEMENT_RECEIPTS_FIELD = "adventureSettlementReceipts";
+const MAX_ADVENTURE_SETTLEMENT_RECEIPTS = 128;
+const TAIPEI_UTC_OFFSET_MS = 8 * 60 * 60 * 1000;
 export const GAME_PROGRESS_RESET_CONFLICT = "GAME_PROGRESS_RESET_CONFLICT";
 
 export class GameProgressResetConflictError extends Error {
@@ -27,11 +32,12 @@ export class GameProgressResetConflictError extends Error {
 export function isGameProgressResetConflictError(
   error: unknown,
 ): error is GameProgressResetConflictError {
-  return error instanceof GameProgressResetConflictError || (
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    error.code === GAME_PROGRESS_RESET_CONFLICT
+  return (
+    error instanceof GameProgressResetConflictError ||
+    (typeof error === "object" &&
+      error !== null &&
+      "code" in error &&
+      error.code === GAME_PROGRESS_RESET_CONFLICT)
   );
 }
 
@@ -334,6 +340,51 @@ export const LEVEL_EXP_TABLE: number[] = [
   9200, // Level 15 (最高)
 ];
 
+function timestampMillis(value: unknown): number | null {
+  if (value instanceof Timestamp) return value.toMillis();
+  if (
+    typeof value === "object" &&
+    value !== null &&
+    "toMillis" in value &&
+    typeof value.toMillis === "function"
+  ) {
+    const millis = value.toMillis();
+    return typeof millis === "number" && Number.isFinite(millis)
+      ? millis
+      : null;
+  }
+  return null;
+}
+
+function progressFromData(
+  uid: string,
+  data: Record<string, unknown>,
+): PlayerProgress {
+  // Only remove migration/server-only fields from a copy. Firestore snapshots
+  // are treated as immutable by callers and may be shared by the SDK cache.
+  const clean = { ...data };
+  delete clean.unlockedSpiritIds;
+  delete clean.evolvedSpiritIds;
+  delete clean.elementProgress;
+  delete clean[DAILY_CLAIM_CLOCK_FIELD];
+  delete clean[ADVENTURE_SETTLEMENT_RECEIPTS_FIELD];
+
+  const merged = {
+    ...DEFAULT_PLAYER_PROGRESS,
+    ...clean,
+    odl: typeof clean.odl === "string" ? clean.odl : uid,
+    createdAt: timestampMillis(clean.createdAt) ?? clean.createdAt,
+    updatedAt: timestampMillis(clean.updatedAt) ?? clean.updatedAt,
+  } as PlayerProgress;
+  merged.coins = parseStoredTokenBalance(merged.coins);
+
+  // Repair legacy saves whose level was capped below the current table.
+  const recomputed = calculateLevelUp(merged.level, merged.exp, 0);
+  merged.level = recomputed.newLevel;
+  merged.expToNextLevel = recomputed.expToNextLevel;
+  return merged;
+}
+
 /**
  * 獲取玩家遊戲進度
  */
@@ -345,32 +396,7 @@ export async function fetchProgress(
     const docSnap = await getDoc(docRef);
 
     if (docSnap.exists()) {
-      const data = docSnap.data();
-      // 精靈系統已移除：略過舊存檔殘留的精靈欄位，避免它們混進型別
-      delete data.unlockedSpiritIds;
-      delete data.evolvedSpiritIds;
-      delete data.elementProgress;
-      // 讀取時 backfill：舊存檔缺新欄位 → 先鋪預設值再蓋上存檔值（存檔值優先）
-      const merged = {
-        ...DEFAULT_PLAYER_PROGRESS,
-        ...data,
-        createdAt:
-          data.createdAt instanceof Timestamp
-            ? data.createdAt.toMillis()
-            : data.createdAt,
-        updatedAt:
-          data.updatedAt instanceof Timestamp
-            ? data.updatedAt.toMillis()
-            : data.updatedAt,
-      } as PlayerProgress;
-      // 舊版欄位若缺失或遭破壞，與扭蛋端一致地視為 0 代幣
-      merged.coins = parseStoredTokenBalance(merged.coins);
-      // 重算等級：被舊 L10 上限卡住的玩家，把累積的 exp 對到新的 15 級表
-      // （只更新 expToNextLevel 會讓 level 停在 10、與 exp 不一致並卡住新章節）
-      const recomputed = calculateLevelUp(merged.level, merged.exp, 0);
-      merged.level = recomputed.newLevel;
-      merged.expToNextLevel = recomputed.expToNextLevel;
-      return merged;
+      return progressFromData(uid, docSnap.data());
     }
     return null;
   } catch (error) {
@@ -393,13 +419,19 @@ export async function createProgress(uid: string): Promise<PlayerProgress> {
     };
 
     const docRef = doc(db, GAME_PROGRESS_PATH, uid);
-    await setDoc(docRef, {
-      ...newProgress,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    });
+    return await runTransaction(db, async (transaction) => {
+      const snapshot = await transaction.get(docRef);
+      if (snapshot.exists()) {
+        return progressFromData(uid, snapshot.data());
+      }
 
-    return newProgress;
+      transaction.set(docRef, {
+        ...newProgress,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+      return newProgress;
+    });
   } catch (error) {
     console.error("Error creating game progress:", error);
     throw error;
@@ -412,6 +444,10 @@ export async function createProgress(uid: string): Promise<PlayerProgress> {
 export async function getOrCreateProgress(
   uid: string,
 ): Promise<PlayerProgress> {
+  // Keep the cache-friendly read path for an existing offline player. If the
+  // document appears absent, createProgress performs a second existence check
+  // and the conditional create in one transaction. A delayed unconditional
+  // set from another tab can therefore never erase rewards.
   const existing = await fetchProgress(uid);
   if (existing) return existing;
   return createProgress(uid);
@@ -438,55 +474,271 @@ export async function saveProgress(
 }
 
 /**
- * 儲存冒險進度並原子增加扭蛋代幣。
+ * 冒險結算必須描述「本輪增量」，不能傳 caller 預先算好的絕對 progress。
+ * Firestore retry 時會用最新 snapshot 重算等級、關卡與統計，避免另一分頁
+ * 已完成的進度被 stale data 蓋回去。
  *
  * `coins` 是舊存檔沿用的欄位名稱。同一筆 Firestore transaction 會驗證
  * 重設版本並從最新餘額加值，避免覆蓋另一分頁的抽卡扣款或復活舊進度。
+ * 最近 128 筆 settlement receipt 也保存在同一份既有 progress 文件，讓
+ * ambiguous retry 保持冪等而不需要新的 Firestore path/rules 或無限成長。
  */
+export type AdventureSettlement =
+  | {
+      settlementId: string;
+      outcome: "victory";
+      stageIndex: number;
+      expGained: number;
+      maxCombo: number;
+      bossDefeated: boolean;
+    }
+  | { settlementId: string; outcome: "defeat" };
+
+export interface AdventureSettlementResult {
+  tokenBalance: number;
+  progress: Pick<
+    PlayerProgress,
+    | "level"
+    | "exp"
+    | "expToNextLevel"
+    | "currentStageIndex"
+    | "totalQuizCompleted"
+    | "highestCombo"
+    | "totalBossDefeated"
+    | "resetVersion"
+    | "coins"
+  >;
+  didLevelUp: boolean;
+  isNewHighScore: boolean;
+}
+
+function storedProgressNumber(
+  value: unknown,
+  fallback: number,
+  minimum = 0,
+): number {
+  return typeof value === "number" &&
+    Number.isSafeInteger(value) &&
+    value >= minimum
+    ? value
+    : fallback;
+}
+
+function settlementProgressFromData(
+  data: Record<string, unknown>,
+): AdventureSettlementResult["progress"] {
+  const currentLevel = Math.min(
+    storedProgressNumber(data.level, 1, 1),
+    LEVEL_EXP_TABLE.length,
+  );
+  const currentExp = storedProgressNumber(data.exp, 0);
+  const levelResult = calculateLevelUp(currentLevel, currentExp, 0);
+  const coins = parseStoredTokenBalance(data.coins);
+  return {
+    level: levelResult.newLevel,
+    exp: levelResult.newExp,
+    expToNextLevel: levelResult.expToNextLevel,
+    currentStageIndex: storedProgressNumber(data.currentStageIndex, 0),
+    totalQuizCompleted: storedProgressNumber(data.totalQuizCompleted, 0),
+    highestCombo: storedProgressNumber(data.highestCombo, 0),
+    totalBossDefeated: storedProgressNumber(data.totalBossDefeated, 0),
+    resetVersion: parseStoredTokenBalance(data.resetVersion),
+    coins,
+  };
+}
+
+interface StoredAdventureSettlementReceipt {
+  settlementId: string;
+  resetVersion: number;
+  didLevelUp: boolean;
+  isNewHighScore: boolean;
+}
+
+function parseAdventureSettlementReceipts(
+  value: unknown,
+): StoredAdventureSettlementReceipt[] {
+  if (!Array.isArray(value)) return [];
+
+  const receipts: StoredAdventureSettlementReceipt[] = [];
+  const seen = new Set<string>();
+  // Read newest-to-oldest so a dirty duplicate cannot shadow the most recent
+  // committed receipt, then restore chronological order for bounded writes.
+  for (let index = value.length - 1; index >= 0; index -= 1) {
+    const item = value[index];
+    if (!item || typeof item !== "object") continue;
+    const data = item as Record<string, unknown>;
+    const settlementId = data.settlementId;
+    if (
+      typeof settlementId !== "string" ||
+      !settlementId ||
+      settlementId.length > 128 ||
+      settlementId.includes("/") ||
+      seen.has(settlementId)
+    ) {
+      continue;
+    }
+    const resetVersion = data.resetVersion;
+    if (
+      typeof resetVersion !== "number" ||
+      !Number.isSafeInteger(resetVersion) ||
+      resetVersion < 0
+    ) {
+      continue;
+    }
+    seen.add(settlementId);
+    receipts.push({
+      settlementId,
+      resetVersion,
+      didLevelUp: data.didLevelUp === true,
+      isNewHighScore: data.isNewHighScore === true,
+    });
+  }
+  return receipts.reverse();
+}
+
 export async function saveProgressWithTokenReward(
   uid: string,
-  data: Partial<
-    Omit<
-      PlayerProgress,
-      "odl" | "createdAt" | "updatedAt" | "coins" | "resetVersion"
-    >
-  >,
+  settlement: AdventureSettlement,
   tokensGained: number,
   expectedResetVersion: number,
-): Promise<number> {
+): Promise<AdventureSettlementResult> {
+  if (
+    !settlement.settlementId ||
+    settlement.settlementId.length > 128 ||
+    settlement.settlementId.includes("/")
+  ) {
+    throw new RangeError("Settlement ID is invalid.");
+  }
   if (!Number.isSafeInteger(tokensGained) || tokensGained < 0) {
     throw new RangeError("Token reward must be a non-negative safe integer.");
   }
-  if (!Number.isSafeInteger(expectedResetVersion) || expectedResetVersion < 0) {
+  if (
+    !Number.isSafeInteger(expectedResetVersion) ||
+    expectedResetVersion < 0
+  ) {
     throw new RangeError("Reset version must be a non-negative safe integer.");
+  }
+  if (settlement.outcome === "victory") {
+    if (
+      !Number.isSafeInteger(settlement.stageIndex) ||
+      settlement.stageIndex < 0
+    ) {
+      throw new RangeError("Stage index must be a non-negative safe integer.");
+    }
+    if (
+      !Number.isSafeInteger(settlement.expGained) ||
+      settlement.expGained < 0
+    ) {
+      throw new RangeError("Experience reward must be a non-negative safe integer.");
+    }
+    if (
+      !Number.isSafeInteger(settlement.maxCombo) ||
+      settlement.maxCombo < 0
+    ) {
+      throw new RangeError("Maximum combo must be a non-negative safe integer.");
+    }
   }
 
   try {
     const docRef = doc(db, GAME_PROGRESS_PATH, uid);
     return await runTransaction(db, async (transaction) => {
       const snapshot = await transaction.get(docRef);
+
       if (!snapshot.exists()) {
         throw new GameProgressResetConflictError();
       }
 
       const stored = snapshot.data();
+      const latestProgress = settlementProgressFromData(stored);
+      const receipts = parseAdventureSettlementReceipts(
+        stored[ADVENTURE_SETTLEMENT_RECEIPTS_FIELD],
+      );
+      const existingReceipt = receipts.find(
+        (receipt) => receipt.settlementId === settlement.settlementId,
+      );
+      if (existingReceipt) {
+        if (
+          existingReceipt.resetVersion !== latestProgress.resetVersion ||
+          existingReceipt.resetVersion !== expectedResetVersion
+        ) {
+          throw new GameProgressResetConflictError();
+        }
+        return {
+          tokenBalance: latestProgress.coins,
+          progress: latestProgress,
+          didLevelUp: existingReceipt.didLevelUp,
+          isNewHighScore: existingReceipt.isNewHighScore,
+        };
+      }
+
       const resetVersion = parseStoredTokenBalance(stored.resetVersion);
       if (resetVersion !== expectedResetVersion) {
         throw new GameProgressResetConflictError();
       }
 
-      const currentBalance = parseStoredTokenBalance(stored.coins);
+      const storedProgress = settlementProgressFromData(stored);
+      const currentBalance = storedProgress.coins;
       if (currentBalance > Number.MAX_SAFE_INTEGER - tokensGained) {
         throw new RangeError("Token balance exceeds the safe integer limit.");
       }
       const tokenBalance = currentBalance + tokensGained;
+      const levelResult = calculateLevelUp(
+        storedProgress.level,
+        storedProgress.exp,
+        settlement.outcome === "victory" ? settlement.expGained : 0,
+      );
+      const progress = {
+        level: levelResult.newLevel,
+        exp: levelResult.newExp,
+        expToNextLevel: levelResult.expToNextLevel,
+        currentStageIndex:
+          settlement.outcome === "victory"
+            ? Math.max(
+                storedProgress.currentStageIndex,
+                settlement.stageIndex + 1,
+              )
+            : storedProgress.currentStageIndex,
+        totalQuizCompleted:
+          storedProgress.totalQuizCompleted +
+          (settlement.outcome === "victory" ? 1 : 0),
+        highestCombo:
+          settlement.outcome === "victory"
+            ? Math.max(storedProgress.highestCombo, settlement.maxCombo)
+            : storedProgress.highestCombo,
+        totalBossDefeated:
+          storedProgress.totalBossDefeated +
+          (settlement.outcome === "victory" && settlement.bossDefeated ? 1 : 0),
+        resetVersion,
+        coins: tokenBalance,
+      };
+      const result = {
+        tokenBalance,
+        progress,
+        didLevelUp:
+          settlement.outcome === "victory" && levelResult.didLevelUp,
+        isNewHighScore:
+          settlement.outcome === "victory" &&
+          settlement.maxCombo > storedProgress.highestCombo,
+      };
+
       transaction.update(docRef, {
-        ...data,
+        ...(settlement.outcome === "victory" ? progress : {}),
         ...legacySpiritFieldDeletes(),
         coins: tokenBalance,
+        [ADVENTURE_SETTLEMENT_RECEIPTS_FIELD]: [
+          ...receipts
+            .filter((receipt) => receipt.resetVersion === resetVersion)
+            .slice(-(MAX_ADVENTURE_SETTLEMENT_RECEIPTS - 1)),
+          {
+            settlementId: settlement.settlementId,
+            resetVersion,
+            didLevelUp: result.didLevelUp,
+            isNewHighScore: result.isNewHighScore,
+          },
+        ],
         updatedAt: serverTimestamp(),
       });
-      return tokenBalance;
+      return result;
     });
   } catch (error) {
     console.error("Error saving game progress with token reward:", error);
@@ -496,8 +748,14 @@ export async function saveProgressWithTokenReward(
 
 export interface DailyTokenClaimResult {
   claimed: boolean;
+  claimDate: string;
   tokenBalance: number;
   streakDays: number;
+}
+
+export interface DailyTokenBonusPreview {
+  claimDate: string;
+  bonus: DailyBonusResult;
 }
 
 function parseStoredTokenBalance(value: unknown): number {
@@ -506,22 +764,54 @@ function parseStoredTokenBalance(value: unknown): number {
     : 0;
 }
 
+function taipeiDateFromMillis(millis: number): string {
+  const date = new Date(millis + TAIPEI_UTC_OFFSET_MS);
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(date.getUTCDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+async function readServerClaimState(uid: string) {
+  const docRef = doc(db, GAME_PROGRESS_PATH, uid);
+  // Resolve a serverTimestamp before reading. Unlike Date.now()/Timestamp.now(),
+  // this value is assigned by Firestore and cannot be advanced by changing the
+  // browser clock. A fixed app timezone also prevents timezone hopping.
+  await updateDoc(docRef, { [DAILY_CLAIM_CLOCK_FIELD]: serverTimestamp() });
+  const snapshot = await getDocFromServer(docRef);
+  if (!snapshot.exists()) throw new Error("Player progress does not exist.");
+  const millis = timestampMillis(snapshot.data()[DAILY_CLAIM_CLOCK_FIELD]);
+  if (millis === null) throw new Error("Server claim time is unavailable.");
+  return {
+    claimDate: taipeiDateFromMillis(millis),
+    data: snapshot.data(),
+  };
+}
+
+export async function getDailyTokenBonusPreview(
+  uid: string,
+): Promise<DailyTokenBonusPreview> {
+  const { claimDate, data } = await readServerClaimState(uid);
+  return {
+    claimDate,
+    bonus: computeDailyBonus(
+      typeof data.lastDailyClaimDate === "string"
+        ? data.lastDailyClaimDate
+        : "",
+      claimDate,
+      parseStoredTokenBalance(data.streakDays),
+    ),
+  };
+}
+
 /**
- * 每日獎勵以伺服器文件中的領取日期做冪等檢查，避免多分頁重複領取。
+ * 每日獎勵的日期與金額都在服務內由 Firestore server time 推導。交易仍以
+ * lastDailyClaimDate 做冪等檢查，所以多分頁同時領取只會有一筆成功。
  */
 export async function claimDailyTokenBonus(
   uid: string,
-  claimDate: string,
-  tokens: number,
-  streakDays: number,
 ): Promise<DailyTokenClaimResult> {
-  if (!claimDate) throw new RangeError("Claim date is required.");
-  if (!Number.isSafeInteger(tokens) || tokens < 0) {
-    throw new RangeError("Daily token reward must be a non-negative safe integer.");
-  }
-  if (!Number.isSafeInteger(streakDays) || streakDays < 0) {
-    throw new RangeError("Streak days must be a non-negative safe integer.");
-  }
+  const { claimDate } = await readServerClaimState(uid);
 
   const docRef = doc(db, GAME_PROGRESS_PATH, uid);
   return runTransaction(db, async (transaction) => {
@@ -535,10 +825,19 @@ export async function claimDailyTokenBonus(
     if (data.lastDailyClaimDate === claimDate) {
       return {
         claimed: false,
+        claimDate,
         tokenBalance: currentBalance,
         streakDays: parseStoredTokenBalance(data.streakDays),
       };
     }
+    const bonus = computeDailyBonus(
+      typeof data.lastDailyClaimDate === "string"
+        ? data.lastDailyClaimDate
+        : "",
+      claimDate,
+      parseStoredTokenBalance(data.streakDays),
+    );
+    const tokens = bonus.coins;
     if (currentBalance > Number.MAX_SAFE_INTEGER - tokens) {
       throw new RangeError("Token balance exceeds the safe integer limit.");
     }
@@ -547,12 +846,17 @@ export async function claimDailyTokenBonus(
     transaction.update(docRef, {
       coins: tokenBalance,
       ...legacySpiritFieldDeletes(),
-      streakDays,
+      streakDays: bonus.streakDays,
       lastDailyClaimDate: claimDate,
       lastLoginDate: claimDate,
       updatedAt: serverTimestamp(),
     });
-    return { claimed: true, tokenBalance, streakDays };
+    return {
+      claimed: true,
+      claimDate,
+      tokenBalance,
+      streakDays: bonus.streakDays,
+    };
   });
 }
 
@@ -602,7 +906,7 @@ export function calculateLevelUp(
   let level = currentLevel;
   let didLevelUp = false;
 
-  // 檢查是否升級（最高 Level 10）
+  // 檢查是否升級（最高等級由 LEVEL_EXP_TABLE 決定）
   while (level < LEVEL_EXP_TABLE.length && totalExp >= LEVEL_EXP_TABLE[level]) {
     level++;
     didLevelUp = true;

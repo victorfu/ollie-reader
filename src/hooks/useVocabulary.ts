@@ -83,6 +83,19 @@ export const useVocabulary = () => {
   const abortControllerRef = useRef<AbortController | null>(null);
   const currentFiltersRef = useRef<VocabularyFilters | undefined>(undefined);
   const loadRequestIdRef = useRef(0);
+  const activeUidRef = useRef(user?.uid);
+
+  useEffect(() => {
+    activeUidRef.current = user?.uid;
+    loadRequestIdRef.current += 1;
+    abortControllerRef.current?.abort();
+    setWords([]);
+    setHasMore(false);
+    setLastDocId(undefined);
+    setLoading(false);
+    setIsLoadingMore(false);
+    setError(null);
+  }, [user?.uid]);
 
   // Cleanup abort controller on unmount
   useEffect(() => {
@@ -171,9 +184,15 @@ export const useVocabulary = () => {
           tags: [],
         };
 
-        const wordId = await addVocabularyWord(newWord);
+        const added = await addVocabularyWord(newWord);
 
-        return { success: true, wordId, message: "Word added successfully" };
+        return {
+          success: true,
+          wordId: added.id,
+          message: added.created
+            ? "Word added successfully"
+            : "Word already in vocabulary",
+        };
       } catch (err) {
         // Ignore abort errors
         if (isAbortError(err)) {
@@ -292,12 +311,21 @@ export const useVocabulary = () => {
           tags: [],
         };
 
-        const wordId = await addVocabularyWord(newWord);
+        const added = await addVocabularyWord(newWord);
+
+        if (!added.created && added.word) {
+          return {
+            success: true,
+            existingWord: added.word,
+            isNew: false,
+            message: "Word found in vocabulary",
+          };
+        }
 
         // Return the newly created word with its details
         const createdWord: VocabularyWord = {
           ...newWord,
-          id: wordId,
+          id: added.id,
           createdAt: new Date(),
           updatedAt: new Date(),
           reviewCount: 0,
@@ -396,11 +424,15 @@ export const useVocabulary = () => {
           tags: [],
         };
 
-        const wordId = await addVocabularyWord(newWord);
+        const added = await addVocabularyWord(newWord);
+
+        if (!added.created && added.word) {
+          return { success: true, word: added.word, existing: true };
+        }
 
         const createdWord: VocabularyWord = {
           ...newWord,
-          id: wordId,
+          id: added.id,
           createdAt: new Date(),
           updatedAt: new Date(),
           reviewCount: 0,
@@ -427,31 +459,48 @@ export const useVocabulary = () => {
         return;
       }
 
+      const uid = user.uid;
+
       // 使用請求 ID 來追蹤最新的請求，避免競爭條件
       const requestId = ++loadRequestIdRef.current;
 
       setLoading(true);
+      setIsLoadingMore(false);
       setError(null);
       currentFiltersRef.current = filters;
 
       try {
-        const result = await getUserVocabulary(user.uid, filters);
+        const result = await getUserVocabulary(uid, filters);
 
         // 確認這是最新的請求
-        if (requestId !== loadRequestIdRef.current) return;
+        if (
+          requestId !== loadRequestIdRef.current ||
+          activeUidRef.current !== uid
+        ) {
+          return;
+        }
 
         setWords(result.words);
         setHasMore(result.hasMore);
         setLastDocId(result.lastDocId);
       } catch (err) {
         // Ignore abort errors or outdated requests
-        if (isAbortError(err) || requestId !== loadRequestIdRef.current) return;
+        if (
+          isAbortError(err) ||
+          requestId !== loadRequestIdRef.current ||
+          activeUidRef.current !== uid
+        ) {
+          return;
+        }
         const message =
           err instanceof Error ? err.message : "Failed to load vocabulary";
         setError(message);
       } finally {
         // 只有最新的請求才更新 loading 狀態
-        if (requestId === loadRequestIdRef.current) {
+        if (
+          requestId === loadRequestIdRef.current &&
+          activeUidRef.current === uid
+        ) {
           setLoading(false);
         }
       }
@@ -465,15 +514,25 @@ export const useVocabulary = () => {
       return;
     }
 
+    const uid = user.uid;
+    const requestId = loadRequestIdRef.current;
+    const cursor = lastDocId;
+
     setIsLoadingMore(true);
     setError(null);
 
     try {
       const filters = {
         ...currentFiltersRef.current,
-        cursor: lastDocId,
+        cursor,
       };
-      const result = await getUserVocabulary(user.uid, filters);
+      const result = await getUserVocabulary(uid, filters);
+      if (
+        requestId !== loadRequestIdRef.current ||
+        activeUidRef.current !== uid
+      ) {
+        return;
+      }
       // Deduplicate words to prevent React key warnings
       setWords((prev) => {
         const existingIds = new Set(prev.map((w) => w.id));
@@ -484,12 +543,23 @@ export const useVocabulary = () => {
       setLastDocId(result.lastDocId);
     } catch (err) {
       // Ignore abort errors
-      if (isAbortError(err)) return;
+      if (
+        isAbortError(err) ||
+        requestId !== loadRequestIdRef.current ||
+        activeUidRef.current !== uid
+      ) {
+        return;
+      }
       const message =
         err instanceof Error ? err.message : "Failed to load more vocabulary";
       setError(message);
     } finally {
-      setIsLoadingMore(false);
+      if (
+        requestId === loadRequestIdRef.current &&
+        activeUidRef.current === uid
+      ) {
+        setIsLoadingMore(false);
+      }
     }
   }, [user, hasMore, lastDocId, isLoadingMore]);
 
@@ -606,7 +676,7 @@ export const useVocabulary = () => {
         return { success: true };
       } catch (err) {
         console.error("Failed to update review stats:", err);
-        return { success: false };
+        return { success: false, message: "複習紀錄儲存失敗，請再試一次" };
       }
     },
     [],

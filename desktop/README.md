@@ -48,7 +48,7 @@ uv run pytest -v
 | Kokoro | `kokoro-v1.0.fp16.onnx` | [kokoro-onnx model files](https://github.com/thewh1teagle/kokoro-onnx/releases/tag/model-files-v1.0) | `KOKORO_MODEL_PATH` |
 | Kokoro | `voices-v1.0.bin` | 同上 | `KOKORO_VOICES_PATH` |
 
-PyInstaller spec 只會收進上表四個「實際存在」的檔案，不會整包複製 `models/`，也不會收進 fp32、int8 或實驗模型。frozen app 不會自動下載模型，所以建立可發佈 bundle 前務必先執行 `make desktop-models`，並確認四個檔案都存在。若要更換正式 bundle 的模型，除了 runtime 路徑外，還要同步調整 `server/model_download.py` 的 manifest 與 `ollie-reader-desktop.spec` 的 `_BUNDLED_MODELS`。
+PyInstaller spec 只會收進上表四個 manifest 檔案，不會整包複製 `models/`，也不會收進 fp32、int8 或實驗模型。frozen app 不會自動下載模型，因此 package preflight 會檢查四個檔案的大小與 SHA-256；缺少或毀損時會中止並提示先執行 `make desktop-models`。bundle 建好後，`release/verify_bundle.py` 會再驗一次實際複製進 `.app` 的模型。若要更換正式 bundle 的模型，需同步調整 `server/model_download.py` 的 manifest；spec 會直接沿用該 manifest。
 
 ## TTS 引擎
 
@@ -99,7 +99,7 @@ LaunchAgent 設為 `RunAtLoad=true`、`KeepAlive=false`，啟動的是 `--serve`
 
 - 托盤殼以 `QLockFile` 保證 single instance，鎖檔位於暫存目錄的 `ollie-reader-shell.lock`。重複啟動時，新實例會經 `QLocalServer` 喚醒既有實例的設定視窗後退出。
 - `--serve` 啟動前會以 `/api/version` 確認指定 port 是否已有 Ollie sidecar；若存在便正常 exit 0，不搶 port。
-- sidecar 會在暫存目錄寫入 `ollie-reader-sidecar-<port>.pid`，在正常結束、SIGTERM 或 SIGINT 時清除；清除前會驗證 PID 檔屬於目前行程，避免競態誤刪另一個 sidecar 的 PID。
+- sidecar 會以 atomic claim 在暫存目錄建立 `ollie-reader-sidecar-<port>.pid`；另一個同時啟動的行程不會覆寫它。在正常結束、SIGTERM 或 SIGINT 時清除，且清除前會驗證 PID 檔屬於目前行程。
 - 托盤殼若發現由 LaunchAgent 或其他實例啟動的 sidecar，會收養該行程而不重複 spawn。停止服務時先送 SIGTERM，五秒未結束才送 SIGKILL。
 - 舊 sidecar 若可通過健康檢查但沒有 PID 檔，殼可以顯示其狀態，卻無法代為停止該行程。
 
@@ -214,6 +214,7 @@ make desktop-clean
 - `CFBundleShortVersionString` 與 `CFBundleVersion` 取自 `pyproject.toml`
 - 收入 Piper、Kokoro、Edge 與必要的 native/runtime 檔
 - 只收入固定四個模型檔；忽略 `models/` 內其他檔案
+- 缺少、大小不符或 SHA-256 不符的模型會在 PyInstaller 開始前中止
 - 移除未使用的 Qt QML/Quick/PDF/VirtualKeyboard payload，並只保留 Babel root/英文 locale data
 
 ## 簽章、公證與 GitHub Release
@@ -247,19 +248,21 @@ make desktop-dmg
 
 `release/package_macos.sh` 依序執行：
 
-1. 從 `pyproject.toml` 讀取版本，產生 icon 並建置 `.app`。
-2. 以 `release/verify_bundle.py` 做 denylist 型掃描，阻擋 `.env*`、`.p12/.pfx`、private key、service account JSON 與常見 token 等機密內容。檔名會全量檢查；內容檢查只涵蓋未排除格式、且不超過 1 MiB 的檔案。
-3. 移除裁剪 Qt payload 後留下的 dangling symlink。
-4. 把 Developer ID 憑證匯入一次性的暫存 keychain，從內到外以 hardened runtime 簽署 Mach-O、主程式與 `.app`；離開時還原原本 keychain search list 並刪除暫存資料。
-5. 以 `create-dmg` 或 `hdiutil` 建立並簽署 DMG。
-6. 以 `notarytool submit --wait` 等待 Apple 結果；只有 `Accepted` 才繼續 staple、validate 與 Gatekeeper 驗證。失敗時會嘗試輸出 notarization log。
-7. 產生 SHA-256 checksum。
+1. 要求 worktree 沒有未提交或未追蹤的 source 變更，並記錄本次 build 的 Git commit。
+2. 從 `pyproject.toml` 讀取版本，產生 icon 並建置 `.app`。
+3. 以 `release/verify_bundle.py` 做 denylist 型掃描與 bundled-model 完整性檢查，阻擋 `.env*`、`.p12/.pfx`、private key、service account JSON、常見 token，以及缺少或 checksum 不符的離線模型。檔名會全量檢查；機密內容檢查只涵蓋未排除格式、且不超過 1 MiB 的檔案。
+4. 移除裁剪 Qt payload 後留下的 dangling symlink。
+5. 把 Developer ID 憑證匯入一次性的暫存 keychain，從內到外以 hardened runtime 簽署 Mach-O、主程式與 `.app`；離開時還原原本 keychain search list 並刪除暫存資料。
+6. 以 `create-dmg` 或 `hdiutil` 建立並簽署 DMG。
+7. 以 `notarytool submit --wait` 等待 Apple 結果；只有 `Accepted` 才繼續 staple、validate 與 Gatekeeper 驗證。失敗時會嘗試輸出 notarization log。
+8. 產生 SHA-256 checksum 與記錄 source commit 的 `.dmg.commit` provenance 檔。
 
 產物：
 
 ```text
 desktop/dist/ollie-reader-<version>.dmg
 desktop/dist/ollie-reader-<version>.dmg.sha256
+desktop/dist/ollie-reader-<version>.dmg.commit
 ```
 
 發佈到 GitHub Releases：
@@ -268,7 +271,7 @@ desktop/dist/ollie-reader-<version>.dmg.sha256
 make desktop-release
 ```
 
-`desktop-release` 依賴 `desktop-dmg`，因此會重新完成 build/sign/notarize。`release/release_github.sh` 從 `origin` 推導 GitHub repository，拒絕覆蓋已存在的 `desktop-v<version>` release，並上傳 DMG 與 checksum。
+`desktop-release` 依賴 `desktop-dmg`，因此會重新完成 build/sign/notarize。`release/release_github.sh` 從 `origin` 推導 GitHub repository，要求 build provenance 等於目前乾淨的 HEAD、checksum 可驗證且該 commit 已推到 origin。若 remote tag 已存在，必須指向同一 commit；若尚未存在，會以 `--target <build-commit>` 建立，避免 GitHub 默認從 default branch 建出來源不一致的 tag。腳本拒絕覆蓋已存在的 `desktop-v<version>` release，並上傳 DMG 與 checksum。
 
 ## 現有限制與安全邊界
 
@@ -276,7 +279,7 @@ make desktop-release
 - 雖然 runtime 宣告 Python 3.10+，目前 PyInstaller spec 與 release version helper 使用 `tomllib`，打包／發佈需 Python 3.11+。
 - Edge 需要網路，且依賴非官方、可能變動的服務端點。
 - OIKID 需要網路與使用者憑證，也依賴第三方網站目前的登入／回應格式。
-- frozen app 不會補下載模型；缺少模型的 bundle 無法使用對應的離線引擎。
+- frozen app 不會補下載模型；package/release preflight 會阻止缺少或毀損模型的 bundle。
 - PDF 只做 PyMuPDF 文字層擷取，沒有 OCR；掃描型 PDF 不會自動辨識圖片文字。上傳內容會完整讀入記憶體後再處理。
 - `/api/fetch-url` 沒有回應大小上限或 private-network/SSRF 過濾，且會把遠端內容完整讀入記憶體；它只適合由受信任的本機 UI 呼叫、抓取受信任 URL。
 - sidecar 沒有 API authentication。安全邊界是 loopback 綁定與 CORS allowlist；CORS 不是非瀏覽器客戶端的授權機制，請勿改成對外網卡監聽。

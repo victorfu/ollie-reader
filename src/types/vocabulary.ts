@@ -67,7 +67,8 @@ export interface VocabularyResult {
 }
 
 export interface VocabularySearchOptions {
-  limit?: number;
+  /** `null` returns every matching word (used by the full-library search). */
+  limit?: number | null;
   mode?: "prefix" | "contains";
 }
 

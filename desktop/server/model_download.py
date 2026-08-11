@@ -78,6 +78,13 @@ class DownloadStatus:
         with self._lock:
             self._state = state
 
+    def begin(self) -> None:
+        """Start a fresh download run without leaking state from an earlier run."""
+        with self._lock:
+            self._state = "running"
+            self._files = {}
+            self._error = None
+
     def set_error(self, error: str) -> None:
         with self._lock:
             self._error = error
@@ -94,6 +101,16 @@ class DownloadStatus:
         with self._lock:
             if name in self._files:
                 self._files[name]["downloaded"] = downloaded
+
+    def fail_file(self, name: str, total: int) -> None:
+        """Mark a failed file while preserving any bytes already downloaded."""
+        with self._lock:
+            previous = self._files.get(name, {})
+            self._files[name] = {
+                "state": "failed",
+                "downloaded": previous.get("downloaded", 0),
+                "total": previous.get("total", total),
+            }
 
     def is_running(self) -> bool:
         with self._lock:
@@ -118,6 +135,32 @@ def _verify(path: Path, expected_sha256: str) -> bool:
         for chunk in iter(lambda: f.read(_CHUNK), b""):
             h.update(chunk)
     return h.hexdigest() == expected_sha256
+
+
+def validate_model_files(
+    models_dir: Path,
+    manifest: Optional[list[ModelFile]] = None,
+) -> list[str]:
+    """Return actionable integrity errors for the frozen bundle's model inputs."""
+    errors: list[str] = []
+    for mf in manifest if manifest is not None else MANIFEST:
+        path = Path(models_dir) / mf.filename
+        if not path.is_file():
+            errors.append(f"缺少模型檔: {mf.filename}")
+            continue
+        try:
+            actual_size = path.stat().st_size
+            if actual_size != mf.size:
+                errors.append(
+                    f"模型檔大小不符: {mf.filename} "
+                    f"(expected {mf.size}, got {actual_size})"
+                )
+                continue
+            if not _verify(path, mf.sha256):
+                errors.append(f"模型檔 SHA-256 不符: {mf.filename}")
+        except OSError as exc:
+            errors.append(f"無法讀取模型檔 {mf.filename}: {exc}")
+    return errors
 
 
 def _download_one(mf: ModelFile, models_dir: Path, status: DownloadStatus) -> None:
@@ -167,7 +210,7 @@ def _download_one(mf: ModelFile, models_dir: Path, status: DownloadStatus) -> No
 
 def ensure_models(models_dir: Path, status: Optional["DownloadStatus"] = None) -> None:
     status = status or STATUS
-    status.set_state("running")
+    status.begin()
     any_failed = False
     for mf in MANIFEST:
         try:
@@ -175,6 +218,7 @@ def ensure_models(models_dir: Path, status: Optional["DownloadStatus"] = None) -
         except Exception as e:  # 單檔失敗不影響其他檔
             any_failed = True
             logger.exception("模型下載失敗: %s", mf.filename)
+            status.fail_file(mf.filename, mf.size)
             status.set_error(f"{mf.filename}: {e}")
     status.set_state("failed" if any_failed else "done")
 

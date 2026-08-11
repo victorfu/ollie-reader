@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const firestoreMocks = vi.hoisted(() => ({
+  deleteField: vi.fn(),
   doc: vi.fn(),
   getDocFromServer: vi.fn(),
   runTransaction: vi.fn(),
@@ -14,27 +15,34 @@ vi.mock("../../../utils/firebaseUtil", () => ({ db: mockDb }));
 
 import { GACHA_DRAW_COST, createEmptyGachaSave } from "./gachaLogic";
 import {
+  acknowledgeGachaPendingReveal,
   compareGachaSaveVersions,
   GACHA_CACHE_PREFIX,
   GACHA_CLOUD_DOC,
   GachaInsufficientCoinsError,
+  GachaPendingRevealConflictError,
   GachaResetConflictError,
   getGachaCacheKey,
   isGachaInsufficientCoinsError,
+  isGachaPendingRevealConflictError,
   isGachaResetConflictError,
   loadGachaCloud,
+  loadGachaMachineState,
   loadPlayerCoins,
   parseGachaCacheValue,
   readGachaCache,
+  readGachaMachineCacheState,
   recordGachaAttempt,
   resetGachaCollection,
   writeGachaCache,
+  writeGachaMachineCacheState,
   type GachaCacheLockManager,
 } from "./gachaStorage";
 
 const documentRef = { kind: "gacha-document" };
 const progressRef = { kind: "progress-document" };
 const serverTimestamp = { kind: "server-timestamp" };
+const deletedField = { kind: "deleted-field" };
 
 function snapshot(data: unknown | null) {
   return {
@@ -59,6 +67,27 @@ function transactionFor(
   };
 }
 
+function pendingMissData(
+  attemptId: string,
+  baselineTotalDraws = 0,
+  coinsAfter = 450,
+) {
+  return {
+    schemaVersion: 1,
+    attemptId,
+    resetVersion: 0,
+    baselineSave: {
+      schemaVersion: 1,
+      resetVersion: 0,
+      totalDraws: baselineTotalDraws,
+      ownedCounts: {},
+    },
+    result: { kind: "miss", totalDraws: baselineTotalDraws + 1 },
+    coinsAfter,
+    createdAt: 1_723_456_789_000,
+  };
+}
+
 beforeEach(() => {
   localStorage.clear();
   vi.clearAllMocks();
@@ -68,6 +97,7 @@ beforeEach(() => {
       segments.length > 2 ? documentRef : progressRef,
   );
   firestoreMocks.serverTimestamp.mockReturnValue(serverTimestamp);
+  firestoreMocks.deleteField.mockReturnValue(deletedField);
 });
 
 describe("gacha cache", () => {
@@ -114,6 +144,97 @@ describe("gacha cache", () => {
         ownedCounts: {},
       })),
     ).toBeNull();
+  });
+
+  it("normalizes a bounded pending reveal alongside the cached save", () => {
+    localStorage.setItem(
+      getGachaCacheKey("pending-player"),
+      JSON.stringify({
+        schemaVersion: 1,
+        resetVersion: 0,
+        totalDraws: 1,
+        ownedCounts: {},
+        pendingReveal: pendingMissData("cached-attempt"),
+      }),
+    );
+
+    expect(readGachaMachineCacheState("pending-player")).toEqual({
+      save: {
+        schemaVersion: 1,
+        resetVersion: 0,
+        totalDraws: 1,
+        ownedCounts: {},
+      },
+      pendingReveal: {
+        schemaVersion: 1,
+        attemptId: "cached-attempt",
+        resetVersion: 0,
+        baselineSave: {
+          schemaVersion: 1,
+          resetVersion: 0,
+          totalDraws: 0,
+          ownedCounts: {},
+        },
+        committedAttempt: {
+          save: {
+            schemaVersion: 1,
+            resetVersion: 0,
+            totalDraws: 1,
+            ownedCounts: {},
+          },
+          result: { kind: "miss", totalDraws: 1 },
+          coinsAfter: 450,
+        },
+        createdAt: 1_723_456_789_000,
+      },
+    });
+    expect(readGachaCache("pending-player")).toEqual(createEmptyGachaSave());
+  });
+
+  it("keeps legacy readers on the exact pre-reveal character baseline", () => {
+    const baselineSave = {
+      schemaVersion: 1,
+      resetVersion: 7,
+      totalDraws: 3,
+      ownedCounts: { kuromi: 1 },
+      unknownOwnedCounts: { "future-character": 2 },
+    };
+    localStorage.setItem(
+      getGachaCacheKey("character-pending-player"),
+      JSON.stringify({
+        schemaVersion: 1,
+        resetVersion: 7,
+        totalDraws: 4,
+        ownedCounts: { kuromi: 1, "hello-kitty": 1 },
+        unknownOwnedCounts: { "future-character": 2 },
+        pendingReveal: {
+          schemaVersion: 1,
+          attemptId: "character-attempt",
+          resetVersion: 7,
+          baselineSave,
+          result: {
+            kind: "character",
+            characterId: "hello-kitty",
+            isNew: true,
+            ownedCount: 1,
+            totalDraws: 4,
+          },
+          coinsAfter: 450,
+          createdAt: 1_723_456_789_000,
+        },
+      }),
+    );
+
+    expect(
+      readGachaMachineCacheState("character-pending-player")?.save,
+    ).toEqual({
+      schemaVersion: 1,
+      resetVersion: 7,
+      totalDraws: 4,
+      ownedCounts: { "hello-kitty": 1, kuromi: 1 },
+      unknownOwnedCounts: { "future-character": 2 },
+    });
+    expect(readGachaCache("character-pending-player")).toEqual(baselineSave);
   });
 
   it("keeps the previous 39-item roster in cached progress", async () => {
@@ -284,6 +405,32 @@ describe("gacha cache", () => {
 });
 
 describe("loadGachaCloud", () => {
+  it("returns the exact server pending receipt for crash recovery", async () => {
+    firestoreMocks.getDocFromServer.mockResolvedValue(
+      snapshot({
+        schemaVersion: 1,
+        resetVersion: 0,
+        totalDraws: 1,
+        ownedCounts: {},
+        pendingReveal: pendingMissData("server-attempt"),
+      }),
+    );
+
+    const state = await loadGachaMachineState("crashed-player");
+
+    expect(state.pendingReveal?.attemptId).toBe("server-attempt");
+    expect(state.pendingReveal?.committedAttempt.result).toEqual({
+      kind: "miss",
+      totalDraws: 1,
+    });
+    expect(
+      readGachaMachineCacheState("crashed-player")?.pendingReveal?.attemptId,
+    ).toBe("server-attempt");
+    await expect(loadGachaCloud("crashed-player")).resolves.toEqual(
+      createEmptyGachaSave(),
+    );
+  });
+
   it("loads the Firestore document, migrates it, and refreshes the cache", async () => {
     firestoreMocks.getDocFromServer.mockResolvedValue(
       snapshot({
@@ -399,6 +546,7 @@ describe("recordGachaAttempt", () => {
       "new-player",
       { kind: "character", characterId: "cinnamoroll" },
       0,
+      "atomic-attempt",
     );
 
     expect(applied).toEqual({
@@ -424,6 +572,16 @@ describe("recordGachaAttempt", () => {
         resetVersion: 0,
         totalDraws: 1,
         ownedCounts: { cinnamoroll: 1 },
+        pendingReveal: expect.objectContaining({
+          attemptId: "atomic-attempt",
+          baselineSave: createEmptyGachaSave(),
+          result: expect.objectContaining({
+            kind: "character",
+            characterId: "cinnamoroll",
+          }),
+          coinsAfter: 500 - GACHA_DRAW_COST,
+          createdAt: serverTimestamp,
+        }),
         createdAt: serverTimestamp,
         updatedAt: serverTimestamp,
       }),
@@ -432,7 +590,13 @@ describe("recordGachaAttempt", () => {
       coins: 500 - GACHA_DRAW_COST,
       updatedAt: serverTimestamp,
     });
-    expect(readGachaCache("new-player")).toEqual(applied.save);
+    expect(readGachaCache("new-player")).toEqual(createEmptyGachaSave());
+    expect(readGachaMachineCacheState("new-player")?.save).toEqual(
+      applied.save,
+    );
+    expect(
+      readGachaMachineCacheState("new-player")?.pendingReveal?.attemptId,
+    ).toBe("atomic-attempt");
   });
 
   it("debits exactly one draw cost from the player's coins", async () => {
@@ -497,6 +661,72 @@ describe("recordGachaAttempt", () => {
     expect(readGachaCache("poor-player")).toBeNull();
   });
 
+  it("rejects a second tab or device while a paid reveal is pending", async () => {
+    const transaction = transactionFor({
+      schemaVersion: 1,
+      resetVersion: 0,
+      totalDraws: 1,
+      ownedCounts: {},
+      pendingReveal: pendingMissData("first-device-attempt"),
+    });
+    firestoreMocks.runTransaction.mockImplementation(
+      async (_database, update) => update(transaction),
+    );
+
+    const promise = recordGachaAttempt(
+      "shared-player",
+      { kind: "character", characterId: "kuromi" },
+      0,
+      "second-device-attempt",
+    );
+
+    await expect(promise).rejects.toBeInstanceOf(
+      GachaPendingRevealConflictError,
+    );
+    await promise.catch((error: unknown) => {
+      expect(isGachaPendingRevealConflictError(error)).toBe(true);
+      expect(error).toMatchObject({
+        code: "GACHA_PENDING_REVEAL_CONFLICT",
+        attemptId: "first-device-attempt",
+      });
+    });
+    expect(transaction.set).not.toHaveBeenCalled();
+    expect(transaction.update).not.toHaveBeenCalled();
+  });
+
+  it("replays the same attempt id without charging twice", async () => {
+    const transaction = transactionFor({
+      schemaVersion: 1,
+      resetVersion: 0,
+      totalDraws: 1,
+      ownedCounts: {},
+      pendingReveal: pendingMissData("retry-attempt"),
+    });
+    firestoreMocks.runTransaction.mockImplementation(
+      async (_database, update) => update(transaction),
+    );
+
+    const replay = await recordGachaAttempt(
+      "retry-player",
+      { kind: "miss" },
+      0,
+      "retry-attempt",
+    );
+
+    expect(replay).toEqual({
+      save: {
+        schemaVersion: 1,
+        resetVersion: 0,
+        totalDraws: 1,
+        ownedCounts: {},
+      },
+      result: { kind: "miss", totalDraws: 1 },
+      coinsAfter: 450,
+    });
+    expect(transaction.set).not.toHaveBeenCalled();
+    expect(transaction.update).not.toHaveBeenCalled();
+  });
+
   it("treats a missing progress document as zero coins", async () => {
     const transaction = transactionFor(null, null);
     firestoreMocks.runTransaction.mockImplementation(
@@ -536,17 +766,32 @@ describe("recordGachaAttempt", () => {
       ownedCounts: { kuromi: 3 },
       unknownOwnedCounts: { futureCharacter: 3 },
     });
-    expect(readGachaCache("existing-player")).toEqual(applied.save);
+    expect(readGachaCache("existing-player")).toEqual({
+      schemaVersion: 1,
+      resetVersion: 4,
+      totalDraws: 5,
+      ownedCounts: { kuromi: 2 },
+      unknownOwnedCounts: { futureCharacter: 3 },
+    });
+    expect(readGachaMachineCacheState("existing-player")?.save).toEqual(
+      applied.save,
+    );
 
     expect(transaction.set).toHaveBeenCalledWith(
       documentRef,
-      {
+      expect.objectContaining({
         schemaVersion: 1,
         resetVersion: 4,
         totalDraws: 6,
         ownedCounts: { kuromi: 3 },
         updatedAt: serverTimestamp,
-      },
+        pendingReveal: expect.objectContaining({
+          result: expect.objectContaining({
+            kind: "character",
+            characterId: "kuromi",
+          }),
+        }),
+      }),
       { merge: true },
     );
   });
@@ -572,14 +817,19 @@ describe("recordGachaAttempt", () => {
     expect(applied.result).toEqual({ kind: "miss", totalDraws: 3 });
     expect(transaction.set).toHaveBeenCalledWith(
       documentRef,
-      {
+      expect.objectContaining({
         schemaVersion: 1,
         resetVersion: 1,
         totalDraws: 3,
         updatedAt: serverTimestamp,
-      },
+        pendingReveal: expect.objectContaining({
+          result: { kind: "miss", totalDraws: 3 },
+        }),
+      }),
       { merge: true },
     );
+    const written = transaction.set.mock.calls[0]?.[1];
+    expect(written).not.toHaveProperty("ownedCounts");
   });
 
   it("keeps the supplied outcome fixed if Firestore retries", async () => {
@@ -675,6 +925,140 @@ describe("recordGachaAttempt", () => {
   });
 });
 
+describe("acknowledgeGachaPendingReveal", () => {
+  it("clears only the matching server receipt and cache slot", async () => {
+    const transaction = transactionFor({
+      schemaVersion: 1,
+      resetVersion: 0,
+      totalDraws: 1,
+      ownedCounts: {},
+      pendingReveal: pendingMissData("ack-attempt"),
+    });
+    firestoreMocks.runTransaction.mockImplementation(
+      async (_database, update) => update(transaction),
+    );
+
+    await expect(
+      acknowledgeGachaPendingReveal("ack-player", "ack-attempt"),
+    ).resolves.toBe(true);
+
+    expect(transaction.update).toHaveBeenCalledWith(documentRef, {
+      pendingReveal: deletedField,
+      updatedAt: serverTimestamp,
+    });
+    expect(
+      readGachaMachineCacheState("ack-player")?.pendingReveal,
+    ).toBeNull();
+  });
+
+  it("cannot clear a newer receipt with a stale attempt id", async () => {
+    const transaction = transactionFor({
+      schemaVersion: 1,
+      resetVersion: 0,
+      totalDraws: 1,
+      ownedCounts: {},
+      pendingReveal: pendingMissData("newer-attempt"),
+    });
+    firestoreMocks.runTransaction.mockImplementation(
+      async (_database, update) => update(transaction),
+    );
+
+    await expect(
+      acknowledgeGachaPendingReveal("ack-player", "stale-attempt"),
+    ).resolves.toBe(false);
+
+    expect(transaction.update).not.toHaveBeenCalled();
+    expect(
+      readGachaMachineCacheState("ack-player")?.pendingReveal?.attemptId,
+    ).toBe("newer-attempt");
+  });
+
+  it("does not let a stale load resurrect an acknowledged receipt", async () => {
+    const save = {
+      schemaVersion: 1 as const,
+      resetVersion: 0,
+      totalDraws: 1,
+      ownedCounts: {},
+    };
+    const pendingReveal = {
+      schemaVersion: 1 as const,
+      attemptId: "ack-race-attempt",
+      resetVersion: 0,
+      baselineSave: createEmptyGachaSave(),
+      committedAttempt: {
+        save,
+        result: { kind: "miss" as const, totalDraws: 1 },
+        coinsAfter: 450,
+      },
+      createdAt: 1_723_456_789_000,
+    };
+    const transaction = transactionFor({
+      ...save,
+      pendingReveal: pendingMissData("ack-race-attempt"),
+    });
+    firestoreMocks.runTransaction.mockImplementation(
+      async (_database, update) => update(transaction),
+    );
+    await writeGachaMachineCacheState("ack-race-player", {
+      save,
+      pendingReveal,
+    });
+    await acknowledgeGachaPendingReveal(
+      "ack-race-player",
+      "ack-race-attempt",
+    );
+
+    await writeGachaMachineCacheState("ack-race-player", {
+      save,
+      pendingReveal,
+    });
+
+    expect(
+      readGachaMachineCacheState("ack-race-player")?.pendingReveal,
+    ).toBeNull();
+  });
+
+  it("tombstones an attempt already acknowledged on another device", async () => {
+    const save = {
+      schemaVersion: 1 as const,
+      resetVersion: 0,
+      totalDraws: 2,
+      ownedCounts: {},
+    };
+    const transaction = transactionFor(save);
+    firestoreMocks.runTransaction.mockImplementation(
+      async (_database, update) => update(transaction),
+    );
+
+    await expect(
+      acknowledgeGachaPendingReveal("remote-ack-player", "remote-ack-attempt"),
+    ).resolves.toBe(false);
+    await writeGachaMachineCacheState("remote-ack-player", {
+      save,
+      pendingReveal: {
+        schemaVersion: 1,
+        attemptId: "remote-ack-attempt",
+        resetVersion: 0,
+        baselineSave: {
+          ...createEmptyGachaSave(),
+          totalDraws: 1,
+        },
+        committedAttempt: {
+          save,
+          result: { kind: "miss", totalDraws: 2 },
+          coinsAfter: 400,
+        },
+        createdAt: 1_723_456_789_000,
+      },
+    });
+
+    expect(
+      readGachaMachineCacheState("remote-ack-player")?.pendingReveal,
+    ).toBeNull();
+    expect(readGachaCache("remote-ack-player")).toEqual(save);
+  });
+});
+
 describe("resetGachaCollection", () => {
   it("clears an existing collection while preserving unrelated top-level fields", async () => {
     const transaction = transactionFor({
@@ -704,6 +1088,7 @@ describe("resetGachaCollection", () => {
       totalDraws: 0,
       ownedCounts: {},
       unknownOwnedCounts: {},
+      pendingReveal: deletedField,
       resetAt: serverTimestamp,
       updatedAt: serverTimestamp,
     });

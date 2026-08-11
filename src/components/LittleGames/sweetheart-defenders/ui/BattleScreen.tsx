@@ -132,6 +132,8 @@ type Props = {
   audio: AudioControls;
   /** 這一場賺到的扭蛋代幣，結算頁顯示用 */
   coinsEarned: number;
+  isSettling: boolean;
+  settlementError: string | null;
   onExit: () => void;
   onRetry: () => void;
   onFinished: (outcome: RunOutcome) => void;
@@ -146,6 +148,8 @@ export function BattleScreen({
   availableCharacters,
   audio,
   coinsEarned,
+  isSettling,
+  settlementError,
   onExit,
   onRetry,
   onFinished,
@@ -418,6 +422,7 @@ export function BattleScreen({
         }
         onTogglePause={() => setPaused((current) => !current)}
         onExit={onExit}
+        exitDisabled={isSettling}
       />
 
       {/* 面板定位在畫布這一層，不是整個畫面，才不會蓋到上面的 HUD 按鈕。 */}
@@ -488,6 +493,8 @@ export function BattleScreen({
         <ResultDialog
           outcome={outcome}
           coinsEarned={coinsEarned}
+          isSettling={isSettling}
+          settlementError={settlementError}
           totalWaves={level.waves.length}
           onRetry={onRetry}
           onExit={onExit}

@@ -1,19 +1,25 @@
 import {
   collection,
-  addDoc,
   deleteDoc,
   doc,
   query,
   where,
   getDocs,
+  getDocsFromServer,
+  getDocFromServer,
   Timestamp,
   orderBy,
   limit,
+  startAfter,
   updateDoc,
+  deleteField,
+  runTransaction,
   type DocumentData,
+  type Query,
   type QueryDocumentSnapshot,
+  type QuerySnapshot,
 } from "firebase/firestore";
-import { db } from "../utils/firebaseUtil";
+import { auth, db } from "../utils/firebaseUtil";
 import { supabase, STORAGE_BUCKET } from "../utils/supabaseClient";
 import type { AudioUpload, AudioUploadUpdateInput } from "../types/audioUpload";
 import {
@@ -21,17 +27,19 @@ import {
   MAX_UPLOAD_SIZE_MB,
   SUPPORTED_AUDIO_TYPES,
 } from "../types/audioUpload";
+import { isOwnedAudioUploadPath } from "./audioUploadCleanupQueue";
 
 const COLLECTION_NAME = "audioUploads";
 
 /**
  * Get storage path for audio upload
  */
-function getAudioUploadPath(
+export function createAudioUploadPath(
   userId: string,
   uploadId: string,
-  extension: string,
+  mimeType: string,
 ): string {
+  const extension = getExtensionFromMimeType(mimeType);
   return `audio-uploads/${userId}/${uploadId}.${extension}`;
 }
 
@@ -75,10 +83,10 @@ const convertToAudioUpload = (id: string, data: DocumentData): AudioUpload => {
  */
 export async function uploadAudioFile(
   userId: string,
-  uploadId: string,
+  path: string,
   audioFile: File | Blob,
   mimeType: string,
-): Promise<string> {
+): Promise<void> {
   // Validate file size
   if (audioFile.size > MAX_UPLOAD_SIZE_BYTES) {
     throw new Error(
@@ -97,8 +105,9 @@ export async function uploadAudioFile(
     );
   }
 
-  const extension = getExtensionFromMimeType(mimeType);
-  const path = getAudioUploadPath(userId, uploadId, extension);
+  if (!isOwnedAudioUploadPath(userId, path)) {
+    throw new Error("拒絕上傳到不屬於目前帳號的音訊路徑");
+  }
 
   const { error } = await supabase.storage
     .from(STORAGE_BUCKET)
@@ -107,8 +116,6 @@ export async function uploadAudioFile(
   if (error) {
     throw new Error(error.message || "上傳音訊失敗");
   }
-
-  return path;
 }
 
 /**
@@ -126,6 +133,19 @@ export async function deleteAudioFile(audioUrl: string): Promise<void> {
     }
     throw new Error(error.message || "刪除音訊失敗");
   }
+}
+
+export async function deleteAudioFileForOwner(
+  userId: string,
+  audioUrl: string,
+): Promise<void> {
+  if (!isOwnedAudioUploadPath(userId, audioUrl)) {
+    throw new Error("拒絕清理不屬於目前帳號的音訊路徑");
+  }
+  if (auth.currentUser?.uid !== userId) {
+    throw new Error("音訊清理帳號已切換");
+  }
+  await deleteAudioFile(audioUrl);
 }
 
 /**
@@ -146,10 +166,44 @@ export async function getAudioUploadSignedUrl(
   return data.signedUrl;
 }
 
+export async function audioUploadMetadataExists(
+  userId: string,
+  audioUrl: string,
+): Promise<boolean> {
+  // Cleanup decisions must never use Firestore's offline cache: a cached
+  // negative after a lost acknowledgement could make us delete a still-used
+  // Storage object.
+  const snapshot = await getDocsFromServer(
+    query(
+      collection(db, COLLECTION_NAME),
+      where("userId", "==", userId),
+      where("audioUrl", "==", audioUrl),
+      limit(1),
+    ),
+  );
+  return !snapshot.empty;
+}
+
+export async function audioUploadMetadataExistsById(
+  userId: string,
+  uploadId: string,
+  audioUrl: string,
+): Promise<boolean> {
+  const snapshot = await getDocFromServer(doc(db, COLLECTION_NAME, uploadId));
+  if (!snapshot.exists()) return false;
+
+  const data = snapshot.data();
+  if (data.userId !== userId || data.audioUrl !== audioUrl) {
+    throw new Error("音訊 metadata 與目前帳號或檔案不一致");
+  }
+  return true;
+}
+
 /**
  * Add a new audio upload record to Firestore
  */
 export async function addAudioUpload(
+  uploadId: string,
   upload: Omit<AudioUpload, "id" | "createdAt">,
 ): Promise<string> {
   const now = Timestamp.now();
@@ -168,8 +222,20 @@ export async function addAudioUpload(
     docData.description = upload.description;
   }
 
-  const docRef = await addDoc(collection(db, COLLECTION_NAME), docData);
-  return docRef.id;
+  const docRef = doc(db, COLLECTION_NAME, uploadId);
+  return runTransaction(db, async (transaction) => {
+    const existing = await transaction.get(docRef);
+    if (existing.exists()) {
+      const data = existing.data();
+      if (data.userId !== upload.userId || data.audioUrl !== upload.audioUrl) {
+        throw new Error("音訊 metadata ID 已被其他資料使用");
+      }
+      return existing.id;
+    }
+
+    transaction.set(docRef, docData);
+    return docRef.id;
+  });
 }
 
 /**
@@ -177,23 +243,43 @@ export async function addAudioUpload(
  */
 export async function getUserAudioUploads(
   userId: string,
-  pageLimit: number = 50,
+  pageSize: number = 100,
 ): Promise<AudioUpload[]> {
   try {
-    const q = query(
-      collection(db, COLLECTION_NAME),
-      where("userId", "==", userId),
-      orderBy("createdAt", "desc"),
-      limit(pageLimit),
-    );
+    const uploads: AudioUpload[] = [];
+    const effectivePageSize = Math.max(1, pageSize);
+    let cursor: QueryDocumentSnapshot<DocumentData> | null = null;
 
-    const querySnapshot = await getDocs(q);
+    while (true) {
+      const q: Query<DocumentData> = cursor
+        ? query(
+            collection(db, COLLECTION_NAME),
+            where("userId", "==", userId),
+            orderBy("createdAt", "desc"),
+            startAfter(cursor),
+            limit(effectivePageSize),
+          )
+        : query(
+            collection(db, COLLECTION_NAME),
+            where("userId", "==", userId),
+            orderBy("createdAt", "desc"),
+            limit(effectivePageSize),
+          );
 
-    return querySnapshot.docs.map(
-      (doc: QueryDocumentSnapshot<DocumentData>) => {
-        return convertToAudioUpload(doc.id, doc.data());
-      },
-    );
+      const querySnapshot: QuerySnapshot<DocumentData> = await getDocs(q);
+      uploads.push(
+        ...querySnapshot.docs.map(
+          (snapshot: QueryDocumentSnapshot<DocumentData>) =>
+            convertToAudioUpload(snapshot.id, snapshot.data()),
+        ),
+      );
+
+      if (querySnapshot.docs.length < effectivePageSize) break;
+      cursor = querySnapshot.docs.at(-1) ?? null;
+      if (!cursor) break;
+    }
+
+    return uploads;
   } catch (error) {
     console.error("Error getting user audio uploads:", error);
     throw error;
@@ -215,7 +301,7 @@ export async function updateAudioUpload(
     updateData.title = updates.title;
   }
   if (updates.description !== undefined) {
-    updateData.description = updates.description;
+    updateData.description = updates.description || deleteField();
   }
 
   if (Object.keys(updateData).length > 0) {
@@ -224,20 +310,12 @@ export async function updateAudioUpload(
 }
 
 /**
- * Delete an audio upload and its associated file
+ * Delete an audio upload's metadata. Storage cleanup is coordinated by the
+ * hook through a durable per-owner queue after this logical deletion commits.
  */
 export async function deleteAudioUpload(
   uploadId: string,
-  audioUrl: string,
 ): Promise<void> {
-  // Delete audio file from storage
-  try {
-    await deleteAudioFile(audioUrl);
-  } catch (error) {
-    console.warn("Failed to delete audio file (may not exist):", error);
-  }
-
-  // Delete Firestore document
   const docRef = doc(db, COLLECTION_NAME, uploadId);
   await deleteDoc(docRef);
 }

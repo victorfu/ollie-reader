@@ -114,6 +114,28 @@ def test_voices_loaded_populates_combo(voice_lab):
     assert voice_lab.voice_combo.itemData(0) == "en-US-EmmaMultilingualNeural"
 
 
+def test_stale_voice_response_cannot_overwrite_current_engine(voice_lab):
+    voice_lab.engine_combo.setCurrentIndex(1)  # piper
+    voice_lab._voices_request_id = 2
+
+    voice_lab._on_voices_loaded(
+        [{"id": "en-US-JennyNeural", "label": "Jenny"}],
+        None,
+        request_id=1,
+        engine_id="edge",
+    )
+
+    assert voice_lab.voice_combo.count() == 0
+
+    voice_lab._on_voices_loaded(
+        [{"id": "0", "label": "0（預設）"}],
+        None,
+        request_id=2,
+        engine_id="piper",
+    )
+    assert voice_lab.voice_combo.itemData(0) == "0"
+
+
 def test_voices_error_falls_back_to_default_entry(voice_lab):
     voice_lab._on_voices_loaded(None, RuntimeError("boom"))
     assert voice_lab.voice_combo.itemData(0) == ""
@@ -136,16 +158,99 @@ def test_http_error_surfaces_server_detail(voice_lab):
     assert "502" in msg and "403 token 失效" in msg
 
 
+class _CapturingPool:
+    def __init__(self):
+        self.tasks = []
+
+    def start(self, task):
+        self.tasks.append(task)
+
+
+def _complete_audition(voice_lab, result):
+    pool = _CapturingPool()
+    voice_lab.pool = pool
+    voice_lab._audition()
+    pool.tasks[-1].signals.done.emit(result, None)
+
+
+def test_audition_ignores_duplicate_enter_while_same_request_is_pending(voice_lab):
+    pool = _CapturingPool()
+    voice_lab.pool = pool
+
+    voice_lab._audition()
+    voice_lab._audition()
+
+    assert len(pool.tasks) == 1
+    assert "合成中" in voice_lab.status_label.text()
+    voice_lab.cleanup()
+
+
+def test_audition_old_text_response_cannot_play_after_new_enter(voice_lab):
+    pool = _CapturingPool()
+    voice_lab.pool = pool
+    voice_lab.text_edit.setText("first request")
+    voice_lab._audition()
+    old_task = pool.tasks[-1]
+
+    voice_lab.text_edit.setText("second request")
+    voice_lab._audition()
+    new_task = pool.tasks[-1]
+
+    old_task.signals.done.emit((b"OLD", "audio/wav"), None)
+    assert voice_lab._audio_path is None
+    assert not voice_lab.play_button.isEnabled()
+
+    new_task.signals.done.emit((b"NEW", "audio/wav"), None)
+    assert voice_lab._audio_path.read_bytes() == b"NEW"
+    assert voice_lab.play_button.isEnabled()
+    voice_lab.cleanup()
+
+
+def test_audition_response_does_not_play_after_text_is_edited(voice_lab):
+    pool = _CapturingPool()
+    voice_lab.pool = pool
+    voice_lab.text_edit.setText("before edit")
+    voice_lab._audition()
+
+    voice_lab.text_edit.setText("after edit")
+    pool.tasks[-1].signals.done.emit((b"STALE", "audio/wav"), None)
+
+    assert voice_lab._audio_path is None
+    assert voice_lab.play_button.isEnabled()
+    assert "已變更" in voice_lab.status_label.text()
+    voice_lab.cleanup()
+
+
+def test_audition_old_engine_response_cannot_block_or_replace_new_audio(voice_lab):
+    pool = _CapturingPool()
+    voice_lab.pool = pool
+    voice_lab._audition()
+    old_task = pool.tasks[-1]
+
+    voice_lab.engine_combo.setCurrentIndex(1)  # piper; invalidates edge request
+    voice_lab._audition()
+    new_task = pool.tasks[-1]
+
+    old_task.signals.done.emit((b"EDGE", "audio/wav"), None)
+    assert voice_lab._audio_path is None
+    assert not voice_lab.play_button.isEnabled()
+
+    new_task.signals.done.emit((b"PIPER", "audio/wav"), None)
+    assert voice_lab._audio_path.read_bytes() == b"PIPER"
+    assert voice_lab.play_button.isEnabled()
+    voice_lab.cleanup()
+
+
 def test_audio_suffix_follows_content_type(voice_lab):
-    voice_lab._on_audio_ready((b"\xff\xf3x", "audio/mpeg"), None)
+    _complete_audition(voice_lab, (b"\xff\xf3x", "audio/mpeg"))
     assert voice_lab._audio_path.suffix == ".mp3"
-    voice_lab._on_audio_ready((b"RIFFx", "audio/wav"), None)
+    _complete_audition(voice_lab, (b"RIFFx", "audio/wav"))
     assert voice_lab._audio_path.suffix == ".wav"
     voice_lab.cleanup()
 
 
 def test_cleanup_removes_temp_audio(voice_lab):
-    voice_lab._on_audio_ready((b"RIFFx", "audio/wav"), None)
+    _complete_audition(voice_lab, (b"RIFFx", "audio/wav"))
     path = voice_lab._audio_path
     assert path.exists()
     voice_lab.cleanup()
@@ -166,6 +271,61 @@ def test_save_oikid_credentials_writes_to_keychain(settings_dialog, monkeypatch)
     assert saved == {"username": "alice", "password": "secret"}
 
 
+def test_save_oikid_credentials_keeps_existing_password_when_blank(
+    qapp, monkeypatch
+):
+    monkeypatch.setattr(app_module.autostart, "is_installed", lambda: False)
+    monkeypatch.setattr(
+        app_module,
+        "get_oikid_credentials",
+        lambda: ("alice", "existing-secret"),
+    )
+    saved = {}
+    monkeypatch.setattr(
+        app_module,
+        "set_oikid_credentials",
+        lambda u, p: saved.update(username=u, password=p),
+    )
+    dialog = app_module.SettingsDialog(_StubManager())
+    dialog.oikid_user_edit.setText("alice+new@example.com")
+    dialog.oikid_pw_edit.clear()
+
+    dialog._save_oikid_credentials()
+
+    assert saved == {
+        "username": "alice+new@example.com",
+        "password": "existing-secret",
+    }
+
+
+def test_settings_dialog_surfaces_keyring_read_error(qapp, monkeypatch):
+    monkeypatch.setattr(app_module.autostart, "is_installed", lambda: False)
+
+    def locked():
+        raise app_module.OikidSecretsError("鑰匙圈已鎖定")
+
+    monkeypatch.setattr(app_module, "get_oikid_credentials", locked)
+
+    dialog = app_module.SettingsDialog(_StubManager())
+
+    assert "鑰匙圈已鎖定" in dialog.oikid_status_label.text()
+
+
+def test_save_oikid_credentials_surfaces_keyring_write_error(
+    settings_dialog, monkeypatch
+):
+    def locked(_username, _password):
+        raise app_module.OikidSecretsError("無法寫入鑰匙圈")
+
+    monkeypatch.setattr(app_module, "set_oikid_credentials", locked)
+    settings_dialog.oikid_user_edit.setText("alice")
+    settings_dialog.oikid_pw_edit.setText("secret")
+
+    settings_dialog._save_oikid_credentials()
+
+    assert "無法寫入鑰匙圈" in settings_dialog.oikid_status_label.text()
+
+
 def test_clear_oikid_credentials_calls_clear(settings_dialog, monkeypatch):
     called = {"n": 0}
     monkeypatch.setattr(
@@ -173,6 +333,19 @@ def test_clear_oikid_credentials_calls_clear(settings_dialog, monkeypatch):
     )
     settings_dialog._clear_oikid_credentials()
     assert called["n"] == 1
+
+
+def test_clear_oikid_credentials_surfaces_keyring_error(settings_dialog, monkeypatch):
+    def locked():
+        raise app_module.OikidSecretsError("無法清除鑰匙圈")
+
+    monkeypatch.setattr(app_module, "clear_oikid_credentials", locked)
+    settings_dialog.oikid_user_edit.setText("alice")
+
+    settings_dialog._clear_oikid_credentials()
+
+    assert settings_dialog.oikid_user_edit.text() == "alice"
+    assert "無法清除鑰匙圈" in settings_dialog.oikid_status_label.text()
 
 
 class _StubGuard:

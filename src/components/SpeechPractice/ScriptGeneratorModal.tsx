@@ -12,7 +12,7 @@ interface ScriptGeneratorModalProps {
   onPromptChange: (prompt: string) => void;
   onScriptChange: (script: string) => void;
   onGenerate: () => void;
-  onUseScript: (script: string) => void;
+  onUseScript: (script: string) => Promise<boolean>;
   onClose: () => void;
 }
 
@@ -31,6 +31,7 @@ export function ScriptGeneratorModal({
   onClose,
 }: ScriptGeneratorModalProps) {
   const modalRef = useRef<HTMLDialogElement>(null);
+  const submissionInFlightRef = useRef(false);
 
   useEffect(() => {
     const modal = modalRef.current;
@@ -46,24 +47,41 @@ export function ScriptGeneratorModal({
   // Handle ESC key
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && isOpen && !isGenerating) {
-        onClose();
-      }
+      if (e.key !== "Escape" || !isOpen) return;
+      e.preventDefault();
+      if (!isGenerating && !isSaving) onClose();
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen, isGenerating, onClose]);
+  }, [isOpen, isGenerating, isSaving, onClose]);
 
-  const handleUseScript = () => {
-    if (generatedScript.trim()) {
-      onUseScript(generatedScript);
-      onClose();
+  const handleUseScript = async () => {
+    if (
+      generatedScript.trim() &&
+      !isSaving &&
+      !submissionInFlightRef.current
+    ) {
+      submissionInFlightRef.current = true;
+      try {
+        const saved = await onUseScript(generatedScript);
+        if (!saved) return;
+        onClose();
+      } finally {
+        submissionInFlightRef.current = false;
+      }
     }
   };
 
   return (
-    <dialog ref={modalRef} className="modal modal-bottom sm:modal-middle">
+    <dialog
+      ref={modalRef}
+      className="modal modal-bottom sm:modal-middle"
+      onCancel={(event) => {
+        event.preventDefault();
+        if (!isGenerating && !isSaving) onClose();
+      }}
+    >
       <div className="modal-box max-w-3xl max-h-[90vh] flex flex-col rounded-2xl border border-border-hairline shadow-floating">
         {/* Header */}
         <div className="flex justify-between items-start mb-4">
@@ -81,7 +99,7 @@ export function ScriptGeneratorModal({
             type="button"
             className="btn btn-sm btn-circle btn-ghost"
             onClick={onClose}
-            disabled={isGenerating}
+            disabled={isGenerating || isSaving}
           >
             ✕
           </button>
@@ -101,14 +119,14 @@ export function ScriptGeneratorModal({
               value={prompt}
               onChange={(e) => onPromptChange(e.target.value)}
               rows={6}
-              disabled={isGenerating}
+              disabled={isGenerating || isSaving}
             />
             <div className="flex justify-end">
               <button
                 type="button"
                 className="btn btn-primary btn-sm gap-2 active:scale-[0.98]"
                 onClick={onGenerate}
-                disabled={isGenerating || !prompt.trim()}
+                disabled={isGenerating || isSaving || !prompt.trim()}
               >
                 {isGenerating ? (
                   <>
@@ -186,6 +204,7 @@ export function ScriptGeneratorModal({
                 value={generatedScript}
                 onChange={(e) => onScriptChange(e.target.value)}
                 rows={12}
+                disabled={isSaving}
               />
             )}
             {!isGenerating && (
@@ -208,7 +227,7 @@ export function ScriptGeneratorModal({
           <button
             type="button"
             className="btn btn-primary gap-2 active:scale-[0.98]"
-            onClick={handleUseScript}
+            onClick={() => void handleUseScript()}
             disabled={isSaving || isGenerating || !generatedScript.trim()}
           >
             {isSaving ? (
@@ -237,7 +256,11 @@ export function ScriptGeneratorModal({
 
       {/* Modal backdrop */}
       <form method="dialog" className="modal-backdrop">
-        <button type="button" onClick={onClose} disabled={isGenerating}>
+        <button
+          type="button"
+          onClick={onClose}
+          disabled={isGenerating || isSaving}
+        >
           close
         </button>
       </form>

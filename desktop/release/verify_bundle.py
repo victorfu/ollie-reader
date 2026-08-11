@@ -8,6 +8,12 @@ import re
 import sys
 from pathlib import Path
 
+_DESKTOP_DIR = Path(__file__).resolve().parents[1]
+if str(_DESKTOP_DIR) not in sys.path:
+    sys.path.insert(0, str(_DESKTOP_DIR))
+
+from server.model_download import MANIFEST, ModelFile, validate_model_files
+
 # Matched against each file's basename (case-insensitive).
 _DENY_NAME = [
     re.compile(r"^\.env($|\.)", re.I),          # .env, .env.local, .env.package…
@@ -76,17 +82,31 @@ def scan_bundle(root: "str | Path") -> "list[str]":
     return out
 
 
+def scan_model_integrity(
+    root: "str | Path",
+    manifest: "list[ModelFile] | None" = None,
+) -> "list[str]":
+    """Verify every frozen offline-TTS model after PyInstaller copied it."""
+    root = Path(root)
+    if not root.exists():
+        return []  # scan_bundle() already reports this with the bundle path.
+    models_dir = root / "Contents" / "Resources" / "models"
+    selected_manifest = manifest if manifest is not None else MANIFEST
+    errors = validate_model_files(models_dir, selected_manifest)
+    return [f"model integrity: {error}" for error in errors]
+
+
 def main(argv: "list[str]") -> int:
     if len(argv) != 2:
         print("usage: verify_bundle.py <path-to-.app>", file=sys.stderr)
         return 2
-    findings = scan_bundle(argv[1])
+    findings = [*scan_bundle(argv[1]), *scan_model_integrity(argv[1])]
     if findings:
         print(f"SECURITY GUARD FAILED — {len(findings)} finding(s) in {argv[1]}:")
         for f in findings:
             print(f"  - {f}")
         return 1
-    print(f"OK — no secret/.env material found in {argv[1]}")
+    print(f"OK — bundle security and model integrity checks passed: {argv[1]}")
     return 0
 
 

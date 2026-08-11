@@ -127,4 +127,83 @@ describe("music lifecycle", () => {
     expect(element!.currentTime).toBe(23);
     expect(element!.play).toHaveBeenCalledTimes(2);
   });
+
+  it("does not resume a queued autoplay track after stopMusic", async () => {
+    vi.useFakeTimers();
+    vi.resetModules();
+
+    class RejectedAudio {
+      static latest: RejectedAudio | null = null;
+
+      loop = false;
+      volume = 0;
+      paused = true;
+      src = "";
+      play = vi.fn(() => Promise.reject(new Error("autoplay blocked")));
+      pause = vi.fn(() => {
+        this.paused = true;
+      });
+
+      constructor() {
+        RejectedAudio.latest = this;
+      }
+    }
+
+    vi.stubGlobal("Audio", RejectedAudio);
+    const audio = await import("./audio");
+    audio.applyAudioSettings({ music: 0.4, sfx: 0.7, muted: false });
+    audio.playMusic("menu");
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const element = RejectedAudio.latest;
+    expect(element).not.toBeNull();
+    audio.stopMusic();
+    window.dispatchEvent(new Event("pointerdown"));
+    await Promise.resolve();
+
+    // 只有最初那次被擋下的 play；離開後的手勢不能把舊選單音樂叫回來。
+    expect(element!.play).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not queue an autoplay rejection that arrives after stopMusic", async () => {
+    vi.useFakeTimers();
+    vi.resetModules();
+    const deferred: { reject?: (reason?: unknown) => void } = {};
+
+    class DeferredAudio {
+      static latest: DeferredAudio | null = null;
+
+      loop = false;
+      volume = 0;
+      paused = true;
+      src = "";
+      play = vi.fn(
+        () =>
+          new Promise<void>((_resolve, reject) => {
+            deferred.reject = reject;
+          }),
+      );
+      pause = vi.fn(() => {
+        this.paused = true;
+      });
+
+      constructor() {
+        DeferredAudio.latest = this;
+      }
+    }
+
+    vi.stubGlobal("Audio", DeferredAudio);
+    const audio = await import("./audio");
+    audio.applyAudioSettings({ music: 0.4, sfx: 0.7, muted: false });
+    audio.playMusic("menu");
+    const element = DeferredAudio.latest;
+    audio.stopMusic();
+    deferred.reject?.(new Error("autoplay blocked"));
+    await Promise.resolve();
+    await Promise.resolve();
+    window.dispatchEvent(new Event("pointerdown"));
+
+    expect(element!.play).toHaveBeenCalledTimes(1);
+  });
 });

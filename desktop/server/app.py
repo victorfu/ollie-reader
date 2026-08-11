@@ -2,15 +2,22 @@
 
 import io
 import logging
-import sys
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI, File, HTTPException, Query, UploadFile
 from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, StreamingResponse
 
-from server.config import CORS_ORIGINS, MODELS_DIR, VERSION
+from server.config import (
+    CORS_ORIGINS,
+    KOKORO_MODEL_PATH,
+    KOKORO_VOICES_PATH,
+    MODELS_DIR,
+    PIPER_MODEL_PATH,
+    VERSION,
+)
 from server import model_download
 from server.fetch_url import FetchError, fetch_url_content_async
 from server.oikid import OikidError, search_booking_records
@@ -25,6 +32,29 @@ from server.tts_kokoro import (
 from server.tts_piper import TTSError, generate_speech
 
 logger = logging.getLogger(__name__)
+
+
+def _download_pending_for(paths: tuple[Path, ...]) -> bool:
+    """Only block for missing files that the active downloader can provide."""
+    if not model_download.is_downloading():
+        return False
+    managed = {
+        (MODELS_DIR / model.filename).resolve(strict=False)
+        for model in model_download.MANIFEST
+    }
+    return any(
+        path.resolve(strict=False) in managed and not path.exists()
+        for path in paths
+    )
+
+
+def _piper_model_paths() -> tuple[Path, ...]:
+    model = Path(PIPER_MODEL_PATH)
+    return model, Path(f"{model}.json")
+
+
+def _kokoro_model_paths() -> tuple[Path, ...]:
+    return Path(KOKORO_MODEL_PATH), Path(KOKORO_VOICES_PATH)
 
 
 @asynccontextmanager
@@ -133,9 +163,7 @@ def create_app() -> FastAPI:
 
     @app.post("/api/tts", tags=["tts"])
     async def tts(request: SpeechRequest):
-        if model_download.is_downloading() and not (
-            MODELS_DIR / "en_US-lessac-medium.onnx"
-        ).exists():
+        if _download_pending_for(_piper_model_paths()):
             raise HTTPException(status_code=503, detail="模型下載中，請稍候")
         length_scale = (
             min(2.0, max(0.1, 1.0 / request.speed)) if request.speed > 0 else 1.0
@@ -167,13 +195,7 @@ def create_app() -> FastAPI:
 
     @app.post("/api/ktts", tags=["tts"])
     async def ktts(request: SpeechRequest):
-        _kokoro_needed = (
-            MODELS_DIR / "kokoro-v1.0.fp16.onnx",
-            MODELS_DIR / "voices-v1.0.bin",
-        )
-        if model_download.is_downloading() and not all(
-            p.exists() for p in _kokoro_needed
-        ):
+        if _download_pending_for(_kokoro_model_paths()):
             raise HTTPException(status_code=503, detail="模型下載中，請稍候")
         try:
             result = await run_in_threadpool(

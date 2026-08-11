@@ -19,6 +19,15 @@ interface SpeechProviderProps {
   children: ReactNode;
 }
 
+const SPEECH_TIMEOUT_MS = 30_000;
+
+interface PendingAsyncSpeech {
+  generation: number;
+  timeoutId: number;
+  resolve: () => void;
+  reject: (error: Error) => void;
+}
+
 /**
  * Fetch TTS audio blob from API or cache
  */
@@ -32,10 +41,19 @@ async function fetchTTSBlob(
 
   const pendingRequest = ttsCache.getPendingRequest(cacheKey);
   if (pendingRequest) {
-    return pendingRequest;
+    try {
+      const blob = await pendingRequest;
+      signal?.throwIfAborted();
+      return blob;
+    } catch (error) {
+      // A same-key request may belong to the operation that was just stopped.
+      // The latest caller must retry instead of inheriting that AbortError.
+      if (signal?.aborted || !isAbortError(error)) throw error;
+    }
   }
 
   const cachedBlob = await ttsCache.get(cacheKey);
+  signal?.throwIfAborted();
   if (cachedBlob) {
     return cachedBlob;
   }
@@ -58,15 +76,15 @@ async function fetchTTSBlob(
       throw new Error(`TTS API 錯誤: ${response.status}`);
     }
 
-    return await response.blob();
+    const blob = await response.blob();
+    await ttsCache.set(cacheKey, blob);
+    signal?.throwIfAborted();
+    return blob;
   })();
 
   ttsCache.setPendingRequest(cacheKey, fetchPromise);
 
-  const blob = await fetchPromise;
-  await ttsCache.set(cacheKey, blob);
-
-  return blob;
+  return fetchPromise;
 }
 
 export const SpeechProvider = ({ children }: SpeechProviderProps) => {
@@ -81,6 +99,9 @@ export const SpeechProvider = ({ children }: SpeechProviderProps) => {
   const [isLoadingAudio, setIsLoadingAudio] = useState(false);
   const currentAudioUrl = useRef<string | null>(null);
   const ttsAbortRef = useRef<AbortController | null>(null);
+  const speechGenerationRef = useRef(0);
+  const mountedRef = useRef(true);
+  const pendingAsyncRef = useRef<PendingAsyncSpeech | null>(null);
 
   // Update settings when ttsMode changes
   const handleSetTtsMode = useCallback(
@@ -116,7 +137,12 @@ export const SpeechProvider = ({ children }: SpeechProviderProps) => {
     return en ?? null;
   }, [speechSupported]);
 
-  // Cleanup audio URL helper
+  const isCurrentOperation = useCallback(
+    (generation: number) =>
+      mountedRef.current && speechGenerationRef.current === generation,
+    [],
+  );
+
   const cleanupAudioUrl = useCallback(() => {
     if (currentAudioUrl.current) {
       URL.revokeObjectURL(currentAudioUrl.current);
@@ -124,34 +150,55 @@ export const SpeechProvider = ({ children }: SpeechProviderProps) => {
     }
   }, []);
 
+  const settleAsyncSpeech = useCallback(
+    (generation: number, error?: Error) => {
+      const pending = pendingAsyncRef.current;
+      if (!pending || pending.generation !== generation) return;
+      window.clearTimeout(pending.timeoutId);
+      pendingAsyncRef.current = null;
+      if (error) pending.reject(error);
+      else pending.resolve();
+    },
+    [],
+  );
+
   const stopSpeaking = useCallback(() => {
+    speechGenerationRef.current += 1;
     ttsAbortRef.current?.abort();
     ttsAbortRef.current = null;
     if (speechSupported) {
       window.speechSynthesis.cancel();
     }
-    setIsSpeaking(false);
-    setIsLoadingAudio(false);
-    if (currentAudioRef.current) {
-      currentAudioRef.current.pause();
-      currentAudioRef.current.currentTime = 0;
+    const audio = currentAudioRef.current;
+    if (audio) {
+      audio.onended = null;
+      audio.onerror = null;
+      audio.pause();
+      audio.currentTime = 0;
       currentAudioRef.current = null;
     }
     cleanupAudioUrl();
+    const pending = pendingAsyncRef.current;
+    if (pending) {
+      window.clearTimeout(pending.timeoutId);
+      pendingAsyncRef.current = null;
+      pending.resolve();
+    }
+    if (mountedRef.current) {
+      setIsSpeaking(false);
+      setIsLoadingAudio(false);
+    }
   }, [speechSupported, cleanupAudioUrl]);
 
-  /**
-   * Play audio blob and return a promise that resolves when playback ends
-   * @param blob - The audio blob to play
-   * @param onEnd - Optional callback when audio ends (for async mode)
-   * @param onError - Optional callback when audio errors (for async mode)
-   */
   const playAudioBlob = useCallback(
     async (
       blob: Blob,
+      generation: number,
       onEnd?: () => void,
       onError?: (err: Error) => void,
     ): Promise<void> => {
+      if (!isCurrentOperation(generation)) return;
+
       const audioUrl = URL.createObjectURL(blob);
       currentAudioUrl.current = audioUrl;
       setIsLoadingAudio(false);
@@ -161,17 +208,25 @@ export const SpeechProvider = ({ children }: SpeechProviderProps) => {
       setIsSpeaking(true);
 
       audio.onended = () => {
+        if (
+          !isCurrentOperation(generation)
+          || currentAudioRef.current !== audio
+        ) return;
         setIsSpeaking(false);
         currentAudioRef.current = null;
-        cleanupAudioUrl();
+        if (currentAudioUrl.current === audioUrl) cleanupAudioUrl();
         onEnd?.();
       };
 
       audio.onerror = () => {
+        if (
+          !isCurrentOperation(generation)
+          || currentAudioRef.current !== audio
+        ) return;
         setIsSpeaking(false);
         setIsLoadingAudio(false);
         currentAudioRef.current = null;
-        cleanupAudioUrl();
+        if (currentAudioUrl.current === audioUrl) cleanupAudioUrl();
         const error = new Error("音訊播放失敗");
         if (onError) {
           onError(error);
@@ -180,31 +235,57 @@ export const SpeechProvider = ({ children }: SpeechProviderProps) => {
         }
       };
 
-      await audio.play();
+      try {
+        await audio.play();
+      } catch (error) {
+        if (
+          isCurrentOperation(generation)
+          && currentAudioRef.current === audio
+        ) {
+          currentAudioRef.current = null;
+          if (currentAudioUrl.current === audioUrl) cleanupAudioUrl();
+          setIsSpeaking(false);
+          setIsLoadingAudio(false);
+        }
+        throw error;
+      }
     },
-    [cleanupAudioUrl],
+    [cleanupAudioUrl, isCurrentOperation],
   );
 
   const speakWithAPI = useCallback(
-    async (text: string) => {
+    async (text: string, generation: number) => {
       const controller = new AbortController();
       ttsAbortRef.current = controller;
 
       try {
+        if (!isCurrentOperation(generation)) return;
         setIsLoadingAudio(true);
         setIsSpeaking(false);
 
-        const blob = await fetchTTSBlob(text, speechRate, ttsEngine, controller.signal);
-        await playAudioBlob(blob);
+        const blob = await fetchTTSBlob(
+          text,
+          speechRate,
+          ttsEngine,
+          controller.signal,
+        );
+        if (!isCurrentOperation(generation)) return;
+        if (ttsAbortRef.current === controller) ttsAbortRef.current = null;
+        await playAudioBlob(blob, generation);
       } catch (err: unknown) {
-        if (isAbortError(err)) return;
+        if (!isCurrentOperation(generation) || isAbortError(err)) return;
         setIsSpeaking(false);
         setIsLoadingAudio(false);
         const message = err instanceof Error ? err.message : "TTS API 呼叫失敗";
         throw new Error(message);
       }
     },
-    [speechRate, ttsEngine, playAudioBlob],
+    [
+      speechRate,
+      ttsEngine,
+      isCurrentOperation,
+      playAudioBlob,
+    ],
   );
 
   const speak = useCallback(
@@ -212,9 +293,10 @@ export const SpeechProvider = ({ children }: SpeechProviderProps) => {
       if (!text.trim()) return;
 
       stopSpeaking();
+      const generation = speechGenerationRef.current;
 
       if (ttsMode === "api") {
-        speakWithAPI(text).catch((err) => {
+        speakWithAPI(text, generation).catch((err) => {
           console.error("TTS API error:", err);
         });
       } else {
@@ -224,8 +306,12 @@ export const SpeechProvider = ({ children }: SpeechProviderProps) => {
         utterance.lang = voice?.lang || "en-US";
         utterance.voice = voice || null;
         utterance.rate = speechRate;
-        utterance.onend = () => setIsSpeaking(false);
-        utterance.onerror = () => setIsSpeaking(false);
+        utterance.onend = () => {
+          if (isCurrentOperation(generation)) setIsSpeaking(false);
+        };
+        utterance.onerror = () => {
+          if (isCurrentOperation(generation)) setIsSpeaking(false);
+        };
         setIsSpeaking(true);
         window.speechSynthesis.speak(utterance);
       }
@@ -237,6 +323,7 @@ export const SpeechProvider = ({ children }: SpeechProviderProps) => {
       ttsMode,
       stopSpeaking,
       speakWithAPI,
+      isCurrentOperation,
     ],
   );
 
@@ -246,16 +333,19 @@ export const SpeechProvider = ({ children }: SpeechProviderProps) => {
       if (!text.trim()) return;
 
       stopSpeaking();
-
-      const TIMEOUT_MS = 30000; // 30 second fallback timeout
+      const generation = speechGenerationRef.current;
 
       if (ttsMode === "api") {
-        // For API mode, we need to wait for the audio to finish
         return new Promise((resolve, reject) => {
-          const timeoutId = setTimeout(() => {
-            stopSpeaking();
-            resolve();
-          }, TIMEOUT_MS);
+          const timeoutId = window.setTimeout(() => {
+            if (isCurrentOperation(generation)) stopSpeaking();
+          }, SPEECH_TIMEOUT_MS);
+          pendingAsyncRef.current = {
+            generation,
+            timeoutId,
+            resolve,
+            reject,
+          };
 
           const controller = new AbortController();
           ttsAbortRef.current = controller;
@@ -265,28 +355,34 @@ export const SpeechProvider = ({ children }: SpeechProviderProps) => {
               setIsLoadingAudio(true);
               setIsSpeaking(false);
 
-              const blob = await fetchTTSBlob(text, speechRate, ttsEngine, controller.signal);
+              const blob = await fetchTTSBlob(
+                text,
+                speechRate,
+                ttsEngine,
+                controller.signal,
+              );
+              if (!isCurrentOperation(generation)) return;
+              if (ttsAbortRef.current === controller) ttsAbortRef.current = null;
 
               await playAudioBlob(
                 blob,
+                generation,
                 () => {
-                  clearTimeout(timeoutId);
-                  resolve();
+                  settleAsyncSpeech(generation);
                 },
                 (err) => {
-                  clearTimeout(timeoutId);
-                  reject(err);
+                  settleAsyncSpeech(generation, err);
                 },
               );
             } catch (err) {
-              clearTimeout(timeoutId);
-              if (isAbortError(err)) {
-                resolve();
-                return;
-              }
+              if (!isCurrentOperation(generation)) return;
+              if (isAbortError(err)) return settleAsyncSpeech(generation);
               setIsSpeaking(false);
               setIsLoadingAudio(false);
-              reject(err);
+              settleAsyncSpeech(
+                generation,
+                err instanceof Error ? err : new Error("TTS API 呼叫失敗"),
+              );
             }
           })();
         });
@@ -295,10 +391,15 @@ export const SpeechProvider = ({ children }: SpeechProviderProps) => {
         if (!speechSupported) return;
 
         return new Promise((resolve) => {
-          const timeoutId = setTimeout(() => {
-            stopSpeaking();
-            resolve();
-          }, TIMEOUT_MS);
+          const timeoutId = window.setTimeout(() => {
+            if (isCurrentOperation(generation)) stopSpeaking();
+          }, SPEECH_TIMEOUT_MS);
+          pendingAsyncRef.current = {
+            generation,
+            timeoutId,
+            resolve,
+            reject: () => resolve(),
+          };
 
           const voice = pickEnglishVoice();
           const utterance = new SpeechSynthesisUtterance(text);
@@ -307,15 +408,15 @@ export const SpeechProvider = ({ children }: SpeechProviderProps) => {
           utterance.rate = speechRate;
 
           utterance.onend = () => {
-            clearTimeout(timeoutId);
+            if (!isCurrentOperation(generation)) return;
             setIsSpeaking(false);
-            resolve();
+            settleAsyncSpeech(generation);
           };
 
           utterance.onerror = () => {
-            clearTimeout(timeoutId);
+            if (!isCurrentOperation(generation)) return;
             setIsSpeaking(false);
-            resolve(); // Resolve instead of reject to continue playback
+            settleAsyncSpeech(generation);
           };
 
           setIsSpeaking(true);
@@ -323,8 +424,26 @@ export const SpeechProvider = ({ children }: SpeechProviderProps) => {
         });
       }
     },
-    [pickEnglishVoice, speechRate, ttsEngine, speechSupported, ttsMode, stopSpeaking, playAudioBlob],
+    [
+      pickEnglishVoice,
+      speechRate,
+      ttsEngine,
+      speechSupported,
+      ttsMode,
+      stopSpeaking,
+      isCurrentOperation,
+      playAudioBlob,
+      settleAsyncSpeech,
+    ],
   );
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      stopSpeaking();
+    };
+  }, [stopSpeaking]);
 
   const value: SpeechContextType = useMemo(
     () => ({

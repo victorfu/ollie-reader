@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "../../../hooks/useAuth";
 import { LEVELS } from "./data/levels";
 import { BattleScreen } from "./ui/BattleScreen";
@@ -9,7 +9,7 @@ import { useTowerRoster } from "./useTowerRoster";
 import { readSquadCache, sanitizeSquad, writeSquadCache } from "./squad";
 import { readScreenSession, writeScreenSession } from "./screenSession";
 import { useAudioSettings } from "./useAudioSettings";
-import { playMusic, playSfx } from "./audio";
+import { playMusic, playSfx, stopMusic } from "./audio";
 
 type Props = {
   onExit?: () => void;
@@ -32,21 +32,63 @@ type Screen =
  * 進度由 useCampaignSave 負責（本機 + Firestore），這裡只管畫面切換。
  */
 export default function SweetheartDefenders({ onExit }: Props) {
+  const { user } = useAuth();
+  const uid = user?.uid ?? null;
+
+  // standalone 遊戲位於 App 的登入 gate 之前，auth 可在不卸載 route 的情況下改變。
+  // 以 uid 切斷整個場次，避免 A 開始的戰鬥在切到 B 後才結算到 B，也重置選隊狀態。
+  return (
+    <SweetheartSession
+      key={uid ? `user:${uid}` : "guest"}
+      uid={uid}
+      onExit={onExit}
+    />
+  );
+}
+
+function SweetheartSession({
+  uid,
+  onExit,
+}: Props & { uid: string | null }) {
   // 整頁 reload(部署自動更新、iPad 回收分頁、錯誤重試)後,回到上次
   // 所在關卡的選隊畫面,而不是把打到一半的人丟回標題頁。
   const [screen, setScreen] = useState<Screen>(() => {
     const levelId = readScreenSession();
     return levelId ? { kind: "squad", levelId } : { kind: "title" };
   });
-  const { user } = useAuth();
-  const uid = user?.uid ?? null;
-  const { save, status, isSignedIn, recordResult } = useCampaignSave();
+  const {
+    save,
+    status,
+    isSignedIn,
+    lastRecovery,
+    recordResult,
+  } = useCampaignSave();
   // 能放上塔位的角色來自扭蛋機的收藏，不是這個遊戲自己的解鎖表。
   const roster = useTowerRoster();
   const audio = useAudioSettings();
   const [lastCoinsEarned, setLastCoinsEarned] = useState(0);
+  const [isSettling, setIsSettling] = useState(false);
+  const [settlementError, setSettlementError] = useState<string | null>(null);
+  const [deferredRecoveryRequestId, setDeferredRecoveryRequestId] = useState<
+    number | null
+  >(null);
+  const settlementIdRef = useRef(0);
+  const settlementPendingRef = useRef(false);
 
-  const backToTitle = useCallback(() => setScreen({ kind: "title" }), []);
+  useEffect(
+    () => () => {
+      settlementIdRef.current += 1;
+      settlementPendingRef.current = false;
+    },
+    [],
+  );
+
+  const backToTitle = useCallback(() => {
+    if (settlementPendingRef.current) return;
+    settlementIdRef.current += 1;
+    setDeferredRecoveryRequestId(null);
+    setScreen({ kind: "title" });
+  }, []);
 
   useEffect(() => {
     writeScreenSession(screen.kind === "title" ? null : screen.levelId);
@@ -55,7 +97,9 @@ export default function SweetheartDefenders({ onExit }: Props) {
   // 不在戰鬥裡就放選單音樂；戰鬥的曲子由 BattleScreen 自己接手。
   const inBattle = screen.kind === "battle";
   useEffect(() => {
-    if (!inBattle) playMusic("menu");
+    if (inBattle) return;
+    playMusic("menu");
+    return () => stopMusic();
   }, [inBattle]);
 
   // 點關卡不再直接開戰，先進選隊畫面挑這一場要帶誰。
@@ -66,6 +110,12 @@ export default function SweetheartDefenders({ onExit }: Props) {
 
   const startBattle = useCallback(
     (levelId: string, squadIds: string[]) => {
+      settlementIdRef.current += 1;
+      settlementPendingRef.current = false;
+      setIsSettling(false);
+      setSettlementError(null);
+      setDeferredRecoveryRequestId(null);
+      setLastCoinsEarned(0);
       playSfx("place");
       // 記住這次的隊伍，下次進關直接帶入，不用每場重挑。
       writeSquadCache(uid, squadIds);
@@ -76,6 +126,11 @@ export default function SweetheartDefenders({ onExit }: Props) {
 
   // runId 換掉會讓 BattleScreen 整個重建，戰鬥狀態自然歸零。
   const retry = useCallback(() => {
+    if (settlementPendingRef.current) return;
+    settlementIdRef.current += 1;
+    setLastCoinsEarned(0);
+    setSettlementError(null);
+    setDeferredRecoveryRequestId(null);
     setScreen((current) =>
       current.kind === "battle"
         ? { ...current, runId: current.runId + 1 }
@@ -126,6 +181,19 @@ export default function SweetheartDefenders({ onExit }: Props) {
   );
   const battleCharacters =
     squadCharacters.length > 0 ? squadCharacters : roster.available;
+  const recoveredSettlement =
+    deferredRecoveryRequestId !== null
+    && lastRecovery
+    && lastRecovery.requestIds.includes(deferredRecoveryRequestId)
+      ? lastRecovery
+      : null;
+  const displayedCoinsEarned = recoveredSettlement?.coinsEarned
+    ?? lastCoinsEarned;
+  const displayedSettlementError = recoveredSettlement
+    ? recoveredSettlement.coinsEarned > 0
+      ? "已恢復連線，獎勵同步完成"
+      : "已恢復連線，進度已同步（獎勵可能已領取）"
+    : settlementError;
 
   return (
     <div
@@ -140,10 +208,39 @@ export default function SweetheartDefenders({ onExit }: Props) {
         level={level}
         availableCharacters={battleCharacters}
         audio={audio}
-        coinsEarned={lastCoinsEarned}
+        coinsEarned={displayedCoinsEarned}
+        isSettling={isSettling}
+        settlementError={displayedSettlementError}
         onExit={backToTitle}
         onRetry={retry}
-        onFinished={(outcome) => setLastCoinsEarned(recordResult(level.id, outcome))}
+        onFinished={(outcome) => {
+          if (settlementPendingRef.current) return;
+          const settlementId = settlementIdRef.current + 1;
+          settlementIdRef.current = settlementId;
+          settlementPendingRef.current = true;
+          setIsSettling(true);
+          setSettlementError(null);
+          setDeferredRecoveryRequestId(null);
+          setLastCoinsEarned(0);
+          void recordResult(level.id, outcome)
+            .then(({ coinsEarned, deferred, recoveryRequestId }) => {
+              if (settlementIdRef.current !== settlementId) return;
+              setLastCoinsEarned(coinsEarned);
+              if (deferred) {
+                setSettlementError("進度已保留，獎勵將在恢復連線後同步");
+                setDeferredRecoveryRequestId(recoveryRequestId ?? null);
+              }
+            })
+            .catch(() => {
+              if (settlementIdRef.current !== settlementId) return;
+              setSettlementError("結算失敗，請稍後再試");
+            })
+            .finally(() => {
+              if (settlementIdRef.current !== settlementId) return;
+              settlementPendingRef.current = false;
+              setIsSettling(false);
+            });
+        }}
       />
     </div>
   );

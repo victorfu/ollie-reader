@@ -3,6 +3,7 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { TitleScreen } from "./TitleScreen";
 import { CHARACTERS } from "../data/characters";
+import { LEVELS } from "../data/levels";
 import type { AudioControls } from "../useAudioSettings";
 
 /**
@@ -28,7 +29,9 @@ const AUDIO: AudioControls = {
 let root: Root | null = null;
 let host: HTMLDivElement | null = null;
 
-function renderTitle(): HTMLDivElement {
+function renderTitle(
+  levelStars: Record<string, 0 | 1 | 2 | 3> = {},
+): HTMLDivElement {
   host = document.createElement("div");
   document.body.appendChild(host);
   root = createRoot(host);
@@ -36,7 +39,7 @@ function renderTitle(): HTMLDivElement {
   act(() => {
     root!.render(
       <TitleScreen
-        levelStars={{}}
+        levelStars={levelStars}
         bestWave={{}}
         availableCharacters={CHARACTERS.slice(0, 3)}
         syncStatus="idle"
@@ -104,5 +107,25 @@ describe("the character dex sits in the corner as a popup", () => {
     });
 
     expect(dom.querySelector("[role='dialog']")).toBeNull();
+  });
+
+  it("shows the number of slots the planner actually produced", () => {
+    const allUnlocked = Object.fromEntries(
+      LEVELS.map((level) => [level.id, 3]),
+    ) as Record<string, 3>;
+    const dom = renderTitle(allUnlocked);
+    const honeyCard = [...dom.querySelectorAll("button")].find((button) =>
+      button.textContent?.includes("蜂蜜漩渦"),
+    );
+    const chocolateCard = [...dom.querySelectorAll("button")].find((button) =>
+      button.textContent?.includes("巧克力噴泉"),
+    );
+
+    expect(honeyCard).toBeDefined();
+    expect(honeyCard!.textContent).toContain("15 個塔位");
+    expect(honeyCard!.textContent).not.toContain("18 個塔位");
+    expect(chocolateCard).toBeDefined();
+    expect(chocolateCard!.textContent).toContain("17 個塔位");
+    expect(chocolateCard!.textContent).not.toContain("18 個塔位");
   });
 });

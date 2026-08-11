@@ -18,10 +18,20 @@ import {
   advancePlayerHorizontalMotion,
   clearJumpInput,
   consumePlayerJump,
+  expireMushroomCombo,
+  keepPlayerInsideWorldStart,
   pressJump,
+  registerMushroomComboHit,
   releaseJump,
   updateEnemiesUntilPlayerFrameEnds,
 } from "./behavior";
+import {
+  loadMushroomProgress,
+  loadMushroomSettings,
+  mergeMushroomProgress,
+  saveMushroomProgress,
+  saveMushroomSettings,
+} from "./persistence";
 import {
   BTN_OUTLINE,
   BTN_PRIMARY,
@@ -50,48 +60,9 @@ import type {
   Particle,
 } from "./types";
 
-// 設定持久化函式
-const loadSettings = (): MushroomSettings => {
-  try {
-    const stored = localStorage.getItem(MUSHROOM_CONFIG.SETTINGS_KEY);
-    if (stored) {
-      return { ...MUSHROOM_CONFIG.DEFAULT_SETTINGS, ...JSON.parse(stored) };
-    }
-  } catch { /* ignore invalid stored settings */ }
-  return { ...MUSHROOM_CONFIG.DEFAULT_SETTINGS };
-};
-
-const saveSettings = (settings: MushroomSettings) => {
-  localStorage.setItem(MUSHROOM_CONFIG.SETTINGS_KEY, JSON.stringify(settings));
-};
-
-// 關卡進度持久化
-const loadProgress = (): MushroomProgress => {
-  try {
-    const stored = localStorage.getItem(MUSHROOM_CONFIG.PROGRESS_KEY);
-    if (stored) {
-      const parsed = JSON.parse(stored) as Partial<MushroomProgress>;
-      return {
-        version: 1,
-        highestUnlocked: clamp(
-          Math.floor(parsed.highestUnlocked ?? 0),
-          0,
-          LEVEL_COUNT - 1,
-        ),
-        tutorialDone: Boolean(parsed.tutorialDone),
-      };
-    }
-  } catch { /* ignore invalid stored progress */ }
-  return { version: 1, highestUnlocked: 0, tutorialDone: false };
-};
-
-const saveProgress = (progress: MushroomProgress) => {
-  localStorage.setItem(MUSHROOM_CONFIG.PROGRESS_KEY, JSON.stringify(progress));
-};
-
 // 執行期生成的關卡：開局／儲存設定時重建（隨機尾段 + 套用設定）。
 // 模組級可變狀態——遊戲同時只會有一個實例。
-let currentLevels: Level[] = buildLevels(loadSettings());
+let currentLevels: Level[] = buildLevels(loadMushroomSettings());
 const rebuildLevels = (settings: MushroomSettings) => {
   currentLevels = buildLevels(settings);
 };
@@ -173,8 +144,12 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
   const [best, setBest] = useState(0);
   const [, setLives] = useState(3);
   const [levelIndex, setLevelIndex] = useState(0);
-  const [settings, setSettings] = useState<MushroomSettings>(loadSettings);
-  const [progress, setProgress] = useState<MushroomProgress>(loadProgress);
+  const [settings, setSettings] = useState<MushroomSettings>(
+    loadMushroomSettings,
+  );
+  const [progress, setProgress] = useState<MushroomProgress>(
+    loadMushroomProgress,
+  );
 
   const stateRef = useRef({
     player: {
@@ -220,8 +195,20 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
   });
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setBest(getBestScore(MUSHROOM_CONFIG.BEST_SCORE_KEY));
+    const refreshStoredProgress = () => {
+      setBest(getBestScore(MUSHROOM_CONFIG.BEST_SCORE_KEY));
+      setProgress((current) => {
+        const merged = mergeMushroomProgress(
+          current,
+          loadMushroomProgress(),
+        );
+        saveMushroomProgress(merged);
+        return merged;
+      });
+    };
+    refreshStoredProgress();
+    window.addEventListener("storage", refreshStoredProgress);
+    return () => window.removeEventListener("storage", refreshStoredProgress);
   }, []);
 
   // 全螢幕遊戲頁：鎖住頁面捲動（防 macOS 橡皮筋效應）
@@ -404,9 +391,7 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
         LEVEL_COUNT - 1,
       );
       if (highestUnlocked === prev.highestUnlocked) return prev;
-      const next = { ...prev, highestUnlocked };
-      saveProgress(next);
-      return next;
+      return saveMushroomProgress({ ...prev, highestUnlocked });
     });
   };
 
@@ -416,10 +401,11 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
     if (next >= LEVEL_COUNT) {
       setGameState("win");
       setScore(stateRef.current.score);
-      if (stateRef.current.score > best) {
-        setBest(stateRef.current.score);
-        setBestScore(stateRef.current.score, MUSHROOM_CONFIG.BEST_SCORE_KEY);
-      }
+      const persistedBest = setBestScore(
+        stateRef.current.score,
+        MUSHROOM_CONFIG.BEST_SCORE_KEY,
+      );
+      if (persistedBest > best) setBest(persistedBest);
     } else {
       loadLevel(next);
       setGameState("playing");
@@ -429,9 +415,7 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
   const completeTutorial = () => {
     setProgress((prev) => {
       if (prev.tutorialDone) return prev;
-      const next = { ...prev, tutorialDone: true };
-      saveProgress(next);
-      return next;
+      return saveMushroomProgress({ ...prev, tutorialDone: true });
     });
     setGameState("tutorialComplete");
   };
@@ -465,10 +449,11 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
       setScore(s.score);
       setLives(0);
       // 死亡也結算最佳分數（原本只有全通關才會存）
-      if (s.score > best) {
-        setBest(s.score);
-        setBestScore(s.score, MUSHROOM_CONFIG.BEST_SCORE_KEY);
-      }
+      const persistedBest = setBestScore(
+        s.score,
+        MUSHROOM_CONFIG.BEST_SCORE_KEY,
+      );
+      if (persistedBest > best) setBest(persistedBest);
       setGameState("dead");
     } else {
       const lvl = getLevel(s.levelIndex);
@@ -497,6 +482,11 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
     const p = s.player;
     const lvl = getLevel(s.levelIndex);
     s.time += dt;
+    expireMushroomCombo(
+      s,
+      s.time,
+      MUSHROOM_CONFIG.COMBO_WINDOW_MS / 1000,
+    );
 
     // 移動平台：以絕對時間正弦定位（不受 dt clamp 影響、無漂移），
     // 玩家上一幀站在其上時跟著平台位移
@@ -519,6 +509,7 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
     const speedBoost = s.speedTimer > 0 ? 0.35 : 0;
     const move = (s.keys.left ? -1 : 0) + (s.keys.right ? 1 : 0);
     advancePlayerHorizontalMotion(p, move, speedBoost, dt);
+    keepPlayerInsideWorldStart(p);
 
     consumePlayerJump(s.keys, p, s.featherTimer > 0);
 
@@ -732,13 +723,11 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
         p.vy = -JUMP_SPEED * 0.6;
 
         // 連擊系統
-        const now = performance.now();
-        if (now - s.lastStompTime <= MUSHROOM_CONFIG.COMBO_WINDOW_MS) {
-          s.comboCount += 1;
-        } else {
-          s.comboCount = 1;
-        }
-        s.lastStompTime = now;
+        registerMushroomComboHit(
+          s,
+          s.time,
+          MUSHROOM_CONFIG.COMBO_WINDOW_MS / 1000,
+        );
 
         // 計算分數：基礎分 + 連擊加成
         const baseScore =
@@ -1280,7 +1269,7 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
 
   const handleSaveSettings = (newSettings: MushroomSettings) => {
     setSettings(newSettings);
-    saveSettings(newSettings);
+    saveMushroomSettings(newSettings);
     rebuildLevels(newSettings);
     setGameState("menu");
   };

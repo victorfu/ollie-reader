@@ -3,17 +3,22 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
+  auth: { user: { uid: "user-1" } as { uid: string } | null },
   fetchWithComputeBase: vi.fn(),
   getComputeMode: vi.fn(() => "cloud" as const),
   loadPdfFromCache: vi.fn(),
   savePdfToCache: vi.fn(),
   saveScrollPosition: vi.fn(),
   clearPdfCache: vi.fn(),
-  markSessionActive: vi.fn(),
+  clearLegacyPdfCache: vi.fn(),
   createObjectURL: vi.fn((blob: Blob) =>
     blob instanceof File ? `blob:${blob.name}` : "blob:remote.pdf",
   ),
   revokeObjectURL: vi.fn(),
+}));
+
+vi.mock("../hooks/useAuth", () => ({
+  useAuth: () => mocks.auth,
 }));
 
 vi.mock("../services/localBackend", () => ({
@@ -28,7 +33,7 @@ vi.mock("../services/pdfSessionCache", () => ({
     savePdfToCache: mocks.savePdfToCache,
     saveScrollPosition: mocks.saveScrollPosition,
     clearPdfCache: mocks.clearPdfCache,
-    markSessionActive: mocks.markSessionActive,
+    clearLegacyPdfCache: mocks.clearLegacyPdfCache,
   },
 }));
 
@@ -74,11 +79,16 @@ async function flushAsyncWork(): Promise<void> {
 let host: HTMLDivElement;
 let root: Root;
 let currentState: PdfState | null;
+let recordRenderedFiles = false;
+let renderedFiles: Array<string | null> = [];
 let originalCreateObjectURL: typeof URL.createObjectURL | undefined;
 let originalRevokeObjectURL: typeof URL.revokeObjectURL | undefined;
 
 function PdfProbe() {
   const state = usePdfState();
+  if (recordRenderedFiles) {
+    renderedFiles.push(state.selectedFile?.name ?? null);
+  }
   useEffect(() => {
     currentState = state;
   });
@@ -109,10 +119,14 @@ beforeEach(async () => {
     .IS_REACT_ACT_ENVIRONMENT = true;
   vi.clearAllMocks();
   currentState = null;
+  recordRenderedFiles = false;
+  renderedFiles = [];
+  mocks.auth.user = { uid: "user-1" };
   mocks.loadPdfFromCache.mockResolvedValue(null);
   mocks.savePdfToCache.mockResolvedValue(undefined);
   mocks.saveScrollPosition.mockResolvedValue(undefined);
   mocks.clearPdfCache.mockResolvedValue(undefined);
+  mocks.clearLegacyPdfCache.mockResolvedValue(undefined);
 
   originalCreateObjectURL = URL.createObjectURL;
   originalRevokeObjectURL = URL.revokeObjectURL;
@@ -173,6 +187,7 @@ describe("PdfProvider document lifecycle", () => {
     expect(state().isUploading).toBe(true);
     expect(mocks.fetchWithComputeBase).toHaveBeenCalledTimes(1);
     expect(mocks.savePdfToCache).toHaveBeenCalledWith(
+      "user-1",
       cachedBlob,
       null,
       "cached-scan.pdf",
@@ -186,6 +201,44 @@ describe("PdfProvider document lifecycle", () => {
     await flushAsyncWork();
     expect(state().result?.filename).toBe("cached-scan.pdf");
     expect(state().isUploading).toBe(false);
+  });
+
+  it("does not retain the previous account PDF while a new account restores", async () => {
+    const cachedBlob = new Blob(["alice"], { type: "application/pdf" });
+    act(() => root.unmount());
+    host.remove();
+    currentState = null;
+    mocks.loadPdfFromCache.mockResolvedValueOnce({
+      blob: cachedBlob,
+      result: null,
+      filename: "alice.pdf",
+      documentId: "alice-document",
+    });
+    await mountProvider();
+    expect(state().selectedFile?.name).toBe("alice.pdf");
+
+    const bobCache = deferred<null>();
+    mocks.loadPdfFromCache.mockReturnValueOnce(bobCache.promise);
+    mocks.auth.user = { uid: "user-2" };
+    renderedFiles = [];
+    recordRenderedFiles = true;
+    await act(async () => {
+      root.render(
+        <PdfProvider>
+          <PdfProbe />
+        </PdfProvider>,
+      );
+    });
+    recordRenderedFiles = false;
+
+    expect(renderedFiles.length).toBeGreaterThan(0);
+    expect(renderedFiles).not.toContain("alice.pdf");
+    expect(state().selectedFile).toBeNull();
+    expect(state().pdfUrl).toBeNull();
+    expect(mocks.loadPdfFromCache).toHaveBeenLastCalledWith("user-2");
+    bobCache.resolve(null);
+    await flushAsyncWork();
+    expect(state().selectedFile).toBeNull();
   });
 
   it("does not restore cached state over a PDF selected by the user", async () => {
@@ -256,6 +309,20 @@ describe("PdfProvider document lifecycle", () => {
 
     secondExtraction.resolve(extractResponse("second.pdf", "Second text"));
     await flushAsyncWork();
+  });
+
+  it("accepts a PDF extension when the browser leaves MIME empty", async () => {
+    mocks.fetchWithComputeBase.mockResolvedValueOnce(
+      extractResponse("mime-less.pdf", "PDF text"),
+    );
+    const file = new File(["%PDF-1.7"], "mime-less.pdf", { type: "" });
+
+    act(() => state().handleFileChange(file));
+    await flushAsyncWork();
+
+    expect(state().selectedFile?.name).toBe("mime-less.pdf");
+    expect(state().error).toBeNull();
+    expect(mocks.fetchWithComputeBase).toHaveBeenCalledTimes(1);
   });
 
   it("keeps a local PDF visible when background extraction fails", async () => {

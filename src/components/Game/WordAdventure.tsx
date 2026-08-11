@@ -32,13 +32,17 @@ export function WordAdventure() {
     isClaimingDailyBonus,
     dailyBonusError,
     tokenSyncError,
+    isSettling,
+    canRetrySettlement,
     startQuiz,
     submitAnswer,
     advanceQuestion,
     tickTimer,
     claimReward,
     claimDailyBonus,
+    retrySettlement,
     clearTokenSyncError,
+    quitQuiz,
     goHome,
   } = useAdventure();
 
@@ -115,13 +119,24 @@ export function WordAdventure() {
           role="alert"
         >
           <span>{tokenSyncError}</span>
-          <button
-            type="button"
-            onClick={clearTokenSyncError}
-            className="btn btn-ghost btn-sm min-h-11 shrink-0"
-          >
-            知道了
-          </button>
+          {canRetrySettlement ? (
+            <button
+              type="button"
+              onClick={() => void retrySettlement()}
+              disabled={isSettling}
+              className="btn btn-error btn-sm min-h-11 shrink-0"
+            >
+              {isSettling ? "結算中..." : "重試結算"}
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={clearTokenSyncError}
+              className="btn btn-ghost btn-sm min-h-11 shrink-0"
+            >
+              知道了
+            </button>
+          )}
         </div>
       ) : null}
 
@@ -179,7 +194,8 @@ export function WordAdventure() {
           onSubmitAnswer={submitAnswer}
           onAdvanceQuestion={advanceQuestion}
           onTickTimer={tickTimer}
-          onQuit={() => setGameView("map")}
+          onQuit={quitQuiz}
+          isSettling={isSettling}
         />
       )}
 
@@ -192,7 +208,8 @@ export function WordAdventure() {
           onSubmitAnswer={submitAnswer}
           onAdvanceQuestion={advanceQuestion}
           onTickTimer={tickTimer}
-          onQuit={() => setGameView("map")}
+          onQuit={quitQuiz}
+          isSettling={isSettling}
         />
       )}
 

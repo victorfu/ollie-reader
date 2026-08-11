@@ -152,6 +152,70 @@ def test_ensure_models_all_ok(tmp_path, monkeypatch):
     assert st.snapshot()["state"] == "done"
 
 
+def test_transport_failure_marks_file_failed_and_retry_clears_error(
+    tmp_path, monkeypatch
+):
+    data = b"ok"
+    mf = _model("retry.bin", data)
+    monkeypatch.setattr(md, "MANIFEST", [mf])
+
+    def offline(*args, **kwargs):
+        raise RuntimeError("offline")
+
+    monkeypatch.setattr(md.httpx, "stream", offline)
+    st = md.DownloadStatus()
+    md.ensure_models(tmp_path, st)
+
+    failed = st.snapshot()
+    assert failed["state"] == "failed"
+    assert failed["files"]["retry.bin"]["state"] == "failed"
+    assert failed["error"] == "retry.bin: offline"
+
+    (tmp_path / "retry.bin").write_bytes(data)
+    md.ensure_models(tmp_path, st)
+
+    retried = st.snapshot()
+    assert retried["state"] == "done"
+    assert retried["files"]["retry.bin"]["state"] == "done"
+    assert retried["error"] is None
+
+
+def test_validate_model_files_reports_missing_size_and_checksum(tmp_path):
+    good_data = b"good"
+    wrong_hash = md.ModelFile(
+        "wrong-hash.bin",
+        "https://example.test/hash",
+        "0" * 64,
+        len(good_data),
+    )
+    wrong_size = md.ModelFile(
+        "wrong-size.bin",
+        "https://example.test/size",
+        hashlib.sha256(good_data).hexdigest(),
+        len(good_data) + 1,
+    )
+    missing = _model("missing.bin", b"missing")
+    (tmp_path / wrong_hash.filename).write_bytes(good_data)
+    (tmp_path / wrong_size.filename).write_bytes(good_data)
+
+    errors = md.validate_model_files(
+        tmp_path,
+        [wrong_hash, wrong_size, missing],
+    )
+
+    assert any("SHA-256" in error and wrong_hash.filename in error for error in errors)
+    assert any("大小" in error and wrong_size.filename in error for error in errors)
+    assert any("缺少" in error and missing.filename in error for error in errors)
+
+
+def test_validate_model_files_accepts_complete_manifest(tmp_path):
+    data = b"valid"
+    model = _model("valid.bin", data)
+    (tmp_path / model.filename).write_bytes(data)
+
+    assert md.validate_model_files(tmp_path, [model]) == []
+
+
 def test_should_auto_download_respects_frozen(monkeypatch):
     monkeypatch.setattr(md.sys, "frozen", False, raising=False)
     assert md.should_auto_download() is True

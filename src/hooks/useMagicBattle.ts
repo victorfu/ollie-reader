@@ -1,8 +1,13 @@
 import { useState, useCallback, useRef } from "react";
 import { useVocabulary } from "./useVocabulary";
 import type { GameState, Monster, Player, GameStats } from "../types/game";
-import { prepareGamePool, type GameWord } from "../services/gameService";
+import {
+  FALLBACK_GAME_WORDS,
+  prepareGamePool,
+  type GameWord,
+} from "../services/gameService";
 import confetti from "canvas-confetti";
+import { buildMagicBattleOptions } from "../components/Game/magicBattleOptions";
 
 // Kawaii-only monster emojis (cute animals, fantasy creatures, foods, nature)
 const MONSTER_EMOJIS = [
@@ -249,12 +254,6 @@ export function useMagicBattle() {
     null,
   );
 
-  // Helper to get random items from array
-  const getRandomItems = <T>(arr: T[], count: number): T[] => {
-    const shuffled = [...arr].sort(() => 0.5 - Math.random());
-    return shuffled.slice(0, count);
-  };
-
   // Initialize game pool when starting
   const initializeGame = useCallback(async () => {
     setIsLoading(true);
@@ -301,17 +300,12 @@ export function useMagicBattle() {
       // Mark this word as used
       usedWordsRef.current.add(targetWord.word);
 
-      // Pick 3 distractors from remaining words (can include used words for variety)
-      const distractorPool = currentPool.filter(
-        (w) => w.word !== targetWord.word,
+      // Supplement user vocabulary with fallback definitions only when needed;
+      // the builder de-duplicates what the player actually sees.
+      const options = buildMagicBattleOptions(
+        targetWord,
+        [...currentPool, ...FALLBACK_GAME_WORDS],
       );
-      const distractors = getRandomItems(distractorPool, 3);
-
-      // Combine and shuffle options
-      const options = [targetWord, ...distractors].sort(
-        () => 0.5 - Math.random(),
-      );
-      const correctIndex = options.findIndex((o) => o.word === targetWord.word);
 
       const monsterIndex = Math.floor(Math.random() * MONSTER_EMOJIS.length);
 
@@ -322,8 +316,8 @@ export function useMagicBattle() {
         hp: MONSTER_MAX_HP,
         maxHp: MONSTER_MAX_HP,
         word: targetWord.word,
-        definitions: options.map((o) => o.def),
-        correctDefinitionIndex: correctIndex,
+        definitions: options.definitions,
+        correctDefinitionIndex: options.correctDefinitionIndex,
       };
 
       setCurrentMonster(newMonster);

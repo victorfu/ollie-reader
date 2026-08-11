@@ -1158,11 +1158,16 @@ function applyDot(
   durationMs: number,
   color: string,
 ): void {
-  if (dps >= enemy.dotDps) {
+  if (dps > enemy.dotDps) {
     enemy.dotDps = dps;
     enemy.dotColor = color;
+    // 一層 DOT 的傷害與時間必須來自同一個效果。否則短暫的強力大招會被
+    // 後續弱毒無限續期，實際傷害遠超原本的大招持續時間。
+    enemy.dotMs = durationMs;
+  } else if (dps === enemy.dotDps) {
+    // 同一強度再次命中可以正常刷新，但較弱的效果完全不能改動較強那層。
+    enemy.dotMs = Math.max(enemy.dotMs, durationMs);
   }
-  enemy.dotMs = Math.max(enemy.dotMs, durationMs);
 }
 
 function hitEnemy(

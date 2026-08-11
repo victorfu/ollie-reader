@@ -48,6 +48,20 @@ import { useVocabulary } from "./useVocabulary";
 
 type VocabularyHook = ReturnType<typeof useVocabulary>;
 
+const makeWord = (id: string, word: string): VocabularyWord => ({
+  id,
+  word,
+  userId: "user-1",
+  definitions: [],
+  examples: [],
+  synonyms: [],
+  antonyms: [],
+  tags: [],
+  createdAt: new Date("2026-01-01T00:00:00Z"),
+  updatedAt: new Date("2026-01-01T00:00:00Z"),
+  reviewCount: 0,
+});
+
 const renderUseVocabulary = () => {
   let root: Root | undefined;
   let value: VocabularyHook | undefined;
@@ -89,7 +103,10 @@ describe("useVocabulary", () => {
     vi.clearAllMocks();
     mocks.useAuth.mockReturnValue({ user: { uid: "user-1" } });
     mocks.checkWordExists.mockResolvedValue(null);
-    mocks.addVocabularyWord.mockResolvedValue("word-1");
+    mocks.addVocabularyWord.mockResolvedValue({
+      id: "word-1",
+      created: true,
+    });
   });
 
   afterEach(() => {
@@ -183,5 +200,58 @@ describe("useVocabulary", () => {
     });
     expect(mocks.generateWordDetails).not.toHaveBeenCalled();
     expect(mocks.addVocabularyWord).not.toHaveBeenCalled();
+  });
+
+  it("ignores an old load-more page after a newer refresh", async () => {
+    let resolveOldPage:
+      | ((value: {
+          words: VocabularyWord[];
+          hasMore: boolean;
+          lastDocId?: string;
+        }) => void)
+      | undefined;
+    const oldPage = new Promise<{
+      words: VocabularyWord[];
+      hasMore: boolean;
+      lastDocId?: string;
+    }>((resolve) => {
+      resolveOldPage = resolve;
+    });
+
+    mocks.getUserVocabulary
+      .mockResolvedValueOnce({
+        words: [makeWord("a", "alpha")],
+        hasMore: true,
+        lastDocId: "a",
+      })
+      .mockReturnValueOnce(oldPage)
+      .mockResolvedValueOnce({
+        words: [makeWord("fresh", "fresh")],
+        hasMore: false,
+      });
+
+    hook = renderUseVocabulary();
+    await act(async () => {
+      await hook?.current.loadVocabulary();
+    });
+
+    let oldLoad: Promise<void> | undefined;
+    act(() => {
+      oldLoad = hook?.current.loadMore();
+    });
+
+    await act(async () => {
+      await hook?.current.loadVocabulary();
+    });
+    await act(async () => {
+      resolveOldPage?.({
+        words: [makeWord("old", "old")],
+        hasMore: false,
+      });
+      await oldLoad;
+    });
+
+    expect(hook.current.words.map((word) => word.id)).toEqual(["fresh"]);
+    expect(hook.current.isLoadingMore).toBe(false);
   });
 });

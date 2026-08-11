@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 
 interface SentenceInputProps {
-  onSubmit: (text: string) => Promise<void>;
+  onSubmit: (text: string) => Promise<boolean>;
   isProcessing: boolean;
   isOpen: boolean;
   onClose: () => void;
@@ -15,6 +15,8 @@ export const SentenceInput = ({
 }: SentenceInputProps) => {
   const [text, setText] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const latestTextRef = useRef("");
+  const submitRequestIdRef = useRef(0);
 
   // Focus textarea when opened
   useEffect(() => {
@@ -26,7 +28,18 @@ export const SentenceInput = ({
   const handleSubmit = async () => {
     if (!text.trim() || isProcessing) return;
 
-    await onSubmit(text.trim());
+    const submittedText = text.trim();
+    const requestId = ++submitRequestIdRef.current;
+    const success = await onSubmit(submittedText);
+    if (
+      !success ||
+      requestId !== submitRequestIdRef.current ||
+      latestTextRef.current.trim() !== submittedText
+    ) {
+      return;
+    }
+
+    latestTextRef.current = "";
     setText("");
     onClose();
   };
@@ -95,7 +108,11 @@ export const SentenceInput = ({
         <textarea
           ref={textareaRef}
           value={text}
-          onChange={(e) => setText(e.target.value)}
+          onChange={(e) => {
+            submitRequestIdRef.current += 1;
+            latestTextRef.current = e.target.value;
+            setText(e.target.value);
+          }}
           onKeyDown={handleKeyDown}
           placeholder="在這裡貼上或輸入英文文字..."
           className="textarea textarea-bordered w-full h-32 text-base"

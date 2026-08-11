@@ -11,7 +11,7 @@ from typing import Any, Optional
 
 import httpx
 
-from server.oikid_secrets import get_oikid_credentials
+from server.oikid_secrets import OikidSecretsError, get_oikid_credentials
 from server.ssl_compat import create_ssl_context
 
 logger = logging.getLogger(__name__)
@@ -67,7 +67,10 @@ def _login(client: httpx.Client, username: str, password: str) -> dict[str, str]
 
 
 def search_booking_records(*, client: Optional[httpx.Client] = None) -> dict[str, Any]:
-    creds = get_oikid_credentials()
+    try:
+        creds = get_oikid_credentials()
+    except OikidSecretsError as exc:
+        raise OikidError(str(exc), status_code=503) from exc
     if creds is None:
         raise OikidError("OIKID 帳密未設定，請到桌面 App 設定", status_code=400)
     username, password = creds

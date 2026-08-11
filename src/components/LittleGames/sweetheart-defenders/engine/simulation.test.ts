@@ -737,6 +737,21 @@ describe("secondary-element traits in battle", () => {
     expect(state.enemies[0]?.hp ?? 0).toBeLessThan(before);
   });
 
+  it("毒液: a weak toxin hit cannot extend a stronger ultimate DOT", () => {
+    const level = traitLevel(1, 0);
+    const state = runUntilFirstHit("pochacco", level);
+    const poisoned = state.enemies[0];
+
+    // 模擬藤蔓大招已套上 26 DPS、只剩一秒；Pochacco 的 4 DPS 毒液準備再命中。
+    poisoned.dotDps = 26;
+    poisoned.dotMs = 1000;
+    state.towers[0].cooldownMs = 0;
+    stepSimulation(state, level, [], STEP_MS);
+
+    expect(poisoned.dotDps).toBe(26);
+    expect(poisoned.dotMs).toBe(1000 - STEP_MS);
+  });
+
   it("冰霜: slows the target even though the tower is not a syrup tower", () => {
     // goropikadon = spark + tide → 速射 · 冰霜
     const level = traitLevel(1, 0);

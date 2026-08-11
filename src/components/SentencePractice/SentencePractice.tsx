@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, forwardRef } from "react";
+import { useState, useEffect, useCallback, useRef, forwardRef } from "react";
 import {
   Reorder,
   useDragControls,
@@ -112,8 +112,11 @@ export const SentencePractice = () => {
     type: "success" | "error" | "info";
   } | null>(null);
 
-  const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [clearTargetSpeechId, setClearTargetSpeechId] = useState<string | null>(
+    null,
+  );
   const [showInputPanel, setShowInputPanel] = useState(false);
+  const reorderDraftsRef = useRef<Map<string, PracticeSentence[]>>(new Map());
 
   // Track which sentence is being edited to disable drag
   const [editingSentenceId, setEditingSentenceId] = useState<string | null>(
@@ -195,15 +198,29 @@ export const SentencePractice = () => {
     };
   }, [isPlayingAll, currentPlayingIndex, sentences, speakAsync, stopSpeaking]);
 
-  // Handle reorder with optimistic update and Firestore persistence
-  const handleReorder = async (reorderedList: PracticeSentence[]) => {
+  useEffect(() => {
+    if (currentSpeechId) {
+      reorderDraftsRef.current.set(currentSpeechId, sentences);
+    }
+  }, [currentSpeechId, sentences]);
+
+  // Handle reorder with optimistic update and Firestore persistence. Keep a
+  // draft per speech so an old drag-end callback can never persist another
+  // speech's newly rendered list.
+  const handleReorder = (reorderedList: PracticeSentence[]) => {
+    if (currentSpeechId) {
+      reorderDraftsRef.current.set(currentSpeechId, reorderedList);
+    }
     // Update local state immediately for smooth drag experience
     setSentences(reorderedList);
   };
 
   // Save order to Firestore when drag ends
   const handleReorderComplete = async () => {
-    const result = await reorderSentences(sentences);
+    if (!currentSpeechId) return;
+    const reorderedList =
+      reorderDraftsRef.current.get(currentSpeechId) ?? sentences;
+    const result = await reorderSentences(reorderedList);
     if (!result.success) {
       setToastMessage({
         message: result.message || "排序儲存失敗",
@@ -226,6 +243,8 @@ export const SentencePractice = () => {
         type: "error",
       });
     }
+
+    return result.success;
   };
 
   const handleEdit = async (id: string, newEnglish: string) => {
@@ -265,8 +284,9 @@ export const SentencePractice = () => {
   };
 
   const handleClearAll = async () => {
-    const result = await clearAll();
-    setShowClearConfirm(false);
+    if (!clearTargetSpeechId) return;
+    const result = await clearAll(clearTargetSpeechId);
+    setClearTargetSpeechId(null);
 
     if (result.success) {
       setToastMessage({
@@ -418,7 +438,8 @@ export const SentencePractice = () => {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setShowClearConfirm(true)}
+                  onClick={() => setClearTargetSpeechId(currentSpeechId)}
+                  disabled={isProcessing || !currentSpeechId}
                   className="btn btn-outline btn-error btn-sm active:scale-[0.98]"
                   title="清除全部"
                 >
@@ -563,14 +584,17 @@ export const SentencePractice = () => {
 
       {/* Clear All Confirm Modal */}
       <ConfirmModal
-        isOpen={showClearConfirm}
+        isOpen={clearTargetSpeechId !== null}
         title="清除所有句子"
-        message="確定要刪除所有句子嗎？此操作無法復原。"
+        message={`確定要刪除「${
+          speeches.find((speech) => speech.id === clearTargetSpeechId)?.name ??
+          "此版本"
+        }」的所有句子嗎？此操作無法復原。`}
         confirmText="清除全部"
         cancelText="取消"
         confirmVariant="error"
         onConfirm={handleClearAll}
-        onCancel={() => setShowClearConfirm(false)}
+        onCancel={() => setClearTargetSpeechId(null)}
       />
 
       {/* Fullscreen Playback Overlay */}

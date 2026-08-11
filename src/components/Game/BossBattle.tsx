@@ -17,6 +17,7 @@ interface BossBattleProps {
   onAdvanceQuestion: () => void;
   onTickTimer: () => void;
   onQuit: () => void;
+  isSettling: boolean;
 }
 
 // 每個魔王的外觀
@@ -40,6 +41,7 @@ export function BossBattle({
   onAdvanceQuestion,
   onTickTimer,
   onQuit,
+  isSettling,
 }: BossBattleProps) {
   const currentQuestion = quizState.questions[quizState.currentIndex];
   const { speak } = useSpeechState();
@@ -76,6 +78,7 @@ export function BossBattle({
         <div className="flex items-center justify-between mb-4 mt-10">
           <button
             onClick={onQuit}
+            disabled={isSettling}
             className="btn btn-ghost btn-sm glass gap-1 rounded-full active:scale-[0.98]"
           >
             <X className="h-4 w-4" strokeWidth={2} aria-hidden="true" />
@@ -159,6 +162,7 @@ export function BossBattle({
               isAnswered={quizState.isAnswered}
               lastAnswerCorrect={quizState.lastAnswerCorrect}
               isLastStep={isLastStep}
+              isSettling={isSettling}
               onAnswer={onSubmitAnswer}
               onNext={onAdvanceQuestion}
               speak={speak}

@@ -11,8 +11,8 @@ export interface PlayerProgress {
   // 經濟系統
   coins: number;
   streakDays: number;
-  lastLoginDate: string; // 本地 YYYY-MM-DD
-  lastDailyClaimDate: string; // 本地 YYYY-MM-DD（每日獎勵冪等用）
+  lastLoginDate: string; // Asia/Taipei 的 YYYY-MM-DD（由 server time 推導）
+  lastDailyClaimDate: string; // 同上（每日獎勵冪等用）
   createdAt: number;
   updatedAt: number;
 }
@@ -69,6 +69,7 @@ export interface QuizState {
   maxLives: number;
   score: number;
   combo: number;
+  maxCombo: number;
   isAnswered: boolean;
   lastAnswerCorrect: boolean | null;
 }

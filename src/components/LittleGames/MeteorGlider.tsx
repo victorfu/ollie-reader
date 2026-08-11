@@ -9,6 +9,12 @@ import {
   advanceMeteorHorizontalMotion,
   getMeteorDashStartDirection,
 } from "./meteorGliderPhysics";
+import {
+  getBestScore as readBestScore,
+  getLocalStorageItem,
+  setBestScore as persistBestScore,
+  setLocalStorageItem,
+} from "./lib/game-utils";
 
 type GameState = "menu" | "playing" | "paused" | "gameover" | "tutorialdone";
 type InputState = {
@@ -136,13 +142,13 @@ export default function MeteorGlider({ onExit, onPlayBunny }: MeteorGliderProps)
   const [tutorialStepUI, setTutorialStepUI] = useState(0);
 
   useEffect(() => {
-    const stored = localStorage.getItem(BEST_KEY);
-    if (stored) {
-      const parsed = parseInt(stored, 10);
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      if (!Number.isNaN(parsed)) setBestScore(parsed);
-    }
-    if (localStorage.getItem(TUTORIAL_KEY) === "1") setTutorialDone(true);
+    const refreshStoredProgress = () => {
+      setBestScore(readBestScore(BEST_KEY));
+      if (getLocalStorageItem(TUTORIAL_KEY) === "1") setTutorialDone(true);
+    };
+    refreshStoredProgress();
+    window.addEventListener("storage", refreshStoredProgress);
+    return () => window.removeEventListener("storage", refreshStoredProgress);
   }, []);
 
   // 全螢幕遊戲頁：鎖住頁面捲動（防 macOS 橡皮筋效應）
@@ -407,18 +413,16 @@ export default function MeteorGlider({ onExit, onPlayBunny }: MeteorGliderProps)
     const finalScore = Math.floor(data.score);
     renderedScoreRef.current = finalScore;
     setScore(finalScore);
-    if (finalScore > bestScore) {
-      setBestScore(finalScore);
-      localStorage.setItem(BEST_KEY, String(finalScore));
-    }
+    const persistedBest = persistBestScore(finalScore, BEST_KEY);
+    if (persistedBest > bestScore) setBestScore(persistedBest);
     setGameState("gameover");
   };
 
   const completeTutorial = () => {
-    if (localStorage.getItem(TUTORIAL_KEY) !== "1") {
-      localStorage.setItem(TUTORIAL_KEY, "1");
-      setTutorialDone(true);
+    if (getLocalStorageItem(TUTORIAL_KEY) !== "1") {
+      setLocalStorageItem(TUTORIAL_KEY, "1");
     }
+    setTutorialDone(true);
     setIsTutorial(false);
     setGameState("tutorialdone");
   };
