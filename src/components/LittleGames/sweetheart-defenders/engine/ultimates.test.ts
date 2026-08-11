@@ -283,7 +283,7 @@ describe("castUltimate", () => {
           },
           { kind: "startWave" },
         ],
-        0,
+        STEP_MS,
       );
 
       const enemy = state.enemies[0];

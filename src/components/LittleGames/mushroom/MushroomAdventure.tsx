@@ -5,7 +5,6 @@ import { MUSHROOM_CONFIG } from "../lib/constants";
 import { clamp, getBestScore, setBestScore } from "../lib/game-utils";
 import { type MushroomSettings } from "../lib/types";
 import {
-  BASE_SPEED,
   GRAVITY,
   HEIGHT,
   JUMP_SPEED,
@@ -16,10 +15,12 @@ import {
 import { buildLevels, LEVEL_COUNT, TUTORIAL_LEVEL } from "./levels";
 import {
   advanceEnemyVerticalMotion,
+  advancePlayerHorizontalMotion,
   clearJumpInput,
   consumePlayerJump,
   pressJump,
   releaseJump,
+  updateEnemiesUntilPlayerFrameEnds,
 } from "./behavior";
 import {
   BTN_OUTLINE,
@@ -437,7 +438,7 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
 
   const hitPlayer = () => {
     const s = stateRef.current;
-    if (s.invincibleTimer > 0) return;
+    if (s.invincibleTimer > 0) return false;
 
     // 教學關不扣生命：輕震動 + 擊退 + 短暫無敵，讓小孩安心試錯
     if (getLevel(s.levelIndex).tutorial) {
@@ -447,7 +448,7 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
       p.vy = -400;
       p.vx = -Math.sign(p.vx || 1) * 220;
       s.invincibleTimer = 2;
-      return;
+      return false;
     }
 
     // 觸發螢幕震動
@@ -488,6 +489,7 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
         speed: e.speed * settings.difficultyScale, // 套用難度倍率
       }));
     }
+    return true;
   };
 
   const update = (dt: number) => {
@@ -516,17 +518,11 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
 
     const speedBoost = s.speedTimer > 0 ? 0.35 : 0;
     const move = (s.keys.left ? -1 : 0) + (s.keys.right ? 1 : 0);
-    const maxSpeed = 500 * (1 + speedBoost);
-    p.vx = clamp(
-      p.vx * 0.9 + move * BASE_SPEED * (1 + speedBoost) * dt * 10,
-      -maxSpeed,
-      maxSpeed,
-    );
+    advancePlayerHorizontalMotion(p, move, speedBoost, dt);
 
     consumePlayerJump(s.keys, p, s.featherTimer > 0);
 
     p.vy += GRAVITY * dt;
-    p.x += p.vx * dt;
     p.y += p.vy * dt;
 
     // 每幀重算腳下平台（載運判定用）；地面也是平台（有坑洞的關卡才可能墜落）
@@ -624,192 +620,194 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
       }
     }
 
-    // enemies
-    s.enemies.forEach((e) => {
-      if (!e.alive) return;
+    // Enemies update in order. A life-losing contact is a terminal event for
+    // this frame so no callback can continue against the replaced player or
+    // enemy arrays.
+    const frameEnded = updateEnemiesUntilPlayerFrameEnds(p, s.enemies, {
+      updateEnemy: (e) => {
+        // 初始化基礎速度
+        if (e.baseSpeed === undefined) e.baseSpeed = e.speed;
 
-      // 初始化基礎速度
-      if (e.baseSpeed === undefined) e.baseSpeed = e.speed;
+        // Jumper intent must run while a landed enemy still has vy === 0.
+        // The helper then applies gravity and integrates vertical movement.
+        advanceEnemyVerticalMotion(e, p.x + p.w / 2, dt);
 
-      // Jumper intent must run while a landed enemy still has vy === 0.
-      // The helper then applies gravity and integrates vertical movement.
-      advanceEnemyVerticalMotion(e, p.x + p.w / 2, dt);
+        // 計算玩家距離
+        const distToPlayer = Math.abs(
+          p.x + p.w / 2 - (e.x + e.w / 2),
+        );
+        const playerDirection =
+          p.x + p.w / 2 > e.x + e.w / 2 ? 1 : -1;
 
-      // 計算玩家距離
-      const distToPlayer = Math.abs(p.x + p.w / 2 - (e.x + e.w / 2));
-      const playerDirection = p.x + p.w / 2 > e.x + e.w / 2 ? 1 : -1;
+        // === 不同怪物的獨特行為 ===
 
-      // === 不同怪物的獨特行為 ===
-
-      // Normal: 基本巡邏
-      if (e.type === "normal") {
-        e.x += e.dir * e.speed * dt;
-      }
-
-      // Fast: 偵測到玩家時加速衝刺
-      if (e.type === "fast") {
-        const detectRange = 250;
-        if (distToPlayer < detectRange) {
-          // 偵測到玩家，朝玩家方向衝刺
-          e.isCharging = true;
-          e.dir = playerDirection as 1 | -1;
-          e.speed = e.baseSpeed * 2.5; // 2.5倍速衝刺
-        } else {
-          e.isCharging = false;
-          e.speed = e.baseSpeed;
-        }
-        e.x += e.dir * e.speed * dt;
-      }
-
-      // Jumper: 跳躍並追蹤玩家方向
-      if (e.type === "jumper") {
-        e.x += e.dir * e.speed * dt;
-      }
-
-      // Spiked: 暫停後突然衝刺
-      if (e.type === "spiked") {
-        e.pauseTimer = e.pauseTimer ?? 0;
-        e.chargeTimer = e.chargeTimer ?? 0;
-
-        if (e.isCharging) {
-          // 正在衝刺
-          e.chargeTimer -= dt;
-          e.speed = e.baseSpeed * 3; // 3倍速衝刺
+        // Normal: 基本巡邏
+        if (e.type === "normal") {
           e.x += e.dir * e.speed * dt;
+        }
 
-          if (e.chargeTimer <= 0) {
+        // Fast: 偵測到玩家時加速衝刺
+        if (e.type === "fast") {
+          const detectRange = 250;
+          if (distToPlayer < detectRange) {
+            // 偵測到玩家，朝玩家方向衝刺
+            e.isCharging = true;
+            e.dir = playerDirection as 1 | -1;
+            e.speed = e.baseSpeed * 2.5; // 2.5倍速衝刺
+          } else {
             e.isCharging = false;
-            e.pauseTimer = 1.5 + Math.random(); // 暫停1.5-2.5秒
             e.speed = e.baseSpeed;
           }
-        } else {
-          // 暫停中
-          e.pauseTimer -= dt;
-          if (e.pauseTimer <= 0 && distToPlayer < 300) {
-            // 開始衝刺
-            e.isCharging = true;
-            e.chargeTimer = 0.8; // 衝刺0.8秒
-            e.dir = playerDirection as 1 | -1;
-          } else if (e.pauseTimer <= 0) {
-            // 沒偵測到玩家，緩慢移動
-            e.x += e.dir * (e.baseSpeed * 0.3) * dt;
-          }
-          // 暫停時不移動（或非常慢）
+          e.x += e.dir * e.speed * dt;
         }
-      }
 
-      // Platform collision
-      for (const plat of s.platforms) {
-        if (aabb(e, plat)) {
-          // Check if landing from above (allow some overlap tolerance)
-          const prevY = e.y - e.vy * dt;
-          if (prevY + e.h <= plat.y + 16 && e.vy >= 0) {
-            e.y = plat.y - e.h;
-            e.vy = 0;
+        // Jumper: 跳躍並追蹤玩家方向
+        if (e.type === "jumper") {
+          e.x += e.dir * e.speed * dt;
+        }
 
-            // Edge detection (Turn around if at edge)
-            if (e.dir === -1 && e.x < plat.x) {
-              e.x = plat.x;
-              e.dir = 1;
-            } else if (e.dir === 1 && e.x + e.w > plat.x + plat.w) {
-              e.x = plat.x + plat.w - e.w;
-              e.dir = -1;
+        // Spiked: 暫停後突然衝刺
+        if (e.type === "spiked") {
+          e.pauseTimer = e.pauseTimer ?? 0;
+          e.chargeTimer = e.chargeTimer ?? 0;
+
+          if (e.isCharging) {
+            // 正在衝刺
+            e.chargeTimer -= dt;
+            e.speed = e.baseSpeed * 3; // 3倍速衝刺
+            e.x += e.dir * e.speed * dt;
+
+            if (e.chargeTimer <= 0) {
+              e.isCharging = false;
+              e.pauseTimer = 1.5 + Math.random(); // 暫停1.5-2.5秒
+              e.speed = e.baseSpeed;
             }
-            break;
+          } else {
+            // 暫停中
+            e.pauseTimer -= dt;
+            if (e.pauseTimer <= 0 && distToPlayer < 300) {
+              // 開始衝刺
+              e.isCharging = true;
+              e.chargeTimer = 0.8; // 衝刺0.8秒
+              e.dir = playerDirection as 1 | -1;
+            } else if (e.pauseTimer <= 0) {
+              // 沒偵測到玩家，緩慢移動
+              e.x += e.dir * (e.baseSpeed * 0.3) * dt;
+            }
+            // 暫停時不移動（或非常慢）
           }
         }
-      }
 
-      // Kill if fell off world
-      if (e.y > HEIGHT + 100) {
-        e.alive = false;
-        return;
-      }
+        // Platform collision
+        for (const plat of s.platforms) {
+          if (aabb(e, plat)) {
+            // Check if landing from above (allow some overlap tolerance)
+            const prevY = e.y - e.vy * dt;
+            if (prevY + e.h <= plat.y + 16 && e.vy >= 0) {
+              e.y = plat.y - e.h;
+              e.vy = 0;
 
-      if (aabb(p, e)) {
-        const stomp = p.vy > 120 && p.y + p.h - e.y < 26;
-        if ((stomp && e.type !== "spiked") || s.invincibleTimer > 0) {
-          e.alive = false;
-          p.vy = -JUMP_SPEED * 0.6;
-
-          // 連擊系統
-          const now = performance.now();
-          if (now - s.lastStompTime <= MUSHROOM_CONFIG.COMBO_WINDOW_MS) {
-            s.comboCount += 1;
-          } else {
-            s.comboCount = 1;
+              // Edge detection (Turn around if at edge)
+              if (e.dir === -1 && e.x < plat.x) {
+                e.x = plat.x;
+                e.dir = 1;
+              } else if (
+                e.dir === 1 &&
+                e.x + e.w > plat.x + plat.w
+              ) {
+                e.x = plat.x + plat.w - e.w;
+                e.dir = -1;
+              }
+              break;
+            }
           }
-          s.lastStompTime = now;
+        }
 
-          // 計算分數：基礎分 + 連擊加成
-          const baseScore =
-            e.type === "spiked" ? 100 : MUSHROOM_CONFIG.STOMP_BASE_SCORE;
-          const comboBonus =
-            (s.comboCount - 1) * MUSHROOM_CONFIG.COMBO_BONUS_PER_HIT;
-          const totalScore = baseScore + comboBonus;
-          s.score += totalScore;
+        // Kill if fell off world
+        if (e.y > HEIGHT + 100) e.alive = false;
+      },
+      isPlayerInvincible: () => s.invincibleTimer > 0,
+      defeatEnemy: (e) => {
+        e.alive = false;
+        p.vy = -JUMP_SPEED * 0.6;
 
-          // 顯示連擊文字
-          if (s.comboCount >= 2) {
-            s.floatingTexts.push({
-              x: e.x + e.w / 2,
-              y: e.y - 30,
-              text: `連擊 ×${s.comboCount}！+${totalScore}`,
-              life: 1.5,
-              color:
-                s.comboCount >= 5
-                  ? "#f59e0b"
-                  : s.comboCount >= 3
+        // 連擊系統
+        const now = performance.now();
+        if (now - s.lastStompTime <= MUSHROOM_CONFIG.COMBO_WINDOW_MS) {
+          s.comboCount += 1;
+        } else {
+          s.comboCount = 1;
+        }
+        s.lastStompTime = now;
+
+        // 計算分數：基礎分 + 連擊加成
+        const baseScore =
+          e.type === "spiked" ? 100 : MUSHROOM_CONFIG.STOMP_BASE_SCORE;
+        const comboBonus =
+          (s.comboCount - 1) * MUSHROOM_CONFIG.COMBO_BONUS_PER_HIT;
+        const totalScore = baseScore + comboBonus;
+        s.score += totalScore;
+
+        // 顯示連擊文字
+        if (s.comboCount >= 2) {
+          s.floatingTexts.push({
+            x: e.x + e.w / 2,
+            y: e.y - 30,
+            text: `連擊 ×${s.comboCount}！+${totalScore}`,
+            life: 1.5,
+            color:
+              s.comboCount >= 5
+                ? "#f59e0b"
+                : s.comboCount >= 3
                   ? "#22c55e"
                   : "#3b82f6",
+          });
+        }
+
+        // 產生粒子效果
+        if (
+          settings.enableParticles &&
+          s.particles.length < MUSHROOM_CONFIG.MAX_PARTICLES
+        ) {
+          const particleCount =
+            MUSHROOM_CONFIG.PARTICLE_COUNT_MIN +
+            Math.floor(
+              Math.random() *
+                (MUSHROOM_CONFIG.PARTICLE_COUNT_MAX -
+                  MUSHROOM_CONFIG.PARTICLE_COUNT_MIN),
+            );
+          const colors = [
+            "#ef4444",
+            "#f59e0b",
+            "#22c55e",
+            "#3b82f6",
+            "#a855f7",
+          ];
+          for (
+            let i = 0;
+            i < particleCount &&
+            s.particles.length < MUSHROOM_CONFIG.MAX_PARTICLES;
+            i++
+          ) {
+            const angle =
+              (Math.PI * 2 * i) / particleCount + Math.random() * 0.5;
+            const speed = 100 + Math.random() * 150;
+            s.particles.push({
+              x: e.x + e.w / 2,
+              y: e.y + e.h / 2,
+              vx: Math.cos(angle) * speed,
+              vy: Math.sin(angle) * speed - 100,
+              life: MUSHROOM_CONFIG.PARTICLE_LIFE,
+              maxLife: MUSHROOM_CONFIG.PARTICLE_LIFE,
+              color: colors[Math.floor(Math.random() * colors.length)],
+              size: 4 + Math.random() * 4,
             });
           }
-
-          // 產生粒子效果
-          if (
-            settings.enableParticles &&
-            s.particles.length < MUSHROOM_CONFIG.MAX_PARTICLES
-          ) {
-            const particleCount =
-              MUSHROOM_CONFIG.PARTICLE_COUNT_MIN +
-              Math.floor(
-                Math.random() *
-                  (MUSHROOM_CONFIG.PARTICLE_COUNT_MAX -
-                    MUSHROOM_CONFIG.PARTICLE_COUNT_MIN),
-              );
-            const colors = [
-              "#ef4444",
-              "#f59e0b",
-              "#22c55e",
-              "#3b82f6",
-              "#a855f7",
-            ];
-            for (
-              let i = 0;
-              i < particleCount &&
-              s.particles.length < MUSHROOM_CONFIG.MAX_PARTICLES;
-              i++
-            ) {
-              const angle =
-                (Math.PI * 2 * i) / particleCount + Math.random() * 0.5;
-              const speed = 100 + Math.random() * 150;
-              s.particles.push({
-                x: e.x + e.w / 2,
-                y: e.y + e.h / 2,
-                vx: Math.cos(angle) * speed,
-                vy: Math.sin(angle) * speed - 100,
-                life: MUSHROOM_CONFIG.PARTICLE_LIFE,
-                maxLife: MUSHROOM_CONFIG.PARTICLE_LIFE,
-                color: colors[Math.floor(Math.random() * colors.length)],
-                size: 4 + Math.random() * 4,
-              });
-            }
-          }
-        } else {
-          hitPlayer();
         }
-      }
+      },
+      hitPlayer,
     });
+    if (frameEnded) return;
 
     // coins
     s.coins.forEach((c) => {

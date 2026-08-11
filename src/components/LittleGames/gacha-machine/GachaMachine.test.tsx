@@ -1318,6 +1318,159 @@ describe("GachaMachine draw guard", () => {
     expect(container.textContent).not.toContain("隨重設清除");
   });
 
+  it("reloads the authoritative balance when a committed draw resolves after a reset", async () => {
+    let finishDraw: ((result: CommittedGachaAttempt) => void) | undefined;
+    storageMocks.recordGachaAttempt.mockReturnValue(
+      new Promise<CommittedGachaAttempt>((resolve) => {
+        finishDraw = resolve;
+      }),
+    );
+    storageMocks.loadPlayerCoins
+      .mockResolvedValueOnce(500)
+      .mockResolvedValueOnce(450);
+    await renderAt("/games/gacha");
+
+    act(() => buttonWithText("投入 50 代幣").click());
+    act(() => {
+      container
+        .querySelector<HTMLButtonElement>('button[aria-label="轉動扭蛋機把手"]')
+        ?.click();
+    });
+
+    act(() => {
+      window.dispatchEvent(
+        new StorageEvent("storage", {
+          key: "ollie-gacha-machine-cache-v1:player-1",
+          newValue: JSON.stringify({
+            schemaVersion: 1,
+            resetVersion: 1,
+            totalDraws: 0,
+            ownedCounts: {},
+          }),
+        }),
+      );
+    });
+    expect(container.textContent).toContain("代幣 500");
+    expect(container.textContent).toContain("代幣餘額會自動重新同步");
+
+    await act(async () => {
+      finishDraw?.({
+        coinsAfter: 450,
+        save: {
+          schemaVersion: 1,
+          resetVersion: 0,
+          totalDraws: 1,
+          ownedCounts: { kuromi: 1 },
+        },
+        result: {
+          kind: "character",
+          characterId: "kuromi",
+          isNew: true,
+          ownedCount: 1,
+          totalDraws: 1,
+        },
+      });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(storageMocks.loadPlayerCoins).toHaveBeenCalledTimes(2);
+    expect(container.textContent).toContain("代幣 450");
+    expect(
+      container.querySelector('button[aria-label="膠囊已經出來，點擊開獎"]'),
+    ).toBeNull();
+  });
+
+  it("does not let a stale reset refresh overwrite a newer committed draw", async () => {
+    let finishFirstDraw: ((result: CommittedGachaAttempt) => void) | undefined;
+    let finishStaleRefresh: ((balance: number) => void) | undefined;
+    storageMocks.recordGachaAttempt
+      .mockReturnValueOnce(
+        new Promise<CommittedGachaAttempt>((resolve) => {
+          finishFirstDraw = resolve;
+        }),
+      )
+      .mockResolvedValueOnce({
+        coinsAfter: 400,
+        save: {
+          schemaVersion: 1,
+          resetVersion: 1,
+          totalDraws: 1,
+          ownedCounts: { "hello-kitty": 1 },
+        },
+        result: {
+          kind: "character",
+          characterId: "hello-kitty",
+          isNew: true,
+          ownedCount: 1,
+          totalDraws: 1,
+        },
+      });
+    storageMocks.loadPlayerCoins
+      .mockResolvedValueOnce(500)
+      .mockReturnValueOnce(
+        new Promise<number>((resolve) => {
+          finishStaleRefresh = resolve;
+        }),
+      );
+    await renderAt("/games/gacha");
+
+    act(() => buttonWithText("投入 50 代幣").click());
+    act(() => {
+      container
+        .querySelector<HTMLButtonElement>('button[aria-label="轉動扭蛋機把手"]')
+        ?.click();
+      window.dispatchEvent(
+        new StorageEvent("storage", {
+          key: "ollie-gacha-machine-cache-v1:player-1",
+          newValue: JSON.stringify({
+            schemaVersion: 1,
+            resetVersion: 1,
+            totalDraws: 0,
+            ownedCounts: {},
+          }),
+        }),
+      );
+    });
+
+    await act(async () => {
+      finishFirstDraw?.({
+        coinsAfter: 450,
+        save: {
+          schemaVersion: 1,
+          resetVersion: 0,
+          totalDraws: 1,
+          ownedCounts: { kuromi: 1 },
+        },
+        result: {
+          kind: "character",
+          characterId: "kuromi",
+          isNew: true,
+          ownedCount: 1,
+          totalDraws: 1,
+        },
+      });
+      await Promise.resolve();
+    });
+    expect(storageMocks.loadPlayerCoins).toHaveBeenCalledTimes(2);
+
+    act(() => buttonWithText("投入 50 代幣").click());
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>('button[aria-label="轉動扭蛋機把手"]')
+        ?.click();
+      await Promise.resolve();
+    });
+    expect(container.textContent).toContain("代幣 400");
+
+    await act(async () => {
+      finishStaleRefresh?.(450);
+      await Promise.resolve();
+    });
+    expect(container.textContent).toContain("代幣 400");
+    expect(container.textContent).not.toContain("代幣 450");
+  });
+
   it("ignores a rejected draw after switching to another uid", async () => {
     let failDraw: ((reason?: unknown) => void) | undefined;
     storageMocks.recordGachaAttempt.mockReturnValue(

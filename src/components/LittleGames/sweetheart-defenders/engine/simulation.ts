@@ -177,6 +177,10 @@ export function stepSimulation(
     applyCommand(state, level, command);
   }
 
+  // 戰術暫停仍允許佈塔、升級、售塔與施放絕招，但指令處理完就必須停住。
+  // 特別提早返回，才能保證不生成敵人、不移動世界，也不讓 ready 的塔免費開火。
+  if (dtMs === 0) return state;
+
   if (state.phase === "cleared" || state.phase === "lost") {
     advanceVisuals(state, dtMs);
     state.timeMs += dtMs;
@@ -844,9 +848,24 @@ function fireTower(
     const inRange = findEnemiesInRadius(slot, stats.range, state.enemies);
     if (inRange.length === 0) return false;
 
+    // 範圍傷害不能讓連擊按敵人數暴增；每次 pulse 只挑路上最前面的怪當主要目標。
+    const primary = findTarget(slot, stats.range, state.enemies)!;
+    trackCombo(tower, primary);
+
     for (const enemy of inRange) {
       hitEnemy(state, level, tower, enemy, stats, secondaryElements, 1);
     }
+    applyVineTrait(
+      state,
+      level,
+      tower,
+      stats,
+      secondaryElements,
+      inRange,
+      primary,
+      slot,
+      color,
+    );
     addEffect(state, "splash", slot, stats.range, color);
     return true;
   }
@@ -855,12 +874,7 @@ function fireTower(
   if (!target) return false;
 
   // 連擊特性要知道有沒有換目標。
-  if (target.uid === tower.comboTargetUid) {
-    tower.comboHits += 1;
-  } else {
-    tower.comboTargetUid = target.uid;
-    tower.comboHits = 1;
-  }
+  trackCombo(tower, target);
 
   if (stats.attackStyle === "beam") {
     addBeam(state, [{ ...slot }, { x: target.x, y: target.y }], color, 3.5);
@@ -903,6 +917,75 @@ function fireTower(
   }
 
   return true;
+}
+
+/** 每次開火只沿著一個穩定的主要目標累積連擊，不因濺射／範圍目標數放大。 */
+function trackCombo(tower: LiveTower, target: LiveEnemy): void {
+  if (target.uid === tower.comboTargetUid) {
+    tower.comboHits += 1;
+  } else {
+    tower.comboTargetUid = target.uid;
+    tower.comboHits = 1;
+  }
+}
+
+/**
+ * 藤蔓 pulse 的特性觸發規則。
+ *
+ * - 冰霜、恍神、灼燒、碎甲是命中狀態：範圍內每隻怪各觸發一次。
+ * - 連鎖與毒液目前沒有藤蔓角色；若日後加入，只從主要目標觸發一次，避免範圍
+ *   內每隻怪都再展開一串額外傷害或長時間 DOT，讓效果按怪物數失控。
+ * - 專注／純粹已在 stats 與傷害計算生效；連擊則由 trackCombo 每 pulse 計一次。
+ */
+function applyVineTrait(
+  state: BattleState,
+  level: CompiledLevel,
+  tower: LiveTower,
+  stats: TowerStats,
+  secondaryElements: Element[],
+  targets: LiveEnemy[],
+  primary: LiveEnemy,
+  origin: Vec2,
+  color: string,
+): void {
+  switch (stats.trait) {
+    case "chill":
+    case "daze":
+    case "scorch":
+    case "shred":
+      for (const target of targets) {
+        applyTrait(
+          state,
+          level,
+          tower,
+          stats,
+          secondaryElements,
+          target,
+          origin,
+          color,
+        );
+      }
+      return;
+
+    case "chain":
+    case "toxin":
+      applyTrait(
+        state,
+        level,
+        tower,
+        stats,
+        secondaryElements,
+        primary,
+        origin,
+        color,
+      );
+      return;
+
+    case "pure":
+    case "focus":
+    case "encore":
+      return;
+  }
 }
 
 /**

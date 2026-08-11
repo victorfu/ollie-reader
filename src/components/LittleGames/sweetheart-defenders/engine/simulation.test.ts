@@ -10,6 +10,7 @@ import { getCharacter, DEFAULT_ROSTER_IDS } from "../data/characters";
 import { LEVELS } from "../data/levels";
 import { FIRST_PREP_MS, MAX_CAKES, STEP_MS } from "../constants";
 import { TRAIT_BASE } from "../data/traits";
+import { nextRandom } from "./rng";
 import type { BattleState, Command, LevelSpec } from "../types";
 
 const SHOP_PATH = compileLevel(LEVELS[0]);
@@ -142,6 +143,94 @@ describe("placeTower", () => {
 
     expect(state.towers).toHaveLength(0);
     expect(state.frosting).toBe(500);
+  });
+});
+
+describe("tactical pause", () => {
+  /** 開波並把唯一一隻怪安排到塔位旁；下一次世界更新就會進入射程。 */
+  function pausedEncounter(characterId?: string) {
+    const level = makeTestLevel();
+    const state = createBattle(level, 1);
+    const commands: Command[] = characterId
+      ? [
+          { kind: "placeTower", slotId: TEST_SLOT, characterId },
+          { kind: "startWave" },
+        ]
+      : [{ kind: "startWave" }];
+
+    run(state, level, 1, commands);
+    expect(state.enemies).toHaveLength(1);
+    state.enemies[0].distance = 300;
+    return { level, state };
+  }
+
+  it("applies management commands without spawning or advancing time", () => {
+    const level = makeTestLevel();
+    const state = createBattle(level, 1);
+
+    stepSimulation(state, level, [{ kind: "startWave" }], 0);
+
+    expect(state.phase).toBe("wave");
+    expect(state.spawnQueue).not.toHaveLength(0);
+    expect(state.enemies).toHaveLength(0);
+    expect(state.timeMs).toBe(0);
+  });
+
+  it("does not let a newly placed tower fire a free shot", () => {
+    const { level, state } = pausedEncounter();
+    const enemy = state.enemies[0];
+    const hpBefore = enemy.hp;
+    const positionBefore = { x: enemy.x, y: enemy.y };
+    const timeBefore = state.timeMs;
+
+    stepSimulation(
+      state,
+      level,
+      [{ kind: "placeTower", slotId: TEST_SLOT, characterId: "shiro" }],
+      0,
+    );
+
+    expect(state.towers).toHaveLength(1);
+    expect(state.towers[0].totalDamage).toBe(0);
+    expect(enemy.hp).toBe(hpBefore);
+    expect({ x: enemy.x, y: enemy.y }).toEqual(positionBefore);
+    expect(state.timeMs).toBe(timeBefore);
+  });
+
+  it("does not fire a ready tower while another paused command is handled", () => {
+    const { level, state } = pausedEncounter("shiro");
+    const tower = state.towers[0];
+    const enemy = state.enemies[0];
+    tower.cooldownMs = 0;
+    const hpBefore = enemy.hp;
+    const damageBefore = tower.totalDamage;
+    const timeBefore = state.timeMs;
+
+    stepSimulation(state, level, [{ kind: "setSpeed", multiplier: 2 }], 0);
+
+    expect(state.speed).toBe(2);
+    expect(tower.totalDamage).toBe(damageBefore);
+    expect(enemy.hp).toBe(hpBefore);
+    expect(state.timeMs).toBe(timeBefore);
+  });
+
+  it("still resolves a charged ultimate immediately while paused", () => {
+    const { level, state } = pausedEncounter("shiro");
+    state.ultimateCharge.shiro = 1;
+    const hpBefore = state.enemies.reduce((sum, enemy) => sum + enemy.hp, 0);
+    const timeBefore = state.timeMs;
+
+    stepSimulation(
+      state,
+      level,
+      [{ kind: "castUltimate", characterId: "shiro" }],
+      0,
+    );
+
+    const hpAfter = state.enemies.reduce((sum, enemy) => sum + enemy.hp, 0);
+    expect(hpAfter).toBeLessThan(hpBefore);
+    expect(state.ultimateCharge.shiro).toBe(0);
+    expect(state.timeMs).toBe(timeBefore);
   });
 });
 
@@ -546,6 +635,90 @@ describe("secondary-element traits in battle", () => {
     }
     return state;
   }
+
+  /**
+   * 準備一次同時覆蓋三隻厚血怪的藤蔓 pulse。三隻彼此相隔超過灼燒半徑，
+   * 因此測到每隻都有狀態，代表真的是逐目標套用，不是剛好被一次濺射波及。
+   */
+  function readyVinePulse(characterId: string) {
+    const level = makeTestLevel({
+      waves: [
+        {
+          groups: [{ kind: "chocolate", count: 3, gapMs: 0, delayMs: 0 }],
+          bonus: 0,
+        },
+      ],
+    });
+    const state = createBattle(level, 1);
+    run(state, level, 1, [
+      { kind: "placeTower", slotId: TEST_SLOT, characterId },
+      { kind: "startWave" },
+    ]);
+
+    expect(state.enemies).toHaveLength(3);
+    const distances = [215, 300, 385];
+    state.enemies.forEach((enemy, index) => {
+      enemy.distance = distances[index];
+    });
+    state.towers[0].cooldownMs = 0;
+
+    return { level, state, targets: [...state.enemies] };
+  }
+
+  it("藤蔓冰霜: slows every enemy caught in Keroppi's pulse", () => {
+    const { level, state, targets } = readyVinePulse("keroppi");
+
+    stepSimulation(state, level, [], STEP_MS);
+
+    expect(targets.every((enemy) => enemy.slowMs > 0)).toBe(true);
+    expect(targets.every((enemy) => enemy.slowFactor > 0)).toBe(true);
+  });
+
+  it("藤蔓恍神: rolls the daze chance once for every caught enemy", () => {
+    const { level, state, targets } = readyVinePulse("little-forest-fellow");
+    const expectedRng = { rngState: state.rngState };
+    const expectedStuns = targets.map(
+      () => nextRandom(expectedRng) < TRAIT_BASE.daze.chance,
+    );
+
+    stepSimulation(state, level, [], STEP_MS);
+
+    expect(state.rngState).toBe(expectedRng.rngState);
+    expect(targets.map((enemy) => enemy.stunMs > 0)).toEqual(expectedStuns);
+  });
+
+  it("藤蔓灼燒: burns every enemy caught in Marron Cream's pulse", () => {
+    const { level, state, targets } = readyVinePulse("marron-cream");
+
+    stepSimulation(state, level, [], STEP_MS);
+
+    expect(targets.every((enemy) => enemy.dotDps > 0)).toBe(true);
+    expect(targets.every((enemy) => enemy.dotMs > 0)).toBe(true);
+  });
+
+  it("藤蔓碎甲: shreds every enemy caught in Waniyama-san's pulse", () => {
+    const { level, state, targets } = readyVinePulse("waniyama-san");
+
+    stepSimulation(state, level, [], STEP_MS);
+
+    expect(targets.every((enemy) => enemy.armorShred > 0)).toBe(true);
+  });
+
+  it("藤蔓連擊: counts one stable primary target per Hummingmint pulse", () => {
+    const { level, state, targets } = readyVinePulse("hummingmint");
+    const primary = targets[2];
+
+    stepSimulation(state, level, [], STEP_MS);
+
+    expect(state.towers[0].comboTargetUid).toBe(primary.uid);
+    expect(state.towers[0].comboHits).toBe(1);
+
+    state.towers[0].cooldownMs = 0;
+    stepSimulation(state, level, [], STEP_MS);
+
+    expect(state.towers[0].comboTargetUid).toBe(primary.uid);
+    expect(state.towers[0].comboHits).toBe(2);
+  });
 
   it("毒液: leaves damage over time ticking after the shot lands", () => {
     // pochacco = spark + leaf → 速射 · 毒液

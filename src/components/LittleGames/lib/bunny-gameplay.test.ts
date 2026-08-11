@@ -4,6 +4,7 @@ import {
   compensatePausedTimers,
   createPlatformRescuePosition,
   createShieldFallbackPosition,
+  getBunnyScoreSummary,
   getPowerupIndicatorY,
   positiveModulo,
   resolvePlatformRescuePosition,
@@ -124,5 +125,12 @@ describe("Bunny Jumper gameplay helpers", () => {
 
     expect(indicatorTop).toBeGreaterThan(comboBottom);
     expect(getPowerupIndicatorY(false)).toBe(90);
+  });
+
+  it("shows collected gem count while keeping combo points in total score", () => {
+    const summary = getBunnyScoreSummary(1_200, 750, 5);
+
+    expect(summary).toEqual({ totalScore: 1_950, gemCount: 5 });
+    expect(summary.gemCount).not.toBe(750);
   });
 });

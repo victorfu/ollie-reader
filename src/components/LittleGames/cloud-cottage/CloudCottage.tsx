@@ -72,7 +72,6 @@ import {
   CottageInsufficientCoinsError,
   commitCottageCareAction,
   commitCottagePersonalizationActions,
-  compareCottageSaveVersions,
   getCottageCacheKey,
   loadCottageCloud,
   loadCottageCoins,
@@ -281,15 +280,22 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
   const bathPointerRef = useRef<{ x: number; y: number } | null>(null);
   const bathStrokeDistanceRef = useRef(0);
   const bathStrokeHandledRef = useRef(false);
-  const pendingCloudWriteRef = useRef(false);
+  const pendingCloudWriteOwnerUidRef = useRef<string | undefined>(undefined);
   const deferredToastAtRef = useRef(0);
   const cloudQueueRef = useRef<Promise<void>>(Promise.resolve());
   const personalizationPreviewRef = useRef<PersonalizationPreview>(null);
+  const visibleSaveOwnerUidRef = useRef<string | undefined>(undefined);
+  const observedSleepDeadlineRef = useRef<{
+    uid: string;
+    deadline: number;
+  } | null>(null);
 
   const isDemo = import.meta.env.DEV
     && typeof window !== "undefined"
     && new URLSearchParams(window.location.search).get("demo") === "1";
   const uid = isDemo ? DEMO_UID : auth.user?.uid;
+  const activeUidRef = useRef(uid);
+  activeUidRef.current = uid;
 
   const [save, setSave] = useState<PetSaveV1>(() => createInitialPetSave());
   const [now, setNow] = useState(() => Date.now());
@@ -318,15 +324,29 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
   nowRef.current = now;
   saveRef.current = save;
 
-  const setVisibleSave = useCallback((next: PetSaveV1) => {
+  const setVisibleSave = useCallback((next: PetSaveV1, ownerUid: string) => {
+    if (activeUidRef.current !== ownerUid) return false;
+    visibleSaveOwnerUidRef.current = ownerUid;
     saveRef.current = next;
     setSave(next);
+    return true;
   }, []);
 
-  const setVisibleSaveIfNewer = useCallback((incoming: PetSaveV1) => {
-    if (comparePetSaveFreshness(incoming, saveRef.current) < 0) return;
+  const setVisibleSaveIfNewer = useCallback((
+    incoming: PetSaveV1,
+    ownerUid: string,
+  ) => {
+    if (
+      activeUidRef.current !== ownerUid
+      || (
+        visibleSaveOwnerUidRef.current === ownerUid
+        && comparePetSaveFreshness(incoming, saveRef.current) < 0
+      )
+    ) return false;
+    visibleSaveOwnerUidRef.current = ownerUid;
     saveRef.current = incoming;
     setSave(incoming);
+    return true;
   }, []);
 
   const handleRoomPreviewChange = useCallback(
@@ -442,19 +462,23 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
   const queueCloudSave = useCallback(
     (next: PetSaveV1) => {
       if (!uid || isDemo) return;
-      pendingCloudWriteRef.current = true;
+      pendingCloudWriteOwnerUidRef.current = uid;
       cloudQueueRef.current = cloudQueueRef.current
         .catch(() => undefined)
         .then(async () => {
           if (!navigator.onLine) throw new Error("offline");
           const committed = await saveCottageCloud(uid, next);
-          setVisibleSaveIfNewer(committed);
-          pendingCloudWriteRef.current = false;
+          if (activeUidRef.current !== uid) return;
+          setVisibleSaveIfNewer(committed, uid);
+          if (pendingCloudWriteOwnerUidRef.current === uid) {
+            pendingCloudWriteOwnerUidRef.current = undefined;
+          }
           setSyncStatus("cloud");
           setSyncError(null);
         })
         .catch((error: unknown) => {
-          pendingCloudWriteRef.current = true;
+          if (activeUidRef.current !== uid) return;
+          pendingCloudWriteOwnerUidRef.current = uid;
           setSyncStatus("offline");
           setSyncError("離線中，照顧紀錄已留在這台裝置，連線後會再同步。");
           if (Date.now() - deferredToastAtRef.current > 8_000) {
@@ -469,8 +493,9 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
 
   const commitLocalSave = useCallback(
     (next: PetSaveV1, sync = true) => {
-      setVisibleSave(next);
-      if (uid) void writeCottageCache(uid, next);
+      if (!uid || visibleSaveOwnerUidRef.current !== uid) return;
+      if (!setVisibleSave(next, uid)) return;
+      void writeCottageCache(uid, next);
       if (sync) queueCloudSave(next);
     },
     [queueCloudSave, setVisibleSave, uid],
@@ -520,11 +545,16 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
     const identityChanged = loadedUidRef.current !== uid;
     loadedUidRef.current = uid;
     if (identityChanged) {
+      observedSleepDeadlineRef.current = null;
+      visibleSaveOwnerUidRef.current = undefined;
+      pendingCloudWriteOwnerUidRef.current = undefined;
       setPanel(null);
       setPersonalizationMode(null);
       setInsufficientProductId(null);
     }
     if (!uid) {
+      visibleSaveOwnerUidRef.current = undefined;
+      pendingCloudWriteOwnerUidRef.current = undefined;
       setSyncStatus("loading");
       setCoinBalance(null);
       setSyncError(null);
@@ -543,7 +573,7 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
           initial.inventory.toys,
         ),
       };
-      setVisibleSave(initial);
+      setVisibleSave(initial, uid);
       setSyncStatus("demo");
       setCoinBalance(500);
       triggerAction("intro");
@@ -556,9 +586,13 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
     // restricted/failed localStorage must not discard the already-visible save
     // (or unmount an editor containing an unsaved draft). Never carry this
     // fallback across an actual account change.
-    const cached = persistedCache ?? (identityChanged ? null : saveRef.current);
+    const inMemorySave = !identityChanged
+      && visibleSaveOwnerUidRef.current === uid
+      ? saveRef.current
+      : null;
+    const cached = persistedCache ?? inMemorySave;
     if (cached) {
-      setVisibleSave(cached);
+      setVisibleSave(cached, uid);
       setSyncStatus(isOnline ? "cache" : "offline");
     } else {
       setSyncStatus(isOnline ? "loading" : "error");
@@ -567,17 +601,21 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
     const finishLoad = async (loaded: PetSaveV1, firstVisit: boolean) => {
       if (loadSequenceRef.current !== sequence) return;
       const prepared = preparePetVisit(loaded, uid, loadNow);
-      setVisibleSave(prepared.save);
+      setVisibleSave(prepared.save, uid);
       await writeCottageCache(uid, prepared.save);
       if (isOnline) {
         try {
           const committed = await saveCottageCloud(uid, prepared.save);
           if (loadSequenceRef.current !== sequence) return;
-          setVisibleSaveIfNewer(committed);
+          setVisibleSaveIfNewer(committed, uid);
           setSyncStatus("cloud");
           setSyncError(null);
         } catch (error) {
-          pendingCloudWriteRef.current = true;
+          if (
+            loadSequenceRef.current !== sequence
+            || activeUidRef.current !== uid
+          ) return;
+          pendingCloudWriteOwnerUidRef.current = uid;
           setSyncStatus("offline");
           setSyncError("離線中，稍後會自動同步。");
           logger.warn("Cloud Cottage visit save deferred", error);
@@ -642,9 +680,7 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
     const handleStorage = (event: StorageEvent) => {
       if (event.key !== cacheKey || !event.newValue) return;
       const incoming = parseCottageCacheValue(event.newValue, nowRef.current);
-      if (incoming && compareCottageSaveVersions(incoming, saveRef.current) >= 0) {
-        setVisibleSaveIfNewer(incoming);
-      }
+      if (incoming) setVisibleSaveIfNewer(incoming, uid);
     };
     window.addEventListener("storage", handleStorage);
     return () => window.removeEventListener("storage", handleStorage);
@@ -666,23 +702,44 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
   }, [isDemo, refreshCoins, uid]);
 
   useEffect(() => {
-    if (!uid || !isOnline || isDemo || !pendingCloudWriteRef.current) return;
+    if (
+      !uid
+      || !isOnline
+      || isDemo
+      || pendingCloudWriteOwnerUidRef.current !== uid
+      || visibleSaveOwnerUidRef.current !== uid
+    ) return;
     const current = saveRef.current;
     void loadCottageCloud(uid, undefined, nowRef.current)
       .then(async (cloud) => {
+        if (
+          activeUidRef.current !== uid
+          || visibleSaveOwnerUidRef.current !== uid
+        ) return;
         if (comparePetSaveFreshness(cloud, current) > 0) {
-          pendingCloudWriteRef.current = false;
-          setVisibleSave(cloud);
+          if (pendingCloudWriteOwnerUidRef.current === uid) {
+            pendingCloudWriteOwnerUidRef.current = undefined;
+          }
+          setVisibleSave(cloud, uid);
           setSyncStatus("cloud");
           return;
         }
         const committed = await saveCottageCloud(uid, current);
-        setVisibleSaveIfNewer(committed);
-        pendingCloudWriteRef.current = false;
+        if (
+          activeUidRef.current !== uid
+          || visibleSaveOwnerUidRef.current !== uid
+        ) return;
+        setVisibleSaveIfNewer(committed, uid);
+        if (pendingCloudWriteOwnerUidRef.current === uid) {
+          pendingCloudWriteOwnerUidRef.current = undefined;
+        }
         setSyncStatus("cloud");
         setSyncError(null);
       })
-      .catch((error: unknown) => logger.warn("Cloud Cottage reconnect sync failed", error));
+      .catch((error: unknown) => {
+        if (activeUidRef.current !== uid) return;
+        logger.warn("Cloud Cottage reconnect sync failed", error);
+      });
   }, [isDemo, isOnline, setVisibleSave, setVisibleSaveIfNewer, uid]);
 
   useEffect(() => {
@@ -855,16 +912,19 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
       // already captured the pre-action cache snapshot. Keeping the result in
       // cache protects it if the browser reports a network change while the
       // transaction is still pending.
-      setVisibleSave(result.save);
+      setVisibleSave(result.save, uid);
       void writeCottageCache(uid, result.save);
       if (cloudCommit) {
         void cloudCommit
           .then((committed) => {
+            if (activeUidRef.current !== uid) return;
             const stillShowingThisAction =
               comparePetSaveFreshness(saveRef.current, result.save) === 0;
-            if (stillShowingThisAction) setVisibleSave(committed.save);
-            else setVisibleSaveIfNewer(committed.save);
-            pendingCloudWriteRef.current = false;
+            if (stillShowingThisAction) setVisibleSave(committed.save, uid);
+            else setVisibleSaveIfNewer(committed.save, uid);
+            if (pendingCloudWriteOwnerUidRef.current === uid) {
+              pendingCloudWriteOwnerUidRef.current = undefined;
+            }
             setSyncStatus("cloud");
             setSyncError(null);
             if (!committed.applied) {
@@ -873,7 +933,8 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
             }
           })
           .catch((error: unknown) => {
-            setVisibleSaveIfNewer(result.save);
+            if (activeUidRef.current !== uid) return;
+            setVisibleSaveIfNewer(result.save, uid);
             void writeCottageCache(uid, result.save);
             queueCloudSave(result.save);
             logger.warn("Cloud Cottage care transaction deferred", error);
@@ -943,12 +1004,13 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
   );
 
   const handleWake = useCallback(() => {
+    if (!uid || visibleSaveOwnerUidRef.current !== uid) return;
     const result = wakePet(saveRef.current, nowRef.current);
     if (!result.applied) return;
     commitLocalSave(result.save, !isDemo);
     triggerAction("wake");
     showSpeech(speechForPhrase("wake-happy"));
-  }, [commitLocalSave, isDemo, showSpeech, triggerAction]);
+  }, [commitLocalSave, isDemo, showSpeech, triggerAction, uid]);
 
   const rubBathBubbles = useCallback((increments = 1) => {
     setBathRubCount((count) => {
@@ -998,14 +1060,35 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
   );
 
   useEffect(() => {
-    if (
-      sceneAction === "sleep"
-      && save.sleepingUntil !== null
-      && !isSleeping(save, now)
-    ) {
-      handleWake();
+    if (!uid || visibleSaveOwnerUidRef.current !== uid) {
+      observedSleepDeadlineRef.current = null;
+      return;
     }
-  }, [handleWake, now, save, sceneAction]);
+
+    // Earlier effects may synchronously install a cached save for a new uid.
+    // Read the paired ref so this effect never relabels the previous render's
+    // save as belonging to the new account.
+    const sleepingUntil = saveRef.current.sleepingUntil;
+    if (sleepingUntil === null) {
+      observedSleepDeadlineRef.current = null;
+      return;
+    }
+
+    // Only a sleep deadline observed while it was still in the future belongs
+    // to this mounted session. Persisted saves are normalized on load, so an
+    // already-expired deadline must not replay an old wake-up ceremony.
+    if (sleepingUntil > now) {
+      observedSleepDeadlineRef.current = { uid, deadline: sleepingUntil };
+      return;
+    }
+    const observed = observedSleepDeadlineRef.current;
+    if (observed?.uid !== uid || observed.deadline !== sleepingUntil) return;
+
+    // Clear first so the save update (and React's development effect replay)
+    // cannot perform the same automatic wake twice.
+    observedSleepDeadlineRef.current = null;
+    handleWake();
+  }, [handleWake, now, save.sleepingUntil, uid]);
 
   useEffect(() => {
     if (
@@ -1065,7 +1148,7 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
         } else {
           await cloudQueueRef.current.catch(() => undefined);
           const purchased = await purchaseCottageProduct(uid, productId);
-          setVisibleSaveIfNewer(purchased.save);
+          setVisibleSaveIfNewer(purchased.save, uid);
           setCoinBalance(purchased.coinsAfter);
         }
         playSelectSound();
@@ -1111,7 +1194,7 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
       }
 
       setPersonalizationBusy(true);
-      setVisibleSave(optimistic);
+      setVisibleSave(optimistic, uid);
       try {
         let committedSave = optimistic;
         const committedGifts: BondGift[] = [];
@@ -1128,8 +1211,10 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
           committedGifts.push(...committed.grantedGifts);
           // The batch rebases against the freshest cloud/cache snapshot and
           // is authoritative even when one draft action became a no-op.
-          setVisibleSave(committedSave);
-          pendingCloudWriteRef.current = false;
+          setVisibleSave(committedSave, uid);
+          if (pendingCloudWriteOwnerUidRef.current === uid) {
+            pendingCloudWriteOwnerUidRef.current = undefined;
+          }
           setSyncStatus("cloud");
           setSyncError(null);
         }

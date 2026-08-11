@@ -34,6 +34,7 @@ import {
   compensatePausedTimers,
   createPlatformRescuePosition,
   createShieldFallbackPosition,
+  getBunnyScoreSummary,
   getPowerupIndicatorY,
   positiveModulo,
   resolvePlatformRescuePosition,
@@ -1807,7 +1808,11 @@ export default function BunnyJumper({ onExit }: BunnyJumperProps) {
     const heightScore = Math.floor(
       heightProgress * GAME_CONFIG.SCORING.HEIGHT_FACTOR,
     );
-    const displayScore = heightScore + data.carrotScore;
+    const scoreSummary = getBunnyScoreSummary(
+      heightScore,
+      data.carrotScore,
+      data.carrotCount,
+    );
 
     // 分數面板
     ctx.save();
@@ -1838,7 +1843,11 @@ export default function BunnyJumper({ onExit }: BunnyJumperProps) {
 
     ctx.fillStyle = "#E85A8F";
     ctx.font = "bold 24px system-ui, -apple-system, sans-serif";
-    ctx.fillText(`${displayScore}`, GAME_CONFIG.WIDTH / 2 - 40, panelY + 50);
+    ctx.fillText(
+      `${scoreSummary.totalScore}`,
+      GAME_CONFIG.WIDTH / 2 - 40,
+      panelY + 50,
+    );
 
     // 寶石計數
     ctx.fillStyle = "#FFB347";
@@ -1847,7 +1856,7 @@ export default function BunnyJumper({ onExit }: BunnyJumperProps) {
     ctx.fillStyle = "#E8973D";
     ctx.font = "bold 20px system-ui, -apple-system, sans-serif";
     ctx.fillText(
-      `${data.carrotScore}`,
+      `${scoreSummary.gemCount}`,
       GAME_CONFIG.WIDTH / 2 + 40,
       panelY + 48,
     );
@@ -2049,7 +2058,11 @@ export default function BunnyJumper({ onExit }: BunnyJumperProps) {
       const heightScore = Math.floor(
         heightProgress * GAME_CONFIG.SCORING.HEIGHT_FACTOR,
       );
-      const totalScore = heightScore + data.carrotScore;
+      const totalScore = getBunnyScoreSummary(
+        heightScore,
+        data.carrotScore,
+        data.carrotCount,
+      ).totalScore;
       if (
         totalScore !== renderedScoreRef.current &&
         time - lastScoreSyncRef.current > 120

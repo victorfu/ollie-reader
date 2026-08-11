@@ -5,6 +5,10 @@ import {
   isDashKey,
   shouldCountTutorialDash,
 } from "./meteorGliderInput";
+import {
+  advanceMeteorHorizontalMotion,
+  getMeteorDashStartDirection,
+} from "./meteorGliderPhysics";
 
 type GameState = "menu" | "playing" | "paused" | "gameover" | "tutorialdone";
 type InputState = {
@@ -71,6 +75,8 @@ type GameData = {
   dashFuel: number;
   dashCooldown: number;
   dashActive: number;
+  dashStartup: number;
+  dashStartupImpulse: number;
   score: number;
   timeAlive: number;
   spawnTimer: number;
@@ -100,7 +106,6 @@ const HEIGHT = 720;
 const PLAYER_Y = HEIGHT * 0.82;
 const PLAYER_RADIUS = 20;
 const MOVE_SPEED = 260;
-const FRICTION = 0.9;
 const DASH_COST = 25;
 const DASH_COOLDOWN = 1.2;
 const DASH_DURATION = 0.24;
@@ -494,30 +499,50 @@ export default function MeteorGlider({ onExit, onPlayBunny }: MeteorGliderProps)
       if (data.input.right || data.input.touchDir > 0) tut.movedRight = true;
     }
     const targetVx = clampedInput * MOVE_SPEED + data.wind * 0.25;
-    data.vx = data.vx * FRICTION + (targetVx - data.vx) * 0.12;
+    const motionInput = {
+      velocity: data.vx,
+      targetVelocity: targetVx,
+      deltaSeconds: delta,
+      dashSecondsRemaining: data.dashActive,
+      dashStartupSecondsRemaining: data.dashStartup,
+      dashStartupImpulse: data.dashStartupImpulse,
+      dashSpeed: DASH_SPEED,
+    };
+    let horizontalMotion = advanceMeteorHorizontalMotion(motionInput);
+    const nextDashCooldown = Math.max(
+      0,
+      data.dashCooldown - horizontalMotion.cooldownElapsedSeconds,
+    );
 
-    if (data.dashActive > 0) {
-      data.dashActive -= delta;
-      data.vx = data.vx * 0.95 + Math.sign(targetVx || data.vx || 1) * DASH_SPEED * 0.15;
-    } else {
-      data.dashCooldown = Math.max(0, data.dashCooldown - delta);
-    }
-
-    if (data.input.dashQueued && data.dashCooldown <= 0 && data.dashFuel >= DASH_COST) {
-      const dashDir =
-        clampedInput !== 0 ? clampedInput : Math.sign(data.vx || 1);
-      data.vx += dashDir * DASH_SPEED;
-      data.dashActive = DASH_DURATION;
-      data.dashCooldown = DASH_COOLDOWN;
+    if (data.input.dashQueued && nextDashCooldown <= 0 && data.dashFuel >= DASH_COST) {
+      horizontalMotion = advanceMeteorHorizontalMotion({
+        ...motionInput,
+        startDashSeconds: DASH_DURATION,
+        startDashDirection: getMeteorDashStartDirection(
+          clampedInput,
+          data.vx,
+          targetVx,
+        ),
+      });
+      data.dashCooldown = Math.max(
+        0,
+        DASH_COOLDOWN - horizontalMotion.cooldownElapsedSeconds,
+      );
       data.dashFuel = Math.max(0, data.dashFuel - DASH_COST);
       data.shake = 8;
       data.input.dashQueued = false;
       if (tut && shouldCountTutorialDash(tut.step)) tut.dashedCount += 1;
       spawnBurst(data, data.playerX, PLAYER_Y + 8, "rgba(160,200,255,ALPHA)", 8, 90);
+    } else {
+      data.dashCooldown = nextDashCooldown;
     }
     data.input.dashQueued = false;
 
-    data.playerX += data.vx * delta;
+    data.vx = horizontalMotion.velocity;
+    data.dashActive = horizontalMotion.dashSecondsRemaining;
+    data.dashStartup = horizontalMotion.dashStartupSecondsRemaining;
+    data.dashStartupImpulse = horizontalMotion.dashStartupImpulse;
+    data.playerX += horizontalMotion.distance;
     data.playerX = Math.max(30, Math.min(WIDTH - 30, data.playerX));
 
     const meteorSpeedBoost = Math.min(200, data.timeAlive * 12);
@@ -701,6 +726,8 @@ export default function MeteorGlider({ onExit, onPlayBunny }: MeteorGliderProps)
     dashFuel: FUEL_MAX,
     dashCooldown: 0,
     dashActive: 0,
+    dashStartup: 0,
+    dashStartupImpulse: 0,
     score: 0,
     timeAlive: 0,
     spawnTimer: 0.6,

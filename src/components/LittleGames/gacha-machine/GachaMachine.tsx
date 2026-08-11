@@ -378,6 +378,7 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
       }
 
       if (incoming.resetVersion > current.resetVersion) {
+        const canceledInFlightDraw = drawInFlightRef.current;
         if (uid) {
           clearGachaRevealGuards(uid);
           stopOwnRevealGuardHeartbeat();
@@ -391,7 +392,11 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
         phaseRef.current = "idle";
         setPhase("idle");
         setActionError(null);
-        setActionNotice("圖鑑已在另一個分頁重設，機台狀態已同步更新。");
+        setActionNotice(
+          canceledInFlightDraw
+            ? "圖鑑已在另一個分頁重設；若這次抽獎交易已完成，代幣餘額會自動重新同步。"
+            : "圖鑑已在另一個分頁重設，機台狀態已同步更新。",
+        );
       }
 
       setVisibleSaveIfNewer(incoming);
@@ -785,10 +790,16 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
         outcome,
         expectedResetVersion,
       );
-      if (
-        activeUidRef.current !== uid ||
-        drawAttemptTokenRef.current !== attemptToken
-      ) {
+      if (activeUidRef.current !== uid) {
+        return;
+      }
+      if (drawAttemptTokenRef.current !== attemptToken) {
+        // A newer collection reset can invalidate the local attempt after its
+        // Firestore transaction already committed. Do not trust the late
+        // snapshot: reload the authoritative balance, guarded by uid/sequence.
+        if (saveRef.current.resetVersion > expectedResetVersion) {
+          refreshCoinBalance(uid);
+        }
         return;
       }
       // 交易結果是最新的伺服器餘額；使先前尚未完成的 refresh 失效

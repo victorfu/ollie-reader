@@ -1,7 +1,7 @@
 import { act, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createInitialPetSave } from "./logic/petState";
+import { createInitialPetSave, normalizePetSave } from "./logic/petState";
 import type { PetSaveV1 } from "./types";
 
 const authState = vi.hoisted(() => ({
@@ -46,6 +46,7 @@ const storageMocks = vi.hoisted(() => ({
   commitCottageCareAction: vi.fn(),
   commitCottagePersonalizationActions: vi.fn(),
   purchaseCottageProduct: vi.fn(),
+  parseCottageCacheValue: vi.fn(),
 }));
 
 vi.mock("framer-motion", async () => {
@@ -125,7 +126,7 @@ vi.mock("./storage", () => {
     compareCottageSaveVersions: (left: PetSaveV1, right: PetSaveV1) =>
       Math.sign(left.revision - right.revision),
     getCottageCacheKey: (uid: string) => `cloud-cottage:${uid}`,
-    parseCottageCacheValue: () => null,
+    parseCottageCacheValue: storageMocks.parseCottageCacheValue,
     readCottageCache: storageMocks.readCottageCache,
     loadCottageCloud: storageMocks.loadCottageCloud,
     loadCottageCoins: storageMocks.loadCottageCoins,
@@ -214,6 +215,7 @@ type RenderedGameState = {
   };
   room: PetSaveV1["room"];
   pet: {
+    sleeping: boolean;
     stats: { fullness: number; clean: number; mood: number };
     bond: { total: number };
   };
@@ -221,6 +223,13 @@ type RenderedGameState = {
     freeFood: { milk: number; cookie: number };
     snacks: Record<string, number>;
     outfits: string[];
+  };
+  wish: {
+    id: string;
+    label: string;
+    progress: number;
+    target: number;
+    fulfilled: boolean;
   };
   coins: number | null;
 };
@@ -261,8 +270,11 @@ async function flushAsyncWork(): Promise<void> {
   });
 }
 
-async function renderSignedInCottage(initial: PetSaveV1): Promise<void> {
-  authState.user = { uid: "cloud-reader" };
+async function renderSignedInCottage(
+  initial: PetSaveV1,
+  uid = "cloud-reader",
+): Promise<void> {
+  authState.user = { uid };
   storageMocks.readCottageCache.mockReturnValue(initial);
   storageMocks.loadCottageCloud.mockResolvedValue(initial);
   storageMocks.loadCottageCoins.mockResolvedValue(120);
@@ -318,6 +330,7 @@ beforeEach(() => {
   storageMocks.commitCottageCareAction.mockReset();
   storageMocks.commitCottagePersonalizationActions.mockReset();
   storageMocks.purchaseCottageProduct.mockReset();
+  storageMocks.parseCottageCacheValue.mockReset().mockReturnValue(null);
   container = document.createElement("div");
   document.body.appendChild(container);
   root = createRoot(container);
@@ -484,6 +497,432 @@ describe("CloudCottage network transitions", () => {
     );
     expect(capturedWrites).toHaveLength(2);
     expect(capturedWrites[1]?.[1]).toEqual(optimistic);
+  });
+
+  it("never reuses the previous uid's in-memory save after a failed account load", async () => {
+    const accountA = {
+      ...createInitialPetSave(Date.now()),
+      revision: 100,
+      bond: {
+        total: 900,
+        earnedToday: 0,
+        earnedDate: "2026-07-30",
+      },
+    };
+    await renderSignedInCottage(accountA);
+    expect(gameState().pet.bond.total).toBe(900);
+
+    let rejectAccountB!: (reason?: unknown) => void;
+    const failedAccountBLoad = new Promise<PetSaveV1>((_resolve, reject) => {
+      rejectAccountB = reject;
+    });
+    authState.user = { uid: "reconnect-reader" };
+    storageMocks.readCottageCache.mockReturnValue(null);
+    storageMocks.loadCottageCloud.mockReturnValue(failedAccountBLoad);
+    await act(async () => {
+      root.render(<CloudCottage onExit={vi.fn()} />);
+      await Promise.resolve();
+    });
+    await act(async () => {
+      rejectAccountB(new Error("first load failed"));
+      await Promise.resolve();
+    });
+    await flushAsyncWork();
+    expect(gameState().sync).toBe("error");
+
+    storageMocks.writeCottageCache.mockClear();
+    storageMocks.saveCottageCloud.mockClear();
+    await setOnlineState(false);
+
+    expect(storageMocks.writeCottageCache).not.toHaveBeenCalled();
+    expect(storageMocks.saveCottageCloud).not.toHaveBeenCalled();
+
+    const accountB = {
+      ...createInitialPetSave(Date.now()),
+      revision: 1,
+      bond: {
+        total: 50,
+        earnedToday: 0,
+        earnedDate: "2026-07-30",
+      },
+    };
+    storageMocks.loadCottageCloud.mockResolvedValue(accountB);
+    await setOnlineState(true);
+
+    expect(gameState().sync).toBe("cloud");
+    expect(gameState().pet.bond.total).toBe(50);
+    const accountBWrites = storageMocks.writeCottageCache.mock.calls.filter(
+      ([targetUid]) => targetUid === "reconnect-reader",
+    );
+    expect(accountBWrites).toHaveLength(1);
+    expect(accountBWrites[0]?.[1]).toEqual(
+      expect.objectContaining({
+        bond: expect.objectContaining({ total: 50 }),
+      }),
+    );
+  });
+
+  it("does not carry a pending cloud write into the next uid's reconnect", async () => {
+    const accountA = {
+      ...createInitialPetSave(Date.now()),
+      revision: 100,
+      bond: {
+        total: 900,
+        earnedToday: 0,
+        earnedDate: "2026-07-30",
+      },
+    };
+    await renderSignedInCottage(accountA);
+
+    storageMocks.saveCottageCloud.mockRejectedValueOnce(
+      new Error("account A went offline"),
+    );
+    act(() => button('[data-toolbar="food"]').click());
+    act(() => button('[data-food-id="milk"]').click());
+    await flushAsyncWork();
+    expect(gameState().sync).toBe("offline");
+
+    let resolveAccountB!: (save: PetSaveV1) => void;
+    const accountBLoad = new Promise<PetSaveV1>((resolve) => {
+      resolveAccountB = resolve;
+    });
+    authState.user = { uid: "pending-write-reader" };
+    storageMocks.readCottageCache.mockReturnValue(null);
+    storageMocks.loadCottageCloud.mockClear();
+    storageMocks.loadCottageCloud.mockReturnValue(accountBLoad);
+    storageMocks.saveCottageCloud.mockClear();
+    await act(async () => {
+      root.render(<CloudCottage onExit={vi.fn()} />);
+      await Promise.resolve();
+    });
+
+    expect(gameState().sync).toBe("loading");
+    expect(storageMocks.loadCottageCloud).toHaveBeenCalledTimes(1);
+
+    const accountB = {
+      ...createInitialPetSave(Date.now()),
+      revision: 1,
+      bond: {
+        total: 50,
+        earnedToday: 0,
+        earnedDate: "2026-07-30",
+      },
+    };
+    await act(async () => {
+      resolveAccountB(accountB);
+      await accountBLoad;
+    });
+    await flushAsyncWork();
+
+    expect(gameState().sync).toBe("cloud");
+    expect(gameState().pet.bond.total).toBe(50);
+    expect(storageMocks.loadCottageCloud).toHaveBeenCalledTimes(1);
+    const accountBSaves = storageMocks.saveCottageCloud.mock.calls.filter(
+      ([targetUid]) => targetUid === "pending-write-reader",
+    );
+    expect(accountBSaves).toHaveLength(1);
+    expect(accountBSaves[0]?.[1]).toEqual(
+      expect.objectContaining({
+        bond: expect.objectContaining({ total: 50 }),
+      }),
+    );
+  });
+
+  it("accepts an active uid storage save without comparing the previous owner's revision", async () => {
+    const accountA = {
+      ...createInitialPetSave(Date.now()),
+      revision: 100,
+      bond: {
+        total: 900,
+        earnedToday: 0,
+        earnedDate: "2026-07-30",
+      },
+    };
+    await renderSignedInCottage(accountA);
+
+    const pendingLoad = new Promise<PetSaveV1>(() => undefined);
+    authState.user = { uid: "storage-reader" };
+    storageMocks.readCottageCache.mockReturnValue(null);
+    storageMocks.loadCottageCloud.mockReturnValue(pendingLoad);
+    await act(async () => {
+      root.render(<CloudCottage onExit={vi.fn()} />);
+      await Promise.resolve();
+    });
+
+    const accountB = {
+      ...createInitialPetSave(Date.now()),
+      revision: 1,
+      bond: {
+        total: 50,
+        earnedToday: 0,
+        earnedDate: "2026-07-30",
+      },
+    };
+    storageMocks.parseCottageCacheValue.mockReturnValue(accountB);
+    act(() => {
+      window.dispatchEvent(new StorageEvent("storage", {
+        key: "cloud-cottage:storage-reader",
+        newValue: JSON.stringify(accountB),
+      }));
+    });
+
+    expect(gameState().pet.bond.total).toBe(50);
+  });
+});
+
+describe("CloudCottage sleep transitions", () => {
+  const bedtime = new Date("2026-07-31T06:59:00+08:00").getTime();
+  const wakeAt = new Date("2026-07-31T07:00:00+08:00").getTime();
+  const localDate = "2026-07-31";
+
+  function bedtimeSave(wishId: string): PetSaveV1 {
+    const initial = createInitialPetSave(bedtime, localDate);
+    return {
+      ...initial,
+      wish: {
+        date: localDate,
+        wishId,
+        fulfilled: false,
+        progress: 0,
+        target: wishId === "pet-five" ? 5 : 1,
+      },
+    };
+  }
+
+  it("keeps an ordinary sleep active until its deadline, then wakes and persists once", async () => {
+    vi.setSystemTime(bedtime);
+    await renderSignedInCottage(bedtimeSave("pet-five"));
+
+    act(() => button('[data-toolbar="sleep"]').click());
+    expect(gameState().pet.sleeping).toBe(true);
+    expect(gameState().action).toBe("sleep");
+
+    await flushAsyncWork();
+    storageMocks.writeCottageCache.mockClear();
+    storageMocks.saveCottageCloud.mockClear();
+
+    await act(async () => window.advanceTime?.(wakeAt - bedtime - 1));
+    expect(gameState().pet.sleeping).toBe(true);
+    expect(gameState().action).toBe("sleep");
+    expect(storageMocks.writeCottageCache).not.toHaveBeenCalled();
+
+    await act(async () => window.advanceTime?.(1));
+    await flushAsyncWork();
+
+    expect(gameState().pet.sleeping).toBe(false);
+    expect(gameState().action).toBe("wake");
+    expect(container.textContent).toContain("醒來看到你真開心！");
+    expect(storageMocks.writeCottageCache).toHaveBeenCalledTimes(1);
+    expect(storageMocks.writeCottageCache).toHaveBeenCalledWith(
+      "cloud-reader",
+      expect.objectContaining({ sleepingUntil: null }),
+    );
+    expect(storageMocks.saveCottageCloud).toHaveBeenCalledTimes(1);
+    expect(storageMocks.saveCottageCloud).toHaveBeenCalledWith(
+      "cloud-reader",
+      expect.objectContaining({ sleepingUntil: null }),
+    );
+  });
+
+  it("wakes after wish celebration and heart burst replace the sleep action", async () => {
+    vi.setSystemTime(bedtime);
+    const initial = bedtimeSave("say-good-night");
+    initial.revision = 10;
+    initial.bond = {
+      total: 10,
+      earnedToday: 0,
+      earnedDate: localDate,
+    };
+    await renderSignedInCottage(initial, "wish-reader");
+    expect(gameState().wish.id).toBe("say-good-night");
+    expect(gameState().pet.bond.total).toBe(10);
+
+    act(() => button('[data-toolbar="sleep"]').click());
+    expect(gameState().pet.sleeping).toBe(true);
+    expect(gameState().action).toBe("heartBurst");
+    expect(hookMocks.addToast).toHaveBeenCalledWith(
+      "今日心願完成！親密度 +10 💕",
+      "success",
+      4_000,
+    );
+
+    act(() => vi.advanceTimersByTime(2_200));
+    expect(gameState().action).toBe("idle");
+
+    await flushAsyncWork();
+    storageMocks.writeCottageCache.mockClear();
+    storageMocks.saveCottageCloud.mockClear();
+    await act(async () => window.advanceTime?.(wakeAt - bedtime));
+    await flushAsyncWork();
+
+    expect(gameState().pet.sleeping).toBe(false);
+    expect(gameState().action).toBe("wake");
+    expect(storageMocks.writeCottageCache).toHaveBeenCalledTimes(1);
+    expect(storageMocks.writeCottageCache).toHaveBeenCalledWith(
+      "wish-reader",
+      expect.objectContaining({ sleepingUntil: null }),
+    );
+    expect(storageMocks.saveCottageCloud).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not replay a wake ceremony for an expired sleep normalized during reload", async () => {
+    const reloadAt = new Date("2026-07-31T07:05:00+08:00").getTime();
+    vi.setSystemTime(reloadAt);
+    const expired = {
+      ...bedtimeSave("pet-five"),
+      sleepingUntil: wakeAt,
+    };
+    const normalized = normalizePetSave(expired, reloadAt, localDate);
+    expect(normalized.sleepingUntil).toBeNull();
+
+    await renderSignedInCottage(normalized);
+    expect(gameState().pet.sleeping).toBe(false);
+    expect(gameState().action).toBe("idle");
+
+    storageMocks.writeCottageCache.mockClear();
+    storageMocks.saveCottageCloud.mockClear();
+    await act(async () => window.advanceTime?.(60_000));
+    await flushAsyncWork();
+
+    expect(gameState().action).toBe("idle");
+    expect(storageMocks.writeCottageCache).not.toHaveBeenCalled();
+    expect(storageMocks.saveCottageCloud).not.toHaveBeenCalled();
+  });
+
+  it("does not assign the previous account's deadline to a uid whose load is pending", async () => {
+    vi.setSystemTime(bedtime);
+    const accountA = {
+      ...bedtimeSave("pet-five"),
+      revision: 10,
+      sleepingUntil: wakeAt,
+    };
+    await renderSignedInCottage(accountA);
+    expect(gameState().pet.sleeping).toBe(true);
+
+    let resolveAccountB!: (save: PetSaveV1) => void;
+    const accountBLoad = new Promise<PetSaveV1>((resolve) => {
+      resolveAccountB = resolve;
+    });
+    authState.user = { uid: "pending-reader" };
+    storageMocks.readCottageCache.mockReturnValue(null);
+    storageMocks.loadCottageCloud.mockReturnValue(accountBLoad);
+    await act(async () => {
+      root.render(<CloudCottage onExit={vi.fn()} />);
+      await Promise.resolve();
+    });
+    expect(gameState().sync).toBe("loading");
+
+    storageMocks.writeCottageCache.mockClear();
+    storageMocks.saveCottageCloud.mockClear();
+    await act(async () => window.advanceTime?.(wakeAt - bedtime));
+    await flushAsyncWork();
+
+    expect(storageMocks.writeCottageCache).not.toHaveBeenCalled();
+    expect(storageMocks.saveCottageCloud).not.toHaveBeenCalled();
+    expect(gameState().sync).toBe("loading");
+
+    const accountBWakeAt = wakeAt + 120_000;
+    const accountB = {
+      ...bedtimeSave("pet-five"),
+      revision: 20,
+      sleepingUntil: accountBWakeAt,
+    };
+    await act(async () => {
+      resolveAccountB(accountB);
+      await accountBLoad;
+    });
+    await flushAsyncWork();
+    expect(gameState().pet.sleeping).toBe(true);
+
+    storageMocks.writeCottageCache.mockClear();
+    storageMocks.saveCottageCloud.mockClear();
+    await act(async () => window.advanceTime?.(accountBWakeAt - wakeAt));
+    await flushAsyncWork();
+
+    expect(gameState().pet.sleeping).toBe(false);
+    expect(gameState().action).toBe("wake");
+    expect(storageMocks.writeCottageCache).toHaveBeenCalledTimes(1);
+    expect(storageMocks.writeCottageCache).toHaveBeenCalledWith(
+      "pending-reader",
+      expect.objectContaining({ sleepingUntil: null }),
+    );
+    expect(storageMocks.saveCottageCloud).toHaveBeenCalledTimes(1);
+    expect(storageMocks.saveCottageCloud).toHaveBeenCalledWith(
+      "pending-reader",
+      expect.objectContaining({ sleepingUntil: null }),
+    );
+  });
+
+  it("ignores a queued wake save that resolves after the active uid changes", async () => {
+    vi.setSystemTime(bedtime);
+    const accountA = {
+      ...bedtimeSave("pet-five"),
+      revision: 100,
+      sleepingUntil: wakeAt,
+    };
+    await renderSignedInCottage(accountA);
+
+    let queuedWakeSave!: PetSaveV1;
+    let resolveQueuedWake!: (save: PetSaveV1) => void;
+    storageMocks.saveCottageCloud.mockImplementationOnce(
+      async (_uid: string, next: PetSaveV1) => {
+        queuedWakeSave = next;
+        return new Promise<PetSaveV1>((resolve) => {
+          resolveQueuedWake = resolve;
+        });
+      },
+    );
+    await act(async () => window.advanceTime?.(wakeAt - bedtime));
+    await flushAsyncWork();
+    expect(queuedWakeSave.sleepingUntil).toBeNull();
+
+    let resolveAccountB!: (save: PetSaveV1) => void;
+    const accountBLoad = new Promise<PetSaveV1>((resolve) => {
+      resolveAccountB = resolve;
+    });
+    const accountB = {
+      ...bedtimeSave("pet-five"),
+      revision: 1,
+      bond: {
+        total: 50,
+        earnedToday: 0,
+        earnedDate: localDate,
+      },
+      sleepingUntil: null,
+    };
+    authState.user = { uid: "late-reader" };
+    storageMocks.readCottageCache.mockReturnValue(accountB);
+    storageMocks.loadCottageCloud.mockReturnValue(accountBLoad);
+    await act(async () => {
+      root.render(<CloudCottage onExit={vi.fn()} />);
+      await Promise.resolve();
+    });
+    expect(gameState().sync).toBe("cache");
+    expect(gameState().pet.bond.total).toBe(50);
+
+    await act(async () => {
+      resolveQueuedWake(queuedWakeSave);
+      await Promise.resolve();
+    });
+    await flushAsyncWork();
+    expect(gameState().sync).toBe("cache");
+    expect(gameState().pet.bond.total).toBe(50);
+
+    await act(async () => {
+      resolveAccountB(accountB);
+      await accountBLoad;
+    });
+    await flushAsyncWork();
+
+    expect(storageMocks.writeCottageCache).toHaveBeenCalledWith(
+      "late-reader",
+      expect.objectContaining({
+        bond: expect.objectContaining({ total: 50 }),
+      }),
+    );
+    expect(gameState().sync).toBe("cloud");
+    expect(gameState().pet.bond.total).toBe(50);
+    expect(gameState().pet.sleeping).toBe(false);
   });
 });
 

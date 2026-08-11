@@ -133,3 +133,14 @@ export function createShieldFallbackPosition(
 export function getPowerupIndicatorY(comboVisible: boolean): number {
   return comboVisible ? 145 : 90;
 }
+
+export function getBunnyScoreSummary(
+  heightScore: number,
+  carrotScore: number,
+  carrotCount: number,
+): { totalScore: number; gemCount: number } {
+  return {
+    totalScore: heightScore + carrotScore,
+    gemCount: carrotCount,
+  };
+}
