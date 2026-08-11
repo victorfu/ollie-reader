@@ -71,14 +71,15 @@ describe("GameHub card layout", () => {
     ]);
   });
 
-  it("flags 甜心防衛隊 as the only one still in development", () => {
+  it("flags the games still in development", () => {
     renderGameHub();
 
     const cards = [...container.querySelectorAll("article")];
     const flagged = cards.filter((card) => card.textContent?.includes("開發中"));
 
-    expect(flagged).toHaveLength(1);
-    expect(flagged[0]?.querySelector("h2")?.textContent).toBe("甜心防衛隊");
+    expect(flagged.map((card) => card.querySelector("h2")?.textContent)).toEqual(
+      ["大耳狗的雲朵小窩", "甜心防衛隊"],
+    );
   });
 
   it("shows the Cloud Cottage card copy and cloud-save status from the design", () => {

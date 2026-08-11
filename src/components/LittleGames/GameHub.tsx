@@ -83,7 +83,8 @@ export default function GameHub() {
         tag: "Pet Care",
         emoji: "☁️",
         best: null,
-        statusLabel: "雲端存檔",
+        inDevelopment: true,
+        statusLabel: "開發中 · 雲端存檔",
       },
       {
         id: "sweetheart",
