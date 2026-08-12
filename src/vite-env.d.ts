@@ -12,6 +12,9 @@ interface ImportMetaEnv {
   readonly VITE_RECAPTCHA_SITE_KEY: string;
   readonly VITE_FIREBASE_APPCHECK_DEBUG_TOKEN?: string;
 
+  // Gemini client pacing
+  readonly VITE_GEMINI_CLIENT_RPM_BUDGET?: string;
+
   // Backend API
   readonly VITE_API_BASE_URL?: string;
 

@@ -89,18 +89,19 @@ The Vite development server runs at `http://localhost:5173`.
 | `VITE_FIREBASE_APP_ID` | Firebase web app ID |
 | `VITE_RECAPTCHA_SITE_KEY` | Public reCAPTCHA v3 key used by Firebase App Check |
 | `VITE_FIREBASE_APPCHECK_DEBUG_TOKEN` | Optional development-only App Check debug token |
+| `VITE_GEMINI_CLIENT_RPM_BUDGET` | Effective client-side Gemini RPM budget; defaults to `4` |
 | `VITE_API_BASE_URL` | Compatible cloud compute API; defaults to `http://localhost:8080` |
 | `VITE_SUPABASE_URL` | Supabase project URL |
 | `VITE_SUPABASE_PUBLISHABLE_KEY` | Public/publishable Supabase key; never use a service-role or secret key in the frontend |
 
 There is no `VITE_GEMINI_API_KEY`: Gemini is initialised through the configured Firebase app and protected by App Check.
 
-Gemini requests are serialized through one global client queue. The queue uses
-the Firebase Remote Config parameter `gemini_client_rpm_budget` as its effective
-per-client RPM budget and spaces request start times accordingly. Configure this
-value from the active model's AI Studio RPM limit after reserving capacity for
-other active clients. Until Remote Config is available, the app uses a
-conservative 4 RPM fallback (15 seconds between request starts).
+Gemini requests are serialized through one global client queue. Set
+`VITE_GEMINI_CLIENT_RPM_BUDGET` from the active model's AI Studio RPM limit after
+reserving capacity for other active clients. An unset or invalid value uses a
+conservative 4 RPM fallback (15 seconds between request starts). This is a Vite
+build-time variable, so restart the development server or rebuild the deployment
+after changing it.
 Same-origin tabs coordinate through Web Locks and shared browser state. Structured
 minute/capacity 429 responses receive bounded retries; daily exhaustion opens a
 circuit breaker until the next US Pacific midnight instead of being resent.
