@@ -7,6 +7,7 @@ import { useSentenceTranslation } from "../../hooks/useSentenceTranslation";
 import { useSpeechState } from "../../hooks/useSpeechState";
 import { useDebounce } from "../../hooks/useDebounce";
 import { smartLookup } from "../../services/aiService";
+import { isGeminiRateLimitError } from "../../services/geminiErrorPolicy";
 import type {
   VocabularyWord,
   VocabularyFilters,
@@ -467,7 +468,12 @@ export const VocabularyBook = () => {
     } catch (error) {
       console.error("Smart lookup failed:", error);
       if (!signal.aborted) {
-        setToastMessage({ message: "查詢失敗，請稍後再試", type: "error" });
+        setToastMessage({
+          message: isGeminiRateLimitError(error)
+            ? error.message
+            : "查詢失敗，請稍後再試",
+          type: "error",
+        });
       }
     } finally {
       setIsQuerying(false);

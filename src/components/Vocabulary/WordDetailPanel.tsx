@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useSpeechState } from "../../hooks/useSpeechState";
 import { useSettings } from "../../hooks/useSettings";
 import { Toast } from "../common/Toast";
@@ -14,6 +14,7 @@ export interface WordDetailPanelProps {
   onRegenerateWordDetails: (
     wordId: string,
     word: string,
+    signal?: AbortSignal,
   ) => Promise<{
     success: boolean;
     message?: string;
@@ -42,6 +43,14 @@ export const WordDetailPanel = ({
     word.difficulty || "",
   );
   const [newTag, setNewTag] = useState("");
+  const regenerateControllerRef = useRef<AbortController | null>(null);
+
+  useEffect(
+    () => () => {
+      regenerateControllerRef.current?.abort();
+    },
+    [],
+  );
 
   const handleSave = async () => {
     const updates = {
@@ -81,10 +90,18 @@ export const WordDetailPanel = ({
 
   const handleRegenerate = async () => {
     if (!word.id || isRegenerating) return;
+    regenerateControllerRef.current?.abort();
+    const controller = new AbortController();
+    regenerateControllerRef.current = controller;
     setIsRegenerating(true);
     setToast(null);
     try {
-      const result = await onRegenerateWordDetails(word.id, word.word);
+      const result = await onRegenerateWordDetails(
+        word.id,
+        word.word,
+        controller.signal,
+      );
+      if (controller.signal.aborted) return;
       if (result.success && result.updatedWord) {
         setWord((prev) => ({ ...prev, ...result.updatedWord }));
         setToast({ message: "已重新生成解釋！", type: "success" });
@@ -94,7 +111,12 @@ export const WordDetailPanel = ({
     } catch {
       setToast({ message: "重新生成時發生錯誤", type: "error" });
     } finally {
-      setIsRegenerating(false);
+      if (regenerateControllerRef.current === controller) {
+        regenerateControllerRef.current = null;
+      }
+      if (!controller.signal.aborted) {
+        setIsRegenerating(false);
+      }
     }
   };
 

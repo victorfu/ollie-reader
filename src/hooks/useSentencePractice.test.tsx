@@ -66,14 +66,15 @@ describe("useSentencePractice operation ownership", () => {
   let root: Root;
   let current: HookValue;
 
+  const Harness = ({ activeSpeechId }: { activeSpeechId: string }) => {
+    const hookValue = useSentencePractice(activeSpeechId);
+    useEffect(() => {
+      current = hookValue;
+    }, [hookValue]);
+    return null;
+  };
+
   const renderSpeech = async (speechId: string) => {
-    const Harness = ({ activeSpeechId }: { activeSpeechId: string }) => {
-      const hookValue = useSentencePractice(activeSpeechId);
-      useEffect(() => {
-        current = hookValue;
-      }, [hookValue]);
-      return null;
-    };
     await act(async () => {
       root.render(<Harness activeSpeechId={speechId} />);
     });
@@ -145,7 +146,7 @@ describe("useSentencePractice operation ownership", () => {
     expect(current.hasMore).toBe(false);
   });
 
-  it("saves a parse to its starting speech without inserting it into the new speech", async () => {
+  it("aborts an in-flight parse when switching speeches without persisting it", async () => {
     const parsed = deferred<{ english: string; chinese: string }[]>();
     mocks.parseAndTranslateSentences.mockReturnValue(parsed.promise);
     mocks.addSentences.mockResolvedValue([{ id: "a-new", order: -1 }]);
@@ -165,17 +166,45 @@ describe("useSentencePractice operation ownership", () => {
     act(() => {
       parsePromise = current.parseAndTranslate("A sentence.");
     });
+    const parseSignal = mocks.parseAndTranslateSentences.mock.calls[0]?.[1] as
+      | AbortSignal
+      | undefined;
+    expect(parseSignal?.aborted).toBe(false);
     await renderSpeech("speech-b");
+    expect(parseSignal?.aborted).toBe(true);
 
     await act(async () => {
       parsed.resolve([{ english: "A sentence.", chinese: "A 句子。" }]);
       await parsePromise;
     });
 
-    expect(mocks.addSentences).toHaveBeenCalledWith([
-      expect.objectContaining({ speechId: "speech-a", userId: "user-1" }),
-    ]);
+    expect(mocks.addSentences).not.toHaveBeenCalled();
     expect(current.sentences.map((item) => item.id)).toEqual(["b-1"]);
+    expect(current.isProcessing).toBe(false);
+  });
+
+  it("does not resurrect an old processing state after an A-B-A switch", async () => {
+    const parsed = deferred<{ english: string; chinese: string }[]>();
+    mocks.parseAndTranslateSentences.mockReturnValue(parsed.promise);
+
+    await renderSpeech("speech-a");
+    let parsePromise!: ReturnType<HookValue["parseAndTranslate"]>;
+    act(() => {
+      parsePromise = current.parseAndTranslate("A sentence.");
+    });
+    expect(current.isProcessing).toBe(true);
+
+    await renderSpeech("speech-b");
+    expect(current.isProcessing).toBe(false);
+    await renderSpeech("speech-a");
+    expect(current.isProcessing).toBe(false);
+
+    await act(async () => {
+      parsed.resolve([{ english: "A sentence.", chinese: "A 句子。" }]);
+      await parsePromise;
+    });
+
+    expect(mocks.addSentences).not.toHaveBeenCalled();
     expect(current.isProcessing).toBe(false);
   });
 

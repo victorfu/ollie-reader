@@ -223,6 +223,11 @@ describe("useAdventure run ownership and settlement", () => {
       secondStart = current.startQuiz(1, []);
     });
 
+    const firstSignal = mocks.prepareGamePool.mock.calls[0]?.[1] as AbortSignal;
+    const secondSignal = mocks.prepareGamePool.mock.calls[1]?.[1] as AbortSignal;
+    expect(firstSignal.aborted).toBe(true);
+    expect(secondSignal.aborted).toBe(false);
+
     await act(async () => {
       second.resolve([gameWord("new")]);
       await secondStart;

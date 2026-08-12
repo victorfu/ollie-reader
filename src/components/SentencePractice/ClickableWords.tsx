@@ -1,9 +1,13 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useSpeechState } from "../../hooks/useSpeechState";
+import { isGeminiRateLimitError } from "../../services/geminiErrorPolicy";
 
 interface ClickableWordsProps {
   text: string;
-  getWordDefinition: (word: string) => Promise<string | null>;
+  getWordDefinition: (
+    word: string,
+    signal?: AbortSignal,
+  ) => Promise<string | null>;
 }
 
 export const ClickableWords = ({
@@ -16,6 +20,7 @@ export const ClickableWords = ({
   const [isLoading, setIsLoading] = useState(false);
   const activeWordIndexRef = useRef<number | null>(null);
   const lookupRequestIdRef = useRef(0);
+  const lookupControllerRef = useRef<AbortController | null>(null);
 
   // Split text into words while preserving punctuation
   const splitTextIntoWords = (text: string): string[] => {
@@ -40,6 +45,8 @@ export const ClickableWords = ({
 
       // If clicking the same word index, toggle off
       if (activeWordIndexRef.current === index) {
+        lookupControllerRef.current?.abort();
+        lookupControllerRef.current = null;
         lookupRequestIdRef.current += 1;
         activeWordIndexRef.current = null;
         setActiveWordIndex(null);
@@ -49,21 +56,27 @@ export const ClickableWords = ({
       }
 
       const requestId = ++lookupRequestIdRef.current;
+      lookupControllerRef.current?.abort();
+      const controller = new AbortController();
+      lookupControllerRef.current = controller;
       activeWordIndexRef.current = index;
       setActiveWordIndex(index);
       setDefinition(null);
       setIsLoading(true);
 
       try {
-        const def = await getWordDefinition(clean);
+        const def = await getWordDefinition(clean, controller.signal);
         if (requestId !== lookupRequestIdRef.current) return;
         setDefinition(def);
       } catch (error) {
         if (requestId !== lookupRequestIdRef.current) return;
         console.error("Failed to get definition:", error);
-        setDefinition("無法取得解釋");
+        setDefinition(
+          isGeminiRateLimitError(error) ? error.message : "無法取得解釋",
+        );
       } finally {
         if (requestId === lookupRequestIdRef.current) {
+          lookupControllerRef.current = null;
           setIsLoading(false);
         }
       }
@@ -72,6 +85,8 @@ export const ClickableWords = ({
   );
 
   const handleCloseDropdown = useCallback(() => {
+    lookupControllerRef.current?.abort();
+    lookupControllerRef.current = null;
     lookupRequestIdRef.current += 1;
     activeWordIndexRef.current = null;
     setActiveWordIndex(null);
@@ -80,12 +95,21 @@ export const ClickableWords = ({
   }, []);
 
   useEffect(() => {
+    lookupControllerRef.current?.abort();
+    lookupControllerRef.current = null;
     lookupRequestIdRef.current += 1;
     activeWordIndexRef.current = null;
     setActiveWordIndex(null);
     setDefinition(null);
     setIsLoading(false);
   }, [text]);
+
+  useEffect(
+    () => () => {
+      lookupControllerRef.current?.abort();
+    },
+    [],
+  );
 
   const words = splitTextIntoWords(text);
 

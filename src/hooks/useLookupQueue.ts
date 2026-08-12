@@ -2,6 +2,7 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import type { VocabularyWord } from "../types/vocabulary";
 import { isAbortError } from "../utils/errorUtils";
 import { logger } from "../utils/logger";
+import { isGeminiRateLimitError } from "../services/geminiErrorPolicy";
 
 export type LookupStatus = "loading" | "success" | "error";
 export type LookupItemType = "word" | "translation";
@@ -38,7 +39,9 @@ type LookupOrAddWord = (
 
 type FormatDefinitions = (word: VocabularyWord) => string;
 
-const MAX_CONCURRENT = 5;
+// This limits visible/pending UI work only. Actual Gemini provider concurrency
+// is globally fixed at one by geminiRequestQueue.
+const MAX_PENDING_LOOKUPS = 5;
 const MAX_VISIBLE_ITEMS = 20;
 
 let nextId = 0;
@@ -141,7 +144,10 @@ export function useLookupQueue(
           }
 
           logger.error("Lookup/translation failed:", err);
-          updateItem({ status: "error", error: errorMessage });
+          updateItem({
+            status: "error",
+            error: isGeminiRateLimitError(err) ? err.message : errorMessage,
+          });
         });
     },
     [],
@@ -162,7 +168,7 @@ export function useLookupQueue(
           l.word.toLowerCase() === normalizedKey,
       );
       if (hasDuplicate) return "duplicate";
-      if (activeCount >= MAX_CONCURRENT) return "max_reached";
+      if (activeCount >= MAX_PENDING_LOOKUPS) return "max_reached";
 
       return undefined;
     },
@@ -206,7 +212,10 @@ export function useLookupQueue(
                 vocabularyWord: result.existingWord,
               };
             }
-            return null;
+            return {
+              status: "error",
+              error: result.message || "Lookup failed",
+            };
           }),
         "Lookup failed",
       );

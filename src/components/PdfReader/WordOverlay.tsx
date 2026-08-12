@@ -163,12 +163,22 @@ export const WordOverlay = memo(
 
         const hitIndex = wordIndexAtEvent(event);
         const focusIndex = hitIndex ?? drag.focusIndex;
+        // Word geometry can be replaced while a captured gesture is active.
+        // Never apply indices saved from the previous render to the new array.
+        const anchorWord = normalizedWords[drag.anchorIndex];
+        const focusWord = normalizedWords[focusIndex];
+        if (!anchorWord || !focusWord) {
+          clearSelection();
+          onTextSelection();
+          return;
+        }
+
         const isClick = distance <= CLICK_DISTANCE_PX;
         const nextRange = isClick
           ? { start: drag.anchorIndex, end: drag.anchorIndex }
           : sortedRange(drag.anchorIndex, focusIndex);
         const text = isClick
-          ? singlePdfWordText(normalizedWords[drag.anchorIndex])
+          ? singlePdfWordText(anchorWord)
           : joinPdfWords(normalizedWords, drag.anchorIndex, focusIndex);
         if (!text) {
           clearSelection();

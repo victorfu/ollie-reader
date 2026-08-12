@@ -1,9 +1,11 @@
 /**
  * AI Service - Centralized service for all Gemini AI interactions
  */
-import { geminiModel } from "../utils/firebaseUtil";
 import { isAbortError } from "../utils/errorUtils";
+import { logger } from "../utils/logger";
 import type { SentenceKeyWord } from "../types/sentenceTranslation";
+import { generateGeminiContent } from "./geminiClient";
+import { isGeminiRateLimitError } from "./geminiErrorPolicy";
 
 /**
  * Word details structure returned by generateWordDetails
@@ -86,7 +88,10 @@ export async function generateWordDetails(
 
     if (signal?.aborted) return null;
 
-    const result = await geminiModel.generateContent(prompt);
+    const result = await generateGeminiContent(prompt, {
+      action: "word_details",
+      signal,
+    });
 
     if (signal?.aborted) return null;
 
@@ -106,7 +111,8 @@ export async function generateWordDetails(
     return details;
   } catch (err) {
     if (isAbortError(err)) return null;
-    console.error("Error generating word details:", err);
+    if (isGeminiRateLimitError(err)) throw err;
+    logger.error("Error generating word details:", err);
     return null;
   }
 }
@@ -130,14 +136,18 @@ export async function translateWithAI(
 
     if (signal?.aborted) return null;
 
-    const result = await geminiModel.generateContent(prompt);
+    const result = await generateGeminiContent(prompt, {
+      action: "translation",
+      signal,
+    });
 
     if (signal?.aborted) return null;
 
     return result.response.text().trim();
   } catch (err) {
     if (isAbortError(err)) return null;
-    console.error("Error translating with AI:", err);
+    if (isGeminiRateLimitError(err)) throw err;
+    logger.error("Error translating with AI:", err);
     return null;
   }
 }
@@ -193,7 +203,10 @@ export async function smartLookup(
 
     if (signal?.aborted) return null;
 
-    const result = await geminiModel.generateContent(prompt);
+    const result = await generateGeminiContent(prompt, {
+      action: "smart_lookup",
+      signal,
+    });
 
     if (signal?.aborted) return null;
 
@@ -234,7 +247,8 @@ export async function smartLookup(
     return null;
   } catch (err) {
     if (isAbortError(err)) return null;
-    console.error("Error in smart lookup:", err);
+    if (isGeminiRateLimitError(err)) throw err;
+    logger.error("Error in smart lookup:", err);
     return null;
   }
 }
@@ -260,6 +274,7 @@ function splitIntoSentences(text: string): string[] {
  */
 export async function parseAndTranslateSentences(
   text: string,
+  signal?: AbortSignal,
 ): Promise<ParsedSentence[]> {
   try {
     const prompt = `你是一個幫助學生學習英文的助手。請將以下英文文字分句，並翻譯成繁體中文。
@@ -283,7 +298,10 @@ ${text}
 3. 翻譯要準確、通順，使用簡單易懂的中文
 4. 只回覆 JSON，不要加任何其他說明`;
 
-    const result = await geminiModel.generateContent(prompt);
+    const result = await generateGeminiContent(prompt, {
+      action: "sentence_parse",
+      signal,
+    });
     const responseText = result.response.text().trim();
     const parsed = parseJsonResponse(responseText) as {
       sentences: ParsedSentence[];
@@ -296,7 +314,9 @@ ${text}
     // AI returned empty result, use fallback
     throw new Error("AI returned empty sentences");
   } catch (err) {
-    console.error("Error parsing and translating sentences:", err);
+    if (isAbortError(err)) throw err;
+    if (isGeminiRateLimitError(err)) throw err;
+    logger.error("Error parsing and translating sentences:", err);
     // Fallback: use basic sentence splitting without translation
     const sentences = splitIntoSentences(text);
     return sentences.map((english) => ({
@@ -311,7 +331,10 @@ ${text}
  * @param word - The English word
  * @returns Chinese definition or null if failed
  */
-export async function getWordDefinition(word: string): Promise<string | null> {
+export async function getWordDefinition(
+  word: string,
+  signal?: AbortSignal,
+): Promise<string | null> {
   try {
     const prompt = `你是一個幫助學生學習英文的字典助手。請提供這個英文單字的簡短中文解釋。
 
@@ -319,10 +342,15 @@ export async function getWordDefinition(word: string): Promise<string | null> {
 
 請用一句簡短的中文說明這個單字的意思，適合學生理解。只回覆中文解釋，不要加其他說明。`;
 
-    const result = await geminiModel.generateContent(prompt);
+    const result = await generateGeminiContent(prompt, {
+      action: "word_definition",
+      signal,
+    });
     return result.response.text().trim();
   } catch (err) {
-    console.error("Error getting word definition:", err);
+    if (isAbortError(err)) return null;
+    if (isGeminiRateLimitError(err)) throw err;
+    logger.error("Error getting word definition:", err);
     return null;
   }
 }
@@ -340,14 +368,18 @@ export async function generateSpeechScript(
   try {
     if (signal?.aborted) return null;
 
-    const result = await geminiModel.generateContent(prompt);
+    const result = await generateGeminiContent(prompt, {
+      action: "speech_script",
+      signal,
+    });
 
     if (signal?.aborted) return null;
 
     return result.response.text();
   } catch (err) {
     if (isAbortError(err)) return null;
-    console.error("Error generating speech script:", err);
+    if (isGeminiRateLimitError(err)) throw err;
+    logger.error("Error generating speech script:", err);
     return null;
   }
 }
@@ -359,6 +391,7 @@ export async function generateSpeechScript(
  */
 export async function generateGameWords(
   count: number = 10,
+  signal?: AbortSignal,
 ): Promise<GameWord[]> {
   try {
     const prompt = `
@@ -381,7 +414,10 @@ export async function generateGameWords(
       Do not include markdown formatting like \`\`\`json. Just the raw JSON string.
     `;
 
-    const result = await geminiModel.generateContent(prompt);
+    const result = await generateGeminiContent(prompt, {
+      action: "game_words",
+      signal,
+    });
     const text = result.response
       .text()
       .trim()
@@ -413,7 +449,9 @@ export async function generateGameWords(
 
     return [];
   } catch (err) {
-    console.error("Error generating game words:", err);
+    if (isAbortError(err)) throw err;
+    if (isGeminiRateLimitError(err)) throw err;
+    logger.error("Error generating game words:", err);
     return [];
   }
 }

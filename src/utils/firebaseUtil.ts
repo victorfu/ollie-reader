@@ -51,12 +51,14 @@ if (!getApps().length) {
 }
 
 // Auth, Firestore, and Gemini all use the same app
+export const firebaseApp = app;
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 
 const ai = getAI(app, { backend: new GoogleAIBackend() });
 
 // Create a GenerativeModel instance
+export const GEMINI_MODEL_NAME = "gemini-3.5-flash-lite";
 export const geminiModel = getGenerativeModel(ai, {
-  model: "gemini-3.5-flash-lite",
+  model: GEMINI_MODEL_NAME,
 });

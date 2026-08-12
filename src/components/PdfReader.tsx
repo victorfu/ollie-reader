@@ -182,7 +182,7 @@ function PdfReader() {
     if (result === "duplicate") {
       addToast(`「${word}」正在查詢中`, "info");
     } else if (result === "max_reached") {
-      addToast("同時查詢數量已達上限", "error");
+      addToast("待處理查詢數量已達上限", "error");
     }
 
     clearSelection();
@@ -201,7 +201,7 @@ function PdfReader() {
     if (result === "duplicate") {
       addToast(`「${trimmed}」正在查詢中`, "info");
     } else if (result === "max_reached") {
-      addToast("同時查詢數量已達上限", "error");
+      addToast("待處理查詢數量已達上限", "error");
     }
   };
 
@@ -219,7 +219,7 @@ function PdfReader() {
     if (result === "duplicate") {
       addToast("此句子正在翻譯中", "info");
     } else if (result === "max_reached") {
-      addToast("同時查詢數量已達上限", "error");
+      addToast("待處理查詢數量已達上限", "error");
     }
 
     clearSelection();

@@ -69,6 +69,7 @@ export const useSentencePractice = (speechId: string | null) => {
   const loadRequestIdRef = useRef(0);
   const loadMoreRequestIdRef = useRef(0);
   const dataEpochRef = useRef(0);
+  const aiOperationControllerRef = useRef<AbortController | null>(null);
 
   const ownsCurrentView = viewState.ownerKey === ownerKey;
   const sentences = ownsCurrentView ? viewState.sentences : [];
@@ -254,11 +255,21 @@ export const useSentencePractice = (speechId: string | null) => {
 
       const operationOwnerKey = ownerKey;
       const operationSpeechId = speechId;
+      aiOperationControllerRef.current?.abort();
+      const controller = new AbortController();
+      aiOperationControllerRef.current = controller;
       setProcessingOwnerKey(operationOwnerKey);
       setOwnedError(operationOwnerKey, null);
 
       try {
-        const parsedSentences = await parseAndTranslateSentences(text);
+        const parsedSentences = await parseAndTranslateSentences(
+          text,
+          controller.signal,
+        );
+
+        if (controller.signal.aborted) {
+          return { success: false, message: "操作已取消" };
+        }
 
         if (parsedSentences.length === 0) {
           return { success: false, message: "無法解析句子" };
@@ -321,22 +332,33 @@ export const useSentencePractice = (speechId: string | null) => {
           count: parsedSentences.length,
         };
       } catch (err) {
+        if (controller.signal.aborted) {
+          return { success: false, message: "操作已取消" };
+        }
         console.error("Failed to parse and translate:", err);
         const message = err instanceof Error ? err.message : "處理失敗";
-        setOwnedError(operationOwnerKey, message);
+        if (aiOperationControllerRef.current === controller) {
+          setOwnedError(operationOwnerKey, message);
+        }
         return { success: false, message };
       } finally {
-        setProcessingOwnerKey((current) =>
-          current === operationOwnerKey ? null : current,
-        );
+        if (aiOperationControllerRef.current === controller) {
+          aiOperationControllerRef.current = null;
+          setProcessingOwnerKey((current) =>
+            current === operationOwnerKey ? null : current,
+          );
+        }
       }
     },
     [isActiveOwner, ownerKey, setOwnedError, speechId, userId],
   );
 
   const translateSingle = useCallback(
-    async (english: string): Promise<string | null> => {
-      return translateWithAI(english);
+    async (
+      english: string,
+      signal?: AbortSignal,
+    ): Promise<string | null> => {
+      return translateWithAI(english, signal);
     },
     [],
   );
@@ -351,10 +373,19 @@ export const useSentencePractice = (speechId: string | null) => {
       }
 
       const operationOwnerKey = ownerKey;
+      aiOperationControllerRef.current?.abort();
+      const controller = new AbortController();
+      aiOperationControllerRef.current = controller;
       setProcessingOwnerKey(operationOwnerKey);
 
       try {
-        const newChinese = await translateSingle(newEnglish);
+        const newChinese = await translateSingle(
+          newEnglish,
+          controller.signal,
+        );
+        if (controller.signal.aborted) {
+          return { success: false, message: "操作已取消" };
+        }
         if (!newChinese) return { success: false, message: "翻譯失敗" };
 
         await updateSentence(sentenceId, {
@@ -384,13 +415,19 @@ export const useSentencePractice = (speechId: string | null) => {
 
         return { success: true, message: "更新成功" };
       } catch (err) {
+        if (controller.signal.aborted) {
+          return { success: false, message: "操作已取消" };
+        }
         console.error("Failed to edit sentence:", err);
         const message = err instanceof Error ? err.message : "更新失敗";
         return { success: false, message };
       } finally {
-        setProcessingOwnerKey((current) =>
-          current === operationOwnerKey ? null : current,
-        );
+        if (aiOperationControllerRef.current === controller) {
+          aiOperationControllerRef.current = null;
+          setProcessingOwnerKey((current) =>
+            current === operationOwnerKey ? null : current,
+          );
+        }
       }
     },
     [isActiveOwner, ownerKey, speechId, translateSingle, userId],
@@ -551,14 +588,14 @@ export const useSentencePractice = (speechId: string | null) => {
   );
 
   const getWordDefinition = useCallback(
-    async (word: string): Promise<string | null> => {
+    async (word: string, signal?: AbortSignal): Promise<string | null> => {
       const normalizedWord = word.toLowerCase().trim();
 
       if (wordDefinitionCache.current.has(normalizedWord)) {
         return wordDefinitionCache.current.get(normalizedWord) || null;
       }
 
-      const definition = await getWordDefinitionAI(word);
+      const definition = await getWordDefinitionAI(word, signal);
       if (definition) {
         wordDefinitionCache.current.set(normalizedWord, definition);
       }
@@ -569,11 +606,26 @@ export const useSentencePractice = (speechId: string | null) => {
   );
 
   useEffect(() => {
+    const staleController = aiOperationControllerRef.current;
+    staleController?.abort();
+    if (aiOperationControllerRef.current === staleController) {
+      aiOperationControllerRef.current = null;
+    }
+    // Only one parse/edit operation may exist. Clear ownership immediately so
+    // an A→B→A switch cannot resurrect an abort-ignoring A spinner.
+    setProcessingOwnerKey(null);
     activeOwnerKeyRef.current = ownerKey;
     loadRequestIdRef.current += 1;
     loadMoreRequestIdRef.current += 1;
     dataEpochRef.current += 1;
   }, [ownerKey]);
+
+  useEffect(
+    () => () => {
+      aiOperationControllerRef.current?.abort();
+    },
+    [],
+  );
 
   useEffect(() => {
     void loadSentences();

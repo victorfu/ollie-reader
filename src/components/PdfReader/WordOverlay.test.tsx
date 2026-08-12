@@ -38,19 +38,23 @@ function pointer(
   target.dispatchEvent(event);
 }
 
-function renderOverlay(onTextSelection = vi.fn()) {
-  act(() => {
+function renderOverlay(
+  onTextSelection = vi.fn(),
+  initialWords: PdfWord[] = words,
+) {
+  const renderWords = (nextWords: PdfWord[]) => {
     root.render(
       <div className="relative" style={{ width: 1_000, height: 600 }}>
         <WordOverlay
           pageWidth={500}
           pageHeight={300}
-          words={words}
+          words={nextWords}
           onTextSelection={onTextSelection}
         />
       </div>,
     );
-  });
+  };
+  act(() => renderWords(initialWords));
   const overlay = host.querySelector<HTMLElement>("[data-native-word-overlay]");
   if (!overlay) throw new Error("native word overlay was not rendered");
   let rect = {
@@ -70,6 +74,9 @@ function renderOverlay(onTextSelection = vi.fn()) {
     onTextSelection,
     setRect: (next: typeof rect) => {
       rect = next;
+    },
+    rerenderWords: (nextWords: PdfWord[]) => {
+      act(() => renderWords(nextWords));
     },
   };
 }
@@ -233,5 +240,62 @@ describe("WordOverlay", () => {
     expect(
       overlay.querySelectorAll("[data-native-word-highlight]"),
     ).toHaveLength(0);
+  });
+
+  it("cancels a click when its saved anchor index becomes stale", () => {
+    const onTextSelection = vi.fn();
+    const { overlay, rerenderWords } = renderOverlay(onTextSelection);
+
+    act(() => {
+      pointer(overlay, "pointerdown", 230, 330);
+    });
+    rerenderWords(words.slice(0, 1));
+    act(() => {
+      pointer(overlay, "pointerup", 230, 330);
+    });
+
+    expect(
+      onTextSelection.mock.calls.some(([payload]) => Boolean(payload)),
+    ).toBe(false);
+    expect(
+      overlay.querySelectorAll("[data-native-word-highlight]"),
+    ).toHaveLength(0);
+  });
+
+  it("cancels a drag when only its saved focus index becomes stale", () => {
+    const onTextSelection = vi.fn();
+    const { overlay, rerenderWords } = renderOverlay(onTextSelection);
+
+    act(() => {
+      pointer(overlay, "pointerdown", 190, 260);
+      pointer(overlay, "pointermove", 230, 330);
+    });
+    rerenderWords(words.slice(0, 1));
+    act(() => {
+      pointer(overlay, "pointerup", 230, 330);
+    });
+
+    expect(
+      onTextSelection.mock.calls.some(([payload]) => Boolean(payload)),
+    ).toBe(false);
+    expect(
+      overlay.querySelectorAll("[data-native-word-highlight]"),
+    ).toHaveLength(0);
+  });
+
+  it("commits a drag when pointerup lands outside a word", () => {
+    const onTextSelection = vi.fn();
+    const { overlay } = renderOverlay(onTextSelection);
+
+    act(() => {
+      pointer(overlay, "pointerdown", 190, 260);
+      pointer(overlay, "pointermove", 230, 330);
+      pointer(overlay, "pointerup", 500, 500);
+    });
+
+    expect(lastPayload(onTextSelection).text).toBe("Once upon a time,");
+    expect(
+      overlay.querySelectorAll("[data-native-word-highlight]"),
+    ).toHaveLength(4);
   });
 });

@@ -95,6 +95,16 @@ The Vite development server runs at `http://localhost:5173`.
 
 There is no `VITE_GEMINI_API_KEY`: Gemini is initialised through the configured Firebase app and protected by App Check.
 
+Gemini requests are serialized through one global client queue. The queue uses
+the Firebase Remote Config parameter `gemini_client_rpm_budget` as its effective
+per-client RPM budget and spaces request start times accordingly. Configure this
+value from the active model's AI Studio RPM limit after reserving capacity for
+other active clients. Until Remote Config is available, the app uses a
+conservative 4 RPM fallback (15 seconds between request starts).
+Same-origin tabs coordinate through Web Locks and shared browser state. Structured
+minute/capacity 429 responses receive bounded retries; daily exhaustion opens a
+circuit breaker until the next US Pacific midnight instead of being resent.
+
 ### npm scripts
 
 ```bash

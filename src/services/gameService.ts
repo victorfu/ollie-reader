@@ -1,4 +1,5 @@
 import { generateGameWords as generateGameWordsAI, type GameWord } from "./aiService";
+import { isGeminiRateLimitError } from "./geminiErrorPolicy";
 import type { VocabularyWord } from "../types/vocabulary";
 import { FALLBACK_GAME_WORDS } from "./gameWords";
 
@@ -93,8 +94,15 @@ export type { GameWord };
 
 export const generateGameWords = async (
   count: number = 10,
+  signal?: AbortSignal,
 ): Promise<GameWord[]> => {
-  const words = await generateGameWordsAI(count);
+  let words: GameWord[];
+  try {
+    words = await generateGameWordsAI(count, signal);
+  } catch (error) {
+    if (!isGeminiRateLimitError(error)) throw error;
+    return FALLBACK_WORDS.slice(0, count);
+  }
   
   if (words.length > 0) {
     return words;
@@ -105,6 +113,7 @@ export const generateGameWords = async (
 
 export const prepareGamePool = async (
   userWords: VocabularyWord[],
+  signal?: AbortSignal,
 ): Promise<GameWord[]> => {
   // 1. Convert ALL user words to GameWord format (prioritize vocabulary book)
   //    def 維持「中文優先、缺中文退英文」的既有行為；defEn 另外帶出來給英文模式用
@@ -127,7 +136,7 @@ export const prepareGamePool = async (
 
   // 3. If not enough user words, fetch more from AI to supplement
   const needed = Math.max(20 - userGameWords.length, 16); // Ensure at least 16 AI words if user has few
-  const aiWords = await generateGameWords(needed);
+  const aiWords = await generateGameWords(needed, signal);
 
   // 4. Combine and shuffle
   return [...userGameWords, ...aiWords].sort(() => 0.5 - Math.random());

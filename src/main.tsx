@@ -6,6 +6,7 @@ import App from "./App.tsx";
 import { AuthProvider } from "./contexts/auth";
 import { reloadOnceForStaleChunk } from "./utils/lazyWithReload";
 import { registerPwa } from "./utils/registerPwa";
+import { initializeGeminiRuntimeConfig } from "./services/geminiRuntimeConfig";
 
 // Vite fires this when a module preload fails (e.g. a hashed chunk removed by a
 // deploy). Reload once to pick up the latest build before the user hits an
@@ -16,6 +17,7 @@ window.addEventListener("vite:preloadError", () => {
 
 // Keep every open tab on the latest deploy: detect new builds and auto-reload.
 registerPwa();
+initializeGeminiRuntimeConfig();
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

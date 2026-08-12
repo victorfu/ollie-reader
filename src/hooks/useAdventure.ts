@@ -147,6 +147,7 @@ export function useAdventure(): UseAdventureReturn {
   const activeUidRef = useRef<string | null>(null);
   const accountGenerationRef = useRef(0);
   const runIdRef = useRef(0);
+  const gamePoolControllerRef = useRef<AbortController | null>(null);
   const settlementAttemptIdRef = useRef(0);
   const settlementInFlightRef = useRef<number | null>(null);
   const pendingSettlementRef = useRef<PendingSettlement | null>(null);
@@ -189,6 +190,8 @@ export function useAdventure(): UseAdventureReturn {
       activeUidRef.current = null;
       accountGenerationRef.current += 1;
       runIdRef.current += 1;
+      gamePoolControllerRef.current?.abort();
+      gamePoolControllerRef.current = null;
       settlementAttemptIdRef.current += 1;
       settlementInFlightRef.current = null;
       clearRunTimeouts();
@@ -273,6 +276,8 @@ export function useAdventure(): UseAdventureReturn {
 
   const invalidateRun = useCallback(() => {
     runIdRef.current += 1;
+    gamePoolControllerRef.current?.abort();
+    gamePoolControllerRef.current = null;
     settlementAttemptIdRef.current += 1;
     settlementInFlightRef.current = null;
     pendingSettlementRef.current = null;
@@ -389,6 +394,8 @@ export function useAdventure(): UseAdventureReturn {
       }
 
       const runId = invalidateRun();
+      const gamePoolController = new AbortController();
+      gamePoolControllerRef.current = gamePoolController;
 
       setIsLoading(true);
       setError(null);
@@ -404,7 +411,10 @@ export function useAdventure(): UseAdventureReturn {
 
       try {
         // 準備題目池
-        const wordPool = await prepareGamePool(vocabularyWords);
+        const wordPool = await prepareGamePool(
+          vocabularyWords,
+          gamePoolController.signal,
+        );
         if (
           runId !== runIdRef.current ||
           !ownsAccount(uid, accountGeneration)
@@ -472,6 +482,9 @@ export function useAdventure(): UseAdventureReturn {
         console.error("Failed to start quiz:", err);
         setError("無法開始遊戲");
       } finally {
+        if (gamePoolControllerRef.current === gamePoolController) {
+          gamePoolControllerRef.current = null;
+        }
         if (
           runId === runIdRef.current &&
           ownsAccount(uid, accountGeneration)

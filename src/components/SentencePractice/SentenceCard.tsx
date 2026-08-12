@@ -11,7 +11,10 @@ interface SentenceCardProps {
     newEnglish: string,
   ) => Promise<{ success: boolean; message?: string }>;
   onDelete: (id: string) => Promise<{ success: boolean; message?: string }>;
-  getWordDefinition: (word: string) => Promise<string | null>;
+  getWordDefinition: (
+    word: string,
+    signal?: AbortSignal,
+  ) => Promise<string | null>;
   isProcessing: boolean;
   isCurrentlyPlaying?: boolean;
   onEditingChange?: (isEditing: boolean) => void;
