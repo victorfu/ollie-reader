@@ -49,7 +49,7 @@ The UI follows macOS Human Interface Guidelines adapted for the web: a collapsib
 - **Vite 7** with **vite-plugin-pwa** and lazy route-level code splitting
 - **Tailwind CSS 4**, **DaisyUI 5**, OKLCH design tokens, and **Framer Motion**
 - **Firebase 12** for Google Auth, the `allowedUsers/{email}` access check, Firestore, App Check, and Firebase AI Logic
-- **Gemini 2.5 Flash** through `firebase/ai` and `GoogleAIBackend`; the frontend does not read a standalone Gemini API key
+- **Gemini 3.5 Flash-Lite** through `firebase/ai` and `GoogleAIBackend`; the frontend does not read a standalone Gemini API key
 - **Supabase 2** for private audio/recording object storage, authenticated with Firebase ID tokens and protected by Storage RLS
 - **react-pdf** for browser PDF rendering and text extraction
 - **Web Speech API**, **MediaRecorder**, IndexedDB, and local storage for browser-native speech, recording, and device-local caches/preferences
