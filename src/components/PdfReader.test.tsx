@@ -41,6 +41,12 @@ vi.mock("../hooks/useLookupQueue", () => ({
   }),
 }));
 vi.mock("../hooks/useAuth", () => ({ useAuth: () => ({ user: null }) }));
+vi.mock("../hooks/useSettings", () => ({
+  useSettings: () => ({
+    vocabularyPanelMode: "floating",
+    updateVocabularyPanelMode: vi.fn(),
+  }),
+}));
 vi.mock("../hooks/useToastQueue", () => ({
   useToastQueue: () => ({ toasts: [], addToast: vi.fn(), removeToast: vi.fn() }),
 }));

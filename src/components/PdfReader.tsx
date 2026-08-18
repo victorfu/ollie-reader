@@ -7,6 +7,7 @@ import { usePdfWorker } from "../hooks/usePdfWorker";
 import { useVocabulary, formatDefinitionsForDisplay } from "../hooks/useVocabulary";
 import { useLookupQueue } from "../hooks/useLookupQueue";
 import { useAuth } from "../hooks/useAuth";
+import { useSettings } from "../hooks/useSettings";
 import { createTranslateFn } from "../utils/translateFactory";
 import { UploadArea } from "./PdfReader/UploadArea";
 import { PdfViewer } from "./PdfReader/PdfViewer";
@@ -45,6 +46,13 @@ function PdfReader() {
   } = useSpeechState();
 
   const { user } = useAuth();
+
+  const { vocabularyPanelMode, updateVocabularyPanelMode } = useSettings();
+
+  const toggleVocabularyPanelMode = () =>
+    updateVocabularyPanelMode(
+      vocabularyPanelMode === "docked" ? "floating" : "docked",
+    );
 
   const {
     selectedText,
@@ -372,15 +380,17 @@ function PdfReader() {
       )}
 
       {/* Unified Word Panel — saved-vocabulary search + lookup queue in one widget */}
-      <WordPanel
-        isOpen={wordPanelOpen}
-        onClose={() => setWordPanelOpen(false)}
-        lookups={lookups}
-        onDismiss={dismissLookup}
-        onDismissAll={dismissAll}
-        onSpeak={speak}
-        onLookupWord={handleLookupTypedWord}
-      />
+      {wordPanelOpen && (
+        <WordPanel
+          onClose={() => setWordPanelOpen(false)}
+          onToggleMode={toggleVocabularyPanelMode}
+          lookups={lookups}
+          onDismiss={dismissLookup}
+          onDismissAll={dismissAll}
+          onSpeak={speak}
+          onLookupWord={handleLookupTypedWord}
+        />
+      )}
 
       {/* Toast Notifications */}
       <ToastContainer toasts={toasts} onRemove={removeToast} />
