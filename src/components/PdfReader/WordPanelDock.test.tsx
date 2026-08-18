@@ -115,6 +115,54 @@ describe("WordPanelDock", () => {
     expect(aside?.style.width).toBe(`${DOCK_WIDTH_MIN}px`);
   });
 
+  it("writes the width to storage exactly once even when pointerup and lostpointercapture both fire", () => {
+    // In a spec-compliant DOM, cleanup()'s own removeEventListener calls
+    // (fired synchronously from the first event's handler) already tear
+    // down the *other* listener before it can fire, which makes a plain
+    // sequential dispatch of both events a no-op test either way. To
+    // actually exercise the "fired-once" guard, stub removeEventListener
+    // so both listeners stay bound — modeling the race the guard defends
+    // against (e.g. a UA/timing quirk where teardown lags behind the
+    // second event) — and confirm the guard, not listener removal, is
+    // what limits the write to one.
+    const windowRemoveSpy = vi
+      .spyOn(window, "removeEventListener")
+      .mockImplementation(() => {});
+    const elementRemoveSpy = vi
+      .spyOn(HTMLElement.prototype, "removeEventListener")
+      .mockImplementation(() => {});
+    const setItemSpy = vi.spyOn(Storage.prototype, "setItem");
+
+    try {
+      renderDock();
+      const grip = host.querySelector<HTMLElement>(
+        '[data-testid="vocab-dock-resize"]',
+      );
+
+      act(() => {
+        grip?.dispatchEvent(pointerEvent("pointerdown", 800));
+        window.dispatchEvent(pointerEvent("pointermove", 760));
+        // A real release can fire both pointerup and lostpointercapture for
+        // the same gesture. With teardown stubbed out above, both listeners
+        // are still live, so both actually invoke the handler here.
+        window.dispatchEvent(pointerEvent("pointerup", 760));
+        grip?.dispatchEvent(pointerEvent("lostpointercapture", 760));
+      });
+
+      const dockWidthWrites = setItemSpy.mock.calls.filter(
+        ([key]) => key === VOCABULARY_DOCK_WIDTH_KEY,
+      );
+      expect(dockWidthWrites).toHaveLength(1);
+      expect(dockWidthWrites[0][1]).toBe(String(DOCK_WIDTH_DEFAULT + 40));
+    } finally {
+      // Guaranteed even if an assertion above throws, so a failure here
+      // never cascades into unrelated tests via a leaked stub.
+      setItemSpy.mockRestore();
+      windowRemoveSpy.mockRestore();
+      elementRemoveSpy.mockRestore();
+    }
+  });
+
   it("stops resizing after pointerup", () => {
     renderDock();
     const aside = host.querySelector<HTMLElement>('[data-testid="vocab-dock"]');

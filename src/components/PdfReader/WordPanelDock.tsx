@@ -39,6 +39,7 @@ export const WordPanelDock = memo((props: WordPanelDockProps) => {
       const startX = e.clientX;
       const startWidth = width;
       let latestWidth = startWidth;
+      let ended = false;
       setIsResizing(true);
 
       const handleMove = (ev: PointerEvent) => {
@@ -56,7 +57,12 @@ export const WordPanelDock = memo((props: WordPanelDockProps) => {
         setIsResizing(false);
       };
 
+      // pointerup releases capture, which immediately fires
+      // lostpointercapture too — guard so a normal release only writes and
+      // cleans up once, no matter which of the four listeners fires first.
       const handleEnd = () => {
+        if (ended) return;
+        ended = true;
         writeVocabularyDockWidth(latestWidth);
         cleanup();
       };
@@ -80,8 +86,7 @@ export const WordPanelDock = memo((props: WordPanelDockProps) => {
       <div
         data-testid="vocab-dock-resize"
         onPointerDown={handleResizePointerDown}
-        style={{ touchAction: "none" }}
-        className={`absolute inset-y-0 left-0 z-10 w-1.5 cursor-ew-resize transition-colors ${
+        className={`absolute inset-y-0 left-0 z-10 w-1.5 touch-none cursor-ew-resize transition-colors ${
           isResizing ? "bg-accent/40" : "hover:bg-accent/20"
         }`}
         aria-label="調整生詞本寬度"
