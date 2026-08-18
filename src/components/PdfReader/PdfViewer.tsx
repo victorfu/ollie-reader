@@ -12,6 +12,10 @@ import { Document, Page } from "react-pdf";
 import type { TextSelectionPayload } from "../../hooks/useTextSelection";
 import type { ExtractedPage } from "../../types/pdf";
 import { pdfDocumentOptions } from "../../utils/pdfConfig";
+import {
+  computeRestoredScrollTop,
+  computeScrollRatio,
+} from "../../utils/pdfScrollPosition";
 import { selectWordAtPoint } from "../../utils/pdfTextSelection";
 import { hasPdfWordGeometry } from "../../utils/pdfWordSelection";
 import { ExternalAssistantToolbar } from "./ExternalAssistantToolbar";
@@ -40,6 +44,13 @@ type PointerStart = {
 const CLICK_DISTANCE_PX = 6;
 const EMPTY_PDFJS_PAGES = new Map<number, string>();
 
+/**
+ * Trailing debounce for observer-driven width changes. Every mounted page is
+ * re-rendered at the measured width, so a live drag of the vocabulary dock's
+ * grip would otherwise re-rasterize the whole document on every pointermove.
+ */
+const WIDTH_SETTLE_MS = 120;
+
 function isInteractiveAnnotationTarget(target: EventTarget | null): boolean {
   return (
     target instanceof Element &&
@@ -63,6 +74,9 @@ export const PdfViewer = memo(
     const pointerStartRef = useRef<PointerStart | null>(null);
     const scrollRestoredRef = useRef(false);
     const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const widthTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const measuredWidthRef = useRef(0);
+    const pendingScrollRatioRef = useRef<number | null>(null);
     const [documentState, setDocumentState] = useState({
       url,
       numPages: 0,
@@ -90,25 +104,63 @@ export const PdfViewer = memo(
       const updateWidth = () => {
         const nextWidth = Math.floor(target.clientWidth);
         if (nextWidth <= 0) return;
-        setPdfPageWidth((previousWidth) =>
-          previousWidth === nextWidth ? previousWidth : nextWidth,
-        );
+        const previousWidth = measuredWidthRef.current;
+        if (previousWidth === nextWidth) return;
+        measuredWidthRef.current = nextWidth;
+
+        // Re-rendering every page at a new width changes the document's total
+        // height, so a preserved scrollTop would land somewhere else entirely.
+        // Remember the position as a fraction and restore it after the commit.
+        const container = containerRef.current;
+        if (previousWidth > 0 && container) {
+          const ratio = computeScrollRatio(
+            container.scrollTop,
+            container.scrollHeight,
+          );
+          if (ratio > 0) pendingScrollRatioRef.current = ratio;
+        }
+
+        setPdfPageWidth(nextWidth);
       };
 
+      const clearWidthTimer = () => {
+        if (widthTimerRef.current) {
+          clearTimeout(widthTimerRef.current);
+          widthTimerRef.current = null;
+        }
+      };
+
+      // The first measurement must not wait — no page can mount without it.
       updateWidth();
+
+      const scheduleWidthUpdate = () => {
+        clearWidthTimer();
+        widthTimerRef.current = setTimeout(() => {
+          widthTimerRef.current = null;
+          updateWidth();
+        }, WIDTH_SETTLE_MS);
+      };
+
       if (typeof ResizeObserver !== "undefined") {
-        const observer = new ResizeObserver(updateWidth);
+        const observer = new ResizeObserver(scheduleWidthUpdate);
         observer.observe(target);
-        return () => observer.disconnect();
+        return () => {
+          observer.disconnect();
+          clearWidthTimer();
+        };
       }
 
-      window.addEventListener("resize", updateWidth);
-      return () => window.removeEventListener("resize", updateWidth);
+      window.addEventListener("resize", scheduleWidthUpdate);
+      return () => {
+        window.removeEventListener("resize", scheduleWidthUpdate);
+        clearWidthTimer();
+      };
     }, []);
 
     useEffect(() => {
       scrollRestoredRef.current = false;
       pointerStartRef.current = null;
+      pendingScrollRatioRef.current = null;
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current);
         debounceTimerRef.current = null;
@@ -185,6 +237,28 @@ export const PdfViewer = memo(
       });
       scrollRestoredRef.current = true;
     }, [pdfReady, initialScrollPosition]);
+
+    // Put the reader back where they were after a width change re-rendered
+    // every page. Deliberately a passive effect, not a layout one: react-pdf
+    // sizes each canvas from its own passive effect, and React flushes child
+    // effects before parent ones — a layout effect here would still measure the
+    // pre-resize scrollHeight and restore nothing.
+    useEffect(() => {
+      const ratio = pendingScrollRatioRef.current;
+      pendingScrollRatioRef.current = null;
+      if (ratio === null) return;
+
+      const container = containerRef.current;
+      if (!container) return;
+      container.scrollTo({
+        top: computeRestoredScrollTop(
+          ratio,
+          container.scrollHeight,
+          container.clientHeight,
+        ),
+        left: 0,
+      });
+    }, [pdfPageWidth]);
 
     const handlePointerDown = useCallback(
       (event: ReactPointerEvent<HTMLDivElement>) => {

@@ -3,7 +3,17 @@ import { useAuth } from "../hooks/useAuth";
 import { getUserSettings, saveUserSettings } from "../services/settingsService";
 import { SettingsContext } from "./SettingsContextType";
 import type { UserSettings } from "../types/settings";
-import type { TTSMode, TTSEngine, ReadingMode, ComputeMode } from "../types/pdf";
+import type {
+  TTSMode,
+  TTSEngine,
+  ReadingMode,
+  ComputeMode,
+  VocabularyPanelMode,
+} from "../types/pdf";
+import {
+  readVocabularyPanelMode,
+  writeVocabularyPanelMode,
+} from "../utils/vocabularyPanelPreferences";
 import { getComputeMode, setComputeMode } from "../services/localBackend";
 
 interface SettingsProviderProps {
@@ -33,6 +43,8 @@ export const SettingsProvider = ({ children }: SettingsProviderProps) => {
     getShowChineseTranslationFromStorage,
   );
   const [computeMode, setComputeModeState] = useState<ComputeMode>(getComputeMode);
+  const [vocabularyPanelMode, setVocabularyPanelMode] =
+    useState<VocabularyPanelMode>(readVocabularyPanelMode);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -155,6 +167,11 @@ export const SettingsProvider = ({ children }: SettingsProviderProps) => {
     setComputeModeState(mode);
   }, []);
 
+  const updateVocabularyPanelMode = useCallback((mode: VocabularyPanelMode) => {
+    writeVocabularyPanelMode(mode);
+    setVocabularyPanelMode(mode);
+  }, []);
+
   const value = useMemo(
     () => ({
       ttsMode,
@@ -163,6 +180,7 @@ export const SettingsProvider = ({ children }: SettingsProviderProps) => {
       readingMode,
       showChineseTranslation,
       computeMode,
+      vocabularyPanelMode,
       loading,
       error,
       updateTtsMode,
@@ -171,6 +189,7 @@ export const SettingsProvider = ({ children }: SettingsProviderProps) => {
       updateReadingMode,
       updateShowChineseTranslation,
       updateComputeMode,
+      updateVocabularyPanelMode,
     }),
     [
       ttsMode,
@@ -179,6 +198,7 @@ export const SettingsProvider = ({ children }: SettingsProviderProps) => {
       readingMode,
       showChineseTranslation,
       computeMode,
+      vocabularyPanelMode,
       loading,
       error,
       updateTtsMode,
@@ -187,6 +207,7 @@ export const SettingsProvider = ({ children }: SettingsProviderProps) => {
       updateReadingMode,
       updateShowChineseTranslation,
       updateComputeMode,
+      updateVocabularyPanelMode,
     ],
   );
 

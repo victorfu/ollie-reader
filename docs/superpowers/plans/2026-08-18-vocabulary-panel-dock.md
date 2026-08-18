@@ -4,7 +4,7 @@
 
 **Goal:** 讓 PDF 閱讀器的生詞本可以停靠在 PDF 預覽右側而不遮擋內容，並保留現有浮動模式作為可切換的選項。
 
-**Architecture:** 把 `WordPanel.tsx`（913 行）拆成「內容」（`WordPanelContent`）與兩種外殼（浮動 `WordPanel`、停靠 `WordPanelDock`）。`PdfReader` 依「使用者偏好 × 是否桌機寬度」三選一渲染。停靠欄是 `PdfViewer` 盒子的 flex 兄弟並用 `items-stretch` 等高，因此 PDF 在自己的捲動容器內捲動時右欄完全不動 — 不需要 `position: sticky`。
+**Architecture:** 把 `WordPanel.tsx`（551 行）拆成「內容」（`WordPanelContent`）與兩種外殼（浮動 `WordPanel`、停靠 `WordPanelDock`）。`PdfReader` 依「使用者偏好 × 是否桌機寬度」三選一渲染。停靠欄是 `PdfViewer` 盒子的 flex 兄弟並用 `items-stretch` 等高，因此 PDF 在自己的捲動容器內捲動時右欄完全不動 — 不需要 `position: sticky`。
 
 **Tech Stack:** React 19、TypeScript strict、Tailwind CSS v4 + DaisyUI、framer-motion、Vitest + jsdom。
 

@@ -2,7 +2,7 @@
 
 <metadata>
 date: 2026-08-18
-status: approved design, pending implementation plan
+status: implemented（單元測試與型別檢查全綠）；§7 的瀏覽器實測尚未執行 — 閱讀器需 Google 登入，待人工驗證
 scope: /reader（PDF 閱讀器）— WordPanel、SettingsContext
 audience: 開發者本人；私人使用、不公開發行。
 </metadata>
@@ -44,7 +44,7 @@ PDF 在這個盒子裡捲動，頁面本身另外由 document 捲動。
 
 ### 5.1 元件拆分
 
-`WordPanel.tsx` 目前 913 行，同時負責「浮動外殼」與「面板內容」。停靠模式需要同一份內容配不同外殼，所以先拆：
+`WordPanel.tsx` 目前 551 行，同時負責「浮動外殼」與「面板內容」。停靠模式需要同一份內容配不同外殼，所以先拆：
 
 | 檔案 | 職責 | 依賴 |
 |------|------|------|

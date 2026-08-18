@@ -3,6 +3,7 @@ import {
   getKeyboardSteeringDirection,
   getTouchDirection,
   isDashKey,
+  isTutorialFinaleOver,
   shouldCountTutorialDash,
 } from "./meteorGliderInput";
 import {
@@ -47,6 +48,7 @@ type TutorialState = {
   dodgedCount: number;
   collectedFuel: boolean;
   dashedCount: number;
+  finished: boolean;
 };
 
 type FuelCell = {
@@ -106,6 +108,7 @@ const TUTORIAL_TEXT = [
   "去吃綠色的燃料電池，補滿能量 💎",
   "按空白鍵（或 Shift）衝刺一下！",
 ];
+const TUTORIAL_FINALE_TEXT = "衝刺成功！你已經準備好了 🚀";
 
 const WIDTH = 480;
 const HEIGHT = 720;
@@ -379,8 +382,9 @@ export default function MeteorGlider({ onExit, onPlayBunny }: MeteorGliderProps)
 
     // 教學提示橫幅（固定在畫面上方，不受震動影響）
     const tut = data.tutorial;
-    if (tut && tut.step < TUTORIAL_STEPS) {
-      const text = TUTORIAL_TEXT[tut.step];
+    if (tut) {
+      const isFinale = tut.step >= TUTORIAL_STEPS;
+      const text = isFinale ? TUTORIAL_FINALE_TEXT : TUTORIAL_TEXT[tut.step];
       ctx.save();
       ctx.font = "bold 18px system-ui";
       ctx.textAlign = "center";
@@ -393,7 +397,7 @@ export default function MeteorGlider({ onExit, onPlayBunny }: MeteorGliderProps)
       ctx.strokeStyle = "rgba(255,255,255,0.2)";
       ctx.lineWidth = 1.5;
       ctx.stroke();
-      ctx.fillStyle = "#ffffff";
+      ctx.fillStyle = isFinale ? "#8af9d0" : "#ffffff";
       ctx.fillText(text, bx, by + 3);
       // 步驟進度點
       for (let i = 0; i < TUTORIAL_STEPS; i++) {
@@ -433,6 +437,15 @@ export default function MeteorGlider({ onExit, onPlayBunny }: MeteorGliderProps)
     if (!t) return;
     t.stepTimer += delta;
 
+    // 最後一步不在按下衝刺的當下收尾，先讓衝刺演完玩家才看得到效果
+    if (t.step >= TUTORIAL_STEPS) {
+      if (!t.finished && isTutorialFinaleOver(t.stepTimer)) {
+        t.finished = true;
+        completeTutorial();
+      }
+      return;
+    }
+
     // 通過玩家高度的流星計為成功閃避
     for (const m of data.meteors) {
       if (!m.counted && m.y > PLAYER_Y + 40) {
@@ -446,7 +459,11 @@ export default function MeteorGlider({ onExit, onPlayBunny }: MeteorGliderProps)
       t.stepTimer = 0;
       data.meteors = [];
       setTutorialStepUI(t.step);
-      if (t.step >= TUTORIAL_STEPS) completeTutorial();
+      if (t.step >= TUTORIAL_STEPS) {
+        // 收尾慶祝：畫面續跑一小段，讓衝刺與粒子演完再跳完成畫面
+        data.shake = Math.max(data.shake, 6);
+        spawnBurst(data, data.playerX, PLAYER_Y, "rgba(140,255,210,ALPHA)", 18, 170);
+      }
     };
 
     if (t.step === 0) {
@@ -774,6 +791,7 @@ export default function MeteorGlider({ onExit, onPlayBunny }: MeteorGliderProps)
       dodgedCount: 0,
       collectedFuel: false,
       dashedCount: 0,
+      finished: false,
     });
     renderedScoreRef.current = 0;
     setScore(0);

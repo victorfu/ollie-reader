@@ -71,6 +71,8 @@ let host: HTMLDivElement;
 let root: Root;
 let scrollToMock: ReturnType<typeof vi.fn>;
 let clientWidthDescriptor: PropertyDescriptor | undefined;
+let measuredClientWidth: number;
+let resizeCallbacks: ResizeObserverCallback[];
 
 const defaultProps = {
   pagesByNumber: new Map(),
@@ -139,14 +141,17 @@ beforeEach(() => {
     HTMLElement.prototype,
     "clientWidth",
   );
+  measuredClientWidth = 760;
+  resizeCallbacks = [];
   Object.defineProperty(HTMLElement.prototype, "clientWidth", {
     configurable: true,
-    get: () => 760,
+    get: () => measuredClientWidth,
   });
   globalThis.ResizeObserver = class ResizeObserverMock {
     private readonly callback: ResizeObserverCallback;
     constructor(callback: ResizeObserverCallback) {
       this.callback = callback;
+      resizeCallbacks.push(callback);
     }
     observe() {
       this.callback([], this as unknown as ResizeObserver);
@@ -475,5 +480,90 @@ describe("PdfViewer text-layer interaction", () => {
 
     expect(caretPositionFromPoint).not.toHaveBeenCalled();
     expect(onTextSelection).not.toHaveBeenCalled();
+  });
+});
+
+describe("PdfViewer width changes", () => {
+  function notifyResize() {
+    for (const callback of resizeCallbacks) {
+      callback([], {} as ResizeObserver);
+    }
+  }
+
+  it("coalesces a burst of observer resizes into one page re-render", () => {
+    renderViewer("blob:resizing", null);
+    const rendersAfterMount = pdfMocks.renderWidths.length;
+    expect(pdfMocks.renderWidths.at(-1)).toBe(760);
+
+    // Dragging the vocabulary dock's grip narrows the PDF column on every
+    // pointermove; each one would otherwise re-rasterize every mounted page.
+    act(() => {
+      for (const width of [700, 660, 620, 580, 540]) {
+        measuredClientWidth = width;
+        notifyResize();
+      }
+    });
+    expect(pdfMocks.renderWidths.length).toBe(rendersAfterMount);
+
+    act(() => vi.advanceTimersByTime(120));
+
+    expect(pdfMocks.renderWidths.length).toBeGreaterThan(rendersAfterMount);
+    expect(pdfMocks.renderWidths.at(-1)).toBe(540);
+  });
+
+  it("keeps the reading position when the column is narrowed", () => {
+    renderViewer("blob:reading-position", null);
+    const container = scrollContainer();
+    // jsdom has no layout, so stand in for it on this element only: the
+    // document is a quarter shorter once the pages have re-rendered narrower,
+    // which is exactly the window between capturing and restoring.
+    Object.defineProperty(container, "scrollHeight", {
+      configurable: true,
+      get: () => (pdfMocks.renderWidths.at(-1) === 540 ? 6_000 : 8_000),
+    });
+    Object.defineProperty(container, "clientHeight", {
+      configurable: true,
+      get: () => 800,
+    });
+    container.scrollTop = 2_000;
+    scrollToMock.mockClear();
+
+    act(() => {
+      measuredClientWidth = 540;
+      notifyResize();
+    });
+    act(() => vi.advanceTimersByTime(120));
+
+    // A quarter of the way in before, a quarter of the way in after.
+    expect(scrollToMock).toHaveBeenCalledWith({ top: 1_500, left: 0 });
+  });
+
+  it("leaves the top of the document alone when the width changes", () => {
+    renderViewer("blob:at-top", null);
+    const container = scrollContainer();
+    Object.defineProperty(container, "scrollHeight", {
+      configurable: true,
+      get: () => 8_000,
+    });
+    container.scrollTop = 0;
+    scrollToMock.mockClear();
+
+    act(() => {
+      measuredClientWidth = 540;
+      notifyResize();
+    });
+    act(() => vi.advanceTimersByTime(120));
+
+    // Nothing to preserve, so the restore never runs and cannot fight the
+    // initialScrollPosition path.
+    expect(scrollToMock).not.toHaveBeenCalled();
+  });
+
+  it("measures the first width synchronously so pages can mount", () => {
+    measuredClientWidth = 640;
+    renderViewer("blob:first-measure", null);
+
+    // No timer advance: the initial measurement must not be debounced.
+    expect(pdfMocks.renderWidths.at(-1)).toBe(640);
   });
 });

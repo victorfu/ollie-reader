@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  TUTORIAL_FINALE_SECONDS,
   getKeyboardSteeringDirection,
   getTouchDirection,
   isDashKey,
+  isTutorialFinaleOver,
   shouldCountTutorialDash,
 } from "./meteorGliderInput";
 
@@ -33,5 +35,13 @@ describe("Meteor Glider input", () => {
     expect(shouldCountTutorialDash(0)).toBe(false);
     expect(shouldCountTutorialDash(2)).toBe(false);
     expect(shouldCountTutorialDash(3)).toBe(true);
+  });
+
+  it("keeps the tutorial running until the final dash has played out", () => {
+    // 衝刺本身 0.24 秒，收尾時間要明顯更長才看得到效果
+    expect(TUTORIAL_FINALE_SECONDS).toBeGreaterThan(1);
+    expect(isTutorialFinaleOver(0)).toBe(false);
+    expect(isTutorialFinaleOver(TUTORIAL_FINALE_SECONDS - 0.1)).toBe(false);
+    expect(isTutorialFinaleOver(TUTORIAL_FINALE_SECONDS)).toBe(true);
   });
 });

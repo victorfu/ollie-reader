@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { logger } from "../utils/logger";
 import { usePdfState } from "../hooks/usePdfState";
 import { useSpeechState } from "../hooks/useSpeechState";
@@ -7,11 +7,15 @@ import { usePdfWorker } from "../hooks/usePdfWorker";
 import { useVocabulary, formatDefinitionsForDisplay } from "../hooks/useVocabulary";
 import { useLookupQueue } from "../hooks/useLookupQueue";
 import { useAuth } from "../hooks/useAuth";
+import { useSettings } from "../hooks/useSettings";
+import { useVocabularySearch } from "../hooks/useVocabularySearch";
 import { createTranslateFn } from "../utils/translateFactory";
 import { UploadArea } from "./PdfReader/UploadArea";
 import { PdfViewer } from "./PdfReader/PdfViewer";
 import { SelectionToolbar } from "./PdfReader/SelectionToolbar";
 import { WordPanel } from "./PdfReader/WordPanel";
+import { WordPanelDock } from "./PdfReader/WordPanelDock";
+import { useIsDesktop } from "../hooks/useMediaQuery";
 import { ToastContainer } from "./common/ToastContainer";
 import { useToastQueue } from "../hooks/useToastQueue";
 import { BookingRecordsDrawer } from "./PdfReader/BookingRecordsDrawer";
@@ -46,6 +50,32 @@ function PdfReader() {
 
   const { user } = useAuth();
 
+  const { vocabularyPanelMode, updateVocabularyPanelMode } = useSettings();
+  const isDesktop = useIsDesktop();
+  const isDocked = vocabularyPanelMode === "docked" && isDesktop;
+
+  const toggleVocabularyPanelMode = useCallback(
+    () =>
+      updateVocabularyPanelMode(
+        vocabularyPanelMode === "docked" ? "floating" : "docked",
+      ),
+    [vocabularyPanelMode, updateVocabularyPanelMode],
+  );
+
+  // The panel's search and expansion state lives here, above both shells, so
+  // switching modes or crossing the lg breakpoint — which swaps one shell for
+  // the other — no longer discards a half-typed query or an expanded row.
+  const { query, setQuery, results, isSearching, clearSearch } =
+    useVocabularySearch();
+  const [expandedWordId, setExpandedWordId] = useState<string | null>(null);
+  const [shouldFocusSearch, setShouldFocusSearch] = useState(false);
+
+  const handleToggleExpandedWord = useCallback((wordId: string) => {
+    setExpandedWordId((previous) => (previous === wordId ? null : wordId));
+  }, []);
+
+  const handleSearchFocused = useCallback(() => setShouldFocusSearch(false), []);
+
   const {
     selectedText,
     handleTextSelection,
@@ -69,6 +99,22 @@ function PdfReader() {
   const [wordPanelOpen, setWordPanelOpen] = useState(false);
   const [loadingCourseId, setLoadingCourseId] = useState<string | null>(null);
 
+  // Opening the panel is what earns the search box focus — not merely mounting
+  // a shell, which also happens on a mode toggle or a breakpoint crossing.
+  const openWordPanel = useCallback(() => {
+    if (!wordPanelOpen) setShouldFocusSearch(true);
+    setWordPanelOpen(true);
+  }, [wordPanelOpen]);
+
+  // Closing discards the session's search — the panel reopens clean, which is
+  // the reset the old unmount cleanup used to perform.
+  const closeWordPanel = useCallback(() => {
+    setWordPanelOpen(false);
+    setShouldFocusSearch(false);
+    setExpandedWordId(null);
+    clearSearch();
+  }, [clearSearch]);
+
   // 打開「課程預約」抽屜時才抓取（lazy）：避免未使用預約功能時的多餘請求與背景 400，
   // 並讓「未設定 OIKID 帳密」的訊息在使用者真正開啟抽屜時才出現。
   useEffect(() => {
@@ -83,12 +129,13 @@ function PdfReader() {
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
         e.preventDefault();
-        setWordPanelOpen((prev) => !prev);
+        if (wordPanelOpen) closeWordPanel();
+        else openWordPanel();
       }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [pdfUrl]);
+  }, [pdfUrl, wordPanelOpen, openWordPanel, closeWordPanel]);
 
   // Refs for race condition handling
   const loadingCourseIdRef = useRef<string | null>(null);
@@ -171,7 +218,7 @@ function PdfReader() {
   const handleLookupWord = () => {
     const trimmedText = selectedText.trim();
     if (!trimmedText) return;
-    setWordPanelOpen(true);
+    openWordPanel();
 
     const word = trimmedText.split(/\s+/)[0];
     const result = startLookup(word, {
@@ -192,7 +239,7 @@ function PdfReader() {
   const handleLookupTypedWord = (word: string) => {
     const trimmed = word.trim();
     if (!trimmed) return;
-    setWordPanelOpen(true);
+    openWordPanel();
 
     const result = startLookup(trimmed, {
       sourcePdfName: selectedFile?.name,
@@ -209,7 +256,7 @@ function PdfReader() {
   const handleTranslate = () => {
     const trimmedText = selectedText.trim();
     if (!trimmedText) return;
-    setWordPanelOpen(true);
+    openWordPanel();
 
     const result = startTranslation(
       trimmedText,
@@ -236,6 +283,27 @@ function PdfReader() {
     } finally {
       setIsClearingCache(false);
     }
+  };
+
+  // One prop bag, one source of truth: whichever shell is mounted receives the
+  // exact same panel state.
+  const wordPanelProps = {
+    canDock: isDesktop,
+    lookups,
+    onDismiss: dismissLookup,
+    onDismissAll: dismissAll,
+    onSpeak: speak,
+    onLookupWord: handleLookupTypedWord,
+    onClose: closeWordPanel,
+    onToggleMode: toggleVocabularyPanelMode,
+    query,
+    onQueryChange: setQuery,
+    searchResults: results,
+    isSearching,
+    expandedWordId,
+    onToggleExpandedWord: handleToggleExpandedWord,
+    shouldFocusSearch,
+    onSearchFocused: handleSearchFocused,
   };
 
   return (
@@ -291,17 +359,23 @@ function PdfReader() {
       {/* PDF is published as soon as its blob is available. Text hydrates later. */}
       {pdfUrl && (
         <div className="space-y-6">
-          <div className="overflow-hidden rounded-xl border border-border-hairline bg-base-100 shadow-elevated">
-            <PdfViewer
-              url={pdfUrl}
-              pagesByNumber={pagesByNumber}
-              onSpeak={speak}
-              onTextSelection={handleTextSelection}
-              isLoadingAudio={isLoadingAudio}
-              isSpeaking={isSpeaking}
-              initialScrollPosition={initialScrollPosition}
-              onScrollPositionChange={saveScrollPosition}
-            />
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-stretch">
+            <div className="min-w-0 flex-1 overflow-hidden rounded-xl border border-border-hairline bg-base-100 shadow-elevated">
+              <PdfViewer
+                url={pdfUrl}
+                pagesByNumber={pagesByNumber}
+                onSpeak={speak}
+                onTextSelection={handleTextSelection}
+                isLoadingAudio={isLoadingAudio}
+                isSpeaking={isSpeaking}
+                initialScrollPosition={initialScrollPosition}
+                onScrollPositionChange={saveScrollPosition}
+              />
+            </div>
+
+            {isDocked && wordPanelOpen && (
+              <WordPanelDock {...wordPanelProps} />
+            )}
           </div>
         </div>
       )}
@@ -353,7 +427,7 @@ function PdfReader() {
       {pdfUrl && !wordPanelOpen && (
         <button
           type="button"
-          onClick={() => setWordPanelOpen(true)}
+          onClick={openWordPanel}
           className="fixed right-6 bottom-6 z-40 w-12 h-12 rounded-full flex items-center justify-center bg-base-100/90 backdrop-blur-xl border border-border-hairline shadow-floating hover:scale-105 hover:text-accent active:scale-[0.98] transition-all duration-200"
           aria-label="開啟生詞本"
         >
@@ -371,16 +445,8 @@ function PdfReader() {
         </button>
       )}
 
-      {/* Unified Word Panel — saved-vocabulary search + lookup queue in one widget */}
-      <WordPanel
-        isOpen={wordPanelOpen}
-        onClose={() => setWordPanelOpen(false)}
-        lookups={lookups}
-        onDismiss={dismissLookup}
-        onDismissAll={dismissAll}
-        onSpeak={speak}
-        onLookupWord={handleLookupTypedWord}
-      />
+      {/* Floating shell — used when the user prefers it, or below the lg breakpoint */}
+      {!isDocked && wordPanelOpen && <WordPanel {...wordPanelProps} />}
 
       {/* Toast Notifications */}
       <ToastContainer toasts={toasts} onRemove={removeToast} />

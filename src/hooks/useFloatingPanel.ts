@@ -23,7 +23,7 @@ interface FloatingPanelOptions {
   maxSize?: { width: number; height: number };
 }
 
-interface FloatingPanelResult {
+export interface FloatingPanelResult {
   position: { x: number; y: number };
   size: { width: number; height: number };
   isDragging: boolean;

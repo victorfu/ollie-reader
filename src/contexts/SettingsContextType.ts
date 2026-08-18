@@ -1,5 +1,11 @@
 import { createContext } from "react";
-import type { TTSMode, TTSEngine, ReadingMode, ComputeMode } from "../types/pdf";
+import type {
+  TTSMode,
+  TTSEngine,
+  ReadingMode,
+  ComputeMode,
+  VocabularyPanelMode,
+} from "../types/pdf";
 
 export type SettingsContextValue = {
   ttsMode: TTSMode;
@@ -7,6 +13,7 @@ export type SettingsContextValue = {
   speechRate: number;
   readingMode: ReadingMode;
   showChineseTranslation: boolean;
+  vocabularyPanelMode: VocabularyPanelMode;
   computeMode: ComputeMode;
   updateComputeMode: (mode: ComputeMode) => void;
   loading: boolean;
@@ -16,6 +23,7 @@ export type SettingsContextValue = {
   updateSpeechRate: (rate: number) => Promise<void>;
   updateReadingMode: (mode: ReadingMode) => Promise<void>;
   updateShowChineseTranslation: (show: boolean) => void;
+  updateVocabularyPanelMode: (mode: VocabularyPanelMode) => void;
 };
 
 export const SettingsContext = createContext<SettingsContextValue | undefined>(
