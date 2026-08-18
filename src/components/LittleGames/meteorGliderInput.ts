@@ -29,3 +29,10 @@ export function getTouchDirection(
 export function shouldCountTutorialDash(step: number): boolean {
   return step === 3;
 }
+
+// 最後一步按下衝刺後保留的收尾時間：足夠讓衝刺位移與粒子演完
+export const TUTORIAL_FINALE_SECONDS = 1.6;
+
+export function isTutorialFinaleOver(finaleSeconds: number): boolean {
+  return finaleSeconds >= TUTORIAL_FINALE_SECONDS;
+}
