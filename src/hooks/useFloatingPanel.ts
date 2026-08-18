@@ -46,6 +46,23 @@ const DEFAULT_MAX_SIZE = { width: 600, height: 600 };
 const MIN_VISIBLE = 50;
 const VIEWPORT_MARGIN = 12;
 
+/**
+ * Controls that live inside a drag handle (the panel header) and must keep
+ * their own clicks. Capturing the pointer on the handle retargets the
+ * follow-up click to the handle, so a press starting here must not drag.
+ */
+const HANDLE_CONTROL_SELECTOR =
+  'button, a, input, select, textarea, label, [role="button"], [contenteditable="true"], [data-panel-drag-ignore]';
+
+function startsOnHandleControl(
+  target: EventTarget | null,
+  handle: HTMLElement,
+): boolean {
+  if (!(target instanceof Element) || target === handle) return false;
+  const control = target.closest(HANDLE_CONTROL_SELECTOR);
+  return control !== null && control !== handle && handle.contains(control);
+}
+
 /** Keep the whole panel reachable after a viewport resize or rotation. */
 export function fitFloatingPanelToViewport({
   position,
@@ -184,11 +201,12 @@ export const useFloatingPanel = (options: FloatingPanelOptions = {}): FloatingPa
 
   // Drag handlers
   const handleDragPointerDown = useCallback((e: React.PointerEvent) => {
+    const captureTarget = e.currentTarget as HTMLElement;
+    if (startsOnHandleControl(e.target, captureTarget)) return;
     e.preventDefault();
     if (activePointerIdRef.current !== null) return;
 
     const pointerId = e.pointerId;
-    const captureTarget = e.currentTarget as HTMLElement;
     captureTarget.setPointerCapture(pointerId);
     activePointerIdRef.current = pointerId;
 

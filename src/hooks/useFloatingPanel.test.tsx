@@ -162,6 +162,69 @@ describe("useFloatingPanel viewport changes", () => {
     expect(panel?.style.top).toBe("170px");
   });
 
+  it("lets controls inside the drag handle receive their own clicks", () => {
+    const captured: string[] = [];
+    Object.defineProperty(HTMLElement.prototype, "setPointerCapture", {
+      configurable: true,
+      value(this: HTMLElement) {
+        captured.push(this.dataset.testid ?? "unknown");
+      },
+    });
+
+    let clicks = 0;
+    function Harness() {
+      const { panelStyle, dragHandleProps, isDragging } = useFloatingPanel({
+        defaultPosition: { x: 100, y: 100 },
+        defaultSize: { width: 320, height: 300 },
+      });
+      return (
+        <div data-testid="panel" style={panelStyle}>
+          <div data-testid="header" {...dragHandleProps}>
+            <span data-testid="state">{isDragging ? "dragging" : "idle"}</span>
+            <button data-testid="clear" onClick={() => clicks++}>
+              清除
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    act(() => root.render(<Harness />));
+    const panel = container.querySelector<HTMLElement>('[data-testid="panel"]');
+    const header = container.querySelector<HTMLElement>('[data-testid="header"]');
+    const state = container.querySelector<HTMLElement>('[data-testid="state"]');
+    const clear = container.querySelector<HTMLElement>('[data-testid="clear"]');
+
+    // Pressing a header control must not start a drag: capturing the pointer on
+    // the header retargets the follow-up click away from the button.
+    const press = pointerEvent("pointerdown", 3, 100, 100);
+    act(() => {
+      clear?.dispatchEvent(press);
+    });
+    expect(captured).toEqual([]);
+    expect(press.defaultPrevented).toBe(false);
+    expect(state?.textContent).toBe("idle");
+
+    act(() => {
+      clear?.click();
+    });
+    expect(clicks).toBe(1);
+
+    // Dragging by the header background still works.
+    act(() => {
+      header?.dispatchEvent(pointerEvent("pointerdown", 4, 100, 100));
+      window.dispatchEvent(pointerEvent("pointermove", 4, 160, 170));
+    });
+    expect(captured).toEqual(["header"]);
+    expect(state?.textContent).toBe("dragging");
+    expect(panel?.style.left).toBe("160px");
+    expect(panel?.style.top).toBe("170px");
+
+    act(() => {
+      window.dispatchEvent(pointerEvent("pointerup", 4, 160, 170));
+    });
+  });
+
   it("stops resizing on lost pointer capture and ignores other pointers", () => {
     function Harness() {
       const { panelStyle, resizeHandleProps, isResizing } = useFloatingPanel({
