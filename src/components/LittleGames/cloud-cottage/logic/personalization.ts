@@ -1,4 +1,5 @@
 import { getBondLevel } from "./bond";
+import { clampPlacement } from "./roomLayout";
 import { getOutfit } from "../data/outfits";
 import {
   getFloor,
@@ -201,15 +202,11 @@ function normalizedPlacement(
   const furniture = getFurniture(furnitureId);
   if (!furniture) return "invalid-item";
   if (zone !== undefined && zone !== furniture.zone) return "wrong-zone";
-  const normalizedX = normalizePercentage(x);
-  const normalizedY = normalizePercentage(y);
-  if (normalizedX === null || normalizedY === null) return "invalid-position";
-  return {
-    id: furniture.id,
-    x: normalizedX,
-    y: normalizedY,
-    zone: furniture.zone,
-  };
+  // Clamping against the sprite's own size, not just 0-100, is what stops a
+  // transaction from committing a placement that renders half off-screen.
+  const placement = clampPlacement(furniture.id, x, y);
+  if (placement === null) return "invalid-position";
+  return placement;
 }
 
 export function addPlacedFurniture(

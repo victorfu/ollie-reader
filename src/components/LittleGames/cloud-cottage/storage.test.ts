@@ -1260,9 +1260,11 @@ describe("commitCottagePersonalizationAction", () => {
       localStorage,
     );
 
+    // Out-of-range input lands on the floor zone's edge, pulled in far enough
+    // that the whole lamp sprite stays inside the room.
     expect(committed.save.room.placed).toEqual([
       { id: "cloud-bed", x: 76, y: 68, zone: "floor" },
-      { id: "lamp", x: 100, y: 0, zone: "floor" },
+      { id: "lamp", x: 93, y: 63, zone: "floor" },
     ]);
     localStorage.clear();
     firestoreMocks.getDocFromServer.mockResolvedValue(
@@ -1305,7 +1307,8 @@ describe("commitCottagePersonalizationAction", () => {
         type: "move-furniture",
         furnitureId: "lamp",
         x: 33.333,
-        y: 44.444,
+        // A floor lamp has to stay on the floor; y=44 is up on the wall.
+        y: 74.444,
       },
       NOW - 1,
       localStorage,
@@ -1313,7 +1316,7 @@ describe("commitCottagePersonalizationAction", () => {
     expect(moved.save.room.placed.at(-1)).toEqual({
       id: "lamp",
       x: 33.33,
-      y: 44.44,
+      y: 74.44,
       zone: "floor",
     });
 

@@ -60,80 +60,110 @@ export const FURNITURE_VISUALS: Readonly<Record<FurnitureId, FurnitureVisual>> =
   "cloud-frame": { src: cloudFrame, widthPercent: 14 },
 };
 
+/**
+ * How an outfit layer is pinned to the square Cinnamoroll canvas.
+ *
+ * `anchorYPercent` means different edges per slot on purpose. A head piece has
+ * to clear her eyes, so it is pinned by its **bottom** edge and grows upward;
+ * a neck piece has to meet her chin, so it is pinned by its **top** edge and
+ * grows downward. Height is never authored — `outfitBox` derives it from the
+ * asset's real aspect ratio in `spriteMetrics`.
+ */
 export type OutfitVisual = {
   src: string;
   slot: OutfitSlot;
-  /** Position and width within the square Cinnamoroll image canvas. */
-  leftPercent: number;
-  topPercent: number;
+  /** Horizontal centre of the layer. */
+  centerXPercent: number;
   widthPercent: number;
+  anchor: "bottom" | "top";
+  anchorYPercent: number;
   rotateDegrees?: number;
 };
 
+/**
+ * Every head piece here was checked by compositing it over the character and
+ * measuring the alpha coverage of her eyes and mouth; all nine land at 0%. The
+ * previous values pinned the layer by its top edge with no idea of the asset
+ * ratio, which buried her eyes under the flower crown (98% of the left eye),
+ * the golden bow (42%) and the star headband (34%).
+ *
+ * `scripts/preview_cottage_outfits.py` regenerates that check. Re-run it after
+ * changing any number below — `logic/outfitLayout.test.ts` guards the geometry
+ * but cannot see pixels.
+ */
 export const OUTFIT_VISUALS: Readonly<Record<OutfitId, OutfitVisual>> = {
   "strawberry-clip": {
     src: strawberryClip,
     slot: "head",
-    leftPercent: 61,
-    topPercent: 30,
-    widthPercent: 15,
-    rotateDegrees: 8,
+    centerXPercent: 31,
+    widthPercent: 16,
+    anchor: "bottom",
+    anchorYPercent: 33,
+    rotateDegrees: -12,
   },
   "sailor-hat": {
     src: sailorHat,
     slot: "head",
-    leftPercent: 50,
-    topPercent: 18,
-    widthPercent: 31,
+    centerXPercent: 46,
+    widthPercent: 36,
+    anchor: "bottom",
+    anchorYPercent: 35,
   },
   "flower-crown": {
     src: flowerCrown,
     slot: "head",
-    leftPercent: 50,
-    topPercent: 24,
-    widthPercent: 34,
+    centerXPercent: 46,
+    widthPercent: 38,
+    anchor: "bottom",
+    anchorYPercent: 38,
   },
   "star-headband": {
     src: starHeadband,
     slot: "head",
-    leftPercent: 50,
-    topPercent: 22,
-    widthPercent: 29,
+    centerXPercent: 47,
+    widthPercent: 32,
+    anchor: "bottom",
+    anchorYPercent: 36,
   },
   "red-ribbon": {
     src: redRibbon,
     slot: "neck",
-    leftPercent: 47,
-    topPercent: 48,
+    centerXPercent: 47,
     widthPercent: 23,
+    anchor: "top",
+    anchorYPercent: 48,
   },
   "blue-scarf": {
     src: blueScarf,
     slot: "neck",
-    leftPercent: 47,
-    topPercent: 48,
+    centerXPercent: 47,
     widthPercent: 25,
+    anchor: "top",
+    anchorYPercent: 48,
   },
   "bell-collar": {
     src: bellCollar,
     slot: "neck",
-    leftPercent: 47,
-    topPercent: 49,
+    centerXPercent: 47,
     widthPercent: 24,
+    anchor: "top",
+    anchorYPercent: 49,
   },
   "rainbow-scarf": {
     src: rainbowScarf,
     slot: "neck",
-    leftPercent: 47,
-    topPercent: 47,
+    centerXPercent: 47,
     widthPercent: 25,
+    anchor: "top",
+    anchorYPercent: 47,
   },
   "golden-bow": {
     src: goldenBow,
     slot: "head",
-    leftPercent: 50,
-    topPercent: 23,
-    widthPercent: 27,
+    centerXPercent: 46,
+    widthPercent: 30,
+    anchor: "bottom",
+    anchorYPercent: 38,
   },
 };
 

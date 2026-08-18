@@ -241,6 +241,28 @@ describe("normalization and freshness", () => {
     expect(() => JSON.stringify(normalized)).not.toThrow();
   });
 
+  it("repairs placements saved before sprite size was accounted for", () => {
+    // A bed stored at the old floor limit rendered with its bottom half sliced
+    // off by the room's overflow. Loading the save is what repairs it, so
+    // players do not have to re-drag their furniture.
+    const normalized = normalizePetSave(
+      {
+        inventory: { furniture: ["cloud-bed"] },
+        room: {
+          wallpaperId: "cloud-blue",
+          floorId: "cream-wood",
+          placed: [{ id: "cloud-bed", x: 76, y: 89, zone: "floor" }],
+        },
+      },
+      NOON,
+      LOCAL_DATE,
+    );
+
+    expect(normalized.room.placed).toEqual([
+      { id: "cloud-bed", x: 76, y: 76.46, zone: "floor" },
+    ]);
+  });
+
   it("sanitizes personalization, then grants legacy gifts in the touched visit", () => {
     const normalized = normalizePetSave(
       {

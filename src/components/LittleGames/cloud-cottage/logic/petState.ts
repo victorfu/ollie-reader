@@ -33,10 +33,10 @@ import {
 import { applyMissedVisitBonus, awardBond } from "./bond";
 import {
   backfillEarnedBondGifts,
-  normalizePercentage,
   type BondGift,
 } from "./personalization";
 import { consumeSnack } from "./purchases";
+import { clampPlacement } from "./roomLayout";
 import { applyWishAction, refreshDailyWish } from "./wish";
 
 const LOCAL_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
@@ -179,25 +179,24 @@ export function normalizePetSave(
       const definition = getFurniture(
         typeof item.id === "string" ? item.id : "",
       );
-      const x = typeof item.x === "number" ? normalizePercentage(item.x) : null;
-      const y = typeof item.y === "number" ? normalizePercentage(item.y) : null;
+      // Clamping on load repairs saves written before placement accounted for
+      // sprite size — most visibly a cloud bed stored near the floor limit,
+      // which rendered with its bottom half cut off.
+      const placement =
+        definition && typeof item.x === "number" && typeof item.y === "number"
+          ? clampPlacement(definition.id, item.x, item.y)
+          : null;
       if (
         !definition ||
         !furniture.includes(definition.id) ||
         (item.zone !== "floor" && item.zone !== "wall") ||
-        x === null ||
-        y === null
+        placement === null
       ) {
         continue;
       }
       // The last valid entry is the latest placement and therefore the z-order.
       placedById.delete(definition.id);
-      placedById.set(definition.id, {
-        id: definition.id,
-        x,
-        y,
-        zone: definition.zone,
-      });
+      placedById.set(definition.id, placement);
     }
     placed = [...placedById.values()];
   }

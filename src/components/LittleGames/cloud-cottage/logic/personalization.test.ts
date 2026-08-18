@@ -150,7 +150,7 @@ describe("outfit and surface selection", () => {
 });
 
 describe("freeform furniture placement", () => {
-  it("normalizes percentage coordinates and preserves the catalog zone", () => {
+  it("clamps coordinates into the zone and preserves the catalog zone", () => {
     expect(normalizePercentage(-9)).toBe(0);
     expect(normalizePercentage(101)).toBe(100);
     expect(normalizePercentage(12.345)).toBe(12.35);
@@ -166,10 +166,12 @@ describe("freeform furniture placement", () => {
       NOW + 1,
     );
     expect(added.applied).toBe(true);
+    // Not (0, 100): the lamp lands where its whole sprite is still on screen,
+    // which is the same rule the room editor enforces while dragging.
     expect(added.save.room.placed.at(-1)).toEqual({
       id: "lamp",
-      x: 0,
-      y: 100,
+      x: 7,
+      y: 86,
       zone: "floor",
     });
     expect(initial.room.placed).toHaveLength(1);

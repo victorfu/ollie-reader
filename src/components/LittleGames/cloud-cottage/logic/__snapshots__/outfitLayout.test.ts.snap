@@ -1,0 +1,60 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`outfit placement invariants > matches the pixel-verified layout 1`] = `
+{
+  "bell-collar": {
+    "heightPercent": 18.94,
+    "leftPercent": 35,
+    "topPercent": 49,
+    "widthPercent": 24,
+  },
+  "blue-scarf": {
+    "heightPercent": 21.02,
+    "leftPercent": 34.5,
+    "topPercent": 48,
+    "widthPercent": 25,
+  },
+  "flower-crown": {
+    "heightPercent": 24.2,
+    "leftPercent": 27,
+    "topPercent": 13.8,
+    "widthPercent": 38,
+  },
+  "golden-bow": {
+    "heightPercent": 29.47,
+    "leftPercent": 31,
+    "topPercent": 8.53,
+    "widthPercent": 30,
+  },
+  "rainbow-scarf": {
+    "heightPercent": 23.61,
+    "leftPercent": 34.5,
+    "topPercent": 47,
+    "widthPercent": 25,
+  },
+  "red-ribbon": {
+    "heightPercent": 19.44,
+    "leftPercent": 35.5,
+    "topPercent": 48,
+    "widthPercent": 23,
+  },
+  "sailor-hat": {
+    "heightPercent": 26.81,
+    "leftPercent": 28,
+    "topPercent": 8.19,
+    "widthPercent": 36,
+  },
+  "star-headband": {
+    "heightPercent": 31.18,
+    "leftPercent": 31,
+    "topPercent": 4.82,
+    "widthPercent": 32,
+  },
+  "strawberry-clip": {
+    "heightPercent": 11.13,
+    "leftPercent": 23,
+    "topPercent": 21.87,
+    "widthPercent": 16,
+  },
+}
+`;

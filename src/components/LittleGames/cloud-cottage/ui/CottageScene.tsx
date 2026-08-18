@@ -1,8 +1,9 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { useRef, type PointerEvent as ReactPointerEvent } from "react";
-import type { PetSaveV1 } from "../types";
+import type { PetSaveV1, ToyId } from "../types";
 import { PetAvatar, type PetAvatarAction } from "./PetAvatar";
 import { RoomWorld } from "./RoomWorld";
+import { ToyProp } from "./ToyProp";
 
 export type CottageTimeOfDay = "morning" | "day" | "evening" | "night";
 
@@ -26,6 +27,8 @@ type CottageSceneProps = {
   wishLabel: string;
   wishProgress?: string;
   actionEmoji?: string;
+  /** The toy she is playing with right now, drawn as an object in the room. */
+  toyId?: ToyId | null;
   reducedMotion: boolean;
   onPet: (zone: PetZone) => void;
   onWake: () => void;
@@ -53,8 +56,14 @@ const CELEBRATION_BITS = [
   ["🎊", "left-[10%] top-[76%]"],
 ] as const;
 
-function effectFor(action: CottageSceneAction, actionEmoji?: string): string[] {
+function effectFor(
+  action: CottageSceneAction,
+  actionEmoji?: string,
+  hasToyProp = false,
+): string[] {
   if (action === "bath") return ["🫧", "💦", "🤧", "✨"];
+  // The toy is drawn into the room instead, so it does not also need a badge.
+  if (hasToyProp) return ["⭐", "✨"];
   if (actionEmoji) return [actionEmoji];
   switch (action) {
     case "missed":
@@ -99,6 +108,7 @@ export function CottageScene({
   wishLabel,
   wishProgress,
   actionEmoji,
+  toyId = null,
   reducedMotion,
   onPet,
   onWake,
@@ -139,7 +149,7 @@ export function CottageScene({
     }
   };
 
-  const effects = effectFor(action, actionEmoji);
+  const effects = effectFor(action, actionEmoji, toyId !== null);
   const anchorFurnitureId = action === "sit"
     ? "sofa"
     : action === "nestle" || isSleeping
@@ -150,8 +160,13 @@ export function CottageScene({
     : undefined;
 
   return (
+    // Every furniture and pet coordinate in this game is a percentage of a 3:2
+    // room, so this box must stay 3:2 at every width. Height is capped by
+    // capping the width instead of by overriding the aspect ratio: at 3:2, a
+    // max-width of min(84dvh, 840px) yields exactly the min(56dvh, 560px)
+    // height budget the scene wants on a large screen.
     <section
-      className="relative isolate aspect-[3/2] min-h-[230px] w-full overflow-hidden rounded-[22px] border border-white/45 bg-sky-100 shadow-[0_24px_70px_rgba(56,115,160,0.22)] sm:aspect-auto sm:h-[min(56dvh,560px)] sm:min-h-[380px]"
+      className="relative isolate mx-auto aspect-[3/2] w-full max-w-[min(84dvh,840px)] overflow-hidden rounded-[22px] border border-white/45 bg-sky-100 shadow-[0_24px_70px_rgba(56,115,160,0.22)]"
       aria-label="大耳狗的雲朵小窩場景"
       data-time-of-day={timeOfDay}
       data-scene-action={action}
@@ -222,6 +237,17 @@ export function CottageScene({
             <p className="mt-0.5 text-[11px] font-medium text-slate-600 sm:text-xs">{speech.zh}</p>
             <span className="absolute -bottom-2 right-7 size-4 rotate-45 border-b border-r border-white/70 bg-white/92" aria-hidden="true" />
           </motion.div>
+        ) : null}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {toyId ? (
+          <ToyProp
+            key={`toy-${toyId}-${actionKey}`}
+            toyId={toyId}
+            animationKey={actionKey}
+            reducedMotion={reducedMotion}
+          />
         ) : null}
       </AnimatePresence>
 

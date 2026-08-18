@@ -153,6 +153,9 @@ export type FoodDefinition = {
   bondGain: number;
 };
 
+/** How a toy behaves as a physical prop in the room while she plays with it. */
+export type ToyPropMotion = "bounce" | "arc" | "float" | "sit" | "swing";
+
 export type ToyDefinition = {
   id: ToyId;
   nameZh: string;
@@ -160,6 +163,9 @@ export type ToyDefinition = {
   price: number;
   moodGain: number;
   bondGain: number;
+  /** Drawn into the scene as an object, not as a badge over her head. */
+  propEmoji: string;
+  propMotion: ToyPropMotion;
 };
 
 export type PermanentItemSource = "default" | "shop" | "gift";

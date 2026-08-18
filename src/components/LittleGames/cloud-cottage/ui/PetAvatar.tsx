@@ -1,5 +1,6 @@
 import { motion } from "framer-motion";
-import type { PetSaveV1 } from "../types";
+import { outfitBox } from "../logic/outfitLayout";
+import type { OutfitId, PetSaveV1 } from "../types";
 import {
   CINNAMOROLL_SRC,
   OUTFIT_VISUALS,
@@ -31,7 +32,9 @@ export type PetAvatarAction =
   | "celebrate"
   | "admire"
   | "sit"
-  | "nestle";
+  | "nestle"
+  | "blink"
+  | "lookAround";
 
 export type PetAvatarProps = {
   equipped: PetSaveV1["equipped"];
@@ -112,9 +115,16 @@ function animationFor(
       return { x: 0, y: [0, 5, 5], rotate: 0, scale: [1, 0.94, 0.94] };
     case "nestle":
       return { x: [0, 7, 7], y: [0, 8, 8], rotate: [0, -5, -5], scale: [1, 0.92, 0.92] };
+    case "blink":
+      return { x: 0, y: [0, -3, 0], rotate: 0, scale: [1, 0.99, 1] };
+    case "lookAround":
+      return { x: [0, -6, 6, 0], y: 0, rotate: [0, -3, 3, 0], scale: 1 };
     case "idle":
     default:
-      return { x: 0, y: [0, -7, 0], rotate: [0, -1.5, 0, 1.5, 0], scale: 1 };
+      // Breathing only. She used to bob and tilt on a permanent loop, which
+      // read as fidgeting rather than resting; the occasional glance and blink
+      // are scheduled as their own brief actions instead.
+      return { x: 0, y: 0, rotate: 0, scale: [1, 1.015, 1] };
   }
 }
 
@@ -122,7 +132,7 @@ function transitionFor(action: PetAvatarAction, reducedMotion: boolean) {
   if (reducedMotion) return { duration: 0.12 };
   if (action === "idle" || action === "sleep" || action === "nap") {
     return {
-      duration: action === "idle" ? 4.2 : action === "nap" ? 2.8 : 3.5,
+      duration: action === "idle" ? 5.5 : action === "nap" ? 2.8 : 3.5,
       repeat: Infinity,
       ease: "easeInOut" as const,
     };
@@ -131,6 +141,46 @@ function transitionFor(action: PetAvatarAction, reducedMotion: boolean) {
     duration: action === "fly" ? 2.1 : action === "bath" ? 2.35 : 1.05,
     ease: "easeInOut" as const,
   };
+}
+
+const SLOT_LAYER_CLASSES = {
+  neck: "z-10",
+  head: "z-20",
+} as const;
+
+/**
+ * One accessory image, positioned by its resolved box. The box already accounts
+ * for the asset's aspect ratio and anchor edge, so no centring transform is
+ * needed and `rotate` is free to be the only transform.
+ */
+function OutfitLayer({
+  outfitId,
+  slot,
+}: {
+  outfitId: OutfitId | undefined;
+  slot: "head" | "neck";
+}) {
+  if (!outfitId) return null;
+  const visual = OUTFIT_VISUALS[outfitId];
+  const box = outfitBox(outfitId);
+
+  return (
+    <img
+      src={visual.src}
+      alt=""
+      className={`pointer-events-none absolute h-auto select-none drop-shadow-[0_4px_3px_rgba(41,89,126,0.16)] ${SLOT_LAYER_CLASSES[slot]}`}
+      style={{
+        left: `${box.leftPercent}%`,
+        top: `${box.topPercent}%`,
+        width: `${box.widthPercent}%`,
+        transform: `rotate(${visual.rotateDegrees ?? 0}deg)`,
+      }}
+      draggable={false}
+      data-outfit-layer={outfitId}
+      data-outfit-slot={slot}
+      aria-hidden="true"
+    />
+  );
 }
 
 export function PetAvatar({
@@ -145,8 +195,6 @@ export function PetAvatar({
   alt = "開心的大耳狗喜拿",
 }: PetAvatarProps) {
   const activeAction = spinKey !== undefined && spinKey > 0 ? "spin" : action;
-  const headVisual = equipped.head ? OUTFIT_VISUALS[equipped.head] : null;
-  const neckVisual = equipped.neck ? OUTFIT_VISUALS[equipped.neck] : null;
 
   return (
     <motion.span
@@ -167,41 +215,8 @@ export function PetAvatar({
           draggable={false}
         />
 
-        {neckVisual ? (
-          <img
-            src={neckVisual.src}
-            alt=""
-            className="pointer-events-none absolute z-10 h-auto select-none drop-shadow-[0_4px_3px_rgba(41,89,126,0.16)]"
-            style={{
-              left: `${neckVisual.leftPercent}%`,
-              top: `${neckVisual.topPercent}%`,
-              width: `${neckVisual.widthPercent}%`,
-              transform: `translateX(-50%) rotate(${neckVisual.rotateDegrees ?? 0}deg)`,
-            }}
-            draggable={false}
-            data-outfit-layer={equipped.neck}
-            data-outfit-slot="neck"
-            aria-hidden="true"
-          />
-        ) : null}
-
-        {headVisual ? (
-          <img
-            src={headVisual.src}
-            alt=""
-            className="pointer-events-none absolute z-20 h-auto select-none drop-shadow-[0_4px_3px_rgba(41,89,126,0.16)]"
-            style={{
-              left: `${headVisual.leftPercent}%`,
-              top: `${headVisual.topPercent}%`,
-              width: `${headVisual.widthPercent}%`,
-              transform: `translateX(-50%) rotate(${headVisual.rotateDegrees ?? 0}deg)`,
-            }}
-            draggable={false}
-            data-outfit-layer={equipped.head}
-            data-outfit-slot="head"
-            aria-hidden="true"
-          />
-        ) : null}
+        <OutfitLayer outfitId={equipped.neck} slot="neck" />
+        <OutfitLayer outfitId={equipped.head} slot="head" />
       </span>
     </motion.span>
   );

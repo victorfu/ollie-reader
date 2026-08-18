@@ -22,6 +22,7 @@ import {
   applyPersonalizationAction,
   type PersonalizationAction,
 } from "../logic/personalization";
+import { clampPlacement } from "../logic/roomLayout";
 import type {
   FloorId,
   FurnitureId,
@@ -40,14 +41,6 @@ const FOCUSABLE_SELECTOR = [
   "textarea:not([disabled])",
   "[tabindex]:not([tabindex='-1'])",
 ].join(",");
-
-const ZONE_BOUNDS: Record<
-  FurnitureZone,
-  { minX: number; maxX: number; minY: number; maxY: number }
-> = {
-  wall: { minX: 7, maxX: 93, minY: 12, maxY: 53 },
-  floor: { minX: 7, maxX: 93, minY: 63, maxY: 89 },
-};
 
 const FURNITURE_EMOJI: Record<FurnitureId, string> = {
   "cloud-bed": "🛏️",
@@ -123,26 +116,6 @@ function roomsEqual(
       item.zone === other.zone
     );
   });
-}
-
-function clamp(value: number, minimum: number, maximum: number): number {
-  return Math.min(maximum, Math.max(minimum, value));
-}
-
-function clampPlacement(
-  furnitureId: FurnitureId,
-  x: number,
-  y: number,
-): PlacedFurniture | null {
-  const furniture = getFurniture(furnitureId);
-  if (!furniture) return null;
-  const bounds = ZONE_BOUNDS[furniture.zone];
-  return {
-    id: furniture.id,
-    x: Math.round(clamp(x, bounds.minX, bounds.maxX) * 100) / 100,
-    y: Math.round(clamp(y, bounds.minY, bounds.maxY) * 100) / 100,
-    zone: furniture.zone,
-  };
 }
 
 function hasSamePosition(

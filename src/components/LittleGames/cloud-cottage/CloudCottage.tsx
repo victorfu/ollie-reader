@@ -6,7 +6,7 @@ import {
   useState,
   type PointerEvent as ReactPointerEvent,
 } from "react";
-import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import {
   ArrowLeft,
   CircleDollarSign,
@@ -89,7 +89,10 @@ import {
   playSelectSound,
   playToySound,
 } from "./audio";
+import type { MotionMode } from "./motionSettings";
 import { useAudioSettings } from "./useAudioSettings";
+import { useMotionSettings } from "./useMotionSettings";
+import { useSceneDirector } from "./useSceneDirector";
 import {
   CottageScene,
   type CottageSceneAction,
@@ -149,6 +152,17 @@ const TOY_SCENES: Record<ToyId, CottageSceneAction> = {
   "music-box": "playMusicBox",
   "cloud-swing": "playSwing",
 };
+
+const MOTION_MODE_OPTIONS: readonly { mode: MotionMode; label: string }[] = [
+  { mode: "auto", label: "跟隨系統" },
+  { mode: "on", label: "開啟動畫" },
+  { mode: "reduced", label: "減少動畫" },
+];
+
+/** Lets the scene draw the right toy from the animation alone. */
+const SCENE_TOYS = Object.fromEntries(
+  Object.entries(TOY_SCENES).map(([toyId, action]) => [action, toyId as ToyId]),
+) as Partial<Record<CottageSceneAction, ToyId>>;
 
 const TOY_PHRASES: Record<ToyId, string> = {
   ball: "play-ball",
@@ -268,7 +282,10 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
   const { loading: settingsLoading } = useSettings();
   const { speakAsync, stopSpeaking } = useSpeechState();
   const audio = useAudioSettings();
-  const reducedMotion = Boolean(useReducedMotion());
+  // Two separate answers: the pet may move even when the player has asked the
+  // rest of the interface to hold still.
+  const motionSettings = useMotionSettings();
+  const reducedMotion = motionSettings.decorMotionReduced;
   const { toasts, addToast, removeToast } = useToastQueue();
   const rootRef = useRef<HTMLDivElement>(null);
   const saveRef = useRef<PetSaveV1>(createInitialPetSave());
@@ -278,7 +295,6 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
   const loadedUidRef = useRef<string | undefined>(undefined);
   const speechTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingSpeechRef = useRef<string | null>(null);
-  const actionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const bathPointerRef = useRef<{ x: number; y: number } | null>(null);
   const bathStrokeDistanceRef = useRef(0);
   const bathStrokeHandledRef = useRef(false);
@@ -328,9 +344,17 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
   const [panel, setPanel] = useState<PanelId>(null);
   const [personalizationMode, setPersonalizationMode] =
     useState<PersonalizationMode>(null);
-  const [sceneAction, setSceneAction] = useState<CottageSceneAction>("idle");
-  const [sceneActionKey, setSceneActionKey] = useState(0);
-  const [actionEmoji, setActionEmoji] = useState<string | undefined>(undefined);
+  // Destructured because `play`/`enqueue`/`reset` are stable while the director
+  // object is not; depending on the object would re-run every effect that
+  // triggers an animation each time the animation changes.
+  const {
+    action: sceneAction,
+    actionKey: sceneActionKey,
+    emoji: actionEmoji,
+    play: playScene,
+    enqueue: enqueueScene,
+    reset: resetScene,
+  } = useSceneDirector();
   const [speech, setSpeech] = useState<CottageSpeechBubble | null>(null);
   const [bathRubCount, setBathRubCount] = useState(0);
   const [purchasingId, setPurchasingId] = useState<CottageProductId | null>(null);
@@ -494,30 +518,9 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
 
   const triggerAction = useCallback(
     (action: CottageSceneAction, emoji?: string, persist = false) => {
-      if (actionTimerRef.current) clearTimeout(actionTimerRef.current);
-      setActionEmoji(emoji);
-      setSceneAction(action);
-      setSceneActionKey((key) => key + 1);
-      if (!persist && action !== "sleep") {
-        const duration = action === "fly"
-          ? 2_250
-          : action === "bath" || action === "celebrate"
-            ? 2_650
-            : action === "heartBurst"
-              ? 2_200
-            : action === "nap"
-              ? 6_000
-              : action.startsWith("play")
-                ? 1_900
-                : 1_450;
-        actionTimerRef.current = setTimeout(() => {
-          setActionEmoji(undefined);
-          setSceneAction("idle");
-          setSceneActionKey((key) => key + 1);
-        }, duration);
-      }
+      playScene({ action, emoji, persist: persist || action === "sleep" });
     },
-    [],
+    [playScene],
   );
 
   const queueCloudSave = useCallback(
@@ -639,10 +642,7 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
         clearTimeout(speechTimerRef.current);
         speechTimerRef.current = null;
       }
-      if (actionTimerRef.current) {
-        clearTimeout(actionTimerRef.current);
-        actionTimerRef.current = null;
-      }
+      resetScene();
       pendingSpeechRef.current = null;
       stopSpeaking();
       observedSleepDeadlineRef.current = null;
@@ -656,8 +656,6 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
       setPurchasingId(null);
       setInsufficientProductId(null);
       setUnlocks([]);
-      setSceneAction("idle");
-      setActionEmoji(undefined);
       setSpeech(null);
       setBathRubCount(0);
       setCoinBalance(null);
@@ -797,6 +795,7 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
     isOnline,
     refreshCoins,
     resetCloudRetry,
+    resetScene,
     scheduleCloudRetry,
     setVisibleSave,
     setVisibleSaveIfNewer,
@@ -1063,7 +1062,6 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
   useEffect(() => () => {
     clearCloudRetry();
     if (speechTimerRef.current) clearTimeout(speechTimerRef.current);
-    if (actionTimerRef.current) clearTimeout(actionTimerRef.current);
     stopSpeaking();
   }, [clearCloudRetry, stopSpeaking]);
 
@@ -1130,6 +1128,9 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
       else if (action.type === "sleep") playLullabySound();
       else playHeartSound();
 
+      // Reactions are queued rather than triggered: a care action can raise a
+      // wish celebration and a bond unlock in this same pass, and firing them
+      // directly would batch away the animation the player just asked for.
       if (result.newlyFulfilled) {
         addToast(
           result.wishBondAwarded > 0
@@ -1139,7 +1140,7 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
           4_000,
         );
         playHeartSound();
-        triggerAction("celebrate");
+        enqueueScene({ action: "celebrate" });
       } else if (result.capReached) {
         addToast("她今天已經好幸福了 💕", "info");
       }
@@ -1150,15 +1151,16 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
       );
       if (newUnlocks.length > 0) {
         setUnlocks(newUnlocks);
-        triggerAction(
-          newUnlocks.some((unlock) => unlock.type === "celebration")
+        enqueueScene({
+          action: newUnlocks.some((unlock) => unlock.type === "celebration")
             ? "celebrate"
             : "heartBurst",
-        );
+        });
       }
     },
     [
       addToast,
+      enqueueScene,
       isDemo,
       isOnline,
       queueCloudSave,
@@ -1287,11 +1289,16 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
     ).filter((unlock) => unlock.type === "action");
     const hour = new Date(now).getHours();
     const canNap = hour >= 7 && hour < 19;
-    if (idleActions.length === 0 && !canNap) return;
 
     const timer = window.setTimeout(() => {
       if (canNap && (idleActions.length === 0 || Math.random() < 0.3)) {
         triggerAction("nap", "💤");
+        return;
+      }
+      if (idleActions.length === 0) {
+        // Nothing unlocked yet, so keep her alive with a small glance rather
+        // than the permanent bob the idle pose used to carry.
+        triggerAction(Math.random() < 0.5 ? "blink" : "lookAround");
         return;
       }
       const unlock = idleActions[Math.floor(Math.random() * idleActions.length)];
@@ -1670,7 +1677,8 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
           wishLabel={save.wish.fulfilled ? "今天的心願完成了 💕" : wishDefinition?.nameZh ?? "想和你一起玩"}
           wishProgress={save.wish.fulfilled ? undefined : save.wish.target > 1 ? `${save.wish.progress} / ${save.wish.target}` : undefined}
           actionEmoji={actionEmoji}
-          reducedMotion={reducedMotion}
+          toyId={SCENE_TOYS[sceneAction] ?? null}
+          reducedMotion={motionSettings.petMotionReduced}
           onPet={handlePet}
           onWake={handleWake}
         />
@@ -1974,6 +1982,37 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
             </span>
             <input type="checkbox" className="toggle toggle-primary" checked={audio.settings.speechEnabled} onChange={(event) => { audio.setSpeechEnabled(event.target.checked); if (!event.target.checked) stopSpeaking(); }} aria-label="開啟英文語音" />
           </label>
+          <div
+            className="rounded-[14px] border border-slate-200/80 bg-white/85 px-4 py-3"
+            role="radiogroup"
+            aria-label="大耳狗的動畫"
+          >
+            <span className="block text-sm font-black">大耳狗的動畫</span>
+            <span className="mt-0.5 block text-xs text-slate-500">
+              {motionSettings.systemReducedMotion
+                ? "系統目前設定為減少動態，選「開啟動畫」還是可以看她動來動去。"
+                : "想讓畫面安靜一點，可以選「減少動畫」。"}
+            </span>
+            <div className="mt-3 flex gap-2">
+              {MOTION_MODE_OPTIONS.map((option) => (
+                <button
+                  key={option.mode}
+                  type="button"
+                  role="radio"
+                  aria-checked={motionSettings.mode === option.mode}
+                  data-motion-mode={option.mode}
+                  onClick={() => motionSettings.setMode(option.mode)}
+                  className={`min-h-11 flex-1 rounded-[10px] px-2 text-xs font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 ${
+                    motionSettings.mode === option.mode
+                      ? "bg-sky-500 text-white shadow-sm"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </div>
           <button
             type="button"
             onClick={() => {

@@ -211,6 +211,51 @@ describe("PetAvatar outfit layers", () => {
   });
 });
 
+describe("CottageScene toy props", () => {
+  function renderPlaying(toyId: "ball" | null) {
+    act(() => {
+      root.render(
+        <CottageScene
+          room={personalizedSave().room}
+          equipped={{}}
+          timeOfDay="day"
+          action={toyId ? "playBall" : "idle"}
+          actionKey={3}
+          isSleeping={false}
+          speech={null}
+          wishLabel="一起玩吧"
+          toyId={toyId}
+          reducedMotion={false}
+          onPet={vi.fn()}
+          onWake={vi.fn()}
+        />,
+      );
+    });
+  }
+
+  it("draws the toy into the room while she plays with it", () => {
+    // Playing used to render only a small emoji over her face, which read as
+    // the toy never appearing at all.
+    renderPlaying("ball");
+
+    const prop = container.querySelector('[data-toy-prop="ball"]');
+    expect(prop).not.toBeNull();
+    expect(prop?.textContent).toContain("⚽");
+  });
+
+  it("keeps the toy out of the room when she is not playing", () => {
+    renderPlaying(null);
+    expect(container.querySelector("[data-toy-prop]")).toBeNull();
+  });
+
+  it("does not also pin the toy over her face", () => {
+    renderPlaying("ball");
+
+    const avatar = container.querySelector("[data-pet-avatar]");
+    expect(avatar?.parentElement?.parentElement?.textContent).not.toContain("⚽");
+  });
+});
+
 describe("CottageScene celebrations", () => {
   it("fills the room with hearts and streamers for the L20 celebration", () => {
     const room = personalizedSave().room;

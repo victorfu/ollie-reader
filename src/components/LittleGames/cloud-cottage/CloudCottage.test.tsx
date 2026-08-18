@@ -1185,7 +1185,7 @@ describe("CloudCottage sleep transitions", () => {
     );
   });
 
-  it("wakes after wish celebration and heart burst replace the sleep action", async () => {
+  it("queues the wish celebration and heart burst behind the sleep action", async () => {
     vi.setSystemTime(bedtime);
     const initial = bedtimeSave("say-good-night");
     initial.revision = 10;
@@ -1200,15 +1200,27 @@ describe("CloudCottage sleep transitions", () => {
 
     act(() => button('[data-toolbar="sleep"]').click());
     expect(gameState().pet.sleeping).toBe(true);
-    expect(gameState().action).toBe("heartBurst");
+    // The action the player asked for plays first. Before the scene director
+    // existed, the two reactions below were dispatched in this same tick and
+    // React batched the sleep animation away entirely.
+    expect(gameState().action).toBe("sleep");
     expect(hookMocks.addToast).toHaveBeenCalledWith(
       "今日心願完成！親密度 +10 💕",
       "success",
       4_000,
     );
 
+    act(() => vi.advanceTimersByTime(1_450));
+    expect(gameState().action).toBe("celebrate");
+
+    act(() => vi.advanceTimersByTime(2_650));
+    expect(gameState().action).toBe("heartBurst");
+
+    // Once the queue drains she settles back into the sleep she was put into,
+    // rather than standing up idle for the rest of the night.
     act(() => vi.advanceTimersByTime(2_200));
-    expect(gameState().action).toBe("idle");
+    expect(gameState().action).toBe("sleep");
+    expect(gameState().pet.sleeping).toBe(true);
 
     await flushAsyncWork();
     storageMocks.writeCottageCache.mockClear();
@@ -1482,6 +1494,37 @@ describe("CloudCottage demo care loop", () => {
     expect(preview.personalizationDraft?.mode).toBe("decorate");
     expect(preview.room.placed.find((item) => item.id === "cloud-bed")?.x).toBe(75);
     expect(preview.personalizationDraft?.room).toEqual(preview.room);
+  });
+
+  it("shows the toy in the room for the whole play animation", async () => {
+    // The reported bug: picking a toy produced no visible toy, because the
+    // bond-unlock reaction overwrote the play animation in the same tick.
+    const bedtime = new Date("2026-07-30T15:00:00+08:00").getTime();
+    vi.setSystemTime(bedtime);
+    const initial: PetSaveV1 = {
+      ...createInitialPetSave(bedtime),
+      // 18 + 2 from playing crosses the level-2 threshold, so an unlock fires.
+      bond: { total: 18, earnedToday: 0, earnedDate: "2026-07-30" },
+      inventory: {
+        ...createInitialPetSave(bedtime).inventory,
+        toys: ["ball"],
+      },
+    };
+    await renderSignedInCottage(initial, "toy-reader");
+
+    act(() => button('[data-toolbar="toys"]').click());
+    act(() => button('[data-toy-id="ball"]').click());
+
+    // The play animation holds for its full turn. It used to be replaced in
+    // the very tick it was set, which is why no toy was ever visible.
+    expect(gameState().action).toBe("playBall");
+
+    act(() => vi.advanceTimersByTime(1_899));
+    expect(gameState().action).toBe("playBall");
+
+    // Only once the toy has had its turn does the unlock celebration run.
+    act(() => vi.advanceTimersByTime(1));
+    expect(gameState().action).toBe("heartBurst");
   });
 
   it("replays the entrance greeting TTS after settings finish loading", async () => {
