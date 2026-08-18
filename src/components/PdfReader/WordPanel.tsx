@@ -1,21 +1,13 @@
 import { memo } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useFloatingPanel } from "../../hooks/useFloatingPanel";
-import type { LookupItem } from "../../hooks/useLookupQueue";
-import { WordPanelContent } from "./WordPanelContent";
-
-interface WordPanelProps {
-  lookups: LookupItem[];
-  onDismiss: (id: string) => void;
-  onDismissAll: () => void;
-  onSpeak?: (text: string) => void;
-  onLookupWord: (word: string) => void;
-  onClose: () => void;
-  onToggleMode: () => void;
-}
+import {
+  WordPanelContent,
+  type WordPanelSharedProps,
+} from "./WordPanelContent";
 
 /** Floating shell: draggable, resizable window that overlays the reader. */
-export const WordPanel = memo((props: WordPanelProps) => {
+export const WordPanel = memo((props: WordPanelSharedProps) => {
   const {
     panelStyle,
     dragHandleProps,

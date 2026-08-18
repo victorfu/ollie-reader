@@ -12,16 +12,6 @@ vi.mock("../../hooks/useSettings", () => ({
     updateShowChineseTranslation: mocks.updateShowChineseTranslation,
   }),
 }));
-vi.mock("../../hooks/useVocabularySearch", () => ({
-  useVocabularySearch: () => ({
-    query: "",
-    setQuery: vi.fn(),
-    results: null,
-    isSearching: false,
-    clearSearch: vi.fn(),
-  }),
-}));
-
 import {
   WordPanelContent,
   type WordPanelContentProps,
@@ -55,12 +45,21 @@ afterEach(() => {
 function renderContent(overrides: Partial<Record<string, unknown>> = {}) {
   const props = {
     mode: "docked" as const,
+    canDock: true,
     lookups: [completedLookup],
     onDismiss: vi.fn(),
     onDismissAll: vi.fn(),
     onLookupWord: vi.fn(),
     onClose: vi.fn(),
     onToggleMode: vi.fn(),
+    query: "",
+    onQueryChange: vi.fn(),
+    searchResults: null,
+    isSearching: false,
+    expandedWordId: null,
+    onToggleExpandedWord: vi.fn(),
+    shouldFocusSearch: false,
+    onSearchFocused: vi.fn(),
     disableItemLayoutAnimation: false,
     ...overrides,
   };
@@ -129,5 +128,57 @@ describe("WordPanelContent header controls", () => {
     const header = host.querySelector<HTMLElement>('[data-testid="panel-header"]');
 
     expect(header?.style.cursor).toBe("grab");
+  });
+
+  it("ignores drag props in docked mode even if a shell supplies them", () => {
+    const onPointerDown = vi.fn();
+    renderContent({
+      mode: "docked",
+      dragHandleProps: {
+        onPointerDown,
+        style: { cursor: "grab", userSelect: "none", touchAction: "none" },
+      },
+    });
+    const header = host.querySelector<HTMLElement>('[data-testid="panel-header"]');
+
+    act(() =>
+      header?.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true })),
+    );
+
+    // `mode` is authoritative: a docked header never becomes a drag handle.
+    expect(header?.style.cursor).toBe("");
+    expect(onPointerDown).not.toHaveBeenCalled();
+  });
+
+  it("hides the mode toggle where docking cannot take effect", () => {
+    const props = renderContent({ mode: "floating", canDock: false });
+
+    expect(host.querySelector('[data-testid="panel-mode-toggle"]')).toBeNull();
+    expect(props.onToggleMode).not.toHaveBeenCalled();
+  });
+});
+
+describe("WordPanelContent search focus", () => {
+  it("focuses the search box only when the panel asks for it", () => {
+    vi.useFakeTimers();
+    try {
+      const props = renderContent({ shouldFocusSearch: false });
+      act(() => vi.advanceTimersByTime(200));
+      const input = host.querySelector<HTMLInputElement>(
+        '[aria-label="搜尋或查詢單字"]',
+      );
+      expect(document.activeElement).not.toBe(input);
+      expect(props.onSearchFocused).not.toHaveBeenCalled();
+
+      renderContent({ shouldFocusSearch: true, onSearchFocused: props.onSearchFocused });
+      act(() => vi.advanceTimersByTime(200));
+
+      expect(
+        host.querySelector('[aria-label="搜尋或查詢單字"]'),
+      ).toBe(document.activeElement);
+      expect(props.onSearchFocused).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

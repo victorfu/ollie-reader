@@ -1,33 +1,27 @@
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import type React from "react";
-import type { LookupItem } from "../../hooks/useLookupQueue";
 import {
   clampDockWidth,
   readVocabularyDockWidth,
   writeVocabularyDockWidth,
 } from "../../utils/vocabularyPanelPreferences";
-import { WordPanelContent } from "./WordPanelContent";
-
-interface WordPanelDockProps {
-  lookups: LookupItem[];
-  onDismiss: (id: string) => void;
-  onDismissAll: () => void;
-  onSpeak?: (text: string) => void;
-  onLookupWord: (word: string) => void;
-  onClose: () => void;
-  onToggleMode: () => void;
-}
+import {
+  WordPanelContent,
+  type WordPanelSharedProps,
+} from "./WordPanelContent";
 
 /**
  * Docked shell: a right-hand rail that is a flex sibling of the PDF viewer box,
  * so it stays put while the PDF scrolls inside its own container.
  */
-export const WordPanelDock = memo((props: WordPanelDockProps) => {
+export const WordPanelDock = memo((props: WordPanelSharedProps) => {
   const [width, setWidth] = useState<number>(readVocabularyDockWidth);
   const [isResizing, setIsResizing] = useState(false);
-  const cleanupRef = useRef<(() => void) | null>(null);
+  // Holds the in-flight drag's end handler so unmounting mid-drag still
+  // persists the width the user dragged to (cleanup alone would drop it).
+  const endDragRef = useRef<(() => void) | null>(null);
 
-  useEffect(() => () => cleanupRef.current?.(), []);
+  useEffect(() => () => endDragRef.current?.(), []);
 
   const handleResizePointerDown = useCallback(
     (e: React.PointerEvent) => {
@@ -53,7 +47,7 @@ export const WordPanelDock = memo((props: WordPanelDockProps) => {
         window.removeEventListener("pointerup", handleEnd);
         window.removeEventListener("pointercancel", handleEnd);
         grip.removeEventListener("lostpointercapture", handleEnd);
-        cleanupRef.current = null;
+        endDragRef.current = null;
         setIsResizing(false);
       };
 
@@ -67,7 +61,7 @@ export const WordPanelDock = memo((props: WordPanelDockProps) => {
         cleanup();
       };
 
-      cleanupRef.current = cleanup;
+      endDragRef.current = handleEnd;
       window.addEventListener("pointermove", handleMove);
       window.addEventListener("pointerup", handleEnd);
       window.addEventListener("pointercancel", handleEnd);
@@ -79,6 +73,7 @@ export const WordPanelDock = memo((props: WordPanelDockProps) => {
   return (
     <aside
       data-testid="vocab-dock"
+      aria-label="生詞本"
       style={{ width }}
       className="relative hidden shrink-0 flex-col overflow-hidden rounded-xl border border-border-hairline bg-base-100 shadow-elevated lg:flex"
     >
@@ -89,8 +84,7 @@ export const WordPanelDock = memo((props: WordPanelDockProps) => {
         className={`absolute inset-y-0 left-0 z-10 w-1.5 touch-none cursor-ew-resize transition-colors ${
           isResizing ? "bg-accent/40" : "hover:bg-accent/20"
         }`}
-        aria-label="調整生詞本寬度"
-        role="separator"
+        aria-hidden="true"
       />
 
       <WordPanelContent

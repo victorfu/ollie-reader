@@ -47,12 +47,21 @@ function renderDock() {
   act(() =>
     root.render(
       <WordPanelDock
+        canDock
         lookups={[]}
         onDismiss={vi.fn()}
         onDismissAll={vi.fn()}
         onLookupWord={vi.fn()}
         onClose={vi.fn()}
         onToggleMode={vi.fn()}
+        query=""
+        onQueryChange={vi.fn()}
+        searchResults={null}
+        isSearching={false}
+        expandedWordId={null}
+        onToggleExpandedWord={vi.fn()}
+        shouldFocusSearch={false}
+        onSearchFocused={vi.fn()}
       />,
     ),
   );
@@ -161,6 +170,35 @@ describe("WordPanelDock", () => {
       windowRemoveSpy.mockRestore();
       elementRemoveSpy.mockRestore();
     }
+  });
+
+  it("names the rail for screen readers and hides the pointer-only grip", () => {
+    renderDock();
+    const aside = host.querySelector<HTMLElement>('[data-testid="vocab-dock"]');
+    const grip = host.querySelector<HTMLElement>('[data-testid="vocab-dock-resize"]');
+
+    expect(aside?.getAttribute("aria-label")).toBe("生詞本");
+    // The grip cannot be operated by keyboard, so it must not advertise itself
+    // to assistive tech as an operable separator.
+    expect(grip?.getAttribute("aria-hidden")).toBe("true");
+    expect(grip?.getAttribute("role")).toBeNull();
+  });
+
+  it("persists an in-flight drag width when the rail unmounts", () => {
+    renderDock();
+    const grip = host.querySelector<HTMLElement>('[data-testid="vocab-dock-resize"]');
+
+    act(() => {
+      grip?.dispatchEvent(pointerEvent("pointerdown", 800));
+      window.dispatchEvent(pointerEvent("pointermove", 770));
+    });
+    // No pointerup: the panel is closed (or the breakpoint is crossed) while
+    // the grip is still held.
+    act(() => root.render(<></>));
+
+    expect(localStorage.getItem(VOCABULARY_DOCK_WIDTH_KEY)).toBe(
+      String(DOCK_WIDTH_DEFAULT + 30),
+    );
   });
 
   it("stops resizing after pointerup", () => {

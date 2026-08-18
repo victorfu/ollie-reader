@@ -1,7 +1,6 @@
-import { memo, useState, useRef, useEffect } from "react";
+import { memo, useRef, useEffect } from "react";
 import type React from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { useVocabularySearch } from "../../hooks/useVocabularySearch";
 import { useSettings } from "../../hooks/useSettings";
 import type { FloatingPanelResult } from "../../hooks/useFloatingPanel";
 import type { LookupItem } from "../../hooks/useLookupQueue";
@@ -241,8 +240,14 @@ SavedWordItem.displayName = "SavedWordItem";
 
 // --- Panel content (shared by the floating and docked shells) ---
 
-export interface WordPanelContentProps {
-  mode: VocabularyPanelMode;
+/**
+ * Everything both shells forward untouched. Search and expansion state is owned
+ * by `PdfReader` so a mode toggle or a breakpoint crossing — which swaps one
+ * shell for the other — cannot wipe a half-typed query or an expanded row.
+ */
+export interface WordPanelSharedProps {
+  /** False below the `lg` breakpoint, where docking is unavailable. */
+  canDock: boolean;
   lookups: LookupItem[];
   onDismiss: (id: string) => void;
   onDismissAll: () => void;
@@ -250,6 +255,19 @@ export interface WordPanelContentProps {
   onLookupWord: (word: string) => void;
   onClose: () => void;
   onToggleMode: () => void;
+  query: string;
+  onQueryChange: (value: string) => void;
+  searchResults: VocabularyWord[] | null;
+  isSearching: boolean;
+  expandedWordId: string | null;
+  onToggleExpandedWord: (wordId: string) => void;
+  /** Set while the panel is opening; cleared through `onSearchFocused`. */
+  shouldFocusSearch: boolean;
+  onSearchFocused: () => void;
+}
+
+export interface WordPanelContentProps extends WordPanelSharedProps {
+  mode: VocabularyPanelMode;
   /** Only supplied by the floating shell; the docked header must not drag. */
   dragHandleProps?: FloatingPanelResult["dragHandleProps"];
   disableItemLayoutAnimation: boolean;
@@ -258,6 +276,7 @@ export interface WordPanelContentProps {
 export const WordPanelContent = memo(
   ({
     mode,
+    canDock,
     lookups,
     onDismiss,
     onDismissAll,
@@ -265,31 +284,33 @@ export const WordPanelContent = memo(
     onLookupWord,
     onClose,
     onToggleMode,
+    query,
+    onQueryChange,
+    searchResults,
+    isSearching,
+    expandedWordId,
+    onToggleExpandedWord,
+    shouldFocusSearch,
+    onSearchFocused,
     dragHandleProps,
     disableItemLayoutAnimation,
   }: WordPanelContentProps) => {
-    const [expandedId, setExpandedId] = useState<string | null>(null);
     const inputRef = useRef<HTMLInputElement>(null);
     const { showChineseTranslation, updateShowChineseTranslation } = useSettings();
-    const { query, setQuery, results, isSearching, clearSearch } =
-      useVocabularySearch();
 
     const isDocked = mode === "docked";
 
-    // Focus the search input on mount; reset the expanded row and the search
-    // term on unmount (clearSearch is a stable useCallback).
+    // Focus the search box only when the panel genuinely opens. The request is
+    // owned by the parent, so remounting this component to swap shells no
+    // longer yanks focus out of whatever the user was doing.
     useEffect(() => {
-      const timer = setTimeout(() => inputRef.current?.focus(), 100);
-      return () => {
-        clearTimeout(timer);
-        setExpandedId(null);
-        clearSearch();
-      };
-    }, [clearSearch]);
-
-    const handleToggleExpand = (wordId: string) => {
-      setExpandedId((prev) => (prev === wordId ? null : wordId));
-    };
+      if (!shouldFocusSearch) return;
+      const timer = setTimeout(() => {
+        inputRef.current?.focus();
+        onSearchFocused();
+      }, 100);
+      return () => clearTimeout(timer);
+    }, [shouldFocusSearch, onSearchFocused]);
 
     const handleLookupSubmit = (e: React.FormEvent) => {
       e.preventDefault();
@@ -309,7 +330,7 @@ export const WordPanelContent = memo(
       ? lookups.filter((l) => l.word.toLowerCase().includes(normalizedQuery))
       : lookups;
 
-    const savedResults = results ?? [];
+    const savedResults = searchResults ?? [];
     const exactSavedMatch = savedResults.some(
       (w) => w.word.toLowerCase() === normalizedQuery,
     );
@@ -345,7 +366,7 @@ export const WordPanelContent = memo(
     const showNoSavedHint =
       Boolean(trimmedQuery) &&
       !isSearching &&
-      results !== null &&
+      searchResults !== null &&
       visibleSaved.length === 0 &&
       visibleLookups.length === 0;
 
@@ -354,7 +375,7 @@ export const WordPanelContent = memo(
         {/* Header — a drag handle in floating mode only */}
         <div
           data-testid="panel-header"
-          {...(dragHandleProps ?? {})}
+          {...(isDocked ? {} : (dragHandleProps ?? {}))}
           className="flex items-center justify-between px-4 py-3 border-b border-border-hairline shrink-0"
         >
           <div className="flex items-center gap-2 min-w-0">
@@ -391,17 +412,20 @@ export const WordPanelContent = memo(
                 清除
               </button>
             )}
-            {/* Docked ⇄ floating mode toggle */}
-            <button
-              type="button"
-              data-testid="panel-mode-toggle"
-              onClick={onToggleMode}
-              className="btn btn-ghost btn-xs btn-circle hover:bg-black/5 dark:hover:bg-white/10"
-              aria-label={isDocked ? "改為浮動視窗" : "停靠到側邊"}
-              title={isDocked ? "改為浮動視窗" : "停靠到側邊"}
-            >
-              {isDocked ? <FloatWindowIcon /> : <DockRightIcon />}
-            </button>
+            {/* Docked ⇄ floating mode toggle — hidden where docking cannot
+                take effect, so the control never contradicts what it does. */}
+            {canDock && (
+              <button
+                type="button"
+                data-testid="panel-mode-toggle"
+                onClick={onToggleMode}
+                className="btn btn-ghost btn-xs btn-circle hover:bg-black/5 dark:hover:bg-white/10"
+                aria-label={isDocked ? "改為浮動視窗" : "停靠到側邊"}
+                title={isDocked ? "改為浮動視窗" : "停靠到側邊"}
+              >
+                {isDocked ? <FloatWindowIcon /> : <DockRightIcon />}
+              </button>
+            )}
             <button
               type="button"
               data-testid="panel-close"
@@ -426,7 +450,7 @@ export const WordPanelContent = memo(
               ref={inputRef}
               type="text"
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              onChange={(e) => onQueryChange(e.target.value)}
               placeholder="搜尋或查詢單字…"
               aria-label="搜尋或查詢單字"
               className="w-full h-9 rounded-[8px] border border-border-hairline bg-base-200/50 pl-9 pr-9 text-sm placeholder:text-base-content/40 focus:outline-none focus:border-accent/40 focus:ring-2 focus:ring-accent/40 transition-colors"
@@ -435,7 +459,7 @@ export const WordPanelContent = memo(
               <button
                 type="button"
                 onClick={() => {
-                  setQuery("");
+                  onQueryChange("");
                   inputRef.current?.focus();
                 }}
                 className="absolute right-2 top-1/2 -translate-y-1/2 btn btn-ghost btn-xs btn-circle hover:bg-black/5 dark:hover:bg-white/10"
@@ -504,8 +528,8 @@ export const WordPanelContent = memo(
                   <SavedWordItem
                     key={word.id ?? word.word}
                     word={word}
-                    isExpanded={expandedId === (word.id ?? word.word)}
-                    onToggle={() => handleToggleExpand(word.id ?? word.word)}
+                    isExpanded={expandedWordId === (word.id ?? word.word)}
+                    onToggle={() => onToggleExpandedWord(word.id ?? word.word)}
                     onSpeak={onSpeak}
                     showChinese={showChineseTranslation}
                   />
