@@ -2,7 +2,7 @@
 
 <metadata>
 date: 2026-08-18
-status: approved design, pending implementation plan
+status: implemented（單元測試與型別檢查全綠）；§7 的瀏覽器實測尚未執行 — 閱讀器需 Google 登入，待人工驗證
 scope: /reader（PDF 閱讀器）— WordPanel、SettingsContext
 audience: 開發者本人；私人使用、不公開發行。
 </metadata>
