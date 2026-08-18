@@ -13,6 +13,8 @@ import { UploadArea } from "./PdfReader/UploadArea";
 import { PdfViewer } from "./PdfReader/PdfViewer";
 import { SelectionToolbar } from "./PdfReader/SelectionToolbar";
 import { WordPanel } from "./PdfReader/WordPanel";
+import { WordPanelDock } from "./PdfReader/WordPanelDock";
+import { useIsDesktop } from "../hooks/useMediaQuery";
 import { ToastContainer } from "./common/ToastContainer";
 import { useToastQueue } from "../hooks/useToastQueue";
 import { BookingRecordsDrawer } from "./PdfReader/BookingRecordsDrawer";
@@ -48,6 +50,8 @@ function PdfReader() {
   const { user } = useAuth();
 
   const { vocabularyPanelMode, updateVocabularyPanelMode } = useSettings();
+  const isDesktop = useIsDesktop();
+  const isDocked = vocabularyPanelMode === "docked" && isDesktop;
 
   const toggleVocabularyPanelMode = () =>
     updateVocabularyPanelMode(
@@ -299,17 +303,31 @@ function PdfReader() {
       {/* PDF is published as soon as its blob is available. Text hydrates later. */}
       {pdfUrl && (
         <div className="space-y-6">
-          <div className="overflow-hidden rounded-xl border border-border-hairline bg-base-100 shadow-elevated">
-            <PdfViewer
-              url={pdfUrl}
-              pagesByNumber={pagesByNumber}
-              onSpeak={speak}
-              onTextSelection={handleTextSelection}
-              isLoadingAudio={isLoadingAudio}
-              isSpeaking={isSpeaking}
-              initialScrollPosition={initialScrollPosition}
-              onScrollPositionChange={saveScrollPosition}
-            />
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-stretch">
+            <div className="min-w-0 flex-1 overflow-hidden rounded-xl border border-border-hairline bg-base-100 shadow-elevated">
+              <PdfViewer
+                url={pdfUrl}
+                pagesByNumber={pagesByNumber}
+                onSpeak={speak}
+                onTextSelection={handleTextSelection}
+                isLoadingAudio={isLoadingAudio}
+                isSpeaking={isSpeaking}
+                initialScrollPosition={initialScrollPosition}
+                onScrollPositionChange={saveScrollPosition}
+              />
+            </div>
+
+            {isDocked && wordPanelOpen && (
+              <WordPanelDock
+                lookups={lookups}
+                onDismiss={dismissLookup}
+                onDismissAll={dismissAll}
+                onSpeak={speak}
+                onLookupWord={handleLookupTypedWord}
+                onClose={() => setWordPanelOpen(false)}
+                onToggleMode={toggleVocabularyPanelMode}
+              />
+            )}
           </div>
         </div>
       )}
@@ -380,7 +398,8 @@ function PdfReader() {
       )}
 
       {/* Unified Word Panel — saved-vocabulary search + lookup queue in one widget */}
-      {wordPanelOpen && (
+      {/* Floating shell — used when the user prefers it, or below the lg breakpoint */}
+      {!isDocked && wordPanelOpen && (
         <WordPanel
           onClose={() => setWordPanelOpen(false)}
           onToggleMode={toggleVocabularyPanelMode}
