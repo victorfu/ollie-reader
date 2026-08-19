@@ -216,6 +216,20 @@
       "Segoe UI", system-ui, sans-serif;
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
+
+    /* Reader layout — the PDF viewer box and the docked vocabulary panel are
+       equal-height flex siblings, so their height is defined once, here.
+
+       It is viewport-relative rather than a fixed height on purpose: the
+       reader page scrolls at the document level, so a viewer box taller than
+       the viewport drags the docked panel off-screen along with it. Sizing the
+       row to the viewport means scrolling only moves the upload area out of
+       the way, after which the whole row — panel included — stays in view, and
+       the PDF scrolls inside its own box. `position: sticky` cannot substitute
+       here: the panel's containing block is the row itself, so a panel as tall
+       as the row has no room to travel. */
+    --reader-chrome-h: 5.5rem; /* h-14 sticky header + breathing room */
+    --reader-viewer-h: calc(100dvh - var(--reader-chrome-h));
   }
 
   body {
