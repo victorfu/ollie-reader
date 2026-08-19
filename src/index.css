@@ -217,7 +217,7 @@
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
 
-    /* Reader layout (lg and up) — the reader fills exactly one viewport so the
+    /* Reader layout — the reader fills exactly one viewport so the
        document never scrolls; the PDF scrolls inside its own box and the
        docked vocabulary panel therefore never moves.
 
@@ -228,7 +228,14 @@
        resolvable height. Without the chain the box grows to fit all pages
        (a 40-page PDF made it ~9600px tall), the whole page scrolls instead,
        and the docked panel slides up under the sticky app header. */
-    --reader-chrome-h: 6.5rem; /* h-14 app header + main's md:py-6 */
+    --reader-chrome-h: 5.5rem; /* h-14 app header + main's py-4 */
+  }
+
+  /* main's padding grows at md, so the reader's share of the viewport shrinks. */
+  @media (min-width: 48rem) {
+    :root {
+      --reader-chrome-h: 6.5rem; /* h-14 app header + main's md:py-6 */
+    }
   }
 
   body {

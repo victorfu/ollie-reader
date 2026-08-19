@@ -3,9 +3,11 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type PointerEvent as ReactPointerEvent,
+  type ReactNode,
 } from "react";
 import { Volume2 } from "lucide-react";
 import { Document, Page } from "react-pdf";
@@ -16,6 +18,10 @@ import {
   computeRestoredScrollTop,
   computeScrollRatio,
 } from "../../utils/pdfScrollPosition";
+import {
+  PAGE_CHROME_PX,
+  computeFitPageWidth,
+} from "../../utils/pdfPageFit";
 import { selectWordAtPoint } from "../../utils/pdfTextSelection";
 import { hasPdfWordGeometry } from "../../utils/pdfWordSelection";
 import { ExternalAssistantToolbar } from "./ExternalAssistantToolbar";
@@ -33,6 +39,13 @@ interface PdfViewerProps {
   isSpeaking?: boolean;
   initialScrollPosition?: number | null;
   onScrollPositionChange?: (position: number) => void;
+  /**
+   * Controls rendered inside the viewer's own header row. The reader puts its
+   * upload controls here rather than in a bar of their own: a second bar costs
+   * ~116px of viewport, which on a short screen is most of what stops a whole
+   * page from being visible at once.
+   */
+  headerActions?: ReactNode;
 }
 
 type PointerStart = {
@@ -68,6 +81,7 @@ export const PdfViewer = memo(
     isSpeaking,
     initialScrollPosition,
     onScrollPositionChange,
+    headerActions,
   }: PdfViewerProps) => {
     const containerRef = useRef<HTMLDivElement | null>(null);
     const measureRef = useRef<HTMLDivElement | null>(null);
@@ -76,6 +90,7 @@ export const PdfViewer = memo(
     const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const widthTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const measuredWidthRef = useRef(0);
+    const measuredHeightRef = useRef(0);
     const pendingScrollRatioRef = useRef<number | null>(null);
     const [documentState, setDocumentState] = useState({
       url,
@@ -85,7 +100,14 @@ export const PdfViewer = memo(
       url,
       ready: false,
     });
-    const [pdfPageWidth, setPdfPageWidth] = useState(0);
+    const [columnMetrics, setColumnMetrics] = useState({
+      width: 0,
+      height: 0,
+    });
+    const [pageAspectState, setPageAspectState] = useState<{
+      url: string;
+      ratio: number | null;
+    }>({ url, ratio: null });
     const [pdfJsPageState, setPdfJsPageState] = useState({
       url,
       pages: new Map<number, string>(),
@@ -95,24 +117,41 @@ export const PdfViewer = memo(
     const pdfReady = pdfReadyState.url === url && pdfReadyState.ready;
     const pdfJsPages =
       pdfJsPageState.url === url ? pdfJsPageState.pages : EMPTY_PDFJS_PAGES;
+    const pageAspectRatio =
+      pageAspectState.url === url ? pageAspectState.ratio : null;
 
-    // Measure a stable, capped single-column viewport before mounting any Page.
+    // The width every page renders at: the column, unless the box is too short
+    // to show a whole page at that width, in which case the height decides.
+    const pdfPageWidth = useMemo(
+      () =>
+        computeFitPageWidth({
+          columnWidth: columnMetrics.width,
+          availableHeight: columnMetrics.height - PAGE_CHROME_PX,
+          pageAspectRatio,
+        }),
+      [columnMetrics, pageAspectRatio],
+    );
+
+    // Measure a stable, capped single-column viewport before mounting any Page,
+    // and the height of the box that has to show a whole page — the render
+    // width is bounded by both.
     useLayoutEffect(() => {
-      const target = measureRef.current;
-      if (!target) return;
+      const column = measureRef.current;
+      const container = containerRef.current;
+      if (!column || !container) return;
 
-      const updateWidth = () => {
-        const nextWidth = Math.floor(target.clientWidth);
+      const updateMetrics = () => {
+        const nextWidth = Math.floor(column.clientWidth);
         if (nextWidth <= 0) return;
+        const nextHeight = Math.floor(container.clientHeight);
         const previousWidth = measuredWidthRef.current;
-        if (previousWidth === nextWidth) return;
-        measuredWidthRef.current = nextWidth;
+        const previousHeight = measuredHeightRef.current;
+        if (previousWidth === nextWidth && previousHeight === nextHeight) return;
 
-        // Re-rendering every page at a new width changes the document's total
+        // Re-rendering every page at a new size changes the document's total
         // height, so a preserved scrollTop would land somewhere else entirely.
         // Remember the position as a fraction and restore it after the commit.
-        const container = containerRef.current;
-        if (previousWidth > 0 && container) {
+        if (previousWidth > 0) {
           const ratio = computeScrollRatio(
             container.scrollTop,
             container.scrollHeight,
@@ -120,7 +159,9 @@ export const PdfViewer = memo(
           if (ratio > 0) pendingScrollRatioRef.current = ratio;
         }
 
-        setPdfPageWidth(nextWidth);
+        measuredWidthRef.current = nextWidth;
+        measuredHeightRef.current = nextHeight;
+        setColumnMetrics({ width: nextWidth, height: nextHeight });
       };
 
       const clearWidthTimer = () => {
@@ -131,28 +172,29 @@ export const PdfViewer = memo(
       };
 
       // The first measurement must not wait — no page can mount without it.
-      updateWidth();
+      updateMetrics();
 
-      const scheduleWidthUpdate = () => {
+      const scheduleMetricsUpdate = () => {
         clearWidthTimer();
         widthTimerRef.current = setTimeout(() => {
           widthTimerRef.current = null;
-          updateWidth();
+          updateMetrics();
         }, WIDTH_SETTLE_MS);
       };
 
       if (typeof ResizeObserver !== "undefined") {
-        const observer = new ResizeObserver(scheduleWidthUpdate);
-        observer.observe(target);
+        const observer = new ResizeObserver(scheduleMetricsUpdate);
+        observer.observe(column);
+        observer.observe(container);
         return () => {
           observer.disconnect();
           clearWidthTimer();
         };
       }
 
-      window.addEventListener("resize", scheduleWidthUpdate);
+      window.addEventListener("resize", scheduleMetricsUpdate);
       return () => {
-        window.removeEventListener("resize", scheduleWidthUpdate);
+        window.removeEventListener("resize", scheduleMetricsUpdate);
         clearWidthTimer();
       };
     }, []);
@@ -174,6 +216,28 @@ export const PdfViewer = memo(
           previous.url === url && previous.numPages === loadedPages
             ? previous
             : { url, numPages: loadedPages },
+        );
+      },
+      [url],
+    );
+
+    // Fitting needs the document's shape, which only the PDF itself knows. One
+    // page is enough: a mixed-orientation document is fitted to its first page,
+    // which is still far closer than not fitting at all.
+    const handleFirstPageLoad = useCallback(
+      ({
+        originalWidth,
+        originalHeight,
+      }: {
+        originalWidth: number;
+        originalHeight: number;
+      }) => {
+        if (!originalWidth || !originalHeight) return;
+        const ratio = originalWidth / originalHeight;
+        setPageAspectState((previous) =>
+          previous.url === url && previous.ratio === ratio
+            ? previous
+            : { url, ratio },
         );
       },
       [url],
@@ -316,16 +380,20 @@ export const PdfViewer = memo(
 
     return (
       <div className="flex h-full w-full flex-col">
-        <div className="sticky top-0 z-10 flex items-center justify-between rounded-t-xl border-b border-border-hairline bg-base-200/90 p-3 backdrop-blur-md">
-          <span className="text-sm font-medium text-base-content">PDF 預覽</span>
-          <span className="text-xs text-base-content/55">
+        <div className="sticky top-0 z-10 flex shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-2 rounded-t-xl border-b border-border-hairline bg-base-200/90 px-3 py-2 backdrop-blur-md">
+          {headerActions ?? (
+            <span className="text-sm font-medium text-base-content">
+              PDF 預覽
+            </span>
+          )}
+          <span className="hidden text-xs text-base-content/55 sm:inline">
             點擊單字，或拖曳選取片語與句子
           </span>
         </div>
         <div
           ref={containerRef}
           onScroll={handleScroll}
-          className="h-[calc(100dvh-11rem)] min-h-96 w-full flex-1 overflow-x-auto overflow-y-scroll rounded-b-xl p-3 sm:min-h-[32rem] lg:h-auto lg:min-h-0"
+          className="min-h-0 w-full flex-1 overflow-x-auto overflow-y-scroll rounded-b-xl p-3"
         >
           <div
             ref={measureRef}
@@ -349,7 +417,10 @@ export const PdfViewer = memo(
                 </div>
               }
             >
-              <div className="flex flex-col gap-6">
+              <div
+                className="mx-auto flex flex-col gap-6"
+                style={pdfPageWidth > 0 ? { width: pdfPageWidth } : undefined}
+              >
                 {Array.from({ length: numPages }, (_, index) => index + 1).map(
                   (pageNumber) => {
                     const extractedPage = pagesByNumber.get(pageNumber);
@@ -408,6 +479,9 @@ export const PdfViewer = memo(
                               width={pdfPageWidth}
                               renderTextLayer
                               renderAnnotationLayer
+                              onLoadSuccess={
+                                pageNumber === 1 ? handleFirstPageLoad : undefined
+                              }
                               onGetTextSuccess={({ items }) => {
                                 const pageTextFromPdf = items
                                   .map((item) => {

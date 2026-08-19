@@ -285,6 +285,19 @@ function PdfReader() {
     }
   };
 
+  const uploadAreaProps = {
+    selectedFile,
+    isUploading,
+    speechSupported,
+    onFileChange: onInputChange,
+    onDrop,
+    onDragOver,
+    onCancel: cancelUpload,
+    onOpenBookingDrawer: () => setDrawerOpen(true),
+    onClearCache: pdfUrl ? handleClearCache : undefined,
+    isClearingCache,
+  };
+
   // One prop bag, one source of truth: whichever shell is mounted receives the
   // exact same panel state.
   const wordPanelProps = {
@@ -307,23 +320,17 @@ function PdfReader() {
   };
 
   return (
-    <div className="w-full relative lg:flex lg:h-[calc(100dvh-var(--reader-chrome-h))] lg:flex-col">
+    <div className="relative flex h-[calc(100dvh-var(--reader-chrome-h))] w-full flex-col">
 
-      {/* Upload Area + 課程紀錄按鈕 */}
-      <div className="relative lg:shrink-0">
-        <UploadArea
-          selectedFile={selectedFile}
-          isUploading={isUploading}
-          speechSupported={speechSupported}
-          onFileChange={onInputChange}
-          onDrop={onDrop}
-          onDragOver={onDragOver}
-          onCancel={cancelUpload}
-          onOpenBookingDrawer={() => setDrawerOpen(true)}
-          onClearCache={pdfUrl ? handleClearCache : undefined}
-          isClearingCache={isClearingCache}
-        />
-      </div>
+      {/* Upload Area + 課程紀錄按鈕 — the page's drop target until a PDF is
+          open, after which the same controls live in the viewer's header row
+          so the reader spends its height on the page instead of on a second
+          bar. */}
+      {!pdfUrl && (
+        <div className="relative shrink-0">
+          <UploadArea {...uploadAreaProps} />
+        </div>
+      )}
 
       {/* Booking Records Drawer */}
       <BookingRecordsDrawer
@@ -339,7 +346,7 @@ function PdfReader() {
 
       {/* Error Alert - macOS HIG style */}
       {error && (
-        <div className="rounded-lg bg-error/10 border border-error/20 px-4 py-3 mb-6">
+        <div className="shrink-0 rounded-lg bg-error/10 border border-error/20 px-4 py-3 mb-6">
           <p className="text-sm text-error">{error}</p>
         </div>
       )}
@@ -358,25 +365,24 @@ function PdfReader() {
 
       {/* PDF is published as soon as its blob is available. Text hydrates later. */}
       {pdfUrl && (
-        <div className="space-y-6 lg:flex lg:min-h-0 lg:flex-1 lg:flex-col lg:space-y-0">
-          <div className="flex flex-col gap-4 lg:min-h-0 lg:flex-1 lg:flex-row lg:items-stretch">
-            <div className="min-w-0 flex-1 overflow-hidden rounded-xl border border-border-hairline bg-base-100 shadow-elevated lg:min-h-0">
-              <PdfViewer
-                url={pdfUrl}
-                pagesByNumber={pagesByNumber}
-                onSpeak={speak}
-                onTextSelection={handleTextSelection}
-                isLoadingAudio={isLoadingAudio}
-                isSpeaking={isSpeaking}
-                initialScrollPosition={initialScrollPosition}
-                onScrollPositionChange={saveScrollPosition}
-              />
-            </div>
-
-            {isDocked && wordPanelOpen && (
-              <WordPanelDock {...wordPanelProps} />
-            )}
+        <div className="flex min-h-0 flex-1 flex-col gap-4 lg:flex-row lg:items-stretch">
+          <div className="min-h-0 min-w-0 flex-1 overflow-hidden rounded-xl border border-border-hairline bg-base-100 shadow-elevated">
+            <PdfViewer
+              url={pdfUrl}
+              pagesByNumber={pagesByNumber}
+              onSpeak={speak}
+              onTextSelection={handleTextSelection}
+              isLoadingAudio={isLoadingAudio}
+              isSpeaking={isSpeaking}
+              initialScrollPosition={initialScrollPosition}
+              onScrollPositionChange={saveScrollPosition}
+              headerActions={
+                <UploadArea {...uploadAreaProps} variant="toolbar" />
+              }
+            />
           </div>
+
+          {isDocked && wordPanelOpen && <WordPanelDock {...wordPanelProps} />}
         </div>
       )}
 

@@ -6,6 +6,11 @@ const pdfMocks = vi.hoisted(() => ({
   renderWidths: [] as Array<number | undefined>,
   pdfJsText: "PDF.js extracted page text",
   renderTextLayerValues: [] as Array<boolean | undefined>,
+  // Left null so pages report no size at all, as they did before fitting.
+  pageDimensions: null as {
+    originalWidth: number;
+    originalHeight: number;
+  } | null,
 }));
 
 vi.mock("react-pdf", async () => {
@@ -26,6 +31,7 @@ vi.mock("react-pdf", async () => {
     Page: ({
       width,
       onGetTextSuccess,
+      onLoadSuccess,
       renderTextLayer,
       children,
     }: {
@@ -33,12 +39,23 @@ vi.mock("react-pdf", async () => {
       onGetTextSuccess?: (result: {
         items: Array<{ str: string; hasEOL: boolean }>;
       }) => void;
+      onLoadSuccess?: (result: {
+        originalWidth: number;
+        originalHeight: number;
+      }) => void;
       renderTextLayer?: boolean;
       children?: React.ReactNode;
     }) => {
       const didReportText = React.useRef(false);
+      const didReportSize = React.useRef(false);
       pdfMocks.renderWidths.push(width);
       pdfMocks.renderTextLayerValues.push(renderTextLayer);
+      React.useEffect(() => {
+        const dimensions = pdfMocks.pageDimensions;
+        if (!dimensions || !onLoadSuccess || didReportSize.current) return;
+        didReportSize.current = true;
+        onLoadSuccess(dimensions);
+      }, [onLoadSuccess]);
       React.useEffect(() => {
         if (!renderTextLayer || didReportText.current) return;
         didReportText.current = true;
@@ -71,7 +88,9 @@ let host: HTMLDivElement;
 let root: Root;
 let scrollToMock: ReturnType<typeof vi.fn>;
 let clientWidthDescriptor: PropertyDescriptor | undefined;
+let clientHeightDescriptor: PropertyDescriptor | undefined;
 let measuredClientWidth: number;
+let measuredClientHeight: number;
 let resizeCallbacks: ResizeObserverCallback[];
 
 const defaultProps = {
@@ -141,11 +160,20 @@ beforeEach(() => {
     HTMLElement.prototype,
     "clientWidth",
   );
+  clientHeightDescriptor = Object.getOwnPropertyDescriptor(
+    HTMLElement.prototype,
+    "clientHeight",
+  );
   measuredClientWidth = 760;
+  measuredClientHeight = 0;
   resizeCallbacks = [];
   Object.defineProperty(HTMLElement.prototype, "clientWidth", {
     configurable: true,
     get: () => measuredClientWidth,
+  });
+  Object.defineProperty(HTMLElement.prototype, "clientHeight", {
+    configurable: true,
+    get: () => measuredClientHeight,
   });
   globalThis.ResizeObserver = class ResizeObserverMock {
     private readonly callback: ResizeObserverCallback;
@@ -174,12 +202,22 @@ afterEach(() => {
   Reflect.deleteProperty(document, "caretPositionFromPoint");
   Reflect.deleteProperty(document, "caretRangeFromPoint");
   window.getSelection()?.removeAllRanges();
+  pdfMocks.pageDimensions = null;
   if (clientWidthDescriptor) {
     Object.defineProperty(
       HTMLElement.prototype,
       "clientWidth",
       clientWidthDescriptor,
     );
+  }
+  if (clientHeightDescriptor) {
+    Object.defineProperty(
+      HTMLElement.prototype,
+      "clientHeight",
+      clientHeightDescriptor,
+    );
+  } else {
+    Reflect.deleteProperty(HTMLElement.prototype, "clientHeight");
   }
   host.remove();
 });
@@ -283,6 +321,43 @@ describe("PdfViewer PDF-only layout", () => {
     expect(speakButton?.disabled).toBe(false);
     act(() => speakButton?.click());
     expect(onSpeak).toHaveBeenCalledWith(pdfMocks.pdfJsText);
+  });
+});
+
+describe("PdfViewer page fitting", () => {
+  it("narrows a page so a whole one fits a short scroll box", async () => {
+    measuredClientWidth = 944;
+    measuredClientHeight = 536; // 440 left once the page chrome is subtracted
+    pdfMocks.pageDimensions = { originalWidth: 1280, originalHeight: 720 };
+
+    renderViewer("blob:short-box", null);
+    await act(async () => Promise.resolve());
+
+    expect(
+      host.querySelector('[data-testid="pdf-page"]')?.getAttribute("data-width"),
+    ).toBe("782");
+  });
+
+  it("keeps the full column width when a page already fits", async () => {
+    measuredClientWidth = 944;
+    measuredClientHeight = 1000;
+    pdfMocks.pageDimensions = { originalWidth: 1280, originalHeight: 720 };
+
+    renderViewer("blob:tall-box", null);
+    await act(async () => Promise.resolve());
+
+    expect(
+      host.querySelector('[data-testid="pdf-page"]')?.getAttribute("data-width"),
+    ).toBe("944");
+  });
+
+  it("renders header actions in place of the default title", () => {
+    renderViewer("blob:header", null, vi.fn(), {
+      headerActions: <button type="button">上傳 PDF</button>,
+    });
+
+    expect(host.textContent).toContain("上傳 PDF");
+    expect(host.textContent).not.toContain("PDF 預覽");
   });
 });
 
