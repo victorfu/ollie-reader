@@ -307,10 +307,10 @@ function PdfReader() {
   };
 
   return (
-    <div className="w-full relative">
+    <div className="w-full relative lg:flex lg:h-[calc(100dvh-var(--reader-chrome-h))] lg:flex-col">
 
       {/* Upload Area + 課程紀錄按鈕 */}
-      <div className="relative">
+      <div className="relative lg:shrink-0">
         <UploadArea
           selectedFile={selectedFile}
           isUploading={isUploading}
@@ -358,9 +358,9 @@ function PdfReader() {
 
       {/* PDF is published as soon as its blob is available. Text hydrates later. */}
       {pdfUrl && (
-        <div className="space-y-6">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-stretch">
-            <div className="min-w-0 flex-1 overflow-hidden rounded-xl border border-border-hairline bg-base-100 shadow-elevated">
+        <div className="space-y-6 lg:flex lg:min-h-0 lg:flex-1 lg:flex-col lg:space-y-0">
+          <div className="flex flex-col gap-4 lg:min-h-0 lg:flex-1 lg:flex-row lg:items-stretch">
+            <div className="min-w-0 flex-1 overflow-hidden rounded-xl border border-border-hairline bg-base-100 shadow-elevated lg:min-h-0">
               <PdfViewer
                 url={pdfUrl}
                 pagesByNumber={pagesByNumber}

@@ -325,7 +325,7 @@ export const PdfViewer = memo(
         <div
           ref={containerRef}
           onScroll={handleScroll}
-          className="h-[calc(100dvh-11rem)] min-h-96 w-full flex-1 overflow-x-auto overflow-y-scroll rounded-b-xl p-3 sm:min-h-[32rem] lg:h-[var(--reader-viewer-h)] lg:min-h-[var(--reader-viewer-h)]"
+          className="h-[calc(100dvh-11rem)] min-h-96 w-full flex-1 overflow-x-auto overflow-y-scroll rounded-b-xl p-3 sm:min-h-[32rem] lg:h-auto lg:min-h-0"
         >
           <div
             ref={measureRef}

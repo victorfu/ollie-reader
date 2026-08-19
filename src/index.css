@@ -217,19 +217,18 @@
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
 
-    /* Reader layout — the PDF viewer box and the docked vocabulary panel are
-       equal-height flex siblings, so their height is defined once, here.
+    /* Reader layout (lg and up) — the reader fills exactly one viewport so the
+       document never scrolls; the PDF scrolls inside its own box and the
+       docked vocabulary panel therefore never moves.
 
-       It is viewport-relative rather than a fixed height on purpose: the
-       reader page scrolls at the document level, so a viewer box taller than
-       the viewport drags the docked panel off-screen along with it. Sizing the
-       row to the viewport means scrolling only moves the upload area out of
-       the way, after which the whole row — panel included — stays in view, and
-       the PDF scrolls inside its own box. `position: sticky` cannot substitute
-       here: the panel's containing block is the row itself, so a panel as tall
-       as the row has no room to travel. */
-    --reader-chrome-h: 5.5rem; /* h-14 sticky header + breathing room */
-    --reader-viewer-h: calc(100dvh - var(--reader-chrome-h));
+       This has to be an unbroken chain of definite heights. The viewer's
+       scroll box is a `flex-1` column child, and `flex-1` sets
+       `flex-basis: 0%`, which replaces `height` in a column flex container —
+       so any `h-*` on that box is dead unless every ancestor up to here has a
+       resolvable height. Without the chain the box grows to fit all pages
+       (a 40-page PDF made it ~9600px tall), the whole page scrolls instead,
+       and the docked panel slides up under the sticky app header. */
+    --reader-chrome-h: 6.5rem; /* h-14 app header + main's md:py-6 */
   }
 
   body {
