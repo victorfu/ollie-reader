@@ -434,7 +434,7 @@ export const PdfViewer = memo(
                         data-page-number={pageNumber}
                         className="overflow-visible rounded-xl bg-base-200/55 pt-2 shadow-soft"
                       >
-                        <div className="sticky top-2 z-20 mx-2 mb-2 flex min-h-11 flex-wrap items-center justify-between gap-2 rounded-xl border border-border-hairline bg-base-100/92 px-2 py-1.5 shadow-lg backdrop-blur-xl sm:min-h-0">
+                        <div className="mx-2 mb-2 flex min-h-11 flex-wrap items-center justify-between gap-2 px-2 py-1.5 sm:min-h-0">
                           <span className="rounded-lg bg-accent/10 px-2.5 py-1 text-xs font-semibold text-accent">
                             Page {pageNumber}
                           </span>
