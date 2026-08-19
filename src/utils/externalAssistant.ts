@@ -1,14 +1,3 @@
-export type ExternalAssistantOpenBehavior = "deep-link" | "copy-then-open";
-
-export type ExternalAssistantTargetId = "chatgpt";
-
-export type ExternalAssistantTarget = {
-  id: ExternalAssistantTargetId;
-  label: string;
-  behavior: ExternalAssistantOpenBehavior;
-  buildUrl: (prompt: string) => string;
-};
-
 type BuildPageAssistantPromptOptions = {
   pageNumber: number;
   text: string;
@@ -31,31 +20,6 @@ type CopyTextEnvironment = {
   document?: CopyFallbackDocument;
   window?: Pick<Window, "focus">;
 };
-
-export const externalAssistantTargets: ExternalAssistantTarget[] = [
-  {
-    id: "chatgpt",
-    label: "ChatGPT",
-    behavior: "deep-link",
-    buildUrl: (prompt) => `https://chatgpt.com/?q=${encodeURIComponent(prompt)}`,
-  },
-];
-
-export function getExternalAssistantTarget(
-  targetId: string,
-): ExternalAssistantTarget {
-  return (
-    externalAssistantTargets.find((target) => target.id === targetId) ??
-    externalAssistantTargets[0]
-  );
-}
-
-export function buildExternalAssistantUrl(
-  targetId: string,
-  prompt: string,
-): string {
-  return getExternalAssistantTarget(targetId).buildUrl(prompt);
-}
 
 export function buildPageAssistantPrompt({
   pageNumber,

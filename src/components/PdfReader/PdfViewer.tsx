@@ -24,7 +24,8 @@ import {
 } from "../../utils/pdfPageFit";
 import { selectWordAtPoint } from "../../utils/pdfTextSelection";
 import { hasPdfWordGeometry } from "../../utils/pdfWordSelection";
-import { ExternalAssistantToolbar } from "./ExternalAssistantToolbar";
+import { Tooltip } from "../common/Tooltip";
+import { CopyPagePromptButton } from "./CopyPagePromptButton";
 import { WordOverlay } from "./WordOverlay";
 
 import "react-pdf/dist/Page/AnnotationLayer.css";
@@ -438,29 +439,30 @@ export const PdfViewer = memo(
                             Page {pageNumber}
                           </span>
                           <div className="flex max-w-full flex-wrap items-center justify-end gap-1.5">
-                            <ExternalAssistantToolbar
+                            <CopyPagePromptButton
                               pageNumber={pageNumber}
                               text={pageText}
                             />
-                            <button
-                              type="button"
-                              onClick={() => onSpeak(pageText)}
-                              disabled={
-                                !textAvailable || isLoadingAudio || isSpeaking
-                              }
-                              className="inline-flex h-11 items-center justify-center gap-1.5 rounded-md bg-success/90 px-3 text-xs font-semibold text-success-content shadow-sm transition-all duration-200 hover:bg-success active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:pointer-events-none disabled:opacity-50 sm:h-8"
-                              aria-label={`朗讀第 ${pageNumber} 頁`}
-                            >
-                              {isLoadingAudio ? (
-                                <span className="loading loading-spinner loading-xs" />
-                              ) : (
-                                <Volume2
-                                  className="size-4"
-                                  strokeWidth={1.8}
-                                />
-                              )}
-                              <span className="hidden sm:inline">朗讀此頁</span>
-                            </button>
+                            <Tooltip content="朗讀此頁" position="bottom">
+                              <button
+                                type="button"
+                                onClick={() => onSpeak(pageText)}
+                                disabled={
+                                  !textAvailable || isLoadingAudio || isSpeaking
+                                }
+                                className="inline-flex h-11 w-11 items-center justify-center rounded-md bg-success/90 text-success-content shadow-sm transition-all duration-200 hover:bg-success active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:pointer-events-none disabled:opacity-50 sm:h-8 sm:w-8"
+                                aria-label={`朗讀第 ${pageNumber} 頁`}
+                              >
+                                {isLoadingAudio ? (
+                                  <span className="loading loading-spinner loading-xs" />
+                                ) : (
+                                  <Volume2
+                                    className="size-4"
+                                    strokeWidth={1.8}
+                                  />
+                                )}
+                              </button>
+                            </Tooltip>
                           </div>
                         </div>
 

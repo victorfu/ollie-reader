@@ -2,11 +2,8 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 
 import {
-  buildExternalAssistantUrl,
   buildPageAssistantPrompt,
   copyTextWithFallback,
-  externalAssistantTargets,
-  getExternalAssistantTarget,
 } from "../src/utils/externalAssistant.ts";
 
 test("builds an English-learning prompt for a reader page", () => {
@@ -18,28 +15,6 @@ test("builds an English-learning prompt for a reader page", () => {
   assert.match(prompt, /Page 2/);
   assert.match(prompt, /People and Their Homes/);
   assert.match(prompt, /繁體中文/);
-});
-
-test("defaults to ChatGPT and deep-links prompt-capable chat tools", () => {
-  assert.equal(externalAssistantTargets[0]?.id, "chatgpt");
-
-  const chatGpt = getExternalAssistantTarget("chatgpt");
-  assert.equal(chatGpt.label, "ChatGPT");
-  assert.equal(chatGpt.behavior, "deep-link");
-
-  const url = buildExternalAssistantUrl("chatgpt", "Explain this page");
-  assert.equal(url, "https://chatgpt.com/?q=Explain%20this%20page");
-});
-
-test("falls back to ChatGPT for an unknown assistant target", () => {
-  const fallback = getExternalAssistantTarget("unknown");
-
-  assert.equal(fallback.label, "ChatGPT");
-  assert.equal(fallback.behavior, "deep-link");
-  assert.equal(
-    buildExternalAssistantUrl("unknown", "Explain this page"),
-    "https://chatgpt.com/?q=Explain%20this%20page",
-  );
 });
 
 test("falls back to a temporary textarea when Clipboard API fails", async () => {
