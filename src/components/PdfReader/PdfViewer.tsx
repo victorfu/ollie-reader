@@ -391,10 +391,17 @@ export const PdfViewer = memo(
             點擊單字，或拖曳選取片語與句子
           </span>
         </div>
+        {/* `relative` is load-bearing, not decoration: a static scroll container
+            is not a containing block, so the absolutely positioned layers
+            react-pdf puts on every page resolve against the reader root
+            instead. Those escape this box's clip entirely and add their full
+            height — 12k pixels for a 16-page document — to the page's
+            scrollable area, which is then draggable from anywhere outside the
+            PDF. */}
         <div
           ref={containerRef}
           onScroll={handleScroll}
-          className="min-h-0 w-full flex-1 overflow-x-auto overflow-y-scroll rounded-b-xl p-3"
+          className="relative min-h-0 w-full flex-1 overflow-x-auto overflow-y-scroll overscroll-contain rounded-b-xl p-3"
         >
           <div
             ref={measureRef}

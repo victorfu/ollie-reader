@@ -117,7 +117,7 @@ function RouteLoadingFallback() {
 // Auth loading fallback component
 function AuthLoadingFallback() {
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center">
+    <div className="min-h-dvh bg-background flex items-center justify-center">
       <span
         className="loading loading-spinner loading-lg text-primary"
         aria-label="載入登入頁面"
@@ -383,7 +383,7 @@ function AppContent() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="min-h-dvh bg-background flex items-center justify-center">
         <span
           className="loading loading-spinner loading-lg text-primary"
           aria-label="載入使用者資料"
@@ -404,7 +404,7 @@ function AppContent() {
       );
     }
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center px-4 py-12">
+      <div className="min-h-dvh bg-background flex items-center justify-center px-4 py-12">
         <Suspense fallback={<AuthLoadingFallback />}>
           <AuthScreen />
         </Suspense>
@@ -442,7 +442,7 @@ function AppContent() {
 
   return (
     <div
-      className="min-h-screen bg-background text-foreground"
+      className="min-h-dvh bg-background text-foreground"
       style={
         {
           // Exposes the desktop sidebar width so fixed/floating elements deep in
@@ -527,7 +527,7 @@ function AppContent() {
 
       {/* Main column (offset for the fixed sidebar on desktop) */}
       <div
-        className={`flex min-h-screen flex-col transition-[padding] duration-200 ${
+        className={`flex min-h-dvh flex-col transition-[padding] duration-200 ${
           sidebarCollapsed ? "lg:pl-16" : "lg:pl-56"
         }`}
       >
