@@ -56,7 +56,7 @@ PyInstaller spec 只會收進上表四個 manifest 檔案，不會整包複製 `
 |---|---|---|---|---|---|
 | Piper | `POST /api/tts` | 不需要 | WAV | `en_US-lessac-medium`、speaker `0` | `voice` 必須是可轉成整數的 speaker id |
 | Kokoro | `POST /api/ktts` | 不需要 | WAV | `af_heart`、fp16 ONNX | 使用 `kokoro-onnx`/ONNX Runtime，不需要 PyTorch |
-| Edge TTS | `POST /api/etts` | **需要** | MP3 | `en-US-JennyNeural` | `edge-tts` 的非官方 Edge Read Aloud 端點，不需要 API key |
+| Edge TTS | `POST /api/etts` | **需要** | MP3 | `en-US-AriaNeural` | `edge-tts` 的非官方 Edge Read Aloud 端點，不需要 API key |
 
 所有 TTS POST 端點共用 JSON request：
 
@@ -74,7 +74,7 @@ PyInstaller spec 只會收進上表四個 manifest 檔案，不會整包複製 `
 
 Edge TTS 由預設相依 `edge-tts` 提供，會連線至 Microsoft Edge「大聲朗讀」的未公開服務。服務使用的 `Sec-MS-GEC` token 可能隨 Edge 改版失效；sidecar 會把服務端 `403` 映射成帶有升級 `edge-tts` 提示的 `502`，不會靜默吞掉錯誤。
 
-目前預設採單語的 `en-US-JennyNeural`，避免多語聲音在缺少上下文的單字上誤判語言，也避開已知的 Emma 字首擦音問題。可用 `EDGE_TTS_VOICE` 覆寫。
+目前預設採單語的 `en-US-AriaNeural`，維持美式發音，並避免多語聲音在缺少上下文的單字上誤判語言，也避開已知的 Emma 字首擦音問題。可用 `EDGE_TTS_VOICE` 覆寫。
 
 目前 lockfile 中的 `edge-tts` 7.2.8 隨附 LGPL-3.0 授權；發佈 bundle 時仍需一併處理它與 `piper-tts`、`phonemizer-fork` 等第三方套件的授權聲明。不要把相依套件授權相容性視為 README 的法律保證。
 
@@ -114,7 +114,7 @@ sidecar host 固定為 `127.0.0.1`，預設 port 為 `8765`；可用 `main.py --
 | `KOKORO_VOICES_PATH` | `models/voices-v1.0.bin` | Kokoro voices 路徑 |
 | `KOKORO_DEFAULT_VOICE` | `af_heart` | Kokoro 預設 voice id |
 | `KOKORO_LANG` | `en-us` | 無法由 voice prefix 判斷時的 Kokoro 語言 |
-| `EDGE_TTS_VOICE` | `en-US-JennyNeural` | Edge 預設聲音 |
+| `EDGE_TTS_VOICE` | `en-US-AriaNeural` | Edge 預設聲音 |
 | `OLLIE_CORS_ORIGINS` | 空 | 以逗號追加允許的 Web origin；禁止 `*` wildcard |
 | `OLLIE_WEB_APP_URL` | dev/frozen 預設網址 | 托盤「開啟 Ollie Reader」的網址 |
 

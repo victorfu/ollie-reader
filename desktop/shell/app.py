@@ -4,10 +4,20 @@ import os
 import signal
 import sys
 import tempfile
+from collections.abc import Callable
 from pathlib import Path
 
 import httpx
-from PySide6.QtCore import QObject, QRunnable, Qt, QThreadPool, QTimer, QUrl, Signal
+from PySide6.QtCore import (
+  QObject,
+  QRunnable,
+  Qt,
+  QThreadPool,
+  QTimer,
+  QUrl,
+  Signal,
+  Slot,
+)
 from PySide6.QtGui import QAction, QDesktopServices, QIcon
 from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
 from PySide6.QtWidgets import (
@@ -34,6 +44,7 @@ from server.oikid_secrets import (
   get_oikid_credentials,
   set_oikid_credentials,
 )
+from server.tts_edge import DEFAULT_EDGE_VOICE
 from shell import autostart
 from shell.sidecar import SidecarManager
 from shell.single_instance import SingleInstance
@@ -85,22 +96,27 @@ AuditionContext = tuple[str, str, float, str | None]
 
 
 class _TaskSignals(QObject):
-  done = Signal(object, object)  # (result, error)
+  done = Signal(int, object, object)  # (token, result, error)
 
 
 class _Task(QRunnable):
   """把阻塞的 HTTP 呼叫丟到執行緒池，避免試聽時凍住視窗。"""
 
-  def __init__(self, fn):
+  def __init__(self, token: int, fn: Callable[[], object]):
     super().__init__()
+    # Qt 預設會在 worker thread 的 run() 返回後立即 delete QRunnable。
+    # done 是 queued signal，此時 UI thread 可能還沒處理 event；讓 VoiceLabTab
+    # 持有並在 UI callback 完成後釋放，避免 Shiboken 讀到已失效的 wrapper。
+    self.setAutoDelete(False)
+    self.token = token
     self.fn = fn
     self.signals = _TaskSignals()
 
   def run(self) -> None:
     try:
-      self.signals.done.emit(self.fn(), None)
+      self.signals.done.emit(self.token, self.fn(), None)
     except Exception as e:  # noqa: BLE001 - 一律回報到 UI，不讓執行緒吞掉
-      self.signals.done.emit(None, e)
+      self.signals.done.emit(self.token, None, e)
 
 
 class VoiceLabTab(QWidget):
@@ -115,6 +131,10 @@ class VoiceLabTab(QWidget):
     self._voices_pending_request_id: int | None = None
     self._audition_request_id = 0
     self._audition_pending: tuple[int, AuditionContext] | None = None
+    self._task_token = 0
+    self._tasks: dict[
+      int, tuple[_Task, Callable[[object, Exception | None], None]]
+    ] = {}
 
     self._player = QMediaPlayer(self)
     self._audio_out = QAudioOutput(self)
@@ -182,6 +202,41 @@ class VoiceLabTab(QWidget):
     self.play_button.setEnabled(not busy)
     self.reload_button.setEnabled(not busy)
 
+  def _start_task(
+    self,
+    fn: Callable[[], object],
+    callback: Callable[[object, Exception | None], None],
+  ) -> _Task:
+    """啟動 worker，並持有它直到 UI thread 處理完 queued completion。"""
+    self._task_token += 1
+    task = _Task(self._task_token, fn)
+    self._tasks[task.token] = (task, callback)
+    task.signals.done.connect(
+      self._on_task_done,
+      Qt.ConnectionType.QueuedConnection,
+    )
+    try:
+      self.pool.start(task)
+    except Exception:
+      self._tasks.pop(task.token, None)
+      task.signals.done.disconnect(self._on_task_done)
+      raise
+    return task
+
+  @Slot(int, object, object)
+  def _on_task_done(self, token: int, result, error) -> None:
+    entry = self._tasks.pop(token, None)
+    if entry is None:
+      return
+    task, callback = entry
+    try:
+      callback(result, error)
+    finally:
+      try:
+        task.signals.done.disconnect(self._on_task_done)
+      except (RuntimeError, TypeError):
+        pass
+
   def _audition_context(self) -> AuditionContext:
     return (
       self._engine_id(),
@@ -232,16 +287,15 @@ class VoiceLabTab(QWidget):
 
     self._update_busy()
     self.status_label.setText("載入聲音清單…")
-    task = _Task(fetch)
-    task.signals.done.connect(
+    self._start_task(
+      fetch,
       lambda voices, error, rid=request_id, engine=engine_id: self._on_voices_loaded(
         voices,
         error,
         request_id=rid,
         engine_id=engine,
-      )
+      ),
     )
-    self.pool.start(task)
 
   def _on_voices_loaded(
     self,
@@ -272,6 +326,11 @@ class VoiceLabTab(QWidget):
       return
     for voice in voices:
       self.voice_combo.addItem(voice.get("label") or voice["id"], voice["id"])
+    selected_engine = engine_id or self._engine_id()
+    if selected_engine == "edge":
+      default_index = self.voice_combo.findData(DEFAULT_EDGE_VOICE)
+      if default_index >= 0:
+        self.voice_combo.setCurrentIndex(default_index)
     self.status_label.setText(f"載入 {len(voices)} 個聲音。")
 
   # ── 試聽
@@ -308,16 +367,15 @@ class VoiceLabTab(QWidget):
     self._audition_pending = (request_id, context)
     self._update_busy()
     self.status_label.setText(f"合成中（{engine_id}）…")
-    task = _Task(synthesize)
-    task.signals.done.connect(
+    self._start_task(
+      synthesize,
       lambda result, error, rid=request_id, ctx=context: self._on_audio_ready(
         result,
         error,
         request_id=rid,
         context=ctx,
-      )
+      ),
     )
-    self.pool.start(task)
 
   def _on_audio_ready(
     self,

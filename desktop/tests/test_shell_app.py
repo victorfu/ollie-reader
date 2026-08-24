@@ -1,10 +1,12 @@
 import os
 import sys
+import time
 from pathlib import Path
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 import pytest
+from PySide6.QtCore import QThread, QThreadPool
 from PySide6.QtWidgets import QApplication
 
 from shell import app as app_module
@@ -114,6 +116,23 @@ def test_voices_loaded_populates_combo(voice_lab):
     assert voice_lab.voice_combo.itemData(0) == "en-US-EmmaMultilingualNeural"
 
 
+def test_edge_voices_select_server_default(voice_lab):
+    voice_lab._on_voices_loaded(
+        [
+            {"id": "en-US-AvaNeural", "label": "Ava (Female)"},
+            {
+                "id": app_module.DEFAULT_EDGE_VOICE,
+                "label": "en-US-AriaNeural (Female)",
+            },
+        ],
+        None,
+        engine_id="edge",
+    )
+
+    assert voice_lab.voice_combo.currentData() == app_module.DEFAULT_EDGE_VOICE
+    assert voice_lab.voice_combo.currentText() == "en-US-AriaNeural (Female)"
+
+
 def test_stale_voice_response_cannot_overwrite_current_engine(voice_lab):
     voice_lab.engine_combo.setCurrentIndex(1)  # piper
     voice_lab._voices_request_id = 2
@@ -170,7 +189,37 @@ def _complete_audition(voice_lab, result):
     pool = _CapturingPool()
     voice_lab.pool = pool
     voice_lab._audition()
-    pool.tasks[-1].signals.done.emit(result, None)
+    _emit_done(pool.tasks[-1], result)
+
+
+def _emit_done(task, result, error=None):
+    task.signals.done.emit(task.token, result, error)
+    QApplication.processEvents()
+
+
+def test_task_lives_until_queued_completion_runs_on_ui_thread(qapp, voice_lab):
+    pool = QThreadPool()
+    voice_lab.pool = pool
+    completed = []
+
+    task = voice_lab._start_task(
+        lambda: "done",
+        lambda result, error: completed.append(
+            (result, error, QThread.currentThread())
+        ),
+    )
+
+    assert not task.autoDelete()
+    assert task.token in voice_lab._tasks
+
+    deadline = time.monotonic() + 2
+    while not completed and time.monotonic() < deadline:
+        qapp.processEvents()
+        time.sleep(0.01)
+
+    assert completed == [("done", None, qapp.thread())]
+    assert task.token not in voice_lab._tasks
+    assert pool.waitForDone(1000)
 
 
 def test_audition_ignores_duplicate_enter_while_same_request_is_pending(voice_lab):
@@ -196,11 +245,11 @@ def test_audition_old_text_response_cannot_play_after_new_enter(voice_lab):
     voice_lab._audition()
     new_task = pool.tasks[-1]
 
-    old_task.signals.done.emit((b"OLD", "audio/wav"), None)
+    _emit_done(old_task, (b"OLD", "audio/wav"))
     assert voice_lab._audio_path is None
     assert not voice_lab.play_button.isEnabled()
 
-    new_task.signals.done.emit((b"NEW", "audio/wav"), None)
+    _emit_done(new_task, (b"NEW", "audio/wav"))
     assert voice_lab._audio_path.read_bytes() == b"NEW"
     assert voice_lab.play_button.isEnabled()
     voice_lab.cleanup()
@@ -213,7 +262,7 @@ def test_audition_response_does_not_play_after_text_is_edited(voice_lab):
     voice_lab._audition()
 
     voice_lab.text_edit.setText("after edit")
-    pool.tasks[-1].signals.done.emit((b"STALE", "audio/wav"), None)
+    _emit_done(pool.tasks[-1], (b"STALE", "audio/wav"))
 
     assert voice_lab._audio_path is None
     assert voice_lab.play_button.isEnabled()
@@ -231,11 +280,11 @@ def test_audition_old_engine_response_cannot_block_or_replace_new_audio(voice_la
     voice_lab._audition()
     new_task = pool.tasks[-1]
 
-    old_task.signals.done.emit((b"EDGE", "audio/wav"), None)
+    _emit_done(old_task, (b"EDGE", "audio/wav"))
     assert voice_lab._audio_path is None
     assert not voice_lab.play_button.isEnabled()
 
-    new_task.signals.done.emit((b"PIPER", "audio/wav"), None)
+    _emit_done(new_task, (b"PIPER", "audio/wav"))
     assert voice_lab._audio_path.read_bytes() == b"PIPER"
     assert voice_lab.play_button.isEnabled()
     voice_lab.cleanup()

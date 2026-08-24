@@ -25,9 +25,10 @@ logger = logging.getLogger(__name__)
 #    xml:lang，光桿單字沒有上下文時會唸成別的語言 —— "gang"（也是德/荷語
 #    常用字）被 Ava 唸成後母音 /ɑ/（母音 F2 頻帶比 0.13，單語聲音 0.58-0.65）。
 #    本 app 的用途就是單字聽力題，單語聲音才不會漂移。
-# Jenny 是單語且 /s/ 排名全場第一（sting 88.3% / spell 82.8%）。
+# Aria 是單語 en-US 聲音；維持美式發音，同時用來改善 Jenny 對部分光桿單字
+# （例如 "cause"）不自然的表現。
 # 可用 EDGE_TTS_VOICE 覆寫。
-DEFAULT_EDGE_VOICE = "en-US-JennyNeural"
+DEFAULT_EDGE_VOICE = "en-US-AriaNeural"
 
 
 def _default_voice() -> str:
