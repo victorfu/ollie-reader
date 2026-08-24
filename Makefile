@@ -57,7 +57,7 @@ desktop-run: ## Run the PySide6 tray shell (it manages the sidecar)
 	$(UV) run --directory $(DESKTOP) python main.py
 
 desktop-test: ## Run the desktop pytest suite
-	$(UV) run --directory $(DESKTOP) pytest -v
+	$(UV) run --directory $(DESKTOP) python -m pytest -v
 
 desktop-models: ## 下載 dev 用的 TTS 模型檔到 desktop/models/
 	cd desktop && uv run python -m server.model_download
@@ -66,10 +66,10 @@ desktop-icon: ## Generate assets/AppIcon.icns from tray-icon.png
 	bash $(DESKTOP)/release/make_icon.sh
 
 desktop-package: ## Build the frozen binary with PyInstaller (incremental -> desktop/dist/)
-	$(UV) run --directory $(DESKTOP) pyinstaller ollie-reader-desktop.spec --noconfirm
+	$(UV) run --directory $(DESKTOP) python -m PyInstaller ollie-reader-desktop.spec --noconfirm
 
 desktop-package-clean: ## Clean build of the frozen binary (drops PyInstaller cache)
-	$(UV) run --directory $(DESKTOP) pyinstaller ollie-reader-desktop.spec --noconfirm --clean
+	$(UV) run --directory $(DESKTOP) python -m PyInstaller ollie-reader-desktop.spec --noconfirm --clean
 
 desktop-clean: ## Remove PyInstaller build/dist artifacts
 	rm -rf $(DESKTOP)/build $(DESKTOP)/dist
