@@ -8,7 +8,7 @@ import {
 } from "react";
 import type { TTSMode, TTSEngine } from "../types/pdf";
 import { SpeechContext, type SpeechContextType } from "./SpeechContextType";
-import { TTS_ENGINE_PATH } from "../constants/api";
+import { ETTS_API_BASE_URL, TTS_ENGINE_PATH } from "../constants/api";
 import { useSettings } from "../hooks/useSettings";
 import { fetchWithComputeBase } from "../services/localBackend";
 import { ttsCache } from "../services/ttsCache";
@@ -68,12 +68,24 @@ async function fetchTTSBlob(
         body: JSON.stringify({ text, speed: speechRate }),
       },
       apiFetch,
+      engine === "edge" ? ETTS_API_BASE_URL : undefined,
     );
 
     // 不做引擎降級：選定的引擎若不可用（後端回 503）或其他錯誤，直接把錯誤丟出，
     // 讓使用者知道所選引擎沒生效，而不是安靜地換成別的引擎。
     if (!response.ok) {
-      throw new Error(`TTS API 錯誤: ${response.status}`);
+      let message = `TTS API 錯誤: ${response.status}`;
+      try {
+        const body: unknown = await response.json();
+        if (body && typeof body === "object" && "detail" in body &&
+          typeof body.detail === "string" && body.detail.trim()) {
+          message = body.detail;
+        }
+      } catch (error) {
+        if (isAbortError(error)) throw error;
+      }
+      signal?.throwIfAborted();
+      throw new Error(message);
     }
 
     const blob = await response.blob();

@@ -1,11 +1,12 @@
 import { act, useEffect } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { TTSEngine } from "../types/pdf";
 
 const mocks = vi.hoisted(() => ({
   settings: {
     ttsMode: "api" as "api" | "browser",
-    ttsEngine: "piper" as const,
+    ttsEngine: "piper" as TTSEngine,
     speechRate: 1,
   },
   updateTtsMode: vi.fn(),
@@ -42,6 +43,7 @@ vi.mock("../utils/apiUtil", () => ({ apiFetch: vi.fn() }));
 import { useSpeechState } from "../hooks/useSpeechState";
 import type { SpeechContextType } from "./SpeechContextType";
 import { SpeechProvider } from "./SpeechContext";
+import { ETTS_API_BASE_URL, TTS_ENGINE_PATH } from "../constants/api";
 
 interface Deferred<T> {
   promise: Promise<T>;
@@ -135,6 +137,7 @@ beforeEach(() => {
     .IS_REACT_ACT_ENVIRONMENT = true;
   vi.clearAllMocks();
   mocks.settings.ttsMode = "api";
+  mocks.settings.ttsEngine = "piper";
   mocks.getPendingRequest.mockReturnValue(null);
   mocks.setCache.mockResolvedValue(undefined);
   root = null;
@@ -224,6 +227,40 @@ afterEach(() => {
 });
 
 describe("SpeechProvider request ownership", () => {
+  it.each(["edge", "piper", "kokoro"] as const)("routes %s with the appropriate cloud base", async (engine) => {
+    mocks.settings.ttsEngine = engine;
+    mocks.getCache.mockResolvedValue(null);
+    mocks.fetchWithComputeBase.mockResolvedValue({ ok: true, blob: async () => new Blob(["audio"]) });
+    mocks.createObjectURL.mockReturnValue("blob:audio");
+    await mountProvider();
+    act(() => speech().speak("hello"));
+    await flushPromises();
+    expect(mocks.fetchWithComputeBase).toHaveBeenCalledWith(
+      TTS_ENGINE_PATH[engine],
+      expect.objectContaining({ method: "POST", body: JSON.stringify({ text: "hello", speed: 1 }), signal: expect.any(AbortSignal) }),
+      expect.any(Function),
+      engine === "edge" ? ETTS_API_BASE_URL : undefined,
+    );
+    expect(mocks.setCache).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    [{ detail: "Edge TTS 語音合成逾時" }, "Edge TTS 語音合成逾時"],
+    [{ detail: [] }, "TTS API 錯誤: 504"],
+    [null, "TTS API 錯誤: 504"],
+  ])("surfaces error detail or HTTP status for %j", async (body, message) => {
+    mocks.getCache.mockResolvedValue(null);
+    mocks.fetchWithComputeBase.mockResolvedValue({
+      ok: false, status: 504,
+      json: async () => { if (body === null) throw new SyntaxError("not JSON"); return body; },
+    });
+    await mountProvider();
+    await act(async () => { await expect(speech().speakAsync("hello")).rejects.toThrow(message); });
+    expect(mocks.fetchWithComputeBase).toHaveBeenCalledOnce();
+    expect(mocks.setCache).not.toHaveBeenCalled();
+    expect(MockAudio.instances).toHaveLength(0);
+  });
+
   it("does not let an older cache lookup start after the latest speech", async () => {
     const oldLookup = deferred<Blob | null>();
     const oldBlob = new Blob(["old"]);

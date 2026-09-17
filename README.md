@@ -65,17 +65,39 @@ The UI follows macOS Human Interface Guidelines adapted for the web: a collapsib
 - A Supabase project with a private `ollie-reader` Storage bucket, Firebase Third-Party Auth, and RLS policies matching the Firebase user ID
 - For backend PDF/TTS/URL/OIKID modes, either a compatible cloud API or the optional desktop sidecar
 
-Firestore rules, Supabase policies/schema, and the cloud API implementation are deployment infrastructure and are not included in this repository.
+Firestore rules, Supabase policies/schema, and the general cloud compute API are deployment infrastructure. A standalone Next.js Edge TTS API is included in [`server/`](server/README.md).
 
 ### Install and run
 
 ```bash
 npm install
-cp .env.example .env.local
+cp .env.development.example .env.development
 npm run dev
 ```
 
 The Vite development server runs at `http://localhost:5173`.
+
+Frontend environment files are separated by Vite mode:
+
+| Command | Environment file | Template |
+|---|---|---|
+| `npm run dev` | `.env.development` | `.env.development.example` |
+| `npm run build` | `.env.production` | `.env.production.example` |
+| `npm run preview` | Uses the already-built `dist/` bundle | Rebuild to change its environment |
+
+For a local production build, copy `.env.production.example` to `.env.production`
+and fill in the production Firebase, Supabase and deployed API values before
+running `npm run build`. Both Firebase Hosting workflows generate `.env.production`
+from GitHub Actions repository variables. Their PR previews also use production mode.
+
+Actual environment files are ignored by Git; only the examples are committed.
+Keep environment-specific settings out of shared `.env` and `.env.local` files,
+which Vite loads in both modes. Mode-specific files override those shared values;
+optional `.env.development.local` / `.env.production.local` files override the
+corresponding mode files, and exported shell/CI variables take highest priority.
+Keep `VITE_FIREBASE_APPCHECK_DEBUG_TOKEN` empty in production. These are frontend
+build-time settings: restart Vite or rebuild after editing them. The independent
+Next.js service continues to use `server/.env.local`.
 
 ### Environment variables
 
@@ -91,6 +113,7 @@ The Vite development server runs at `http://localhost:5173`.
 | `VITE_FIREBASE_APPCHECK_DEBUG_TOKEN` | Optional development-only App Check debug token |
 | `VITE_GEMINI_CLIENT_RPM_BUDGET` | Effective client-side Gemini RPM budget; defaults to `4` |
 | `VITE_API_BASE_URL` | Compatible cloud compute API; defaults to `http://localhost:8080` |
+| `VITE_ETTS_API_BASE_URL` | Edge TTS cloud API base URL; falls back to `VITE_API_BASE_URL` when unset. Use `http://localhost:3000` for local server development. |
 | `VITE_SUPABASE_URL` | Supabase project URL |
 | `VITE_SUPABASE_PUBLISHABLE_KEY` | Public/publishable Supabase key; never use a service-role or secret key in the frontend |
 
@@ -127,7 +150,9 @@ Reader settings separate three concerns:
 - **Speech:** the browser's system voices or backend AI speech.
 - **Compute location:** `auto` uses the desktop sidecar when it is available and otherwise the cloud API; `local` requires the sidecar; `cloud` skips local detection.
 
-The Web settings currently expose Piper, Kokoro, and Edge as backend TTS engines. Edge is available only through the desktop sidecar and requires network access.
+The Web settings expose Piper, Kokoro, and Edge as backend TTS engines. Edge requires network access and works through either the desktop sidecar or the standalone Next.js API. Only Edge cloud requests use `VITE_ETTS_API_BASE_URL`; other cloud features continue using `VITE_API_BASE_URL`. In `auto` mode, a reachable desktop sidecar is preferred; `local` requires desktop, and `cloud` uses the configured cloud endpoint.
+
+For local Edge cloud development, run `make server-setup` and `make server-dev` alongside Vite. The development template sets `VITE_ETTS_API_BASE_URL=http://localhost:3000`; use the deployed HTTPS API base in `.env.production`. See the [server guide](server/README.md) for the API contract, validation, and Vercel deployment settings.
 
 ## Desktop companion
 

@@ -148,24 +148,31 @@ export function localUnavailableMessage(): string {
 
 /**
  * 用解析後的 base 發送請求；auto 模式下若送往本機的請求發生連線層級失敗，
- * 自動 refresh（改用雲端）並重試一次。fetcher 預設用全域 fetch，TTS 傳 apiFetch。
+ * 自動 refresh 並重試一次。cloudBase 可覆寫此請求的雲端位址，不改變共用解析狀態。
+ * fetcher 預設用全域 fetch，TTS 傳 apiFetch。
  */
 export async function fetchWithComputeBase(
   path: string,
   init: RequestInit,
   fetcher: Fetcher = fetch,
+  cloudBase: string = API_BASE_URL,
 ): Promise<Response> {
   const base = await getComputeBase();
+  init.signal?.throwIfAborted();
+  const requestBase = (resolved: string) =>
+    resolved === LOCAL_BASE_URL ? LOCAL_BASE_URL : cloudBase.replace(/\/+$/, "");
   try {
-    return await fetcher(`${base}${path}`, init);
+    return await fetcher(`${requestBase(base)}${path}`, init);
   } catch (err) {
     if (
       getComputeMode() === "auto" &&
       base === LOCAL_BASE_URL &&
+      !init.signal?.aborted &&
       isLocalConnectionError(err)
     ) {
-      const cloudBase = await refreshComputeBase();
-      return fetcher(`${cloudBase}${path}`, init);
+      const refreshedBase = await refreshComputeBase();
+      init.signal?.throwIfAborted();
+      return fetcher(`${requestBase(refreshedBase)}${path}`, init);
     }
     throw err;
   }

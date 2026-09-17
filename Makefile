@@ -1,6 +1,7 @@
 # Ollie Reader — project task runner
 #
 #   Frontend : React + Vite          (managed with npm)
+#   Server   : Next.js ETTS API      (managed with npm, lives in ./server)
 #   Desktop  : PySide6 + FastAPI      (managed with uv, lives in ./desktop)
 #
 # Run `make` or `make help` to list targets.
@@ -13,6 +14,7 @@ NPM     := npm
 
 .PHONY: help setup install desktop-setup \
         dev build lint preview web-test exam-images \
+        server-setup server-dev server-build server-start server-lint server-test \
         desktop-serve desktop-run desktop-test desktop-models desktop-icon desktop-package desktop-package-clean desktop-clean \
         desktop-verify desktop-dmg desktop-release \
         test clean
@@ -48,6 +50,25 @@ preview: ## Preview the production web build
 
 exam-images: ## Crop exam figures from the source PDF into public/exams/images
 	$(UV) run --directory $(DESKTOP) python ../scripts/crop_exam_images.py
+
+# ── Server (Next.js ETTS API) ─────────────────────────────────────────────
+server-setup: ## Install the standalone Next.js API dependencies
+	$(NPM) ci --prefix server
+
+server-dev: ## Run the ETTS API dev server (http://localhost:3000)
+	$(NPM) run dev --prefix server
+
+server-build: ## Build the ETTS API for production
+	$(NPM) run build --prefix server
+
+server-start: ## Run the built ETTS API (http://localhost:3000)
+	$(NPM) run start --prefix server
+
+server-lint: ## Lint the ETTS API
+	$(NPM) run lint --prefix server
+
+server-test: ## Test the ETTS API without upstream network calls
+	$(NPM) test --prefix server
 
 # ── Desktop (PySide6 + sidecar) ───────────────────────────────────────────
 desktop-serve: ## Run the local API sidecar only (http://127.0.0.1:8765)

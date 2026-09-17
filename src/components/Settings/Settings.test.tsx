@@ -214,7 +214,7 @@ describe("Settings TTS engine picker", () => {
     expect(labels.some((l) => l.includes("Edge TTS"))).toBe(true);
   });
 
-  it("tells the user Edge needs the local desktop app", () => {
+  it("tells the user Edge works through desktop or cloud and needs network", () => {
     settingsState.ttsMode = "api";
     renderSettings();
     openAudioSettings();
@@ -222,8 +222,8 @@ describe("Settings TTS engine picker", () => {
     const edge = engineRadios()
       .map((radio) => radio.closest("label")?.textContent ?? "")
       .find((text) => text.includes("Edge TTS"));
-    // 雲端沒有 /api/etts，選了卻沒開 desktop app 會直接失敗，UI 必須先講
-    expect(edge).toContain("本機");
+    expect(edge).toContain("需連網");
+    expect(edge).toContain("桌面 App 或雲端服務");
   });
 
   it("selects edge through the picker", () => {
