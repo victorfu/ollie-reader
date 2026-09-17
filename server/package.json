@@ -31,6 +31,7 @@
     "vitest": "^4.1.9"
   },
   "allowScripts": {
-    "msedge-tts@2.0.7": true
+    "msedge-tts@2.0.7": true,
+    "fsevents@2.3.3": true
   }
 }
