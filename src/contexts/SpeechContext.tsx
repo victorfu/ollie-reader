@@ -6,9 +6,9 @@ import {
   useMemo,
   type ReactNode,
 } from "react";
-import type { TTSMode, TTSEngine } from "../types/pdf";
+import type { TTSMode } from "../types/pdf";
 import { SpeechContext, type SpeechContextType } from "./SpeechContextType";
-import { ETTS_API_BASE_URL, TTS_ENGINE_PATH } from "../constants/api";
+import { ETTS_API_BASE_URL, ETTS_PATH } from "../constants/api";
 import { useSettings } from "../hooks/useSettings";
 import { fetchWithComputeBase } from "../services/localBackend";
 import { ttsCache } from "../services/ttsCache";
@@ -34,10 +34,9 @@ interface PendingAsyncSpeech {
 async function fetchTTSBlob(
   text: string,
   speechRate: number,
-  engine: TTSEngine,
   signal?: AbortSignal,
 ): Promise<Blob> {
-  const cacheKey = ttsCache.getCacheKey(text, speechRate, engine);
+  const cacheKey = ttsCache.getCacheKey(text, speechRate, "edge");
 
   const pendingRequest = ttsCache.getPendingRequest(cacheKey);
   if (pendingRequest) {
@@ -60,7 +59,7 @@ async function fetchTTSBlob(
 
   const fetchPromise = (async () => {
     const response = await fetchWithComputeBase(
-      TTS_ENGINE_PATH[engine],
+      ETTS_PATH,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -68,11 +67,10 @@ async function fetchTTSBlob(
         body: JSON.stringify({ text, speed: speechRate }),
       },
       apiFetch,
-      engine === "edge" ? ETTS_API_BASE_URL : undefined,
+      ETTS_API_BASE_URL,
     );
 
-    // 不做引擎降級：選定的引擎若不可用（後端回 503）或其他錯誤，直接把錯誤丟出，
-    // 讓使用者知道所選引擎沒生效，而不是安靜地換成別的引擎。
+    // API 錯誤直接呈現，讓使用者知道 Edge TTS 未能完成合成。
     if (!response.ok) {
       let message = `TTS API 錯誤: ${response.status}`;
       try {
@@ -278,7 +276,6 @@ export const SpeechProvider = ({ children }: SpeechProviderProps) => {
         const blob = await fetchTTSBlob(
           text,
           speechRate,
-          ttsEngine,
           controller.signal,
         );
         if (!isCurrentOperation(generation)) return;
@@ -294,7 +291,6 @@ export const SpeechProvider = ({ children }: SpeechProviderProps) => {
     },
     [
       speechRate,
-      ttsEngine,
       isCurrentOperation,
       playAudioBlob,
     ],
@@ -370,7 +366,6 @@ export const SpeechProvider = ({ children }: SpeechProviderProps) => {
               const blob = await fetchTTSBlob(
                 text,
                 speechRate,
-                ttsEngine,
                 controller.signal,
               );
               if (!isCurrentOperation(generation)) return;
@@ -439,7 +434,6 @@ export const SpeechProvider = ({ children }: SpeechProviderProps) => {
     [
       pickEnglishVoice,
       speechRate,
-      ttsEngine,
       speechSupported,
       ttsMode,
       stopSpeaking,

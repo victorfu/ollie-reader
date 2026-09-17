@@ -7,10 +7,9 @@ import {
 } from "../../services/gachaPreferences";
 
 const updateSettingMock = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
-// 可變的設定替身：AI 引擎子選單只在 ttsMode === "api" 時渲染
+// 可變的設定替身：保留系統語音與 Edge TTS 的模式選擇。
 const settingsState = vi.hoisted(() => ({
   ttsMode: "browser",
-  ttsEngine: "piper",
 }));
 
 vi.mock("../../hooks/useAuth", () => ({
@@ -24,14 +23,13 @@ vi.mock("../../hooks/useTheme", () => ({
 vi.mock("../../hooks/useSettings", () => ({
   useSettings: () => ({
     ttsMode: settingsState.ttsMode,
-    ttsEngine: settingsState.ttsEngine,
+    ttsEngine: "edge",
     speechRate: 1,
     readingMode: "word",
     computeMode: "cloud",
     loading: false,
     error: null,
     updateTtsMode: updateSettingMock,
-    updateTtsEngine: updateSettingMock,
     updateSpeechRate: updateSettingMock,
     updateReadingMode: updateSettingMock,
     updateComputeMode: vi.fn(),
@@ -83,12 +81,6 @@ function openAdvancedSettings(): void {
   act(() => button.click());
 }
 
-function engineRadios(): HTMLInputElement[] {
-  return [
-    ...container.querySelectorAll<HTMLInputElement>('input[name="ttsEngine"]'),
-  ];
-}
-
 function showAllToggle(): HTMLInputElement {
   const input = container.querySelector<HTMLInputElement>(
     'input[aria-describedby="show-all-gacha-description"]',
@@ -110,7 +102,6 @@ beforeEach(() => {
     .IS_REACT_ACT_ENVIRONMENT = true;
   window.localStorage.clear();
   settingsState.ttsMode = "browser";
-  settingsState.ttsEngine = "piper";
   updateSettingMock.mockClear();
   container = document.createElement("div");
   document.body.appendChild(container);
@@ -199,19 +190,23 @@ describe("Settings PDF interaction", () => {
   });
 });
 
-describe("Settings TTS engine picker", () => {
-  it("offers Piper, Kokoro and Edge in API mode", () => {
-    settingsState.ttsMode = "api";
+describe("Settings speech modes", () => {
+  it.each(["browser", "api"])("offers only system speech and Edge in %s mode", (mode) => {
+    settingsState.ttsMode = mode;
     renderSettings();
     openAudioSettings();
 
-    const labels = engineRadios().map(
+    const radios = [...container.querySelectorAll<HTMLInputElement>('input[name="ttsMode"]')];
+    const labels = radios.map(
       (radio) => radio.closest("label")?.textContent ?? "",
     );
-    expect(labels).toHaveLength(3);
-    expect(labels.some((l) => l.includes("Piper"))).toBe(true);
-    expect(labels.some((l) => l.includes("Kokoro"))).toBe(true);
+    expect(labels).toHaveLength(2);
+    expect(labels.some((l) => l.includes("系統語音"))).toBe(true);
     expect(labels.some((l) => l.includes("Edge TTS"))).toBe(true);
+    expect(container.textContent).not.toMatch(/Piper|Kokoro/);
+    expect(container.querySelector('input[name="ttsEngine"]')).toBeNull();
+    expect(radios.find((radio) => radio.checked)?.closest("label")?.textContent)
+      .toContain(mode === "api" ? "Edge TTS" : "系統語音");
   });
 
   it("tells the user Edge works through desktop or cloud and needs network", () => {
@@ -219,30 +214,19 @@ describe("Settings TTS engine picker", () => {
     renderSettings();
     openAudioSettings();
 
-    const edge = engineRadios()
-      .map((radio) => radio.closest("label")?.textContent ?? "")
-      .find((text) => text.includes("Edge TTS"));
-    expect(edge).toContain("需連網");
-    expect(edge).toContain("桌面 App 或雲端服務");
+    expect(container.textContent).toContain("需連網");
+    expect(container.textContent).toContain("桌面 App 或雲端服務");
   });
 
-  it("selects edge through the picker", () => {
-    settingsState.ttsMode = "api";
+  it("selects Edge directly from system speech", async () => {
     renderSettings();
     openAudioSettings();
 
-    const edgeRadio = engineRadios().find((radio) =>
+    const edgeRadio = [...container.querySelectorAll<HTMLInputElement>('input[name="ttsMode"]')].find((radio) =>
       radio.closest("label")?.textContent?.includes("Edge TTS"),
     );
     if (!edgeRadio) throw new Error("edge engine radio not found");
-    act(() => edgeRadio.click());
-
-    expect(updateSettingMock).toHaveBeenCalledWith("edge");
-  });
-
-  it("hides the engine picker in browser mode", () => {
-    renderSettings();
-    openAudioSettings();
-    expect(engineRadios()).toHaveLength(0);
+    await act(async () => edgeRadio.click());
+    expect(updateSettingMock).toHaveBeenCalledExactlyOnceWith("api");
   });
 });

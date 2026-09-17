@@ -3,6 +3,8 @@ import { createRoot, type Root } from "react-dom/client";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+vi.mock("../../services/gameService", () => ({ playSound: vi.fn() }));
+
 // AnimatePresence mode="wait" 的退場動畫在 jsdom 沒有 rAF 驅動,
 // 舊視圖永遠退不了場;把 framer-motion 換成同步 passthrough。
 vi.mock("framer-motion", async () => {
@@ -58,7 +60,7 @@ const FAKE_SPEECH: SpeechContextType = {
   speechRate: 1,
   isSpeaking: false,
   ttsMode: "browser",
-  ttsEngine: "piper",
+  ttsEngine: "edge",
   setTtsMode: vi.fn(),
   isLoadingAudio: false,
   speechSupported: true,

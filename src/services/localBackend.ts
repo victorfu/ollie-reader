@@ -52,7 +52,7 @@ async function probeLocal(): Promise<boolean> {
 }
 
 /**
- * 回傳 pdf/tts/ktts 應使用的 base：
+ * 回傳 PDF、Edge TTS 等運算請求應使用的 base：
  *   cloud → API_BASE_URL（不探測）
  *   local → LOCAL_BASE_URL（不探測）
  *   auto  → 本 session 探測過用快取，否則探一次（探到本機用本機，否則雲端）

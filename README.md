@@ -150,7 +150,7 @@ Reader settings separate three concerns:
 - **Speech:** the browser's system voices or backend AI speech.
 - **Compute location:** `auto` uses the desktop sidecar when it is available and otherwise the cloud API; `local` requires the sidecar; `cloud` skips local detection.
 
-The Web settings expose Piper, Kokoro, and Edge as backend TTS engines. Edge requires network access and works through either the desktop sidecar or the standalone Next.js API. Only Edge cloud requests use `VITE_ETTS_API_BASE_URL`; other cloud features continue using `VITE_API_BASE_URL`. In `auto` mode, a reachable desktop sidecar is preferred; `local` requires desktop, and `cloud` uses the configured cloud endpoint.
+The Web app supports system speech and Edge TTS. Edge requires network access and works through either the desktop sidecar or the standalone Next.js API. Edge cloud requests use `VITE_ETTS_API_BASE_URL`; other cloud features continue using `VITE_API_BASE_URL`. In `auto` mode, a reachable desktop sidecar is preferred; `local` requires desktop, and `cloud` uses the configured cloud endpoint. Legacy engine preferences are treated as Edge TTS and saved as Edge on the next settings update; the system/API speech mode is preserved. The Web app no longer calls the Piper or Kokoro endpoints, which remain available in the desktop sidecar.
 
 For local Edge cloud development, run `make server-setup` and `make server-dev` alongside Vite. The development template sets `VITE_ETTS_API_BASE_URL=http://localhost:3000`; use the deployed HTTPS API base in `.env.production`. See the [server guide](server/README.md) for the API contract, validation, and Vercel deployment settings.
 

@@ -5,7 +5,6 @@ import { SettingsContext } from "./SettingsContextType";
 import type { UserSettings } from "../types/settings";
 import type {
   TTSMode,
-  TTSEngine,
   ReadingMode,
   ComputeMode,
   VocabularyPanelMode,
@@ -36,7 +35,6 @@ const getShowChineseTranslationFromStorage = (): boolean => {
 export const SettingsProvider = ({ children }: SettingsProviderProps) => {
   const { user } = useAuth();
   const [ttsMode, setTtsMode] = useState<TTSMode>("browser");
-  const [ttsEngine, setTtsEngine] = useState<TTSEngine>("piper");
   const [speechRate, setSpeechRate] = useState<number>(1);
   const [readingMode, setReadingMode] = useState<ReadingMode>("word");
   const [showChineseTranslation, setShowChineseTranslation] = useState<boolean>(
@@ -53,7 +51,6 @@ export const SettingsProvider = ({ children }: SettingsProviderProps) => {
     const loadSettings = async () => {
       if (!user) {
         setTtsMode("browser"); // Default when logged out
-        setTtsEngine("piper"); // Default when logged out
         setSpeechRate(1); // Default when logged out
         setReadingMode("word"); // Default when logged out
         setLoading(false);
@@ -67,13 +64,11 @@ export const SettingsProvider = ({ children }: SettingsProviderProps) => {
         const settings = await getUserSettings(user.uid);
         if (settings) {
           setTtsMode(settings.ttsMode);
-          setTtsEngine(settings.ttsEngine ?? "piper");
           setSpeechRate(settings.speechRate ?? 1);
           setReadingMode(settings.readingMode ?? "word");
         } else {
           // No settings found, use defaults
           setTtsMode("browser");
-          setTtsEngine("piper");
           setSpeechRate(1);
           setReadingMode("word");
         }
@@ -95,7 +90,7 @@ export const SettingsProvider = ({ children }: SettingsProviderProps) => {
     async <
       K extends keyof Pick<
         UserSettings,
-        "ttsMode" | "ttsEngine" | "speechRate" | "readingMode"
+        "ttsMode" | "speechRate" | "readingMode"
       >,
     >(
       key: K,
@@ -124,14 +119,6 @@ export const SettingsProvider = ({ children }: SettingsProviderProps) => {
 
   const updateTtsMode = useCallback(
     (mode: TTSMode) => updateSetting("ttsMode", mode, setTtsMode),
-    [updateSetting],
-  );
-
-  const updateTtsEngine = useCallback(
-    (engine: TTSEngine) =>
-      updateSetting("ttsEngine", engine, (value) => {
-        if (value) setTtsEngine(value as TTSEngine);
-      }),
     [updateSetting],
   );
 
@@ -175,7 +162,7 @@ export const SettingsProvider = ({ children }: SettingsProviderProps) => {
   const value = useMemo(
     () => ({
       ttsMode,
-      ttsEngine,
+      ttsEngine: "edge" as const,
       speechRate,
       readingMode,
       showChineseTranslation,
@@ -184,7 +171,6 @@ export const SettingsProvider = ({ children }: SettingsProviderProps) => {
       loading,
       error,
       updateTtsMode,
-      updateTtsEngine,
       updateSpeechRate,
       updateReadingMode,
       updateShowChineseTranslation,
@@ -193,7 +179,6 @@ export const SettingsProvider = ({ children }: SettingsProviderProps) => {
     }),
     [
       ttsMode,
-      ttsEngine,
       speechRate,
       readingMode,
       showChineseTranslation,
@@ -202,7 +187,6 @@ export const SettingsProvider = ({ children }: SettingsProviderProps) => {
       loading,
       error,
       updateTtsMode,
-      updateTtsEngine,
       updateSpeechRate,
       updateReadingMode,
       updateShowChineseTranslation,

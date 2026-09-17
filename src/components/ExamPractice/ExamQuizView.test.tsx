@@ -31,7 +31,7 @@ const FAKE_SPEECH: SpeechContextType = {
   speechRate: 1,
   isSpeaking: false,
   ttsMode: "browser",
-  ttsEngine: "piper",
+  ttsEngine: "edge",
   setTtsMode: vi.fn(),
   isLoadingAudio: false,
   speechSupported: true,

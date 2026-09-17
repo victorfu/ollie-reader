@@ -18,7 +18,7 @@ import { resetGameProgress } from "../../services/gameProgressService";
 import { ConfirmModal } from "../common/ConfirmModal";
 import { GlassCard } from "../common/GlassCard";
 import { Toast } from "../common/Toast";
-import type { TTSMode, TTSEngine, ComputeMode } from "../../types/pdf";
+import type { TTSMode, ComputeMode } from "../../types/pdf";
 import { getComputeStatusSync, refreshComputeBase, type ComputeStatus } from "../../services/localBackend";
 
 const THEME_OPTIONS = [
@@ -45,12 +45,10 @@ export const Settings = () => {
     useGachaMissRate();
   const {
     ttsMode,
-    ttsEngine,
     speechRate,
     loading,
     error,
     updateTtsMode,
-    updateTtsEngine,
     updateSpeechRate,
     computeMode,
     updateComputeMode,
@@ -70,20 +68,6 @@ export const Settings = () => {
 
     try {
       await updateTtsMode(mode);
-      setSaveSuccess(true);
-    } catch (err) {
-      console.error("Failed to save settings:", err);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleTtsEngineChange = async (engine: TTSEngine) => {
-    setSaving(true);
-    setSaveSuccess(false);
-
-    try {
-      await updateTtsEngine(engine);
       setSaveSuccess(true);
     } catch (err) {
       console.error("Failed to save settings:", err);
@@ -299,59 +283,13 @@ export const Settings = () => {
                           disabled={saving}
                         />
                         <div className="flex-1">
-                          <div className="font-medium">AI 語音</div>
+                          <div className="font-medium">AI 語音（Edge TTS）</div>
                           <div className="text-sm text-muted-foreground">
-                            使用 AI 語音合成服務，聲音更自然
+                            微軟神經語音；需連網，可透過桌面 App 或雲端服務使用
                           </div>
                         </div>
                       </label>
                     </div>
-
-                    {/* AI 引擎子選單（僅在 API 模式顯示） */}
-                    {ttsMode === "api" && (
-                      <div className="mt-3 space-y-3 border-l-2 border-border-hairline pl-4">
-                        <p className="text-sm text-base-content/70">選擇 AI 語音引擎</p>
-                        {(
-                          [
-                            {
-                              id: "piper",
-                              name: "Piper",
-                              desc: "本地模型，速度快、免費、隱私（預設）",
-                            },
-                            {
-                              id: "kokoro",
-                              name: "Kokoro",
-                              desc: "高品質神經語音；需後端本地啟用，未啟用會失敗",
-                            },
-                            {
-                              id: "edge",
-                              name: "Edge TTS",
-                              desc: "微軟神經語音；需連網，可透過桌面 App 或雲端服務使用",
-                            },
-                          ] as { id: TTSEngine; name: string; desc: string }[]
-                        ).map((eng) => (
-                          <label
-                            key={eng.id}
-                            className="flex items-start gap-3 p-3 border border-border-hairline rounded-lg cursor-pointer hover:bg-base-200/60 transition-colors"
-                          >
-                            <input
-                              type="radio"
-                              name="ttsEngine"
-                              className="radio radio-primary radio-sm mt-1"
-                              checked={ttsEngine === eng.id}
-                              onChange={() => handleTtsEngineChange(eng.id)}
-                              disabled={saving}
-                            />
-                            <div className="flex-1">
-                              <div className="font-medium">{eng.name}</div>
-                              <div className="text-sm text-muted-foreground">
-                                {eng.desc}
-                              </div>
-                            </div>
-                          </label>
-                        ))}
-                      </div>
-                    )}
                   </div>
 
                   {/* Divider */}

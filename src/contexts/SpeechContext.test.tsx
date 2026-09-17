@@ -6,7 +6,7 @@ import type { TTSEngine } from "../types/pdf";
 const mocks = vi.hoisted(() => ({
   settings: {
     ttsMode: "api" as "api" | "browser",
-    ttsEngine: "piper" as TTSEngine,
+    ttsEngine: "edge" as TTSEngine,
     speechRate: 1,
   },
   updateTtsMode: vi.fn(),
@@ -43,7 +43,7 @@ vi.mock("../utils/apiUtil", () => ({ apiFetch: vi.fn() }));
 import { useSpeechState } from "../hooks/useSpeechState";
 import type { SpeechContextType } from "./SpeechContextType";
 import { SpeechProvider } from "./SpeechContext";
-import { ETTS_API_BASE_URL, TTS_ENGINE_PATH } from "../constants/api";
+import { ETTS_API_BASE_URL } from "../constants/api";
 
 interface Deferred<T> {
   promise: Promise<T>;
@@ -137,7 +137,7 @@ beforeEach(() => {
     .IS_REACT_ACT_ENVIRONMENT = true;
   vi.clearAllMocks();
   mocks.settings.ttsMode = "api";
-  mocks.settings.ttsEngine = "piper";
+  mocks.settings.ttsEngine = "edge";
   mocks.getPendingRequest.mockReturnValue(null);
   mocks.setCache.mockResolvedValue(undefined);
   root = null;
@@ -227,8 +227,7 @@ afterEach(() => {
 });
 
 describe("SpeechProvider request ownership", () => {
-  it.each(["edge", "piper", "kokoro"] as const)("routes %s with the appropriate cloud base", async (engine) => {
-    mocks.settings.ttsEngine = engine;
+  it("routes API speech through Edge with its cloud base and cache namespace", async () => {
     mocks.getCache.mockResolvedValue(null);
     mocks.fetchWithComputeBase.mockResolvedValue({ ok: true, blob: async () => new Blob(["audio"]) });
     mocks.createObjectURL.mockReturnValue("blob:audio");
@@ -236,12 +235,13 @@ describe("SpeechProvider request ownership", () => {
     act(() => speech().speak("hello"));
     await flushPromises();
     expect(mocks.fetchWithComputeBase).toHaveBeenCalledWith(
-      TTS_ENGINE_PATH[engine],
+      "/api/etts",
       expect.objectContaining({ method: "POST", body: JSON.stringify({ text: "hello", speed: 1 }), signal: expect.any(AbortSignal) }),
       expect.any(Function),
-      engine === "edge" ? ETTS_API_BASE_URL : undefined,
+      ETTS_API_BASE_URL,
     );
     expect(mocks.setCache).toHaveBeenCalledOnce();
+    expect(mocks.getCacheKey).toHaveBeenCalledWith("hello", 1, "edge");
   });
 
   it.each([
@@ -381,6 +381,7 @@ describe("SpeechProvider request ownership", () => {
 
     const playback = speech().speakAsync("browser speech");
     expect(spokenUtterances).toHaveLength(1);
+    expect(mocks.fetchWithComputeBase).not.toHaveBeenCalled();
     act(() => spokenUtterances[0].onend?.());
 
     await expect(playback).resolves.toBeUndefined();

@@ -1,19 +1,9 @@
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "../utils/firebaseUtil";
 import type { UserSettings } from "../types/settings";
-import type { TTSMode, TTSEngine, ReadingMode } from "../types/pdf";
+import type { TTSMode, ReadingMode } from "../types/pdf";
 
 const SETTINGS_COLLECTION = "userSettings";
-
-/**
- * 僅接受目前支援的引擎（piper / kokoro / edge）；任何其他值（含舊資料如已
- * 移除的 "google"、"chatterbox"）fallback 到 piper。
- */
-export function normalizeTtsEngine(value: unknown): TTSEngine {
-  return value === "kokoro" || value === "piper" || value === "edge"
-    ? value
-    : "piper";
-}
 
 /**
  * Get user settings from Firestore
@@ -30,7 +20,8 @@ export const getUserSettings = async (
       return {
         userId,
         ttsMode: (data.ttsMode as TTSMode) || "browser",
-        ttsEngine: normalizeTtsEngine(data.ttsEngine),
+        // 舊帳號儲存的引擎選擇統一遷移為 Edge，保留原本的語音模式。
+        ttsEngine: "edge",
         speechRate: (data.speechRate as number) ?? 1,
         readingMode: (data.readingMode as ReadingMode) || "word",
         createdAt: data.createdAt?.toDate(),
@@ -51,7 +42,7 @@ export const getUserSettings = async (
 export const saveUserSettings = async (
   userId: string,
   settings: Partial<
-    Pick<UserSettings, "ttsMode" | "ttsEngine" | "speechRate" | "readingMode">
+    Pick<UserSettings, "ttsMode" | "speechRate" | "readingMode">
   >,
 ): Promise<void> => {
   try {
@@ -64,6 +55,7 @@ export const saveUserSettings = async (
         docRef,
         {
           ...settings,
+          ttsEngine: "edge",
           updatedAt: serverTimestamp(),
         },
         { merge: true },
@@ -73,7 +65,7 @@ export const saveUserSettings = async (
       await setDoc(docRef, {
         userId,
         ttsMode: settings.ttsMode || "browser",
-        ttsEngine: normalizeTtsEngine(settings.ttsEngine),
+        ttsEngine: "edge",
         speechRate: settings.speechRate ?? 1,
         readingMode: settings.readingMode || "word",
         createdAt: serverTimestamp(),

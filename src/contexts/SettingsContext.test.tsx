@@ -6,7 +6,6 @@ vi.mock("../hooks/useAuth", () => ({ useAuth: () => ({ user: null }) }));
 vi.mock("../services/settingsService", () => ({
   getUserSettings: vi.fn().mockResolvedValue(null),
   saveUserSettings: vi.fn().mockResolvedValue(undefined),
-  normalizeTtsEngine: () => "piper",
 }));
 vi.mock("../services/localBackend", () => ({
   getComputeMode: () => "auto",
@@ -18,10 +17,11 @@ import { useSettings } from "../hooks/useSettings";
 import { VOCABULARY_PANEL_MODE_KEY } from "../utils/vocabularyPanelPreferences";
 
 function Probe() {
-  const { vocabularyPanelMode, updateVocabularyPanelMode } = useSettings();
+  const { vocabularyPanelMode, updateVocabularyPanelMode, ttsEngine } = useSettings();
   return (
     <button
       data-testid="probe"
+      data-tts-engine={ttsEngine}
       onClick={() =>
         updateVocabularyPanelMode(
           vocabularyPanelMode === "docked" ? "floating" : "docked",
@@ -54,6 +54,7 @@ describe("SettingsContext vocabulary panel mode", () => {
   it("defaults to docked", () => {
     act(() => root.render(<SettingsProvider><Probe /></SettingsProvider>));
     expect(host.querySelector('[data-testid="probe"]')?.textContent).toBe("docked");
+    expect(host.querySelector('[data-testid="probe"]')?.getAttribute("data-tts-engine")).toBe("edge");
   });
 
   it("reads the stored preference on mount", () => {

@@ -2,6 +2,7 @@
  * TTS Cache Service
  * Provides in-memory and IndexedDB caching for TTS audio blobs
  */
+import type { TTSEngine } from "../types/pdf";
 
 interface CacheEntry {
   blob: Blob;
@@ -17,7 +18,7 @@ const DB_NAME = "ollie-tts-cache";
 const STORE_NAME = "audio-blobs";
 // Bumped to 7: sidecar 的 Edge 預設聲音由 Jenny 改為 Aria，以改善部分光桿單字
 // 的發音。快取 key 不含 voice，不升版的話舊聲音的音檔會再活 7 天。
-// onupgradeneeded 會整個重建 store（連 Piper/Kokoro 的也清掉；單字重合成很便宜）。
+// onupgradeneeded 會整個重建 store。
 const DB_VERSION = 7;
 const MAX_CACHE_SIZE = 50; // Maximum number of cached items in memory
 const CACHE_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
@@ -107,13 +108,13 @@ class TTSCacheService {
   getCacheKey(
     text: string,
     speakingRate: number,
-    engine?: string,
+    engine: TTSEngine = "edge",
     voice?: string,
   ): string {
     return JSON.stringify({
       text,
       speakingRate,
-      engine: engine ?? "piper",
+      engine,
       voice: voice ?? null,
     });
   }
