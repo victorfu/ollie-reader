@@ -13,11 +13,13 @@ npm run dev
 
 The API listens at `http://localhost:3000`. For production locally, use `npm run build` followed by `npm start`. Run `npm test` and `npm run lint` for isolated server checks. Equivalent root Makefile targets are `server-setup`, `server-dev`, `server-build`, `server-start`, `server-test`, and `server-lint`.
 
+After building, run `npm run test:runtime` to check the production booking route with Node's `require(esm)` support disabled. This starts a loopback server on port 3012 (`SMOKE_PORT` can override it), checks booking/version preflights and missing/invalid Firebase tokens, then stops the server. No OIKID request is made. `next.config.ts` bundles `firebase-admin`, `jwks-rsa` and `jose` together because jwks-rsa's CommonJS import of ESM-only jose otherwise fails in deployment runtimes that disable `require(esm)`.
+
 The server has its own dependencies and lockfile. The root Vite build, tests and lint remain independent. Only OIKID requires a Firebase ID token and server-side account configuration. No desktop app or user AI API key is needed.
 
 ## General endpoints
 
-All errors return `{ "detail": "..." }`; all responses use `Cache-Control: no-store`. Browser origins use the same allowlist as Edge. GET preflights permit `Authorization` and `Content-Type`; PDF POST preflights permit `Content-Type`. Clients can read the download metadata headers across origins.
+All errors return `{ "detail": "..." }`; all responses use `Cache-Control: no-store`. Browser origins use the same allowlist as Edge. GET preflights permit `Authorization`, `Content-Type` and the warm-server caller's `Cache-Control`; PDF POST preflights permit `Content-Type`. Clients can read the download metadata headers across origins.
 
 ### GET /api/version
 

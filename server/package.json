@@ -11,7 +11,8 @@
     "build": "next build",
     "start": "next start -p 3000",
     "lint": "eslint .",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:runtime": "node scripts/smoke-auth-runtime.mjs"
   },
   "dependencies": {
     "firebase-admin": "^14.4.0",

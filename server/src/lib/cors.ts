@@ -25,7 +25,7 @@ export function corsHeaders(request: Request, method: "POST" | "GET" = "POST"): 
   if (origin && allowed) {
     headers.set("Access-Control-Allow-Origin", origin);
     headers.set("Access-Control-Allow-Methods", `${method}, OPTIONS`);
-    headers.set("Access-Control-Allow-Headers", method === "GET" ? "Content-Type, Authorization" : "Content-Type");
+    headers.set("Access-Control-Allow-Headers", method === "GET" ? "Content-Type, Authorization, Cache-Control" : "Content-Type");
     headers.set("Access-Control-Expose-Headers", method === "GET" ? "Content-Disposition, X-Final-URL, X-Redirect-Count, X-File-Extension" : "Content-Disposition");
   }
   return { headers, allowed };

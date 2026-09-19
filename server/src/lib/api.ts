@@ -32,7 +32,7 @@ async function preflight(request: Request, allowedMethod: "GET" | "POST"): Promi
   return apiResponse(request, async (headers) => {
     const method = request.headers.get("access-control-request-method");
     const requested = (request.headers.get("access-control-request-headers") || "").split(",");
-    const allowedHeaders = allowedMethod === "GET" ? ["authorization", "content-type"] : ["content-type"];
+    const allowedHeaders = allowedMethod === "GET" ? ["authorization", "content-type", "cache-control"] : ["content-type"];
     if ((method && method !== allowedMethod) || requested.some((h) => h.trim() && !allowedHeaders.includes(h.trim().toLowerCase()))) {
       throw new ApiError("不支援的預檢請求", 403);
     }
