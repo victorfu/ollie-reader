@@ -65,7 +65,7 @@ The UI follows macOS Human Interface Guidelines adapted for the web: a collapsib
 - A Supabase project with a private `ollie-reader` Storage bucket, Firebase Third-Party Auth, and RLS policies matching the Firebase user ID
 - For backend PDF/TTS/URL/OIKID modes, either a compatible cloud API or the optional desktop sidecar
 
-Firestore rules, Supabase policies/schema, and the general cloud compute API are deployment infrastructure. A standalone Next.js Edge TTS API is included in [`server/`](server/README.md).
+Firestore rules and Supabase policies/schema are deployment infrastructure. A standalone Next.js API for Edge TTS, PDF extraction, URL fetching, OIKID bookings and version checks is included in [`server/`](server/README.md).
 
 ### Install and run
 
@@ -112,7 +112,7 @@ Next.js service continues to use `server/.env.local`.
 | `VITE_RECAPTCHA_SITE_KEY` | Public reCAPTCHA v3 key used by Firebase App Check |
 | `VITE_FIREBASE_APPCHECK_DEBUG_TOKEN` | Optional development-only App Check debug token |
 | `VITE_GEMINI_CLIENT_RPM_BUDGET` | Effective client-side Gemini RPM budget; defaults to `4` |
-| `VITE_API_BASE_URL` | Compatible cloud compute API; defaults to `http://localhost:8080` |
+| `VITE_API_BASE_URL` | Own server API; defaults to `http://localhost:3000` in development and `https://server-one-xi-16.vercel.app` in production |
 | `VITE_ETTS_API_BASE_URL` | Edge TTS cloud API base URL; falls back to `VITE_API_BASE_URL` when unset. Use `http://localhost:3000` for local server development. |
 | `VITE_SUPABASE_URL` | Supabase project URL |
 | `VITE_SUPABASE_PUBLISHABLE_KEY` | Public/publishable Supabase key; never use a service-role or secret key in the frontend |
@@ -152,7 +152,7 @@ Reader settings separate three concerns:
 
 The Web app supports system speech and Edge TTS. Edge requires network access and works through either the desktop sidecar or the standalone Next.js API. Edge cloud requests use `VITE_ETTS_API_BASE_URL`; other cloud features continue using `VITE_API_BASE_URL`. In `auto` mode, a reachable desktop sidecar is preferred; `local` requires desktop, and `cloud` uses the configured cloud endpoint. Legacy engine preferences are treated as Edge TTS and saved as Edge on the next settings update; the system/API speech mode is preserved. The Web app no longer calls the Piper or Kokoro endpoints, which remain available in the desktop sidecar.
 
-For local Edge cloud development, run `make server-setup` and `make server-dev` alongside Vite. The development template sets `VITE_ETTS_API_BASE_URL=http://localhost:3000`; use the deployed HTTPS API base in `.env.production`. See the [server guide](server/README.md) for the API contract, validation, and Vercel deployment settings.
+For local server development, run `make server-setup` and `make server-dev` alongside Vite. The development template sets `VITE_ETTS_API_BASE_URL=http://localhost:3000`; the development settings also use that address for `VITE_API_BASE_URL`. Use the deployed HTTPS API base in `.env.production`. The server uses PDF.js instead of the desktop's PyMuPDF, so extracted text formatting can differ; its PDF/file endpoints have a 4 MiB limit. See the [server guide](server/README.md) for API contracts, server-only OIKID/Firebase configuration, validation, and Vercel deployment settings.
 
 ## Desktop companion
 

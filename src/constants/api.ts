@@ -1,5 +1,7 @@
 export const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
+  (import.meta.env.VITE_API_BASE_URL?.trim() ||
+    (import.meta.env.DEV ? "http://localhost:3000" : "https://server-one-xi-16.vercel.app"))
+    .replace(/\/+$/, "");
 export const ETTS_API_BASE_URL =
   (import.meta.env.VITE_ETTS_API_BASE_URL?.trim() || API_BASE_URL).replace(/\/+$/, "");
 export const API_URL = `${API_BASE_URL}/api/pdf/extract`;
