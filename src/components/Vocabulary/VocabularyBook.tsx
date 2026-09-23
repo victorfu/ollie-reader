@@ -160,6 +160,8 @@ export const VocabularyBook = () => {
   const [availableTags, setAvailableTags] = useState<string[]>([]);
 
   const smartQueryFieldId = "smart-query-input";
+  const smartQueryInputRef = useRef<HTMLInputElement>(null);
+  const refocusSmartQueryRef = useRef(false);
   const loadMoreRef = useRef<HTMLDivElement>(null);
   const searchRequestIdRef = useRef(0);
   const queryAbortRef = useRef<AbortController | null>(null);
@@ -365,6 +367,9 @@ export const VocabularyBook = () => {
     const controller = new AbortController();
     queryAbortRef.current = controller;
     const { signal } = controller;
+    // Keep the field ready for the next entry when the user submitted from it
+    // (Enter or the button), so consecutive lookups need no extra click.
+    const shouldRefocus = event.currentTarget.contains(document.activeElement);
 
     setIsQuerying(true);
     try {
@@ -477,8 +482,25 @@ export const VocabularyBook = () => {
       }
     } finally {
       setIsQuerying(false);
+      if (shouldRefocus && !signal.aborted) {
+        refocusSmartQueryRef.current = true;
+      }
     }
   };
+
+  // Restore focus after the query result has rendered (detail pane, toast),
+  // with the caret at the end so a kept query can be edited right away.
+  // Skipped on mobile when the detail sheet covers the field.
+  useEffect(() => {
+    if (isQuerying || !refocusSmartQueryRef.current) return;
+    refocusSmartQueryRef.current = false;
+    if (!isDesktop && selected) return;
+    const input = smartQueryInputRef.current;
+    if (!input) return;
+    input.focus();
+    const end = input.value.length;
+    input.setSelectionRange(end, end);
+  }, [isQuerying, isDesktop, selected]);
 
   // Add a key word from a sentence's chips to the vocabulary book
   const handleAddKeyWord = useCallback(
@@ -702,13 +724,16 @@ export const VocabularyBook = () => {
           <div className="shrink-0 space-y-2">
             <form className="flex gap-2" onSubmit={handleSmartSubmit}>
               <input
+                ref={smartQueryInputRef}
                 id={smartQueryFieldId}
                 type="text"
                 placeholder="輸入英文單字或句子"
                 className={`${toolbarFieldClass} flex-1`}
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                disabled={isQuerying}
+                // readOnly (not disabled) so the field keeps focus while querying
+                readOnly={isQuerying}
+                aria-busy={isQuerying}
                 autoComplete="off"
               />
               <button
