@@ -2,7 +2,7 @@
 
 <metadata>
 date: 2026-09-24
-status: draft（待使用者審閱）
+status: approved；實作計畫 docs/superpowers/plans/2026-09-24-my-exams-m1-question-bank.md、docs/superpowers/plans/2026-09-24-my-exams-m2-compose-print.md
 scope: 新分頁 /my-exams（自製考卷）— 上傳、裁題、題庫、組卷、列印
 audience: 開發者本人（家長）；私人使用、不公開發行。
 </metadata>
@@ -210,7 +210,7 @@ export interface ExamSheet {
 ### 8.1 版面
 
 - **桌機（`lg+`）**：左側頁面縮圖列、中間目前這頁的大圖（`CropCanvas`）、右側這頁的題目清單。
-- **手機**：大圖占滿寬度，題目清單改為底部可拉出的面板；頁面切換用上一頁／下一頁按鈕。
+- **手機**：大圖占滿寬度，題目清單排在大圖下方（裁題主要在電腦上做，不另做底部拉出面板）；頁面切換用上一頁／下一頁按鈕。
 - **工具列**：來源標題（點擊可改名，寫回 `questionSources.title`，走 §8.4 同一套自動儲存）、模式切換「框題目」／「遮蓋」、儲存狀態、返回首頁。來源的科目不提供修改（每題各自有科目）。
 - **`?q=<questionId>`**：從題庫首頁點題目進來時帶這個參數，畫面切到該題第一個 region 所在的頁並選取該題。
 
