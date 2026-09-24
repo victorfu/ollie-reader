@@ -21,13 +21,14 @@ audience: 開發者本人（家長）；私人使用、不公開發行。
 - 印出 A4 試卷（可另存 PDF），可選擇附一張答案頁給家長批改。
 - 支援國語、數學、英文、自然、社會。
 
-## 3. 非目標（本版不做，見 §15）
+## 3. 非目標（本版不做，見 §17）
 
 - **不使用 AI（Gemini）**。不擷取題目文字、不自動框題、不產生類題、不擦除手寫。
 - 不做線上作答，只印紙本。
 - 不做回填對錯與錯題權重（資料結構預留擴充空間）。
 - 不做標籤、單元篩選。
-- 不做兩欄排版、透視校正、去紅筆濾鏡、裁題畫面縮放。
+- 不做兩欄排版、透視校正、去紅筆濾鏡。
+- 不做裁題畫面縮放：裁題主要在電腦上做；手機可以用，但不特別最佳化。
 
 ## 4. 決策
 
@@ -39,8 +40,10 @@ audience: 開發者本人（家長）；私人使用、不公開發行。
 | 裁切結果 | 不另存檔，一律「原頁圖＋框座標」即時呈現 | 另存裁切圖：改框要重新上傳、多一份儲存與清理成本。 |
 | 旋轉 | 只在上傳前的預覽步驟 | 上傳後可旋轉：需要重新編碼上傳，並換算既有框與遮蓋的座標。手機掃描＋EXIF 已涵蓋多數情況。 |
 | 裁題儲存 | 自動儲存（防抖 1 秒） | 手動存檔＋離開提醒：專案使用 `BrowserRouter`，沒有 `useBlocker`，攔不住站內換頁（`ExamPracticePage.tsx:31` 有同樣的限制）。 |
-| 遮蓋框的繪製 | SVG `<rect fill="white">` | CSS 背景色 div：瀏覽器列印預設不印背景色，會透出底下的答案。 |
-| 與 `/exams` 的關係 | 獨立新分頁 | 併入 `/exams`：該頁是線上作答引擎，本功能只印紙本，兩者資料與流程都不同。只重用科目名稱的呈現方式。 |
+| 遮蓋框的繪製（呈現與列印） | SVG `<rect fill="white">` | CSS 背景色 div：瀏覽器列印預設不印背景色，會透出底下的答案。 |
+| 裁題畫面的框與把手 | 絕對定位的 HTML div（位置用百分比、把手用 px、線條用 border） | SVG `viewBox="0 0 1 1"`＋`preserveAspectRatio="none"`：非等比縮放讓線條粗細不一、把手變形，44px 觸控熱區也無法用 0–1 單位表示。 |
+| 題目在來源內的順序 | 依 `createdAt`（框選順序） | 依位置 `(pageIndex, y, x)`：台灣考卷常見兩欄排版，左欄第 2 題的 y 比右欄第 6 題大，序號會左右交錯。 |
+| 與 `/exams` 的關係 | 獨立新分頁，不重用 `/exams` 的程式碼 | 併入 `/exams`：該頁是線上作答引擎，本功能只印紙本，兩者資料與流程都不同。科目也不同（本功能五科，`SUBJECT_LABELS` 只有三科）。 |
 | 題庫載入 | 一次全量載入、前端篩選與抽題 | 分頁查詢：題庫預期只有數百題，全量最單純。 |
 
 ## 5. 架構總覽
@@ -57,6 +60,7 @@ audience: 開發者本人（家長）；私人使用、不公開發行。
 
 - 分頁在 `navItems` 註冊為 `{ to: "/my-exams", label: "自製考卷", icon: Printer }`。
 - 列印頁跟小遊戲一樣走 `App.tsx` 的獨立全螢幕分支，但**要放在登入檢查之後**（小遊戲的分支在登入檢查之前；列印頁要讀 Firestore，必須已登入）。
+  - 小遊戲的分支用 `normalizedPathname === ...` 比對、不在 `<Routes>` 裡，而列印頁需要 `:id`。所以用 `matchPath("/my-exams/sheets/:id/print", normalizedPathname)` 判斷，分支內包一個只有這條 route 的 `<Routes>`，讓 `SheetPrintView` 可以用 `useParams`。
 - 頂部標題 `currentLabel` 目前是 `location.pathname` 完全比對，子頁面會顯示 fallback「Ollie Reader」。改為前綴比對（`pathname === to || pathname.startsWith(to + "/")`），讓 `/my-exams/*` 顯示「自製考卷」。
 
 ### 5.2 檔案
@@ -171,8 +175,9 @@ export interface ExamSheet {
 }
 ```
 
-- **題目排序**：不存 `order` 欄位。裁題畫面與題庫列表依第一個 region 的 `(pageIndex, box.y, box.x)` 排序，跟原卷由上到下的順序一致。
+- **題目排序**：不存 `order` 欄位。同一來源內依 `createdAt` 由舊到新（也就是框選的順序）；題庫列表先依來源的 `createdAt` 由新到舊分組，組內同上。
 - **`regions` 非空**：mapper 讀取時驗證；空的就視為壞資料、略過並用 `logger` 記錄。
+- **不寫 `undefined`**：`src/utils/firebaseUtil.ts:56` 是 `getFirestore(app)`，沒有開 `ignoreUndefinedProperties`，寫入含 `undefined` 的欄位會直接丟錯。寫入用的 mapper（`toFirestoreQuestion()` 等）一律移除值為 `undefined` 的欄位；答案清空時就不寫 `answer`（整份 `set` 會自然移除舊值）。
 - **Firestore 巢狀限制**：`pages[].masks[]` 是「陣列裡的 map 裡的陣列」，Firestore 允許；不會出現陣列直接包陣列。
 - **擴充預留**：之後做回填對錯，在 `ExamSheet` 加 `results?: Record<string, "correct" | "wrong">` 與 `gradedAt`，在 `BankQuestion` 加 `timesUsed`、`timesWrong`、`lastWrongAt`；本版不加。
 
@@ -180,20 +185,25 @@ export interface ExamSheet {
 
 入口是首頁的「上傳題目」按鈕，開啟 `SourceUploadDialog`。
 
-1. **填寫**：標題、科目（必填），選檔案。`accept="image/jpeg,image/png,image/webp,image/heic,application/pdf"`，可多選。
-2. **選檔檢查**：單一檔案超過 50MB，或所有檔案展開後總頁數超過 30 頁，當場擋下並提示拆開上傳。
-3. **轉成頁面圖**（`pageImageProcessor.ts`，在前端做）：
-   - **照片**：`createImageBitmap(file, { imageOrientation: "from-image" })` 依 EXIF 轉正；長邊縮到 2400px（小於就不放大）；畫到 canvas，`toBlob("image/jpeg", 0.85)`。
-   - **PDF**：用現有 react-pdf 的 `pdfjs`（`src/utils/pdfConfig.ts` 已設定 worker 與 cMap），逐頁 `getViewport({ scale })`，`scale = 2400 / max(width, height)`，render 到 canvas 後輸出 JPEG，規格同照片。
-   - 讀不了的檔案（例如桌機 Chrome 無法解 HEIC、PDF 有密碼）在該檔案旁顯示「無法讀取，請轉成 JPG 或 PDF」，其餘檔案照常處理。
-   - 尺寸計算拆成純函式 `fitLongEdge(width, height, maxLongEdge)`，可在 jsdom 測試；canvas 相關的包裝函式靠手動驗證。
-4. **預覽**：顯示每頁縮圖，可「順時針旋轉 90°」或刪除該頁。旋轉在這一步重新畫 canvas 產生新的 blob。
-5. **上傳**（`questionSourceService.createSource`）：
+1. **填寫**：標題、科目（必填），選檔案。`accept="image/jpeg,image/png,image/webp,application/pdf"`，可多選。
+   - 刻意不列 `image/heic`：accept 沒有列 HEIC 時，iPhone Safari 會先把相簿照片轉成 JPEG 再交給網頁；列了反而可能收到原始 HEIC，桌機 Chrome 也會讓人選到解不開的檔。（實作時在 iPhone 實測確認。）
+2. **選檔檢查**：單一檔案超過 50MB 當場擋下。PDF 只開檔讀 `numPages`（不 render 全頁）；所有檔案展開後總頁數超過 30 頁也擋下，提示拆開上傳。
+3. **預覽**：每頁只產生**小縮圖**（長邊約 240px）顯示，可「順時針旋轉 90°」或刪除該頁。
+   - **旋轉只記錄角度**（0／90／180／270），不重新編碼；這一步不保留全尺寸的解碼結果。
+   - 原因：30 頁全尺寸解碼約 30 × 2400 × 1700 × 4 bytes ≈ 490MB，iPhone Safari 會直接當掉；而且先旋轉再輸出會壓兩次 JPEG。
+   - 讀不了的檔案（HEIC、PDF 有密碼、壞檔）在這一步就在該檔案旁顯示「無法讀取，請轉成 JPG 或 PDF」，其餘檔案照常處理。
+4. **上傳**（`questionSourceService.createSource`）：
    - 先用 `doc(collection(db, "questionSources")).id` 產生 `sourceId`。
-   - 依序上傳每一頁到 Supabase（`STORAGE_BUCKET`，`contentType: "image/jpeg"`），顯示「上傳中 3/12」。
+   - **一次只處理一頁**：解碼 → 依記錄的角度旋轉 → 長邊縮到 2400px（小於就不放大）→ `toBlob("image/jpeg", 0.85)` → 上傳到 Supabase（`STORAGE_BUCKET`，`contentType: "image/jpeg"`，`upsert: true`）→ 釋放，再處理下一頁。畫面顯示「上傳中 3/12」。
    - 全部成功後才 `setDoc` 寫入 `questionSources`（`masks` 皆為空陣列）。
-   - 中途失敗：盡量 `remove` 已上傳的路徑，顯示錯誤與「重試」。
-6. 完成後導向 `/my-exams/sources/:id`。
+   - 中途失敗：盡量 `remove` 已上傳的路徑，顯示錯誤與「重試」。重試沿用同一個 `sourceId`；因為用 `upsert: true`，清理失敗殘留的檔案也不會擋住重傳。
+5. 完成後導向 `/my-exams/sources/:id`。
+
+**`pageImageProcessor.ts` 的解碼方式**：
+
+- **照片**：`createImageBitmap(file, { imageOrientation: "from-image" })` 依 EXIF 轉正，畫到 canvas（旋轉用 canvas transform）。
+- **PDF**：用現有 react-pdf 的 `pdfjs`（`src/utils/pdfConfig.ts` 已設定 worker 與 cMap），`getViewport({ scale })`，`scale = 2400 / max(width, height)`，render 到 canvas。縮圖用同樣做法、較小的 scale。
+- 尺寸計算拆成純函式：`fitLongEdge(width, height, maxLongEdge)` 與 `rotatedSize(width, height, angle)`，可在 jsdom 測試；canvas 相關的包裝函式靠手動驗證。
 
 ## 8. 裁題畫面 `/my-exams/sources/:id`
 
@@ -201,13 +211,16 @@ export interface ExamSheet {
 
 - **桌機（`lg+`）**：左側頁面縮圖列、中間目前這頁的大圖（`CropCanvas`）、右側這頁的題目清單。
 - **手機**：大圖占滿寬度，題目清單改為底部可拉出的面板；頁面切換用上一頁／下一頁按鈕。
-- **工具列**：模式切換「框題目」／「遮蓋」、儲存狀態、返回首頁。
+- **工具列**：來源標題（點擊可改名，寫回 `questionSources.title`，走 §8.4 同一套自動儲存）、模式切換「框題目」／「遮蓋」、儲存狀態、返回首頁。來源的科目不提供修改（每題各自有科目）。
 - **`?q=<questionId>`**：從題庫首頁點題目進來時帶這個參數，畫面切到該題第一個 region 所在的頁並選取該題。
 
 ### 8.2 `CropCanvas` 互動
 
-- 大圖是 `<img>`，上面疊一層絕對定位的 SVG，`viewBox="0 0 1 1"`、`preserveAspectRatio="none"`，所有框直接用 0–1 座標繪製。
+- 大圖是 `<img>`，上面疊一層同尺寸的絕對定位容器；每個框是一個絕對定位的 **HTML div**，`left/top/width/height` 用 0–1 座標換成百分比，線條用 `border`。
+  - 選取中的框在四個角放拖拉把手：視覺約 12px，觸控熱區 44px（用透明的外擴區域）。
+  - 不用 SVG 畫編輯中的框：`preserveAspectRatio="none"` 的非等比縮放會讓線條粗細不一、把手變形。
 - 指標座標以圖片的 `getBoundingClientRect()` 換算成 0–1；統一用 pointer events（`setPointerCapture`），滑鼠與觸控共用。繪圖區設 `touch-action: none`。
+- **鍵盤快捷鍵**（Delete／Backspace 刪除、Esc 取消）只在焦點**不在** `input`、`textarea`、`select`、`contenteditable` 時生效，避免在答案欄刪字時把題目刪掉。
 - **框題目模式**：
   - 在空白處拖拉 → 新增一題，`subject` 帶來源的科目，`answerSpace` 預設 `"none"`，`regions` 為這個框。
   - 小於最小尺寸（寬或高 < 0.01）的框視為誤觸，忽略。
@@ -219,22 +232,27 @@ export interface ExamSheet {
 
 ### 8.3 題目卡片
 
-- 顯示 `QuestionCrop` 預覽（已套用遮蓋）。
+- 右側清單列出**在這一頁有任何區塊**的題目，依 §6 的排序規則排列；卡片與框上都顯示該題在本來源內的序號。
+- 題目的區塊不在第一頁時（跨頁的接續區塊），框與卡片標「第 N 題（續）」；點它一樣是選取整題。
+- 顯示 `QuestionCrop` 預覽（已套用遮蓋，含所有區塊）。
 - 可編輯：科目（下拉）、答案（單行文字，選填）、作答留白（無／小／中／大）。
 - 刪除這一題。
-- 清單依 §6 的排序規則排列，卡片上顯示在本來源內的序號。
 
 ### 8.4 自動儲存（`useAutosave`）
 
-- 追蹤三種變更：upsert 的題目 id 集合、刪除的題目 id 集合、來源遮蓋是否變更。
-- 最後一次變更後 1000ms，用一個 `writeBatch` 送出：題目 `set`（新增與修改相同）、題目 `delete`、來源 `update({ pages, updatedAt })`。
+- 追蹤三種變更：upsert 的題目 id 集合、刪除的題目 id 集合、來源是否變更（遮蓋或標題）。
+- **刪除優先**：刪除一題時把它從 upsert 集合移除；只有已經寫入過 Firestore 的題目才加進刪除集合（新增後、送出前就刪掉的題目什麼都不送）。
+- 最後一次變更後 1000ms，用一個 `writeBatch` 送出：題目 `set`（新增與修改相同，經過 §6 的「不寫 `undefined`」mapper）、題目 `delete`、來源 `update({ pages, title, updatedAt })`。
 - 送出期間的新變更累積到下一批，不會遺失。
 - `visibilitychange`（hidden）、`pagehide` 與元件卸載時立即送出。
 - 狀態顯示：「儲存中…」／「已儲存」／「儲存失敗・重試」。失敗時保留所有未送出的變更，按重試或下一次變更時重送。
 
 ## 9. `QuestionCrop` 與圖片網址
 
-- **輸入**：`regions`、對應頁面的 `SourcePage`（尺寸與遮蓋）、signed URL 對照表、選填的 `enhance`（列印增強）。
+- **輸入**：`regions`、對應頁面的 `SourcePage`（尺寸與遮蓋）、signed URL 對照表、選填的 `enhance`（列印增強）、`loading`（`"lazy"` 或 `"eager"`，必填）。
+  - 題庫卡片牆、挑選器、組卷清單用 `"lazy"`：每張卡都載入整張原頁圖（約 1MB），幾百題不能一次全抓。
+  - 列印頁**必須**用 `"eager"`：lazy 的圖在畫面外不會載入，印出來是空白，§12.1 的「圖片載入中 n/m」也會永遠等不到。
+- **縮圖限制高度**：卡片裡的裁切寬度用 `min(100%, 最大高度 × 長寬比)`，避免整頁大小的題目把卡片撐得很長。
 - **每個 region** 渲染一個容器：
   - `aspect-ratio = (box.w × page.width) / (box.h × page.height)`、`overflow: hidden`、`position: relative`。
   - 內含整頁 `<img>`：`position: absolute; width: (100 / box.w)%; height: (100 / box.h)%; left: -(box.x / box.w × 100)%; top: -(box.y / box.h × 100)%`。因為容器的長寬比等於框的實際長寬比，這組數值剛好還原整頁比例。
@@ -256,7 +274,9 @@ export interface ExamSheet {
   - 空題庫時顯示引導文字與「上傳題目」按鈕。
 - **「上傳紀錄」tab**：
   - 每次上傳一列：標題、科目、頁數、題數、日期。點擊進入裁題畫面。
-  - 刪除：確認框 →（1）`writeBatch` 刪除該來源的所有題目與來源文件，每批最多 500 筆；（2）刪除 Storage 的頁面圖。Storage 刪除失敗只用 `logger` 記錄，不擋住操作。
+  - 刪除：確認框 →（1）用 `writeBatch` 刪除該來源的所有題目，每批最多 500 筆；（2）題目全部刪完後，**最後才**刪除來源文件；（3）刪除 Storage 的頁面圖。
+    - 多批 `writeBatch` 不是原子操作；把來源文件留到最後，中途失敗時來源還在，重按刪除即可接續。
+    - Storage 刪除失敗只用 `logger` 記錄，不擋住操作。
 - **「考卷」tab**：每張考卷一列（標題、日期、題數），操作：列印、編輯、刪除（確認框）。右上角「組新考卷」。
 
 ## 11. 組卷 `SheetComposer`
@@ -313,10 +333,13 @@ function pickRandomQuestions(
 ### 12.2 版面
 
 - `src/index.css`：`@page { size: A4; margin: 12mm; }`；版面內容寬度 186mm。
+- **紙張容器**：`width: 186mm; max-width: 100%`。螢幕上（尤其手機）縮到畫面寬度，不會橫向捲動；列印時剛好是 A4 內容寬度。
+- **固定淺色**：紙張容器一律寫死 `bg-white text-black`（框線也用固定的黑／灰），**不用主題 token**。`ThemeContext` 深色模式會在 `<html>` 加 `.dark`，沿用 `text-foreground` 會讓卷頭在深色模式下印成白字。
 - **卷頭**：考卷標題；下一行「姓名＿＿＿＿ 日期＿＿＿＿ 分數＿＿＿＿」。
 - **每一題**（`break-inside: avoid`）：
-  - 左側新題號「1.」（固定寬度），右側 `QuestionCrop`。
-  - 每個 region 的寬度 = `min(box.w × 186mm × 題目大小倍率, 題號右側的可用寬度)`，高度由 `aspect-ratio` 決定。計算放在 `cropStyle.ts`。
+  - 左側新題號「1.」（固定寬度），右側內容欄放 `QuestionCrop`。
+  - 每個 region 的寬度 = `min(box.w × 題目大小倍率 × 100%, 100%)`（**內容欄寬度的百分比**，不用 mm），高度由 `aspect-ratio` 決定。計算放在 `cropStyle.ts`。
+    - 內容欄比紙張少了題號欄，所以裁圖會比原卷略小一點（約 4%），可以接受；換來螢幕與列印用同一套規則。
   - 題目下方作答留白：無 0、小 2cm、中 4cm、大 7cm。
   - 已刪除的題目跳過，題號連續。
 - **答案頁**（開啟時）：`break-before: page`，標題「答案」，以 CSS 多欄（3 欄）列出「題號. 答案」，沒有答案的題目顯示「—」。
@@ -331,12 +354,12 @@ Chrome 預設不勾「背景圖形」，CSS 背景色不會印出。遮蓋框因
 |------|----------|
 | 檔案讀不了（HEIC、加密 PDF、壞檔） | 在該檔案旁提示「無法讀取，請轉成 JPG 或 PDF」，其他檔案照常處理 |
 | 單一檔案 > 50MB 或總頁數 > 30 | 選檔時擋下，提示拆開上傳 |
-| 上傳到一半失敗 | 盡量刪除已上傳的檔案，顯示「重試」 |
+| 上傳到一半失敗 | 盡量刪除已上傳的檔案，顯示「重試」；重試沿用同一個 `sourceId`，`upsert: true` 覆寫殘留檔 |
 | 上傳時直接關掉分頁 | 可能留下沒人用的 Storage 檔案；本版接受（之後可沿用 `audioUploadCleanupQueue` 的做法） |
 | 自動儲存失敗 | 「儲存失敗・重試」，保留未送出的變更，下次變更時一併重送 |
 | 圖片網址過期或載入失敗 | `QuestionCrop` 顯示錯誤與重試，重新取得網址 |
 | 來源或考卷不存在、不屬於自己 | 顯示「找不到這份資料」與返回首頁按鈕 |
-| 刪除來源 | 先刪 Firestore（題目＋來源），再刪 Storage；Storage 失敗只記錄 |
+| 刪除來源 | 先刪題目、最後刪來源文件，再刪 Storage；中途失敗時來源還在，可重按接續；Storage 失敗只記錄 |
 | 考卷引用已刪除的題目 | 列印時略過並提示；編輯時自動移除並提示 |
 | 兩個分頁同時編輯 | 以最後寫入為準（單一使用者，可接受） |
 
@@ -348,22 +371,27 @@ vitest＋jsdom，測試檔放在被測檔案旁邊；不用 testing-library，�
 
 - **純函式**
   - `boxGeometry`：兩個拖拉點 → 正規化的框（任意方向拖拉）、夾在 0–1、最小尺寸判斷、移動（不超出邊界）、四個角改大小。
-  - `cropStyle`：框 → `<img>` 的 width／left／top 百分比與 aspect-ratio；列印寬度（含倍率與上限）。
+  - `cropStyle`：框 → `<img>` 的 width／height／left／top 百分比與 aspect-ratio；列印寬度百分比（含倍率與 100% 上限）；卡片縮圖的高度限制。
   - `pickRandomQuestions`：固定種子的 rng；不重複、排除指定 id、`count` 大於可用數時回傳全部、`count` 為 0 時回傳空陣列。
-  - `fitLongEdge`：縮小、不放大、直式與橫式。
-  - 題目排序（`pageIndex`、`y`、`x`）。
+  - `fitLongEdge`：縮小、不放大、直式與橫式；`rotatedSize`：90／270 度長寬互換。
+  - 題目排序：同來源依 `createdAt`；題庫列表依來源新到舊分組。
+  - 快捷鍵判斷：焦點在 `input`／`textarea`／`select`／`contenteditable` 時不處理 Delete／Backspace。
 - **Service**（照 `audioUploadService.test.ts`，用 `vi.hoisted`＋`vi.mock` 模擬 `firebase/firestore`、`../utils/firebaseUtil`、`../utils/supabaseClient`）
-  - `questionSourceService`：上傳路徑格式、全部上傳成功才寫文件、失敗時清掉已上傳檔案、刪除順序。
-  - `bankQuestionService`：mapper 略過 `regions` 為空的資料、批次寫入分批 500。
+  - `questionSourceService`：上傳路徑格式、`upsert: true`、一次處理一頁（前一頁上傳完才解碼下一頁）、全部上傳成功才寫文件、失敗時清掉已上傳檔案、刪除順序（題目 → 來源文件 → Storage）。
+  - `bankQuestionService`：讀取 mapper 略過 `regions` 為空的資料；寫入 mapper 不含 `undefined` 欄位（沒有答案時沒有 `answer` 鍵）；批次寫入分批 500。
   - `examSheetService`：CRUD 與 mapper。
-- **`useAutosave`**（fake timers）：防抖、送出期間的新變更進下一批、hidden 時立即送出、失敗後保留並重送。
+- **`useAutosave`**（fake timers）：防抖、送出期間的新變更進下一批、刪除優先（新增後未送出就刪除 → 什麼都不送）、hidden 時立即送出、失敗後保留並重送。
 - **元件**
   - `SheetComposer`：隨機抽題 → 換一題 → 移除 → 上移下移；沒有可換的題目時停用。
-  - `SheetPrintView`：題號連續、略過已刪除題目、沒有答案時答案頁開關停用、遮蓋框以 SVG `rect` 渲染。
+  - `SheetPrintView`：題號連續、略過已刪除題目、沒有答案時答案頁開關停用、遮蓋框以 SVG `rect` 渲染、所有 `<img>` 都是 `loading="eager"`、紙張容器不使用主題 token。
 - **手動驗證**
   - 瀏覽器實際上傳 PDF 與手機照片（含直式、橫式、EXIF 旋轉），裁題、遮蓋、跨頁區塊。
-  - 手機觸控可以畫框、移動、改大小。
+  - iPhone 從相簿選 HEIC 照片，確認收到的是 JPEG。
+  - 一次上傳 30 頁，確認 iPhone Safari 不會當掉。
+  - 手機觸控可以畫框、移動、改大小（能用即可，不要求好用）。
   - Chrome 列印預覽**關閉「背景圖形」**時，遮蓋框仍然蓋住答案。
+  - **深色模式**下列印，卷頭與答案頁的字是黑色。
+  - 手機上開列印頁不會橫向捲動。
   - iOS Safari 列印（或存成 PDF）一次。
 
 ## 15. 需要在 console 手動設定
@@ -396,11 +424,11 @@ match /questionSources/{id} {
 // bankQuestions、examSheets 同上。
 ```
 
-**Firestore 複合索引**：`questionSources`、`bankQuestions`、`examSheets` 各需 `userId ASC, createdAt DESC`。第一次查詢時錯誤訊息會附上建立連結。`bankQuestions` 依 `userId`＋`sourceId` 的查詢只有等值條件，不需要複合索引。
+**Firestore 複合索引**：`questionSources`、`examSheets` 各需 `userId ASC, createdAt DESC`。第一次查詢時錯誤訊息會附上建立連結。`bankQuestions` 只用 `where("userId", "==", uid)`（全量載入、前端排序）與 `userId`＋`sourceId` 的等值查詢，都不需要複合索引。
 
 ## 16. Milestones
 
-- **M1 題庫**：型別、三個 service 中的來源與題目部分、`pageImageProcessor`、`useSignedPageUrls`、`useAutosave`、上傳對話框、裁題畫面、`QuestionCrop`、首頁「題庫」「上傳紀錄」tab、分頁註冊與標題前綴比對。驗收：上傳 → 裁題 → 題庫看得到裁好的題目。
+- **M1 題庫**：型別、三個 service 中的來源與題目部分、`pageImageProcessor`、`useSignedPageUrls`、`useAutosave`、上傳對話框、裁題畫面（含來源改名）、`QuestionCrop`、首頁「題庫」「上傳紀錄」tab、分頁註冊與標題前綴比對。驗收：上傳 → 裁題 → 題庫看得到裁好的題目。
 - **M2 組卷與列印**：`examSheetService`、`pickRandomQuestions`、`SheetComposer`、`QuestionPicker`、`SheetPrintView`、首頁「考卷」tab、列印獨立分支、`@page` 樣式。驗收：組一張卷、印出來（遮蓋有效、答案頁正確）。
 
 ## 17. 之後的項目
