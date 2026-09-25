@@ -155,4 +155,55 @@ describe("CropEditorWorkspace", () => {
     const [commit] = mocks.commitEditorChanges.mock.calls[0];
     expect(commit.source.pages[0].masks).toHaveLength(1);
   });
+
+  it("does not delete a question card selected while in mask mode", () => {
+    renderWorkspace();
+    const maskButton = [...container.querySelectorAll("button")].find((button) => button.textContent === "遮蓋");
+    act(() => maskButton?.click());
+
+    const article = container.querySelector("article");
+    if (!article) throw new Error("card missing");
+    act(() => article.click());
+
+    pressKey("Backspace");
+    expect(headings()).toEqual(["第 1 題"]);
+  });
+
+  it("does not delete a mask left selected after switching to question mode via 新增區塊", async () => {
+    renderWorkspace();
+    const maskButton = [...container.querySelectorAll("button")].find((button) => button.textContent === "遮蓋");
+    act(() => maskButton?.click());
+    draw(); // draws and selects a mask
+
+    const appendButton = [...container.querySelectorAll("button")].find(
+      (button) => button.textContent === "新增區塊",
+    );
+    if (!appendButton) throw new Error("append button missing");
+    act(() => appendButton.click());
+
+    pressKey("Backspace");
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1000);
+    });
+    const [commit] = mocks.commitEditorChanges.mock.calls[0];
+    expect(commit.source.pages[0].masks).toHaveLength(1);
+  });
+
+  it("clears the append hint when the append-target question is deleted via keyboard", () => {
+    renderWorkspace("/my-exams/sources/source-1?q=q1");
+    const appendButton = [...container.querySelectorAll("button")].find(
+      (button) => button.textContent === "新增區塊",
+    );
+    if (!appendButton) throw new Error("append button missing");
+    act(() => appendButton.click());
+    expect(container.textContent).toContain("新增區塊：");
+
+    const article = container.querySelector("article");
+    if (!article) throw new Error("card missing");
+    act(() => article.click());
+    pressKey("Backspace");
+
+    expect(container.textContent).not.toContain("新增區塊：");
+  });
 });

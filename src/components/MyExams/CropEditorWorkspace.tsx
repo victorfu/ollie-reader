@@ -123,6 +123,9 @@ export function CropEditorWorkspace({ source, initialQuestions }: CropEditorWork
 
   const deleteSelection = () => {
     if (!selected) return;
+    // 題目框在遮蓋模式下、遮蓋框在框題目模式下都是被動的（不會顯示選取樣式），
+    // 選取沒有跟著切到目前模式時，Delete/Backspace 不該動到它（I2 m4）。
+    if ((selected.kind === "mask") !== (mode === "mask")) return;
     if (selected.kind === "mask") {
       apply({ type: "removeMask", pageIndex, maskIndex: selected.maskIndex });
     } else {
@@ -132,6 +135,7 @@ export function CropEditorWorkspace({ source, initialQuestions }: CropEditorWork
         apply({ type: "removeRegion", questionId: question.id, regionIndex: selected.regionIndex });
       } else {
         apply({ type: "deleteQuestion", questionId: question.id });
+        if (appendTargetId === question.id) setAppendTargetId(null);
       }
     }
     setSelectedKey(null);
@@ -246,6 +250,9 @@ export function CropEditorWorkspace({ source, initialQuestions }: CropEditorWork
               onUpdate={(patch) => apply({ type: "updateQuestion", questionId: question.id, patch })}
               onToggleAppend={() => {
                 setMode("question");
+                // 切回框題目模式時清掉選取：遮蓋框在這個模式下是被動的，留著選取
+                // 會讓 Delete/Backspace 在畫面上看不出選了什麼的情況下誤刪（I2 m1）。
+                setSelectedKey(null);
                 setAppendTargetId(appendTargetId === question.id ? null : question.id);
               }}
               onRemoveRegion={(regionIndex) =>
