@@ -7,6 +7,7 @@ import {
   Navigate,
   useLocation,
   useNavigate,
+  matchPath,
 } from "react-router-dom";
 import {
   BookOpen,
@@ -82,6 +83,12 @@ const MyExamsPage = lazyWithReload(
 );
 const SourceCropEditor = lazyWithReload(
   () => import("./components/MyExams/SourceCropEditor"),
+);
+const SheetComposerPage = lazyWithReload(
+  () => import("./components/MyExams/SheetComposerPage"),
+);
+const SheetPrintView = lazyWithReload(
+  () => import("./components/MyExams/SheetPrintView"),
 );
 const LittleGamesHub = lazyWithReload(
   () => import("./components/LittleGames/GameHub"),
@@ -426,6 +433,17 @@ function AppContent() {
     return <Navigate to={from && from !== "/login" ? from : "/reader"} replace />;
   }
 
+  // 列印頁：獨立全螢幕（沒有側欄與標題列），但必須已登入（spec §5.1）。
+  if (matchPath("/my-exams/sheets/:id/print", normalizedPathname)) {
+    return (
+      <Suspense fallback={<RouteLoadingFallback />}>
+        <Routes>
+          <Route path="/my-exams/sheets/:id/print" element={<SheetPrintView />} />
+        </Routes>
+      </Suspense>
+    );
+  }
+
   const handleSignOut = () => {
     void signOutUser();
   };
@@ -737,6 +755,14 @@ function AppContent() {
                       <Route
                         path="/my-exams/sources/:id"
                         element={<SourceCropEditor />}
+                      />
+                      <Route
+                        path="/my-exams/sheets/new"
+                        element={<SheetComposerPage />}
+                      />
+                      <Route
+                        path="/my-exams/sheets/:id/edit"
+                        element={<SheetComposerPage />}
                       />
                       <Route path="/games" element={<LittleGamesHub />} />
                       <Route
