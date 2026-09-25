@@ -47,8 +47,10 @@ export function SourceUploadDialog({ isOpen, onClose, onUploaded }: SourceUpload
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [sourceId, setSourceId] = useState<string | null>(null);
+  const [expanding, setExpanding] = useState(false);
   const filesRef = useRef<File[]>([]);
   const thumbUrlsRef = useRef<string[]>([]);
+  const sessionRef = useRef(0);
 
   const uploading = progress !== null;
 
@@ -60,6 +62,7 @@ export function SourceUploadDialog({ isOpen, onClose, onUploaded }: SourceUpload
   }, [isOpen]);
 
   const reset = () => {
+    sessionRef.current += 1;
     thumbUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
     thumbUrlsRef.current = [];
     void releasePdfFiles(filesRef.current);
@@ -72,6 +75,7 @@ export function SourceUploadDialog({ isOpen, onClose, onUploaded }: SourceUpload
     setProgress(null);
     setUploadError(null);
     setSourceId(null);
+    setExpanding(false);
   };
 
   const handleClose = () => {
@@ -83,36 +87,54 @@ export function SourceUploadDialog({ isOpen, onClose, onUploaded }: SourceUpload
   const handleFiles = async (fileList: FileList | null) => {
     if (!fileList || fileList.length === 0) return;
     const files = [...fileList];
+    const session = sessionRef.current;
     setLimitError(null);
-    const { pages: inputs, errors } = await expandFilesToPages(files);
-    setFileErrors((previous) => [...previous, ...errors]);
+    setExpanding(true);
+    try {
+      const { pages: inputs, errors } = await expandFilesToPages(files);
 
-    if (pages.length + inputs.length > MAX_SOURCE_PAGES) {
-      setLimitError(`總頁數超過 ${MAX_SOURCE_PAGES} 頁，請拆開上傳`);
-      void releasePdfFiles(files);
-      return;
-    }
+      if (session !== sessionRef.current) {
+        void releasePdfFiles(files);
+        return;
+      }
 
-    filesRef.current.push(...files);
-    setPages((previous) => [
-      ...previous,
-      ...inputs.map((input) => ({ input, thumbUrl: null, failed: false })),
-    ]);
+      setFileErrors((previous) => [...previous, ...errors]);
 
-    // 縮圖一張一張產生，避免一次解碼大量照片
-    for (const input of inputs) {
-      try {
-        const { blob } = await renderPage(input, THUMBNAIL_LONG_EDGE_PX);
-        const url = URL.createObjectURL(blob);
-        thumbUrlsRef.current.push(url);
-        setPages((previous) =>
-          previous.map((page) => (page.input.key === input.key ? { ...page, thumbUrl: url } : page)),
-        );
-      } catch (error) {
-        logger.warn("[SourceUploadDialog] thumbnail failed", error);
-        setPages((previous) =>
-          previous.map((page) => (page.input.key === input.key ? { ...page, failed: true } : page)),
-        );
+      if (pages.length + inputs.length > MAX_SOURCE_PAGES) {
+        setLimitError(`總頁數超過 ${MAX_SOURCE_PAGES} 頁，請拆開上傳`);
+        void releasePdfFiles(files);
+        return;
+      }
+
+      filesRef.current.push(...files);
+      setPages((previous) => [
+        ...previous,
+        ...inputs.map((input) => ({ input, thumbUrl: null, failed: false })),
+      ]);
+
+      // 縮圖一張一張產生，避免一次解碼大量照片
+      for (const input of inputs) {
+        if (session !== sessionRef.current) {
+          return;
+        }
+
+        try {
+          const { blob } = await renderPage(input, THUMBNAIL_LONG_EDGE_PX);
+          const url = URL.createObjectURL(blob);
+          thumbUrlsRef.current.push(url);
+          setPages((previous) =>
+            previous.map((page) => (page.input.key === input.key ? { ...page, thumbUrl: url } : page)),
+          );
+        } catch (error) {
+          logger.warn("[SourceUploadDialog] thumbnail failed", error);
+          setPages((previous) =>
+            previous.map((page) => (page.input.key === input.key ? { ...page, failed: true } : page)),
+          );
+        }
+      }
+    } finally {
+      if (session === sessionRef.current) {
+        setExpanding(false);
       }
     }
   };
@@ -205,7 +227,7 @@ export function SourceUploadDialog({ isOpen, onClose, onUploaded }: SourceUpload
           </label>
         </div>
 
-        <label className={`btn btn-outline btn-sm mt-4 ${uploading ? "btn-disabled" : ""}`}>
+        <label className={`btn btn-outline btn-sm mt-4 ${uploading || expanding ? "btn-disabled" : ""}`}>
           <Upload className="size-4" />
           選擇照片或 PDF
           <input
@@ -213,7 +235,7 @@ export function SourceUploadDialog({ isOpen, onClose, onUploaded }: SourceUpload
             className="hidden"
             accept={ACCEPTED_UPLOAD_TYPES}
             multiple
-            disabled={uploading}
+            disabled={uploading || expanding}
             onChange={(event) => {
               void handleFiles(event.target.files);
               event.target.value = "";
