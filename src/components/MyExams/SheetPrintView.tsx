@@ -90,7 +90,7 @@ export default function SheetPrintView() {
         hasAnswers={hasAnswers}
         missingCount={missingCount}
       />
-      <div className="mx-auto w-fit max-w-full bg-white px-4 py-6 shadow-lg print:p-0 print:shadow-none">
+      <div className="mx-auto w-fit max-w-full bg-white px-4 py-6 shadow-lg print:w-full print:p-0 print:shadow-none">
         <PrintPaper
           title={sheet.title}
           items={items}
