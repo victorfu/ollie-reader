@@ -114,12 +114,13 @@ export function SourceUploadDialog({ isOpen, onClose, onUploaded }: SourceUpload
 
       // 縮圖一張一張產生，避免一次解碼大量照片
       for (const input of inputs) {
-        if (session !== sessionRef.current) {
-          return;
-        }
-
         try {
           const { blob } = await renderPage(input, THUMBNAIL_LONG_EDGE_PX);
+
+          if (session !== sessionRef.current) {
+            return;
+          }
+
           const url = URL.createObjectURL(blob);
           thumbUrlsRef.current.push(url);
           setPages((previous) =>
@@ -127,6 +128,11 @@ export function SourceUploadDialog({ isOpen, onClose, onUploaded }: SourceUpload
           );
         } catch (error) {
           logger.warn("[SourceUploadDialog] thumbnail failed", error);
+
+          if (session !== sessionRef.current) {
+            return;
+          }
+
           setPages((previous) =>
             previous.map((page) => (page.input.key === input.key ? { ...page, failed: true } : page)),
           );
