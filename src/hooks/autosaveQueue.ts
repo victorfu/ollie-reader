@@ -121,7 +121,12 @@ export class AutosaveQueue {
       this.onStatusChange(this.hasPending() ? "saving" : "saved");
     } catch (error) {
       this.inFlight = null;
-      for (const id of upserts.keys()) this.persisted.add(id);
+      // 這批送出失敗，代表這些 id 都沒有真的寫進 Firestore：
+      // 不是「已存在」的題目就不該排入刪除（該題的 upsert 已被 markDelete 移除，
+      // 送出不存在的文件的刪除，Firestore 規則會擋下並讓整個 batch 失敗，見 I1）。
+      for (const id of [...this.deletes]) {
+        if (!this.persisted.has(id)) this.deletes.delete(id);
+      }
       logger.warn("[autosave] commit failed", error);
       this.onStatusChange("error");
     }

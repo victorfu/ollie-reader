@@ -156,10 +156,10 @@ describe("AutosaveQueue", () => {
     expect(commits).toEqual([{ upsertIds: ["a", "b"], deleteIds: [], sourceDirty: false }]);
   });
 
-  it("deletes after failed commit send the delete even though the upsert partially succeeded", async () => {
+  it("drops the delete for a question that never finished saving, after a failed commit", async () => {
     const { queue, commits, statuses, willCommit } = setup();
     willCommit(async () => {
-      throw new Error("partial write");
+      throw new Error("offline");
     });
     queue.markUpsert("a");
     await vi.advanceTimersByTimeAsync(1000);
@@ -169,7 +169,51 @@ describe("AutosaveQueue", () => {
     queue.markDelete("a");
     await vi.advanceTimersByTimeAsync(1000);
 
-    expect(commits[1]).toEqual({ upsertIds: [], deleteIds: ["a"], sourceDirty: false });
+    // "a" was never written, so there is nothing left to send: no upsert
+    // (removed by markDelete) and no delete (it would target a document
+    // that doesn't exist, which Firestore's rules reject and fails the batch).
+    expect(commits).toHaveLength(1);
+    expect(queue.hasPending()).toBe(false);
+  });
+
+  it("sends no delete for a new question whose first commit fails while it is being deleted", async () => {
+    const { queue, commits, willCommit } = setup();
+    const inFlight = deferred();
+    willCommit(() => inFlight.promise);
+
+    queue.markUpsert("fresh");
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(commits).toHaveLength(1);
+
+    willCommit(async () => {});
+    queue.markDelete("fresh"); // deleted while its first save is still in flight
+    inFlight.reject(new Error("offline"));
+    await vi.advanceTimersByTimeAsync(1000);
+
+    // The in-flight commit failed, so "fresh" was never persisted: no
+    // second commit should be sent for it.
+    expect(commits).toHaveLength(1);
+    expect(queue.hasPending()).toBe(false);
+  });
+
+  it("commits normally again after a failure that dropped a stale delete", async () => {
+    const { queue, commits, statuses, willCommit } = setup();
+    willCommit(async () => {
+      throw new Error("offline");
+    });
+    queue.markUpsert("a");
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(statuses.at(-1)).toBe("error");
+
+    willCommit(async () => {});
+    queue.markDelete("a");
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(commits).toHaveLength(1); // still nothing sent for "a"
+
+    queue.markUpsert("b");
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(commits.at(-1)).toEqual({ upsertIds: ["b"], deleteIds: [], sourceDirty: false });
+    expect(statuses.at(-1)).toBe("saved");
   });
 
   it("synchronously throwing commit sets error status and keeps changes pending", async () => {
