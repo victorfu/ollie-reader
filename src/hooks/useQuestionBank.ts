@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "./useAuth";
 import { listBankQuestions } from "../services/bankQuestionService";
+import { listSheets } from "../services/examSheetService";
 import { listSources } from "../services/questionSourceService";
-import type { BankQuestion, QuestionSource } from "../types/questionBank";
+import type { BankQuestion, ExamSheet, QuestionSource } from "../types/questionBank";
 import { logger } from "../utils/logger";
 
 interface QuestionBankState {
   sources: QuestionSource[];
   questions: BankQuestion[];
+  sheets: ExamSheet[];
   loading: boolean;
   error: string | null;
 }
@@ -17,6 +19,7 @@ export function useQuestionBank() {
   const [state, setState] = useState<QuestionBankState>({
     sources: [],
     questions: [],
+    sheets: [],
     loading: true,
     error: null,
   });
@@ -25,9 +28,9 @@ export function useQuestionBank() {
   useEffect(() => {
     if (!user) return;
     let cancelled = false;
-    Promise.all([listSources(), listBankQuestions()])
-      .then(([sources, questions]) => {
-        if (!cancelled) setState({ sources, questions, loading: false, error: null });
+    Promise.all([listSources(), listBankQuestions(), listSheets()])
+      .then(([sources, questions, sheets]) => {
+        if (!cancelled) setState({ sources, questions, sheets, loading: false, error: null });
       })
       .catch((error: unknown) => {
         logger.error("[useQuestionBank] load failed", error);

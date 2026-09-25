@@ -1,20 +1,22 @@
 import { useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
-import { Upload } from "lucide-react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { FilePlus2, Upload } from "lucide-react";
 import { useQuestionBank } from "../../hooks/useQuestionBank";
 import { QuestionBankGrid } from "./QuestionBankGrid";
+import { SheetList } from "./SheetList";
 import { SourceList } from "./SourceList";
 import { SourceUploadDialog } from "./SourceUploadDialog";
 
-type MyExamsTab = "bank" | "sources";
+type MyExamsTab = "bank" | "sources" | "sheets";
 
 const TABS: readonly { id: MyExamsTab; label: string }[] = [
   { id: "bank", label: "題庫" },
   { id: "sources", label: "上傳紀錄" },
+  { id: "sheets", label: "考卷" },
 ];
 
 function toTab(value: string | null): MyExamsTab {
-  return value === "sources" ? "sources" : "bank";
+  return value === "sources" || value === "sheets" ? value : "bank";
 }
 
 export default function MyExamsPage() {
@@ -31,10 +33,16 @@ export default function MyExamsPage() {
           <h1 className="text-3xl font-semibold tracking-tight">自製考卷</h1>
           <p className="text-sm text-base-content/60">上傳照片或 PDF，框出題目，組成考卷印出來。</p>
         </div>
-        <button type="button" className="btn btn-primary btn-sm" onClick={() => setUploadOpen(true)}>
-          <Upload className="size-4" />
-          上傳題目
-        </button>
+        <div className="flex gap-2">
+          <Link to="/my-exams/sheets/new" className="btn btn-sm">
+            <FilePlus2 className="size-4" />
+            組新考卷
+          </Link>
+          <button type="button" className="btn btn-primary btn-sm" onClick={() => setUploadOpen(true)}>
+            <Upload className="size-4" />
+            上傳題目
+          </button>
+        </div>
       </header>
 
       <div role="tablist" className="tabs tabs-box w-fit">
@@ -67,8 +75,10 @@ export default function MyExamsPage() {
         </div>
       ) : tab === "bank" ? (
         <QuestionBankGrid sources={bank.sources} questions={bank.questions} onUpload={() => setUploadOpen(true)} />
-      ) : (
+      ) : tab === "sources" ? (
         <SourceList sources={bank.sources} questions={bank.questions} onDeleted={bank.reload} />
+      ) : (
+        <SheetList sheets={bank.sheets} onDeleted={bank.reload} />
       )}
 
       <SourceUploadDialog
