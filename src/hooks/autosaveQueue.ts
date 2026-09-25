@@ -97,11 +97,12 @@ export class AutosaveQueue {
     const upserts = new Map(this.upserts);
     const deletes = new Set(this.deletes);
     const sourceVersion = this.sourceVersion;
-    const promise = this.commit({
-      upsertIds: [...upserts.keys()],
-      deleteIds: [...deletes],
-      sourceDirty: sourceVersion !== null,
-    });
+    const promise = (async () =>
+      this.commit({
+        upsertIds: [...upserts.keys()],
+        deleteIds: [...deletes],
+        sourceDirty: sourceVersion !== null,
+      }))();
     this.inFlight = { upserts, promise };
     this.onStatusChange("saving");
 
@@ -120,6 +121,7 @@ export class AutosaveQueue {
       this.onStatusChange(this.hasPending() ? "saving" : "saved");
     } catch (error) {
       this.inFlight = null;
+      for (const id of upserts.keys()) this.persisted.add(id);
       logger.warn("[autosave] commit failed", error);
       this.onStatusChange("error");
     }

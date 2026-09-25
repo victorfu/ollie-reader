@@ -155,4 +155,33 @@ describe("AutosaveQueue", () => {
     await vi.advanceTimersByTimeAsync(1000);
     expect(commits).toEqual([{ upsertIds: ["a", "b"], deleteIds: [], sourceDirty: false }]);
   });
+
+  it("deletes after failed commit send the delete even though the upsert partially succeeded", async () => {
+    const { queue, commits, statuses, willCommit } = setup();
+    willCommit(async () => {
+      throw new Error("partial write");
+    });
+    queue.markUpsert("a");
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(statuses.at(-1)).toBe("error");
+
+    willCommit(async () => {});
+    queue.markDelete("a");
+    await vi.advanceTimersByTimeAsync(1000);
+
+    expect(commits[1]).toEqual({ upsertIds: [], deleteIds: ["a"], sourceDirty: false });
+  });
+
+  it("synchronously throwing commit sets error status and keeps changes pending", async () => {
+    const { queue, statuses } = setup();
+    queue.markUpsert("a");
+    const syncThrow = () => {
+      throw new Error("sync error");
+    };
+    queue.setCommit(syncThrow as unknown as (changes: PendingChanges) => Promise<void>);
+
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(statuses.at(-1)).toBe("error");
+    expect(queue.hasPending()).toBe(true);
+  });
 });
