@@ -4,6 +4,7 @@ import {
   isBankSubject,
   type BankQuestion,
   type Box,
+  type ExamSheet,
   type QuestionRegion,
   type QuestionSource,
   type SourcePage,
@@ -137,4 +138,20 @@ export function toFirestorePages(pages: readonly SourcePage[]): DocumentData[] {
     height: page.height,
     masks: page.masks.map(plainBox),
   }));
+}
+
+export function toExamSheet(id: string, data: DocumentData): ExamSheet | null {
+  if (typeof data.userId !== "string") {
+    logger.warn("[questionBank] skip invalid sheet", id);
+    return null;
+  }
+  const rawIds: unknown[] = Array.isArray(data.questionIds) ? data.questionIds : [];
+  return {
+    id,
+    userId: data.userId,
+    title: typeof data.title === "string" ? data.title : "",
+    questionIds: rawIds.filter((value): value is string => typeof value === "string"),
+    createdAt: toDate(data.createdAt),
+    updatedAt: toDate(data.updatedAt),
+  };
 }

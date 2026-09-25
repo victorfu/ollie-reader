@@ -22,6 +22,7 @@ import type { RenderedPage } from "../utils/pageImageProcessor";
 import { deleteQuestionsForSource } from "./bankQuestionService";
 import { toQuestionSource } from "./questionBankMappers";
 import { requireCurrentUserId } from "./requireCurrentUserId";
+import { isPermissionDenied } from "./firestoreErrors";
 
 export function createQuestionSourcePath(
   userId: string,
@@ -110,15 +111,6 @@ export async function listSources(): Promise<QuestionSource[]> {
   return snapshot.docs
     .map((item) => toQuestionSource(item.id, item.data()))
     .filter((source): source is QuestionSource => source !== null);
-}
-
-function isPermissionDenied(error: unknown): boolean {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    error.code === "permission-denied"
-  );
 }
 
 export async function getSource(sourceId: string): Promise<QuestionSource | null> {

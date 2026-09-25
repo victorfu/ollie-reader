@@ -11,6 +11,7 @@ import { makePage, makeQuestion } from "../testing/questionBankFixtures";
 import {
   toBankQuestion,
   toBox,
+  toExamSheet,
   toFirestorePages,
   toFirestoreQuestion,
   toQuestionSource,
@@ -121,5 +122,30 @@ describe("toFirestorePages", () => {
         masks: [{ x: 0, y: 0, w: 0.1, h: 0.1 }],
       },
     ]);
+  });
+});
+
+describe("toExamSheet", () => {
+  it("maps a sheet and keeps only string question ids in order", () => {
+    expect(
+      toExamSheet("sheet-1", {
+        userId: "user-1",
+        title: "期中考複習",
+        questionIds: ["q2", 3, "q1"],
+        createdAt: stamp("2026-09-01T00:00:00Z"),
+        updatedAt: stamp("2026-09-02T00:00:00Z"),
+      }),
+    ).toEqual({
+      id: "sheet-1",
+      userId: "user-1",
+      title: "期中考複習",
+      questionIds: ["q2", "q1"],
+      createdAt: new Date("2026-09-01T00:00:00Z"),
+      updatedAt: new Date("2026-09-02T00:00:00Z"),
+    });
+  });
+
+  it("rejects a sheet without an owner", () => {
+    expect(toExamSheet("sheet-1", { title: "x", questionIds: [] })).toBeNull();
   });
 });
