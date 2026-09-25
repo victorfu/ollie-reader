@@ -68,6 +68,12 @@ function headings(): string[] {
   return [...container.querySelectorAll("article header span")].map((item) => item.textContent ?? "");
 }
 
+function answerInputs(): string[] {
+  return [...container.querySelectorAll<HTMLInputElement>('article input[placeholder^="例如"]')].map(
+    (input) => input.value,
+  );
+}
+
 function pressKey(key: string, target: EventTarget = window): void {
   act(() => {
     target.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true }));
@@ -78,11 +84,11 @@ beforeEach(() => {
   (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean })
     .IS_REACT_ACT_ENVIRONMENT = true;
   vi.useFakeTimers();
-  // Pin "now" before the fixtures' FIXED_DATE (2026-09-01) so a freshly
-  // created question's createdAt sorts deterministically relative to the
-  // existing fixtures, matching the pattern used elsewhere in this repo
-  // (e.g. geminiRequestQueue.test.ts, gachaPendingReveal.test.ts).
-  vi.setSystemTime(new Date("2026-08-12T12:00:00Z"));
+  // Pin "now" after the fixtures' FIXED_DATE (2026-09-01): a question drawn
+  // "now" is created after q1/q2 and must sort after them (spec §6/§8.3 —
+  // source-wide crop order, oldest first), regardless of which page it's
+  // drawn on.
+  vi.setSystemTime(new Date("2026-09-10T00:00:00Z"));
   mocks.commitEditorChanges.mockReset().mockResolvedValue(undefined);
   mocks.nextId = 0;
   container = document.createElement("div");
@@ -102,7 +108,14 @@ describe("CropEditorWorkspace", () => {
     expect(headings()).toEqual(["第 1 題"]);
 
     draw();
-    expect(headings()).toEqual(["第 1 題", "第 2 題"]);
+    // q2 (page 1, not shown here) is source-wide #2 by crop order; the newly
+    // drawn question is created after both q1 and q2, so it is #3 even
+    // though it's drawn on page 1's neighbour, page 0 (spec §6/§8.3).
+    expect(headings()).toEqual(["第 1 題", "第 3 題"]);
+    // Card order proves it's crop order, not draw position: the first card
+    // is still q1 (its answer "(1)" survives), the new card is the empty one.
+    expect(answerInputs()).toEqual(["(1)", ""]);
+    expect(container.querySelector('[data-box-key="q:new-1:0"]')?.textContent).toContain("3");
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1000);
