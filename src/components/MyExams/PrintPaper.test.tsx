@@ -25,6 +25,7 @@ function render(overrides: Partial<ComponentProps<typeof PrintPaper>> = {}) {
         enhance={false}
         includeAnswers
         onImageLoad={vi.fn()}
+        onRetryImage={vi.fn()}
         {...overrides}
       />,
     ),
@@ -96,5 +97,19 @@ describe("PrintPaper", () => {
       container.querySelectorAll("img")[1].dispatchEvent(new Event("load"));
     });
     expect(onImageLoad).toHaveBeenCalledWith("q2:0");
+  });
+
+  it("retries a failed page image via onRetryImage", () => {
+    const onRetryImage = vi.fn();
+    render({ onRetryImage });
+    act(() => {
+      container.querySelectorAll("img")[1].dispatchEvent(new Event("error"));
+    });
+    const retryButton = [...container.querySelectorAll("button")].find(
+      (item) => item.textContent?.trim() === "重試",
+    );
+    if (!(retryButton instanceof HTMLButtonElement)) throw new Error("retry button not found");
+    act(() => retryButton.click());
+    expect(onRetryImage).toHaveBeenCalledWith("p0.jpg");
   });
 });

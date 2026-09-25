@@ -45,7 +45,7 @@ export default function SheetPrintView() {
       return page ? [page.storagePath] : [];
     }),
   );
-  const { urls } = useSignedPageUrls(paths);
+  const { urls, refresh } = useSignedPageUrls(paths);
   const loadedCount = regionKeys.filter((key) => loadedKeys.has(key)).length;
   const hasAnswers = items.some(({ question }) => Boolean(question.answer));
 
@@ -99,6 +99,7 @@ export default function SheetPrintView() {
           enhance={preferences.enhance}
           includeAnswers={hasAnswers && preferences.includeAnswers}
           onImageLoad={markLoaded}
+          onRetryImage={(path) => void refresh(path)}
         />
       </div>
     </div>

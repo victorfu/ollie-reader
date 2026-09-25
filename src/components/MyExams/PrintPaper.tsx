@@ -15,13 +15,23 @@ interface PrintPaperProps {
   enhance: boolean;
   includeAnswers: boolean;
   onImageLoad: (key: string) => void;
+  onRetryImage: (storagePath: string) => void;
 }
 
 /**
  * 紙張一律固定白底黑字：ThemeContext 深色模式會在 <html> 加 .dark，
  * 用主題 token 會讓卷頭印成白字（spec §12.2）。
  */
-export function PrintPaper({ title, items, urls, scale, enhance, includeAnswers, onImageLoad }: PrintPaperProps) {
+export function PrintPaper({
+  title,
+  items,
+  urls,
+  scale,
+  enhance,
+  includeAnswers,
+  onImageLoad,
+  onRetryImage,
+}: PrintPaperProps) {
   return (
     <div className="mx-auto w-[186mm] max-w-full bg-white text-black print:w-full">
       <header className="border-b border-black pb-2">
@@ -48,6 +58,7 @@ export function PrintPaper({ title, items, urls, scale, enhance, includeAnswers,
                   layout={{ kind: "print", scale }}
                   enhance={enhance}
                   onImageLoad={(regionIndex) => onImageLoad(`${question.id}:${regionIndex}`)}
+                  onRetry={onRetryImage}
                 />
                 {spaceCm > 0 && (
                   <div aria-hidden="true" data-testid="answer-space" style={{ height: `${spaceCm}cm` }} />
