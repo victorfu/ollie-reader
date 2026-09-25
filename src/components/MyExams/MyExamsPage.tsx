@@ -60,18 +60,16 @@ export default function MyExamsPage() {
         ))}
       </div>
 
-      {bank.error && (
+      {bank.loading ? (
+        <div className="flex justify-center py-16">
+          <span className="loading loading-spinner loading-lg" aria-label="載入題庫" />
+        </div>
+      ) : bank.error ? (
         <div role="alert" className="alert alert-error">
           <span>{bank.error}</span>
           <button type="button" className="btn btn-sm" onClick={bank.reload}>
             重試
           </button>
-        </div>
-      )}
-
-      {bank.loading ? (
-        <div className="flex justify-center py-16">
-          <span className="loading loading-spinner loading-lg" aria-label="載入題庫" />
         </div>
       ) : tab === "bank" ? (
         <QuestionBankGrid sources={bank.sources} questions={bank.questions} onUpload={() => setUploadOpen(true)} />
