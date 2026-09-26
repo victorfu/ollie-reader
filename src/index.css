@@ -523,17 +523,3 @@
     background-color: var(--color-base-100);
   }
 }
-
-/* 自製考卷列印（spec §12.2）：A4、12mm 邊界。
-   即使使用者勾選「背景圖形」，深色主題的頁面背景也不會印出來。 */
-@page {
-  size: A4;
-  margin: 12mm;
-}
-
-@media print {
-  html,
-  body {
-    background: #fff !important;
-  }
-}

@@ -7,7 +7,6 @@ import {
   Navigate,
   useLocation,
   useNavigate,
-  matchPath,
 } from "react-router-dom";
 import {
   BookOpen,
@@ -18,7 +17,6 @@ import {
   Music,
   MonitorPlay,
   ClipboardCheck,
-  Printer,
   Joystick,
   Settings as SettingsIcon,
   LogOut,
@@ -37,7 +35,6 @@ import { ThemeToggle } from "./components/common/ThemeToggle";
 import { useWarmServerOnRouteChange } from "./hooks/useWarmServer";
 import { ErrorBoundary } from "./components/common/ErrorBoundary";
 import { lazyWithReload } from "./utils/lazyWithReload";
-import { findNavLabel, isNavItemActive } from "./utils/navLabel";
 
 // Lazy load route components for code splitting. lazyWithReload recovers from
 // stale-chunk errors (old hashed chunks gone after a deploy) by reloading once.
@@ -77,18 +74,6 @@ const TravelEnglishPage = lazyWithReload(() =>
 );
 const ExamPracticePage = lazyWithReload(
   () => import("./components/ExamPractice/ExamPracticePage"),
-);
-const MyExamsPage = lazyWithReload(
-  () => import("./components/MyExams/MyExamsPage"),
-);
-const SourceCropEditor = lazyWithReload(
-  () => import("./components/MyExams/SourceCropEditor"),
-);
-const SheetComposerPage = lazyWithReload(
-  () => import("./components/MyExams/SheetComposerPage"),
-);
-const SheetPrintView = lazyWithReload(
-  () => import("./components/MyExams/SheetPrintView"),
 );
 const LittleGamesHub = lazyWithReload(
   () => import("./components/LittleGames/GameHub"),
@@ -433,17 +418,6 @@ function AppContent() {
     return <Navigate to={from && from !== "/login" ? from : "/reader"} replace />;
   }
 
-  // 列印頁：獨立全螢幕（沒有側欄與標題列），但必須已登入（spec §5.1）。
-  if (matchPath("/my-exams/sheets/:id/print", normalizedPathname)) {
-    return (
-      <Suspense fallback={<RouteLoadingFallback />}>
-        <Routes>
-          <Route path="/my-exams/sheets/:id/print" element={<SheetPrintView />} />
-        </Routes>
-      </Suspense>
-    );
-  }
-
   const handleSignOut = () => {
     void signOutUser();
   };
@@ -460,11 +434,10 @@ function AppContent() {
     { to: "/audio-uploads", label: "音訊庫", icon: Music },
     { to: "/show", label: "影集字幕", icon: MonitorPlay },
     { to: "/exams", label: "考卷練習", icon: ClipboardCheck },
-    { to: "/my-exams", label: "自製考卷", icon: Printer },
     { to: "/games", label: "小遊戲", icon: Joystick },
   ];
   const currentLabel =
-    findNavLabel(navItems, location.pathname) ??
+    navItems.find((item) => item.to === location.pathname)?.label ??
     (location.pathname === "/settings" ? "設定" : "Ollie Reader");
 
   return (
@@ -513,7 +486,7 @@ function AppContent() {
           }`}
         >
           {navItems.map((item) => {
-            const isActive = isNavItemActive(item.to, location.pathname);
+            const isActive = location.pathname === item.to;
             const Icon = item.icon;
             return (
               <Link
@@ -691,7 +664,7 @@ function AppContent() {
               {/* Navigation */}
               <nav className="flex-1 space-y-1 overflow-y-auto p-3">
                 {navItems.map((item) => {
-                  const isActive = isNavItemActive(item.to, location.pathname);
+                  const isActive = location.pathname === item.to;
                   const Icon = item.icon;
                   return (
                     <Link
@@ -751,19 +724,6 @@ function AppContent() {
                       <Route path="/audio-uploads" element={<AudioUploads />} />
                       <Route path="/show" element={<ShowSubtitlesPage />} />
                       <Route path="/exams" element={<ExamPracticePage />} />
-                      <Route path="/my-exams" element={<MyExamsPage />} />
-                      <Route
-                        path="/my-exams/sources/:id"
-                        element={<SourceCropEditor />}
-                      />
-                      <Route
-                        path="/my-exams/sheets/new"
-                        element={<SheetComposerPage />}
-                      />
-                      <Route
-                        path="/my-exams/sheets/:id/edit"
-                        element={<SheetComposerPage />}
-                      />
                       <Route path="/games" element={<LittleGamesHub />} />
                       <Route
                         path="/games/spirit"
