@@ -65,6 +65,20 @@ function parseJsonResponse(text: string): unknown {
   return JSON.parse(jsonText);
 }
 
+// Keep new lookups, regeneration, and phrase lookups equally comprehensive.
+const DICTIONARY_DETAILS_REQUIREMENTS = `
+- 義項完整度以一般現代英語辭典為準；學生程度只影響解釋用字，不影響收錄哪些意思。
+- 列出所有有把握、現代英語仍在使用且意思明確不同的義項，不設定固定數量上限，也不要只選最常見的兩三個意思。
+- 先逐一檢查名詞、動詞、形容詞、副詞及其他適用詞性，再檢查每個詞性下的不同意思；只列實際存在的詞性，但不能找到名詞後就漏掉動詞。
+- 涵蓋字面義、常見引申義、比喻義，以及常見專業領域用法；需要特定搭配才成立的意思，要在解釋中標明搭配，不可當成單字獨立的意思。
+- 每個不同義項各占一筆 definitions，"partOfSpeech" 使用英文詞性（例如 noun、verb）。只有相同詞性、相同意思的重複說法才合併，不要因意思相關就合併不同用法。
+- 普通單字與大寫縮寫要區分。若收錄縮寫，須在英文與中文解釋中標明大寫形式及縮寫身分；縮寫不能取代普通單字的義項。
+- 按使用頻率排列，最常見的意思放在前面。不要湊數、編造意思，或加入無法確定的罕見、過時用法。
+- "definition" 必須是簡單清楚的英文對英文解釋，使用國小到國中學生容易理解的常見字，盡量簡短，但不能為了縮短而省略區分義項所需的資訊。
+- "definitionChinese" 是該義項對應的繁體中文解釋。每個義項都必須同時包含英文與中文。
+- 每個義項提供一個能清楚呈現該意思的簡短英文例句，放在 examples，順序與 definitions 對應，不要所有例句都只示範第一個意思。
+- 回覆前逐一核對：是否遺漏其他詞性、同一詞性的不同用法，或把相關但不同的意思合併；若有遺漏，先補齊再輸出 JSON。`;
+
 /**
  * Generate kid-friendly word details using Gemini AI
  * @param word - The English word to generate details for
@@ -76,19 +90,15 @@ export async function generateWordDetails(
   signal?: AbortSignal,
 ): Promise<WordDetails | null> {
   try {
-    const prompt = `你是一個給國小到國中學生使用的英英／英中字典助手。請解釋「${word}」這個英文單字，回覆 JSON：
+    const prompt = `你是一個重視義項完整度的英英／英中字典助手，使用學生能理解的簡單文字。請完整解釋「${word}」這個英文單字，回覆 JSON：
 {"definitions":[{"partOfSpeech":"詞性","definition":"簡單清楚的英文對英文解釋","definitionChinese":"對應的繁體中文解釋"}],"examples":[{"sentence":"例句"}]}
 
 要求：
-- "definition" 必須是 **英文對英文** 的解釋（English-to-English），像兒童英英字典那樣，使用簡單常見的英文單字（避免使用比原單字更難的字），完整的英文句子，10-20 個字內。
-- "definitionChinese" 是對應的繁體中文翻譯，給看不懂英文解釋時參考。
-- 列出現代英語中所有常見、且意思明確不同的定義，不設定固定數量上限。
-- 涵蓋常見的不同詞性，以及同一詞性下的不同意思。
-- 按使用頻率排列，最常見的意思放在前面。
-- 合併意思相近的解釋，避免重複；只有一個常見意思時就提供一個，不要湊數或編造意思。
-- 解釋用字適合國小到國中學生，但不要因為簡化用字而省略常見意思。
-- 每個定義都要同時包含英文與繁體中文解釋。
-- 提供 1 個簡短例句。
+${DICTIONARY_DETAILS_REQUIREMENTS}
+
+義項覆蓋範例（不是數量上限，也不是要求每個單字都有這些詞性）：
+查 ram 時，除了 noun「公羊」，也要涵蓋 verb「衝撞、猛撞」與「用力塞入、壓入」等不同用法；若補充 RAM「隨機存取記憶體」，必須標明它是縮寫，不能只列公羊與記憶體就結束。其他查詢只列查詢詞本身的義項。
+
 - 只回覆 JSON，不要任何其他說明。`;
 
     if (signal?.aborted) return null;
@@ -194,15 +204,8 @@ export async function smartLookup(
 
 如果是「片語」，回覆：
 {"kind":"word","definitions":[{"partOfSpeech":"詞性","definition":"簡單清楚的英文對英文解釋","definitionChinese":"對應的繁體中文解釋"}],"examples":[{"sentence":"例句"}]}
-- "definition" 必須是英文對英文的解釋，像兒童英英字典那樣，使用簡單常見的英文單字（避免使用比原片語更難的字），完整的英文句子，10-20 個字內。
-- "definitionChinese" 是對應的繁體中文翻譯，給看不懂英文解釋時參考。
-- 列出這個片語在現代英語中所有常見、且意思明確不同的定義，不設定固定數量上限。
-- 涵蓋常見的不同詞性，以及同一詞性下的不同意思。
-- 按使用頻率排列，最常見的意思放在前面。
-- 合併意思相近的解釋，避免重複；只有一個常見意思時就提供一個，不要湊數或編造意思。
-- 解釋用字適合國小學生，但不要因為簡化用字而省略常見意思。
-- 每個定義都要同時包含英文與繁體中文解釋。
-- 提供 1 個簡短例句。
+${DICTIONARY_DETAILS_REQUIREMENTS}
+- 上述義項完整性要求適用於整個片語，不要拆開解釋個別單字，也不要延伸到其他片語。
 
 如果是「句子」，回覆：
 {"kind":"sentence","chinese":"翻譯後的繁體中文","keyWords":[{"word":"較難的英文單字","meaning":"簡短的繁體中文意思"}]}
