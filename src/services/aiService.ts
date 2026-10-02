@@ -3,6 +3,7 @@
  */
 import { isAbortError } from "../utils/errorUtils";
 import { logger } from "../utils/logger";
+import { normalizeExamples } from "../utils/normalizeExamples";
 import type { SentenceKeyWord } from "../types/sentenceTranslation";
 import { generateGeminiContent } from "./geminiClient";
 import { isGeminiRateLimitError } from "./geminiErrorPolicy";
@@ -77,6 +78,7 @@ const DICTIONARY_DETAILS_REQUIREMENTS = `
 - "definition" 必須是簡單清楚的英文對英文解釋，使用國小到國中學生容易理解的常見字，盡量簡短，但不能為了縮短而省略區分義項所需的資訊。
 - "definitionChinese" 是該義項對應的繁體中文解釋。每個義項都必須同時包含英文與中文。
 - 每個義項提供一個能清楚呈現該意思的簡短英文例句，放在 examples，順序與 definitions 對應，不要所有例句都只示範第一個意思。
+- "examples" 必須是物件陣列，每筆固定使用 "sentence" 欄位存放非空白的英文例句，例如 {"sentence":"My tummy hurts."}；不可使用字串陣列，也不可將欄位改名為 english、example 或 text。
 - 回覆前逐一核對：是否遺漏其他詞性、同一詞性的不同用法，或把相關但不同的意思合併；若有遺漏，先補齊再輸出 JSON。`;
 
 /**
@@ -116,7 +118,7 @@ ${DICTIONARY_DETAILS_REQUIREMENTS}
 
     const details: WordDetails = {
       definitions: (wordData.definitions as WordDetails["definitions"]) || [],
-      examples: (wordData.examples as WordDetails["examples"]) || [],
+      examples: normalizeExamples(wordData.examples),
     };
 
     if (wordData.emoji) {
@@ -241,7 +243,7 @@ ${DICTIONARY_DETAILS_REQUIREMENTS}
     if (Array.isArray(parsed.definitions)) {
       const details: WordDetails = {
         definitions: parsed.definitions as WordDetails["definitions"],
-        examples: (parsed.examples as WordDetails["examples"]) || [],
+        examples: normalizeExamples(parsed.examples),
       };
       if (parsed.emoji) {
         details.emoji = parsed.emoji as string;

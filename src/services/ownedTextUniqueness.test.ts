@@ -93,12 +93,30 @@ import { addSentenceTranslation } from "./sentenceTranslationService";
 import {
   addVocabularyWord,
   checkWordExists,
+  getVocabularyWord,
   searchUserVocabulary,
 } from "./vocabularyService";
 
 describe("user-owned text uniqueness", () => {
   beforeEach(() => {
     firestore.reset();
+  });
+
+  it("recovers previously saved examples without requiring regeneration or a database write", async () => {
+    firestore.getDoc.mockResolvedValue({
+      id: "saved-tummy",
+      exists: () => true,
+      data: () => ({
+        word: "tummy", userId: "user-1",
+        examples: ["My tummy hurts.", { english: "Rub your tummy." }, {}],
+      }),
+    });
+
+    expect((await getVocabularyWord("saved-tummy"))?.examples).toEqual([
+      { sentence: "My tummy hurts." },
+      { sentence: "Rub your tummy." },
+    ]);
+    expect(firestore.updateDoc).not.toHaveBeenCalled();
   });
 
   it("serializes concurrent inserts of the same vocabulary word to one document", async () => {

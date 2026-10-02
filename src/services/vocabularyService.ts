@@ -21,6 +21,7 @@ import {
 } from "firebase/firestore";
 import { db } from "../utils/firebaseUtil";
 import { shuffleArray } from "../utils/arrayUtils";
+import { normalizeExamples } from "../utils/normalizeExamples";
 import type {
   VocabularyWord,
   VocabularyFilters,
@@ -71,7 +72,7 @@ const convertToVocabularyWord = (
     userId: data.userId,
     emoji: data.emoji,
     definitions: data.definitions || [],
-    examples: data.examples || [],
+    examples: normalizeExamples(data.examples),
     synonyms: data.synonyms || [],
     antonyms: data.antonyms || [],
     sourceContext: data.sourceContext,

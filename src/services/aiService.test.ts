@@ -28,6 +28,23 @@ describe("aiService Gemini boundary", () => {
     vi.clearAllMocks();
   });
 
+  it("normalizes examples for both single-word and phrase lookups", async () => {
+    mocks.generateGeminiContent.mockResolvedValue(response(JSON.stringify({
+      kind: "word",
+      definitions: [{ partOfSpeech: "noun", definition: "the stomach", definitionChinese: "肚子" }],
+      examples: ["My tummy hurts.", { english: "Rub your tummy." }, {}],
+    })));
+
+    const expected = [
+      { sentence: "My tummy hurts." },
+      { sentence: "Rub your tummy." },
+    ];
+    expect((await generateWordDetails("tummy"))?.examples).toEqual(expected);
+    expect(await smartLookup("upset tummy")).toMatchObject({
+      kind: "word", details: { examples: expected },
+    });
+  });
+
   it("routes every AI action through the queued Gemini client", async () => {
     mocks.generateGeminiContent
       .mockResolvedValueOnce(
