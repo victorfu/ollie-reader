@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { SpeechPracticeTopic } from "../../types/speechPractice";
 import { useSpeechPractice } from "../../hooks/useSpeechPractice";
 import { useAudioRecorder } from "../../hooks/useAudioRecorder";
@@ -27,8 +27,11 @@ export function SpeechPractice() {
   } | null>(null);
   const [deleteRecordId, setDeleteRecordId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
+  const practiceSessionIdRef = useRef(0);
+  const [savingSessionId, setSavingSessionId] = useState<number | null>(null);
   const [isSavingScript, setIsSavingScript] = useState(false);
+
+  const isSaving = savingSessionId === practiceSessionIdRef.current;
 
   const {
     records,
@@ -53,6 +56,7 @@ export function SpeechPractice() {
 
   const handleStartPractice = () => {
     if (!selectedTopic) return;
+    practiceSessionIdRef.current += 1;
     setViewMode("practice");
     setNotes("");
     // Load saved script if available
@@ -152,7 +156,8 @@ export function SpeechPractice() {
   const handleSavePractice = async () => {
     if (!selectedTopic || recorder.isFinalizing) return;
 
-    setIsSaving(true);
+    const sessionId = practiceSessionIdRef.current;
+    setSavingSessionId(sessionId);
 
     const result = await saveRecord(
       {
@@ -165,7 +170,11 @@ export function SpeechPractice() {
       recorder.audioBlob,
     );
 
-    setIsSaving(false);
+    setSavingSessionId((current) => (current === sessionId ? null : current));
+
+    // A save can finish after the user has already started another practice.
+    // Never let an older session reset or navigate away from the newer one.
+    if (practiceSessionIdRef.current !== sessionId) return;
 
     if (result.success) {
       setToastMessage({ message: result.message, type: "success" });
