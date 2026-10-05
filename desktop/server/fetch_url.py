@@ -9,7 +9,7 @@ import mimetypes
 import os
 from dataclasses import dataclass
 from typing import Optional
-from urllib.parse import unquote, urlparse
+from urllib.parse import quote, unquote, urlparse
 
 import httpx
 
@@ -110,7 +110,15 @@ async def fetch_url_content_async(
 
         content_disposition = response.headers.get("Content-Disposition")
         if not content_disposition:
-            content_disposition = f'inline; filename="{filename}"'
+            # Quoted ASCII filenames remain readable; arbitrary Unicode and
+            # control/quote characters use an RFC 5987 extended parameter.
+            if all(32 <= ord(char) < 127 and char not in '\\"' for char in filename):
+                content_disposition = f'inline; filename="{filename}"'
+            else:
+                content_disposition = (
+                    "inline; filename=\"downloaded_file\"; "
+                    f"filename*=UTF-8''{quote(filename, safe='')}"
+                )
 
         return FetchResult(
             content=content,

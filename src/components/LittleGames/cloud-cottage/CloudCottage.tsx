@@ -301,6 +301,7 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
   const pendingCloudWriteOwnerUidRef = useRef<string | undefined>(undefined);
   const deferredToastAtRef = useRef(0);
   const cloudQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const careQueueRef = useRef<Promise<void> | null>(null);
   const cloudRetryTimerRef = useRef<number | null>(null);
   const cloudRetryAttemptRef = useRef(0);
   const coinRequestSequenceRef = useRef(0);
@@ -319,9 +320,14 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
   const activeUidRef = useRef(uid);
   const identityUidRef = useRef(uid);
   const identityGenerationRef = useRef(0);
+  const mountedRef = useRef(true);
   if (identityUidRef.current !== uid) {
     identityUidRef.current = uid;
     identityGenerationRef.current += 1;
+    careQueueRef.current = null;
+    // A new account must not wait for the previous account's network work.
+    // Existing generation guards still isolate completions of that old work.
+    cloudQueueRef.current = Promise.resolve();
     // Ref ownership changes synchronously with render. This keeps the first
     // frame after A -> B from exposing A's save or accepting an A-era action
     // before the hydration effect has had a chance to run.
@@ -370,7 +376,8 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
 
   const isCurrentIdentity = useCallback(
     (ownerUid: string, generation: number) =>
-      activeUidRef.current === ownerUid
+      mountedRef.current
+      && activeUidRef.current === ownerUid
       && identityGenerationRef.current === generation,
     [],
   );
@@ -1059,6 +1066,13 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
     unlocks,
   ]);
 
+  // Leaving the screen suppresses feedback, but must not cancel persistence
+  // for an already-started action. Restore the flag for Strict Mode effect replay.
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
+
   useEffect(() => () => {
     clearCloudRetry();
     if (speechTimerRef.current) clearTimeout(speechTimerRef.current);
@@ -1073,94 +1087,121 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
       emoji?: string,
     ) => {
       if (!uid || visibleSaveOwnerUidRef.current !== uid) return;
-      const previous = saveRef.current;
-      const result = applyCareActionWithWish(previous, uid, action, nowRef.current);
-      if (!result.applied) {
-        triggerAction(result.reason === "full" ? "feed" : "idle", emoji);
-        showSpeech(careFailureMessage(result));
-        return;
-      }
+      // Feedback must use the settled transition, never the click-time snapshot.
+      const showResult = (
+        result: ReturnType<typeof applyCareActionWithWish>,
+        previous: PetSaveV1,
+      ) => {
+        if (!result.applied) {
+          triggerAction(result.reason === "full" ? "feed" : "idle", emoji);
+          showSpeech(careFailureMessage(result));
+          return;
+        }
+
+        triggerAction(animation, emoji, animation === "sleep");
+        showPhrase(result.phraseId, fallback);
+        if (action.type === "feed") playEatSound();
+        else if (action.type === "bath") playBubbleSound();
+        else if (action.type === "play") playToySound();
+        else if (action.type === "sleep") playLullabySound();
+        else playHeartSound();
+
+        // Reactions are queued rather than triggered: a care action can raise a
+        // wish celebration and a bond unlock in this same pass, and firing them
+        // directly would batch away the animation the player just asked for.
+        if (result.newlyFulfilled) {
+          addToast(
+            result.wishBondAwarded > 0
+              ? `今日心願完成！親密度 +${result.wishBondAwarded} 💕`
+              : "今日心願完成！她今天已經好幸福了 💕",
+            "success",
+            4_000,
+          );
+          playHeartSound();
+          enqueueScene({ action: "celebrate" });
+        } else if (result.capReached) {
+          addToast("她今天已經好幸福了 💕", "info");
+        }
+
+        const newUnlocks = getNewBondUnlocks(
+          previous.bond.total,
+          result.save.bond.total,
+        );
+        if (newUnlocks.length > 0) {
+          setUnlocks(newUnlocks);
+          enqueueScene({
+            action: newUnlocks.some((unlock) => unlock.type === "celebration")
+              ? "celebrate"
+              : "heartBurst",
+          });
+        }
+      };
 
       const actionNow = nowRef.current;
-      const cloudCommit = !isDemo && isOnline
-        ? commitCottageCareAction(uid, action, actionNow)
-        : null;
-
-      // Start the transaction before caching the optimistic result so it has
-      // already captured the pre-action cache snapshot. Keeping the result in
-      // cache protects it if the browser reports a network change while the
-      // transaction is still pending.
-      setVisibleSave(result.save, uid);
-      void writeCottageCache(uid, result.save);
-      if (cloudCommit) {
-        void cloudCommit
-          .then((committed) => {
-            if (activeUidRef.current !== uid) return;
-            const stillShowingThisAction =
-              comparePetSaveFreshness(saveRef.current, result.save) === 0;
-            if (stillShowingThisAction) setVisibleSave(committed.save, uid);
-            else setVisibleSaveIfNewer(committed.save, uid);
+      const generation = identityGenerationRef.current;
+      // Serialize the whole transition, including fallback persistence. A later
+      // transaction must capture the cache only after the previous action is
+      // committed or durably retained locally, even when that action failed.
+      if (!isDemo && (isOnline || careQueueRef.current)) {
+        const runCare = async () => {
+          await cloudQueueRef.current;
+          if (!isCurrentIdentity(uid, generation)) return;
+          const previous = saveRef.current;
+          try {
+            if (!isOnline) throw new Error("offline");
+            const committed = await commitCottageCareAction(uid, action, actionNow);
+            if (!isCurrentIdentity(uid, generation)) return;
+            setVisibleSaveIfNewer(committed.save, uid);
             if (pendingCloudWriteOwnerUidRef.current === uid) {
               pendingCloudWriteOwnerUidRef.current = undefined;
             }
             setSyncStatus("cloud");
             setSyncError(null);
-            if (!committed.applied) {
-              showSpeech(careFailureMessage(committed));
-              addToast("另一個分頁剛剛先照顧過她，狀態已更新。", "info");
+            showResult(committed, previous);
+          } catch (error: unknown) {
+            // Persist for the captured owner even after exit/account changes.
+            // Only rebase on visible state while it still belongs to this session.
+            const fallbackPrevious = activeUidRef.current === uid
+              && identityGenerationRef.current === generation
+              ? saveRef.current
+              : previous;
+            const fallbackResult = applyCareActionWithWish(
+              fallbackPrevious, uid, action, actionNow,
+            );
+            if (isCurrentIdentity(uid, generation)) {
+              setVisibleSave(fallbackResult.save, uid);
+              showResult(fallbackResult, fallbackPrevious);
             }
-          })
-          .catch((error: unknown) => {
-            if (activeUidRef.current !== uid) return;
-            setVisibleSaveIfNewer(result.save, uid);
-            void writeCottageCache(uid, result.save);
-            queueCloudSave(result.save);
+            await writeCottageCache(uid, fallbackResult.save);
+            if (!isCurrentIdentity(uid, generation)) return;
+            queueCloudSave(fallbackResult.save);
+            await cloudQueueRef.current;
             logger.warn("Cloud Cottage care transaction deferred", error);
+          }
+        };
+        const pending = (careQueueRef.current ?? Promise.resolve())
+          .then(runCare)
+          .catch((error: unknown) => {
+            logger.warn("Cloud Cottage care queue failed", error);
           });
-      } else {
-        if (!isDemo) queueCloudSave(result.save);
-      }
-      triggerAction(animation, emoji, animation === "sleep");
-      showPhrase(result.phraseId, fallback);
-      if (action.type === "feed") playEatSound();
-      else if (action.type === "bath") playBubbleSound();
-      else if (action.type === "play") playToySound();
-      else if (action.type === "sleep") playLullabySound();
-      else playHeartSound();
-
-      // Reactions are queued rather than triggered: a care action can raise a
-      // wish celebration and a bond unlock in this same pass, and firing them
-      // directly would batch away the animation the player just asked for.
-      if (result.newlyFulfilled) {
-        addToast(
-          result.wishBondAwarded > 0
-            ? `今日心願完成！親密度 +${result.wishBondAwarded} 💕`
-            : "今日心願完成！她今天已經好幸福了 💕",
-          "success",
-          4_000,
-        );
-        playHeartSound();
-        enqueueScene({ action: "celebrate" });
-      } else if (result.capReached) {
-        addToast("她今天已經好幸福了 💕", "info");
-      }
-
-      const newUnlocks = getNewBondUnlocks(
-        previous.bond.total,
-        result.save.bond.total,
-      );
-      if (newUnlocks.length > 0) {
-        setUnlocks(newUnlocks);
-        enqueueScene({
-          action: newUnlocks.some((unlock) => unlock.type === "celebration")
-            ? "celebrate"
-            : "heartBurst",
+        careQueueRef.current = pending;
+        void pending.then(() => {
+          if (careQueueRef.current === pending) careQueueRef.current = null;
         });
+      } else {
+        const previous = saveRef.current;
+        const result = applyCareActionWithWish(previous, uid, action, actionNow);
+        if (result.applied) setVisibleSave(result.save, uid);
+        showResult(result, previous);
+        if (!result.applied) return;
+        void writeCottageCache(uid, result.save);
+        if (!isDemo) queueCloudSave(result.save);
       }
     },
     [
       addToast,
       enqueueScene,
+      isCurrentIdentity,
       isDemo,
       isOnline,
       queueCloudSave,

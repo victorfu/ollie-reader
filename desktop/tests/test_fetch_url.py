@@ -184,3 +184,26 @@ def test_connect_error_maps_to_500():
     with pytest.raises(FetchError) as exc:
         _run(run())
     assert exc.value.status_code == 500
+
+
+@pytest.mark.parametrize("filename", ["課本.pdf", "😀.pdf", "café.pdf", "doc.pdf", 'a"b.pdf', "a\r\nb.pdf"])
+def test_generated_disposition_is_safe_for_http_response(filename):
+    from urllib.parse import quote, unquote
+    from starlette.responses import Response
+
+    async def run():
+        async with _client(lambda _: httpx.Response(
+            200, headers={"Content-Type": "application/pdf"}, content=b"%PDF"
+        )) as client:
+            return await fetch_url_content_async(
+                "https://example.com/" + quote(filename, safe=""), client=client
+            )
+
+    result = _run(run())
+    response = Response(result.content, headers={"Content-Disposition": result.content_disposition})
+    header = response.headers["Content-Disposition"]
+    assert "\r" not in header and "\n" not in header
+    if "filename*=" in header:
+        assert unquote(header.split("filename*=UTF-8''", 1)[1]) == filename
+    else:
+        assert header == 'inline; filename="doc.pdf"'

@@ -94,12 +94,34 @@ import {
   addVocabularyWord,
   checkWordExists,
   getVocabularyWord,
+  getVocabularyForReview,
   searchUserVocabulary,
 } from "./vocabularyService";
 
 describe("user-owned text uniqueness", () => {
   beforeEach(() => {
     firestore.reset();
+  });
+
+  it("uses saved recall history to prioritize forgotten words", async () => {
+    const lastReviewedAt = { toDate: () => new Date("2026-01-01") };
+    firestore.getDocs.mockResolvedValue({ docs: [
+      { id: "remembered", data: () => ({ word: "easy", lastReviewedAt, rememberedCount: 10 }) },
+      { id: "forgotten", data: () => ({ word: "hard", lastReviewedAt, forgotCount: 10 }) },
+    ] });
+    const words = await getVocabularyForReview("user-1", 1);
+    expect(words.map(word => word.id)).toEqual(["forgotten"]);
+    expect(words[0].forgotCount).toBe(10);
+    expect(words[0].rememberedCount).toBe(0);
+  });
+
+  it("defaults legacy recall counters to zero", async () => {
+    firestore.getDocs.mockResolvedValue({ docs: [
+      { id: "legacy", data: () => ({ word: "old" }) },
+    ] });
+    expect(await getVocabularyForReview("user-1", 1)).toMatchObject([
+      { id: "legacy", rememberedCount: 0, forgotCount: 0 },
+    ]);
   });
 
   it("recovers previously saved examples without requiring regeneration or a database write", async () => {
