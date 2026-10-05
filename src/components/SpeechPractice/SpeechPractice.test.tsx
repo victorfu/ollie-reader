@@ -111,9 +111,6 @@ vi.mock("./PracticeHistory", () => ({ PracticeHistory: () => null }));
 vi.mock("./ScriptGeneratorModal", () => ({
   ScriptGeneratorModal: () => null,
 }));
-vi.mock("../common/Toast", () => ({
-  Toast: ({ message }: { message: string }) => <div role="status">{message}</div>,
-}));
 vi.mock("../common/ConfirmModal", () => ({ ConfirmModal: () => null }));
 
 import { SpeechPractice } from "./SpeechPractice";
@@ -158,6 +155,7 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount());
   host.remove();
+  vi.useRealTimers();
 });
 
 describe("SpeechPractice topic script ownership", () => {
@@ -253,6 +251,46 @@ describe("SpeechPractice recorder startup", () => {
 
 
 describe("SpeechPractice save session ownership", () => {
+  it.each([true, false])("queues overlapping failures (same batch: %s)", async (sameBatch) => {
+    vi.useFakeTimers();
+    let resolveA!: (result: { success: boolean; message: string }) => void;
+    let resolveB!: (result: { success: boolean; message: string }) => void;
+    mocks.saveRecord
+      .mockReturnValueOnce(new Promise((resolve) => { resolveA = resolve; }))
+      .mockReturnValueOnce(new Promise((resolve) => { resolveB = resolve; }));
+
+    clickButton("select-a");
+    clickButton("start-practice");
+    clickButton("儲存練習記錄");
+    clickButton("主題選擇");
+    clickButton("select-b");
+    clickButton("start-practice");
+    clickButton("儲存練習記錄");
+    const timerResets = mocks.resetTimer.mock.calls.length;
+    const recorderResets = mocks.resetRecording.mock.calls.length;
+
+    resolveB({ success: false, message: "B failed" });
+    if (!sameBatch) {
+      await flushAsyncWork();
+      act(() => vi.advanceTimersByTime(2000));
+    }
+    resolveA({ success: false, message: "A failed" });
+    await flushAsyncWork();
+
+    expect(host.querySelector('[role="alert"]')?.textContent).toBe("「主題 B」：B failed");
+    // Enqueuing A must not restart B's timeout; A gets a fresh timeout afterward.
+    act(() => vi.advanceTimersByTime(sameBatch ? 3000 : 1000));
+    expect(host.querySelector('[role="alert"]')?.textContent).toBe("「主題 A」：A failed");
+    act(() => vi.advanceTimersByTime(2999));
+    expect(host.querySelector('[role="alert"]')?.textContent).toBe("「主題 A」：A failed");
+    const closeButton = host.querySelector<HTMLButtonElement>('button[aria-label="關閉"]');
+    act(() => closeButton?.click());
+    expect(host.querySelector('[role="alert"]')).toBeNull();
+    expect(host.textContent).toContain("主題 B");
+    expect(mocks.resetTimer).toHaveBeenCalledTimes(timerResets);
+    expect(mocks.resetRecording).toHaveBeenCalledTimes(recorderResets);
+  });
+
   it("reports an older save failure with its topic while a newer save is pending", async () => {
     let resolveSave!: (result: { success: boolean; message: string }) => void;
     mocks.saveRecord
@@ -272,7 +310,7 @@ describe("SpeechPractice save session ownership", () => {
     resolveSave({ success: false, message: "儲存失敗，請稍後再試" });
     await flushAsyncWork();
 
-    expect(host.querySelector('[role="status"]')?.textContent)
+    expect(host.querySelector('[role="alert"]')?.textContent)
       .toBe("「主題 A」：儲存失敗，請稍後再試");
     expect(host.textContent).toContain("主題 B");
     expect(host.textContent).toContain("儲存中");
