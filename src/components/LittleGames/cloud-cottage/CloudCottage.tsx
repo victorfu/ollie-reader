@@ -301,6 +301,7 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
   const pendingCloudWriteOwnerUidRef = useRef<string | undefined>(undefined);
   const deferredToastAtRef = useRef(0);
   const cloudQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const careQueueRef = useRef<Promise<void> | null>(null);
   const cloudRetryTimerRef = useRef<number | null>(null);
   const cloudRetryAttemptRef = useRef(0);
   const coinRequestSequenceRef = useRef(0);
@@ -322,6 +323,7 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
   if (identityUidRef.current !== uid) {
     identityUidRef.current = uid;
     identityGenerationRef.current += 1;
+    careQueueRef.current = null;
     // Ref ownership changes synchronously with render. This keeps the first
     // frame after A -> B from exposing A's save or accepting an A-era action
     // before the hydration effect has had a chance to run.
@@ -1082,16 +1084,18 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
       }
 
       const actionNow = nowRef.current;
-      const cloudCommit = !isDemo && isOnline
-        ? commitCottageCareAction(uid, action, actionNow)
-        : null;
-
-      // Online actions become visible only after commit. Other actions and
-      // snapshot writers must never publish an uncommitted care transition.
-      if (cloudCommit) {
-        void cloudCommit
-          .then((committed) => {
-            if (activeUidRef.current !== uid) return;
+      const generation = identityGenerationRef.current;
+      // Serialize the whole transition, including fallback persistence. A later
+      // transaction must capture the cache only after the previous action is
+      // committed or durably retained locally, even when that action failed.
+      if (!isDemo && (isOnline || careQueueRef.current)) {
+        const runCare = async () => {
+          await cloudQueueRef.current;
+          if (!isCurrentIdentity(uid, generation)) return;
+          try {
+            if (!isOnline) throw new Error("offline");
+            const committed = await commitCottageCareAction(uid, action, actionNow);
+            if (!isCurrentIdentity(uid, generation)) return;
             setVisibleSaveIfNewer(committed.save, uid);
             if (pendingCloudWriteOwnerUidRef.current === uid) {
               pendingCloudWriteOwnerUidRef.current = undefined;
@@ -1102,19 +1106,28 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
               showSpeech(careFailureMessage(committed));
               addToast("另一個分頁剛剛先照顧過她，狀態已更新。", "info");
             }
-          })
-          .catch((error: unknown) => {
-            if (activeUidRef.current !== uid) return;
-            // Rebase an offline fallback on the latest committed state; other
-            // care transactions may have completed while this one was pending.
+          } catch (error: unknown) {
+            if (!isCurrentIdentity(uid, generation)) return;
             const fallbackResult = applyCareActionWithWish(
               saveRef.current, uid, action, actionNow,
             );
             setVisibleSave(fallbackResult.save, uid);
-            void writeCottageCache(uid, fallbackResult.save);
+            await writeCottageCache(uid, fallbackResult.save);
+            if (!isCurrentIdentity(uid, generation)) return;
             queueCloudSave(fallbackResult.save);
+            await cloudQueueRef.current;
             logger.warn("Cloud Cottage care transaction deferred", error);
+          }
+        };
+        const pending = (careQueueRef.current ?? Promise.resolve())
+          .then(runCare)
+          .catch((error: unknown) => {
+            logger.warn("Cloud Cottage care queue failed", error);
           });
+        careQueueRef.current = pending;
+        void pending.then(() => {
+          if (careQueueRef.current === pending) careQueueRef.current = null;
+        });
       } else {
         setVisibleSave(result.save, uid);
         void writeCottageCache(uid, result.save);
@@ -1161,6 +1174,7 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
     [
       addToast,
       enqueueScene,
+      isCurrentIdentity,
       isDemo,
       isOnline,
       queueCloudSave,
