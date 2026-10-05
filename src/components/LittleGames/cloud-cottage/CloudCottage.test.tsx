@@ -766,6 +766,53 @@ describe("CloudCottage network transitions", () => {
     expect(hookMocks.addToast).not.toHaveBeenCalled();
   });
 
+  it.each([false, true])("suppresses late care feedback after unmount (reject: %s)", async (rejectCare) => {
+    const storage = await vi.importActual<typeof import("./storage")>("./storage");
+    localStorage.clear();
+    const initial = createInitialPetSave(Date.now());
+    initial.wish = { date: initial.freeFood.restockDate, wishId: "pet-five", progress: 4, target: 5, fulfilled: false };
+    audioSettingsState.speechEnabled = true;
+    await renderSignedInCottage(initial);
+    await storage.writeCottageCache("cloud-reader", initial);
+    let cloud = initial;
+    let finishCare!: () => Promise<void>;
+    type Transaction = {
+      get: () => Promise<{ exists: () => boolean; data: () => PetSaveV1 }>;
+      set: (ref: unknown, save: PetSaveV1) => void;
+    };
+    careFirestore.runTransaction.mockImplementation((_db: unknown, update: (tx: Transaction) => Promise<unknown>) => new Promise((resolve, reject) => {
+      finishCare = async () => {
+        if (rejectCare) { reject(new Error("transaction failed")); return; }
+        resolve(await update({
+          get: async () => ({ exists: () => true, data: () => cloud }),
+          set: (_ref, save) => { cloud = save; },
+        }));
+      };
+    }));
+    storageMocks.commitCottageCareAction.mockImplementation(storage.commitCottageCareAction);
+    act(() => button('[data-pet]').click());
+    await flushAsyncWork();
+    act(() => button('[data-pet]').click());
+    await flushAsyncWork();
+    expect(storageMocks.commitCottageCareAction).toHaveBeenCalledTimes(1);
+    act(() => root.unmount());
+    hookMocks.speakAsync.mockClear();
+    hookMocks.addToast.mockClear();
+    Object.values(audioMocks).forEach(mock => mock.mockClear());
+
+    await act(async () => finishCare());
+    await flushAsyncWork();
+    expect(hookMocks.speakAsync).not.toHaveBeenCalled();
+    expect(hookMocks.addToast).not.toHaveBeenCalled();
+    Object.values(audioMocks).forEach(mock => expect(mock).not.toHaveBeenCalled());
+    expect(storageMocks.commitCottageCareAction).toHaveBeenCalledTimes(1);
+    if (!rejectCare) {
+      // The already-started transaction and its cache write still finish.
+      expect(cloud.bond.total).toBe(12);
+      expect(storage.readCottageCache("cloud-reader")?.bond.total).toBe(12);
+    }
+  });
+
   it("discards queued care when its account session changes", async () => {
     const initial = createInitialPetSave(Date.now());
     let finishPet!: () => void;

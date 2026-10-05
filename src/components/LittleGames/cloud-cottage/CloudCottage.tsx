@@ -1064,6 +1064,12 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
     unlocks,
   ]);
 
+  // Invalidate callbacks when this screen leaves, independently of audio
+  // setting changes. Already-started storage operations may still finish.
+  useEffect(() => () => {
+    identityGenerationRef.current += 1;
+  }, []);
+
   useEffect(() => () => {
     clearCloudRetry();
     if (speechTimerRef.current) clearTimeout(speechTimerRef.current);
