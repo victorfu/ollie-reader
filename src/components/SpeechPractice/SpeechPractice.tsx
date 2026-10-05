@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import type { SpeechPracticeTopic } from "../../types/speechPractice";
 import { useSpeechPractice } from "../../hooks/useSpeechPractice";
 import { useAudioRecorder } from "../../hooks/useAudioRecorder";
@@ -21,14 +21,32 @@ export function SpeechPractice() {
   const [script, setScript] = useState("");
   const [isScriptModalOpen, setIsScriptModalOpen] = useState(false);
   const [isScriptExpanded, setIsScriptExpanded] = useState(true);
-  const [toastMessage, setToastMessage] = useState<{
+  const [toastQueue, setToastQueue] = useState<{
+    id: number;
     message: string;
     type: "success" | "error" | "info";
-  } | null>(null);
+  }[]>([]);
+  const nextToastIdRef = useRef(0);
+  const toastMessage = toastQueue[0];
+  const toastId = toastMessage?.id;
+
+  const enqueueToast = (notification: Omit<(typeof toastQueue)[number], "id">) => {
+    const toast = { ...notification, id: nextToastIdRef.current++ };
+    setToastQueue((queue) => [...queue, toast]);
+  };
+
+  // Keep the active toast timer stable when another outcome is queued.
+  const dismissToast = useCallback(() => {
+    setToastQueue((queue) => queue[0]?.id === toastId ? queue.slice(1) : queue);
+  }, [toastId]);
+
   const [deleteRecordId, setDeleteRecordId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
+  const practiceSessionIdRef = useRef(0);
+  const [savingSessionId, setSavingSessionId] = useState<number | null>(null);
   const [isSavingScript, setIsSavingScript] = useState(false);
+
+  const isSaving = savingSessionId === practiceSessionIdRef.current;
 
   const {
     records,
@@ -53,6 +71,7 @@ export function SpeechPractice() {
 
   const handleStartPractice = () => {
     if (!selectedTopic) return;
+    practiceSessionIdRef.current += 1;
     setViewMode("practice");
     setNotes("");
     // Load saved script if available
@@ -87,14 +106,14 @@ export function SpeechPractice() {
         const result = await saveScript(selectedTopic.id, generatedScript);
 
         if (result.success) {
-          setToastMessage({
+          enqueueToast({
             message: "講稿已儲存",
             type: "success",
           });
           return true;
         }
 
-        setToastMessage({
+        enqueueToast({
           message: result.message,
           type: "error",
         });
@@ -152,7 +171,8 @@ export function SpeechPractice() {
   const handleSavePractice = async () => {
     if (!selectedTopic || recorder.isFinalizing) return;
 
-    setIsSaving(true);
+    const sessionId = practiceSessionIdRef.current;
+    setSavingSessionId(sessionId);
 
     const result = await saveRecord(
       {
@@ -165,10 +185,14 @@ export function SpeechPractice() {
       recorder.audioBlob,
     );
 
-    setIsSaving(false);
+    setSavingSessionId((current) => (current === sessionId ? null : current));
 
     if (result.success) {
-      setToastMessage({ message: result.message, type: "success" });
+      // A save can finish after the user has already started another practice.
+      // Never let an older session reset or navigate away from the newer one.
+      if (practiceSessionIdRef.current !== sessionId) return;
+
+      enqueueToast({ message: result.message, type: "success" });
       setViewMode("select");
       setSelectedTopic(null);
       timer.reset();
@@ -177,7 +201,10 @@ export function SpeechPractice() {
       setScript("");
       scriptGenerator.resetState();
     } else {
-      setToastMessage({ message: result.message, type: "error" });
+      enqueueToast({
+        message: `「${selectedTopic.titleChinese}」：${result.message}`,
+        type: "error",
+      });
     }
   };
 
@@ -210,9 +237,9 @@ export function SpeechPractice() {
     setDeleteRecordId(null);
 
     if (result.success) {
-      setToastMessage({ message: result.message, type: "success" });
+      enqueueToast({ message: result.message, type: "success" });
     } else {
-      setToastMessage({ message: result.message, type: "error" });
+      enqueueToast({ message: result.message, type: "error" });
     }
   };
 
@@ -225,9 +252,10 @@ export function SpeechPractice() {
       {/* Toast Notification */}
       {toastMessage && (
         <Toast
+          key={toastMessage.id}
           message={toastMessage.message}
           type={toastMessage.type}
-          onClose={() => setToastMessage(null)}
+          onClose={dismissToast}
         />
       )}
 

@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   startTimer: vi.fn(),
   resetRecording: vi.fn(),
   startRecording: vi.fn(),
+  saveRecord: vi.fn(),
   recorderSupported: false,
   recorderStarting: false,
   recorderError: null as string | null,
@@ -43,7 +44,7 @@ vi.mock("../../hooks/useSpeechPractice", () => ({
     topicCounts: new Map(),
     topicScripts: new Map([["topic-a", "A saved script"]]),
     loadMoreRecords: vi.fn(),
-    saveRecord: vi.fn(),
+    saveRecord: mocks.saveRecord,
     deleteRecord: vi.fn(),
     saveScript: vi.fn(),
   }),
@@ -110,7 +111,6 @@ vi.mock("./PracticeHistory", () => ({ PracticeHistory: () => null }));
 vi.mock("./ScriptGeneratorModal", () => ({
   ScriptGeneratorModal: () => null,
 }));
-vi.mock("../common/Toast", () => ({ Toast: () => null }));
 vi.mock("../common/ConfirmModal", () => ({ ConfirmModal: () => null }));
 
 import { SpeechPractice } from "./SpeechPractice";
@@ -145,6 +145,7 @@ beforeEach(() => {
   mocks.recorderError = null;
   mocks.timerTime = 1;
   mocks.startRecording.mockResolvedValue(true);
+  mocks.saveRecord.mockResolvedValue({ success: true, message: "saved" });
   host = document.createElement("div");
   document.body.appendChild(host);
   root = createRoot(host);
@@ -154,6 +155,7 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount());
   host.remove();
+  vi.useRealTimers();
 });
 
 describe("SpeechPractice topic script ownership", () => {
@@ -244,5 +246,100 @@ describe("SpeechPractice recorder startup", () => {
       (button) => button.textContent?.trim() === "開始練習",
     );
     expect(startButton?.disabled).toBe(false);
+  });
+});
+
+
+describe("SpeechPractice save session ownership", () => {
+  it.each([true, false])("queues overlapping failures (same batch: %s)", async (sameBatch) => {
+    vi.useFakeTimers();
+    let resolveA!: (result: { success: boolean; message: string }) => void;
+    let resolveB!: (result: { success: boolean; message: string }) => void;
+    mocks.saveRecord
+      .mockReturnValueOnce(new Promise((resolve) => { resolveA = resolve; }))
+      .mockReturnValueOnce(new Promise((resolve) => { resolveB = resolve; }));
+
+    clickButton("select-a");
+    clickButton("start-practice");
+    clickButton("儲存練習記錄");
+    clickButton("主題選擇");
+    clickButton("select-b");
+    clickButton("start-practice");
+    clickButton("儲存練習記錄");
+    const timerResets = mocks.resetTimer.mock.calls.length;
+    const recorderResets = mocks.resetRecording.mock.calls.length;
+
+    resolveB({ success: false, message: "B failed" });
+    if (!sameBatch) {
+      await flushAsyncWork();
+      act(() => vi.advanceTimersByTime(2000));
+    }
+    resolveA({ success: false, message: "A failed" });
+    await flushAsyncWork();
+
+    expect(host.querySelector('[role="alert"]')?.textContent).toBe("「主題 B」：B failed");
+    // Enqueuing A must not restart B's timeout; A gets a fresh timeout afterward.
+    act(() => vi.advanceTimersByTime(sameBatch ? 3000 : 1000));
+    expect(host.querySelector('[role="alert"]')?.textContent).toBe("「主題 A」：A failed");
+    act(() => vi.advanceTimersByTime(2999));
+    expect(host.querySelector('[role="alert"]')?.textContent).toBe("「主題 A」：A failed");
+    const closeButton = host.querySelector<HTMLButtonElement>('button[aria-label="關閉"]');
+    act(() => closeButton?.click());
+    expect(host.querySelector('[role="alert"]')).toBeNull();
+    expect(host.textContent).toContain("主題 B");
+    expect(mocks.resetTimer).toHaveBeenCalledTimes(timerResets);
+    expect(mocks.resetRecording).toHaveBeenCalledTimes(recorderResets);
+  });
+
+  it("reports an older save failure with its topic while a newer save is pending", async () => {
+    let resolveSave!: (result: { success: boolean; message: string }) => void;
+    mocks.saveRecord
+      .mockReturnValueOnce(new Promise((resolve) => { resolveSave = resolve; }))
+      .mockReturnValueOnce(new Promise(() => {}));
+
+    clickButton("select-a");
+    clickButton("start-practice");
+    clickButton("儲存練習記錄");
+    clickButton("主題選擇");
+    clickButton("select-b");
+    clickButton("start-practice");
+    clickButton("儲存練習記錄");
+    const timerResets = mocks.resetTimer.mock.calls.length;
+    const recorderResets = mocks.resetRecording.mock.calls.length;
+
+    resolveSave({ success: false, message: "儲存失敗，請稍後再試" });
+    await flushAsyncWork();
+
+    expect(host.querySelector('[role="alert"]')?.textContent)
+      .toBe("「主題 A」：儲存失敗，請稍後再試");
+    expect(host.textContent).toContain("主題 B");
+    expect(host.textContent).toContain("儲存中");
+    expect(mocks.resetTimer).toHaveBeenCalledTimes(timerResets);
+    expect(mocks.resetRecording).toHaveBeenCalledTimes(recorderResets);
+  });
+
+  it("does not let an older save reset a newer practice", async () => {
+    let resolveSave!: (result: { success: boolean; message: string }) => void;
+    const pendingSave = new Promise<{ success: boolean; message: string }>((resolve) => {
+      resolveSave = resolve;
+    });
+    mocks.saveRecord.mockReturnValueOnce(pendingSave);
+
+    clickButton("select-a");
+    clickButton("start-practice");
+    clickButton("儲存練習記錄");
+
+    clickButton("主題選擇");
+    clickButton("select-b");
+    clickButton("start-practice");
+    const timerResetsAfterStartingB = mocks.resetTimer.mock.calls.length;
+    const recorderResetsAfterStartingB = mocks.resetRecording.mock.calls.length;
+
+    resolveSave({ success: true, message: "saved" });
+    await flushAsyncWork();
+
+    expect(host.textContent).toContain("主題 B");
+    expect(mocks.resetTimer).toHaveBeenCalledTimes(timerResetsAfterStartingB);
+    expect(mocks.resetRecording).toHaveBeenCalledTimes(recorderResetsAfterStartingB);
   });
 });
