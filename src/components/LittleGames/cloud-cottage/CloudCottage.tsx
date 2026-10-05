@@ -1075,13 +1075,55 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
       emoji?: string,
     ) => {
       if (!uid || visibleSaveOwnerUidRef.current !== uid) return;
-      const previous = saveRef.current;
-      const result = applyCareActionWithWish(previous, uid, action, nowRef.current);
-      if (!result.applied) {
-        triggerAction(result.reason === "full" ? "feed" : "idle", emoji);
-        showSpeech(careFailureMessage(result));
-        return;
-      }
+      // Feedback must use the settled transition, never the click-time snapshot.
+      const showResult = (
+        result: ReturnType<typeof applyCareActionWithWish>,
+        previous: PetSaveV1,
+      ) => {
+        if (!result.applied) {
+          triggerAction(result.reason === "full" ? "feed" : "idle", emoji);
+          showSpeech(careFailureMessage(result));
+          return;
+        }
+
+        triggerAction(animation, emoji, animation === "sleep");
+        showPhrase(result.phraseId, fallback);
+        if (action.type === "feed") playEatSound();
+        else if (action.type === "bath") playBubbleSound();
+        else if (action.type === "play") playToySound();
+        else if (action.type === "sleep") playLullabySound();
+        else playHeartSound();
+
+        // Reactions are queued rather than triggered: a care action can raise a
+        // wish celebration and a bond unlock in this same pass, and firing them
+        // directly would batch away the animation the player just asked for.
+        if (result.newlyFulfilled) {
+          addToast(
+            result.wishBondAwarded > 0
+              ? `今日心願完成！親密度 +${result.wishBondAwarded} 💕`
+              : "今日心願完成！她今天已經好幸福了 💕",
+            "success",
+            4_000,
+          );
+          playHeartSound();
+          enqueueScene({ action: "celebrate" });
+        } else if (result.capReached) {
+          addToast("她今天已經好幸福了 💕", "info");
+        }
+
+        const newUnlocks = getNewBondUnlocks(
+          previous.bond.total,
+          result.save.bond.total,
+        );
+        if (newUnlocks.length > 0) {
+          setUnlocks(newUnlocks);
+          enqueueScene({
+            action: newUnlocks.some((unlock) => unlock.type === "celebration")
+              ? "celebrate"
+              : "heartBurst",
+          });
+        }
+      };
 
       const actionNow = nowRef.current;
       const generation = identityGenerationRef.current;
@@ -1092,6 +1134,7 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
         const runCare = async () => {
           await cloudQueueRef.current;
           if (!isCurrentIdentity(uid, generation)) return;
+          const previous = saveRef.current;
           try {
             if (!isOnline) throw new Error("offline");
             const committed = await commitCottageCareAction(uid, action, actionNow);
@@ -1102,16 +1145,15 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
             }
             setSyncStatus("cloud");
             setSyncError(null);
-            if (!committed.applied) {
-              showSpeech(careFailureMessage(committed));
-              addToast("另一個分頁剛剛先照顧過她，狀態已更新。", "info");
-            }
+            showResult(committed, previous);
           } catch (error: unknown) {
             if (!isCurrentIdentity(uid, generation)) return;
+            const fallbackPrevious = saveRef.current;
             const fallbackResult = applyCareActionWithWish(
-              saveRef.current, uid, action, actionNow,
+              fallbackPrevious, uid, action, actionNow,
             );
             setVisibleSave(fallbackResult.save, uid);
+            showResult(fallbackResult, fallbackPrevious);
             await writeCottageCache(uid, fallbackResult.save);
             if (!isCurrentIdentity(uid, generation)) return;
             queueCloudSave(fallbackResult.save);
@@ -1129,46 +1171,13 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
           if (careQueueRef.current === pending) careQueueRef.current = null;
         });
       } else {
-        setVisibleSave(result.save, uid);
+        const previous = saveRef.current;
+        const result = applyCareActionWithWish(previous, uid, action, actionNow);
+        if (result.applied) setVisibleSave(result.save, uid);
+        showResult(result, previous);
+        if (!result.applied) return;
         void writeCottageCache(uid, result.save);
         if (!isDemo) queueCloudSave(result.save);
-      }
-      triggerAction(animation, emoji, animation === "sleep");
-      showPhrase(result.phraseId, fallback);
-      if (action.type === "feed") playEatSound();
-      else if (action.type === "bath") playBubbleSound();
-      else if (action.type === "play") playToySound();
-      else if (action.type === "sleep") playLullabySound();
-      else playHeartSound();
-
-      // Reactions are queued rather than triggered: a care action can raise a
-      // wish celebration and a bond unlock in this same pass, and firing them
-      // directly would batch away the animation the player just asked for.
-      if (result.newlyFulfilled) {
-        addToast(
-          result.wishBondAwarded > 0
-            ? `今日心願完成！親密度 +${result.wishBondAwarded} 💕`
-            : "今日心願完成！她今天已經好幸福了 💕",
-          "success",
-          4_000,
-        );
-        playHeartSound();
-        enqueueScene({ action: "celebrate" });
-      } else if (result.capReached) {
-        addToast("她今天已經好幸福了 💕", "info");
-      }
-
-      const newUnlocks = getNewBondUnlocks(
-        previous.bond.total,
-        result.save.bond.total,
-      );
-      if (newUnlocks.length > 0) {
-        setUnlocks(newUnlocks);
-        enqueueScene({
-          action: newUnlocks.some((unlock) => unlock.type === "celebration")
-            ? "celebrate"
-            : "heartBurst",
-        });
       }
     },
     [

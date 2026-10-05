@@ -750,6 +750,76 @@ describe("CloudCottage network transitions", () => {
     expect(gameState().inventory.freeFood.milk).toBe(2);
   });
 
+  it.each([
+    { scenario: "wish", failFirst: false }, { scenario: "wish", failFirst: true },
+    { scenario: "last-food", failFirst: false }, { scenario: "last-food", failFirst: true },
+  ])("waits for queued $scenario feedback (fallback: $failFirst)", async ({ scenario, failFirst }) => {
+    const initial = createInitialPetSave(Date.now());
+    initial.stats.fullness = 20;
+    if (scenario === "wish") initial.bond.total = 18;
+    initial.inventory.snacks.apple = 1;
+    initial.wish = {
+      date: initial.freeFood.restockDate,
+      wishId: scenario === "wish" ? "pet-five" : "bubble-bath",
+      progress: scenario === "wish" ? 4 : 0,
+      target: scenario === "wish" ? 5 : 1,
+      fulfilled: false,
+    };
+    await renderSignedInCottage(initial);
+    let cloud = initial;
+    storageMocks.saveCottageCloud.mockImplementation(async (_uid: string, save: PetSaveV1) => {
+      cloud = save;
+      return save;
+    });
+    const pending: Array<() => void> = [];
+    storageMocks.commitCottageCareAction.mockImplementation((uid, action, now) => new Promise((resolve, reject) => {
+      const index = pending.length;
+      pending.push(() => {
+        if (failFirst && index === 0) { reject(new Error("offline")); return; }
+        const result = applyCareActionWithWish(cloud, uid, action, now);
+        cloud = result.save;
+        resolve(result);
+      });
+    }));
+    hookMocks.addToast.mockClear();
+    audioMocks.playEatSound.mockClear();
+    const clickCare = () => {
+      if (scenario === "wish") act(() => button('[data-pet]').click());
+      else {
+        act(() => button('[data-toolbar="food"]').click());
+        act(() => button('[data-food-id="apple"]').click());
+      }
+    };
+    clickCare();
+    await flushAsyncWork();
+    clickCare();
+    await flushAsyncWork();
+    expect(hookMocks.addToast).not.toHaveBeenCalled();
+    expect(audioMocks.playEatSound).not.toHaveBeenCalled();
+    expect(container.querySelector('[aria-label="親密度升級了！"]')).toBeNull();
+    expect(pending).toHaveLength(1);
+    await act(async () => pending[0]());
+    await flushAsyncWork();
+    expect(pending).toHaveLength(2);
+    if (scenario === "wish") {
+      expect(container.querySelector('[aria-label="親密度升級了！"]')).not.toBeNull();
+      act(() => button('[aria-label="關閉親密度升級了！"]').click());
+    }
+    await act(async () => pending[1]());
+    await flushAsyncWork();
+    const wishRewards = hookMocks.addToast.mock.calls.filter(([text]) => String(text).startsWith("今日心願完成！"));
+    if (scenario === "wish") {
+      expect(wishRewards).toHaveLength(1);
+      expect(gameState().pet.bond.total).toBe(32);
+      expect(container.querySelector('[aria-label="親密度升級了！"]')).toBeNull();
+    } else {
+      expect(audioMocks.playEatSound).toHaveBeenCalledTimes(1);
+      expect(gameState().inventory.snacks.apple ?? 0).toBe(0);
+      expect(gameState().pet.bond.total).toBe(6);
+      expect(hookMocks.addToast).not.toHaveBeenCalledWith("另一個分頁剛剛先照顧過她，狀態已更新。", "info");
+    }
+  });
+
   it("keeps pending online care out of cache and queues it only after failure", async () => {
     const initial = createInitialPetSave(Date.now());
     let rejectCare!: (reason?: unknown) => void;
@@ -1697,10 +1767,14 @@ describe("CloudCottage demo care loop", () => {
         toys: ["ball"],
       },
     };
+    storageMocks.commitCottageCareAction.mockImplementation(async (uid, action, now) =>
+      applyCareActionWithWish(initial, uid, action, now),
+    );
     await renderSignedInCottage(initial, "toy-reader");
 
     act(() => button('[data-toolbar="toys"]').click());
     act(() => button('[data-toy-id="ball"]').click());
+    await flushAsyncWork();
 
     // The play animation holds for its full turn. It used to be replaced in
     // the very tick it was set, which is why no toy was ever visible.
