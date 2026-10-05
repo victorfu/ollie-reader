@@ -320,6 +320,7 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
   const activeUidRef = useRef(uid);
   const identityUidRef = useRef(uid);
   const identityGenerationRef = useRef(0);
+  const mountedRef = useRef(true);
   if (identityUidRef.current !== uid) {
     identityUidRef.current = uid;
     identityGenerationRef.current += 1;
@@ -375,7 +376,8 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
 
   const isCurrentIdentity = useCallback(
     (ownerUid: string, generation: number) =>
-      activeUidRef.current === ownerUid
+      mountedRef.current
+      && activeUidRef.current === ownerUid
       && identityGenerationRef.current === generation,
     [],
   );
@@ -1064,10 +1066,11 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
     unlocks,
   ]);
 
-  // Invalidate callbacks when this screen leaves, independently of audio
-  // setting changes. Already-started storage operations may still finish.
-  useEffect(() => () => {
-    identityGenerationRef.current += 1;
+  // Leaving the screen suppresses feedback, but must not cancel persistence
+  // for an already-started action. Restore the flag for Strict Mode effect replay.
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
   }, []);
 
   useEffect(() => () => {
@@ -1156,13 +1159,19 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
             setSyncError(null);
             showResult(committed, previous);
           } catch (error: unknown) {
-            if (!isCurrentIdentity(uid, generation)) return;
-            const fallbackPrevious = saveRef.current;
+            // Persist for the captured owner even after exit/account changes.
+            // Only rebase on visible state while it still belongs to this session.
+            const fallbackPrevious = activeUidRef.current === uid
+              && identityGenerationRef.current === generation
+              ? saveRef.current
+              : previous;
             const fallbackResult = applyCareActionWithWish(
               fallbackPrevious, uid, action, actionNow,
             );
-            setVisibleSave(fallbackResult.save, uid);
-            showResult(fallbackResult, fallbackPrevious);
+            if (isCurrentIdentity(uid, generation)) {
+              setVisibleSave(fallbackResult.save, uid);
+              showResult(fallbackResult, fallbackPrevious);
+            }
             await writeCottageCache(uid, fallbackResult.save);
             if (!isCurrentIdentity(uid, generation)) return;
             queueCloudSave(fallbackResult.save);

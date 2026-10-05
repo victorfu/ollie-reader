@@ -766,7 +766,12 @@ describe("CloudCottage network transitions", () => {
     expect(hookMocks.addToast).not.toHaveBeenCalled();
   });
 
-  it.each([false, true])("suppresses late care feedback after unmount (reject: %s)", async (rejectCare) => {
+  it.each([
+    { rejectCare: false, leave: "unmount" },
+    { rejectCare: true, leave: "unmount" },
+    { rejectCare: false, leave: "switch account" },
+    { rejectCare: true, leave: "switch account" },
+  ])("persists started care without late feedback after $leave (reject: $rejectCare)", async ({ rejectCare, leave }) => {
     const storage = await vi.importActual<typeof import("./storage")>("./storage");
     localStorage.clear();
     const initial = createInitialPetSave(Date.now());
@@ -774,6 +779,7 @@ describe("CloudCottage network transitions", () => {
     audioSettingsState.speechEnabled = true;
     await renderSignedInCottage(initial);
     await storage.writeCottageCache("cloud-reader", initial);
+    storageMocks.writeCottageCache.mockImplementation(storage.writeCottageCache);
     let cloud = initial;
     let finishCare!: () => Promise<void>;
     type Transaction = {
@@ -795,7 +801,15 @@ describe("CloudCottage network transitions", () => {
     act(() => button('[data-pet]').click());
     await flushAsyncWork();
     expect(storageMocks.commitCottageCareAction).toHaveBeenCalledTimes(1);
-    act(() => root.unmount());
+    const accountB = createInitialPetSave(Date.now());
+    accountB.bond.total = 50;
+    if (leave === "unmount") {
+      act(() => root.unmount());
+    } else {
+      await storage.writeCottageCache("other-reader", accountB);
+      await renderSignedInCottage(accountB, "other-reader");
+    }
+    storageMocks.saveCottageCloud.mockClear();
     hookMocks.speakAsync.mockClear();
     hookMocks.addToast.mockClear();
     Object.values(audioMocks).forEach(mock => mock.mockClear());
@@ -809,7 +823,14 @@ describe("CloudCottage network transitions", () => {
     if (!rejectCare) {
       // The already-started transaction and its cache write still finish.
       expect(cloud.bond.total).toBe(12);
-      expect(storage.readCottageCache("cloud-reader")?.bond.total).toBe(12);
+    }
+    // Failed transactions must also retain the accepted action for the next visit.
+    expect(storage.readCottageCache("cloud-reader")?.bond.total).toBe(12);
+    expect(storage.readCottageCache("cloud-reader")?.wish.fulfilled).toBe(true);
+    expect(storageMocks.saveCottageCloud).not.toHaveBeenCalled();
+    if (leave === "switch account") {
+      expect(gameState().pet.bond.total).toBe(50);
+      expect(storage.readCottageCache("other-reader")?.bond.total).toBe(50);
     }
   });
 
