@@ -324,6 +324,9 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
     identityUidRef.current = uid;
     identityGenerationRef.current += 1;
     careQueueRef.current = null;
+    // A new account must not wait for the previous account's network work.
+    // Existing generation guards still isolate completions of that old work.
+    cloudQueueRef.current = Promise.resolve();
     // Ref ownership changes synchronously with render. This keeps the first
     // frame after A -> B from exposing A's save or accepting an A-era action
     // before the hydration effect has had a chance to run.

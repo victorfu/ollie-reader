@@ -729,6 +729,43 @@ describe("CloudCottage network transitions", () => {
     expect(gameState().pet.bond.total).toBe(8);
   });
 
+  it.each([false, true])("detaches a previous account's stalled cloud save (reject: %s)", async (rejectOldSave) => {
+    const initial = createInitialPetSave(Date.now());
+    await renderSignedInCottage(initial, "account-a");
+    let finishOldSave!: () => void;
+    storageMocks.saveCottageCloud.mockImplementationOnce((_uid: string, save: PetSaveV1) => new Promise((resolve, reject) => {
+      finishOldSave = () => {
+        if (rejectOldSave) reject(new Error("old account offline"));
+        else resolve({ ...save, revision: 999, bond: { ...save.bond, total: 999 } });
+      };
+    }));
+    storageMocks.commitCottageCareAction.mockRejectedValueOnce(new Error("care unavailable"));
+    act(() => button('[data-pet]').click());
+    await flushAsyncWork();
+    expect(storageMocks.saveCottageCloud).toHaveBeenLastCalledWith("account-a", expect.anything());
+
+    await renderSignedInCottage(initial, "account-b");
+    storageMocks.commitCottageCareAction.mockResolvedValueOnce(
+      applyCareActionWithWish(initial, "account-b", { type: "pet" }, Date.now()),
+    );
+    act(() => button('[data-pet]').click());
+    await flushAsyncWork();
+    // B must complete while A's snapshot save is still unresolved.
+    expect(storageMocks.commitCottageCareAction).toHaveBeenLastCalledWith(
+      "account-b", { type: "pet" }, expect.any(Number),
+    );
+    expect(gameState().pet.bond.total).toBe(2);
+    expect(gameState().sync).toBe("cloud");
+    const current = gameState();
+    hookMocks.addToast.mockClear();
+
+    await act(async () => finishOldSave());
+    await flushAsyncWork();
+    expect(gameState().pet).toEqual(current.pet);
+    expect(gameState().sync).toBe("cloud");
+    expect(hookMocks.addToast).not.toHaveBeenCalled();
+  });
+
   it("discards queued care when its account session changes", async () => {
     const initial = createInitialPetSave(Date.now());
     let finishPet!: () => void;
