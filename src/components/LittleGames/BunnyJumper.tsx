@@ -1,3 +1,4 @@
+import { GameControls, type GameControl } from "./GameControls";
 import confetti from "canvas-confetti";
 import { useReducedMotion } from "framer-motion";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -342,13 +343,11 @@ export default function BunnyJumper({ onExit }: BunnyJumperProps) {
     setGameState(GameState.Playing);
   }, []);
 
-  // 遊玩中會捲動頁面的按鍵：方向鍵與空白鍵
-  const isScrollKey = (key: string) =>
-    key === "arrowleft" ||
-    key === "arrowright" ||
-    key === "arrowup" ||
-    key === "arrowdown" ||
-    key === " ";
+  const changeControl = useCallback((control: GameControl, pressed: boolean) => {
+    if (gameDataRef.current && control !== "jump") {
+      gameDataRef.current.keys[`arrow${control}`] = pressed;
+    }
+  }, []);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -362,23 +361,12 @@ export default function BunnyJumper({ onExit }: BunnyJumperProps) {
         }
         return;
       }
-      // 遊玩中攔截捲動鍵，避免空白鍵/方向鍵捲動頁面
-      if (playingRef.current && isScrollKey(key)) e.preventDefault();
-      if (!gameDataRef.current) return;
-      gameDataRef.current.keys[key] = true;
-    };
-
-    const handleKeyUp = (e: KeyboardEvent) => {
-      if (!gameDataRef.current) return;
-      gameDataRef.current.keys[e.key.toLowerCase()] = false;
     };
 
     window.addEventListener("keydown", handleKeyDown);
-    window.addEventListener("keyup", handleKeyUp);
 
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
-      window.removeEventListener("keyup", handleKeyUp);
     };
   }, [pauseGame, resumeGame]);
 
@@ -2141,6 +2129,7 @@ export default function BunnyJumper({ onExit }: BunnyJumperProps) {
           "linear-gradient(135deg, #ffeef8 0%, #e8f4fc 50%, #fff5e6 100%)",
       }}
     >
+      {gameState === GameState.Playing && <GameControls onChange={changeControl} />}
       {onExit && (
         <button
           onClick={onExit}

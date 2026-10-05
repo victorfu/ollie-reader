@@ -1,3 +1,4 @@
+import { GameControls, type GameControl } from "../GameControls";
 import confetti from "canvas-confetti";
 import { useReducedMotion } from "framer-motion";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -268,15 +269,15 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
     setGameState("paused");
   }, []);
 
+  const changeControl = useCallback((control: GameControl, pressed: boolean) => {
+    const keys = stateRef.current.keys;
+    if (control === "jump") {
+      if (pressed) pressJump(keys);
+      else releaseJump(keys);
+    } else keys[control] = pressed;
+  }, []);
+
   useEffect(() => {
-    const isGameKey = (key: string) =>
-      key === "arrowleft" ||
-      key === "arrowright" ||
-      key === "arrowup" ||
-      key === "a" ||
-      key === "d" ||
-      key === "w" ||
-      key === " ";
     const onKeyDown = (e: KeyboardEvent) => {
       const key = e.key.toLowerCase();
       if (key === "escape") {
@@ -284,27 +285,10 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
         else if (gameState === "paused") setGameState("playing");
         return;
       }
-      // 遊玩中攔截遊戲鍵：空白鍵/方向鍵不捲動頁面、不誤觸 focused 按鈕
-      if (gameState === "playing" && isGameKey(key)) e.preventDefault();
-      // 暫停中不累積按鍵，避免恢復時角色暴衝
-      if (gameState === "paused") return;
-      const keys = stateRef.current.keys;
-      if (key === "arrowleft" || key === "a") keys.left = true;
-      if (key === "arrowright" || key === "d") keys.right = true;
-      if (key === "arrowup" || key === "w" || key === " ") pressJump(keys);
-    };
-    const onKeyUp = (e: KeyboardEvent) => {
-      const key = e.key.toLowerCase();
-      const keys = stateRef.current.keys;
-      if (key === "arrowleft" || key === "a") keys.left = false;
-      if (key === "arrowright" || key === "d") keys.right = false;
-      if (key === "arrowup" || key === "w" || key === " ") releaseJump(keys);
     };
     window.addEventListener("keydown", onKeyDown);
-    window.addEventListener("keyup", onKeyUp);
     return () => {
       window.removeEventListener("keydown", onKeyDown);
-      window.removeEventListener("keyup", onKeyUp);
     };
   }, [gameState, pauseGame]);
 
@@ -1471,6 +1455,7 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
           "radial-gradient(circle at 20% 20%, rgba(126,195,148,0.35), transparent 40%), radial-gradient(circle at 80% 10%, rgba(146,187,255,0.3), transparent 35%), #e9fdf3",
       }}
     >
+      {gameState === "playing" && <GameControls onChange={changeControl} jump />}
       {onExit && (
         <button
           onClick={onExit}

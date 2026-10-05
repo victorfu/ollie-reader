@@ -1086,20 +1086,13 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
         ? commitCottageCareAction(uid, action, actionNow)
         : null;
 
-      // Start the transaction before caching the optimistic result so it has
-      // already captured the pre-action cache snapshot. Keeping the result in
-      // cache protects it if the browser reports a network change while the
-      // transaction is still pending.
-      setVisibleSave(result.save, uid);
-      void writeCottageCache(uid, result.save);
+      // Online actions become visible only after commit. Other actions and
+      // snapshot writers must never publish an uncommitted care transition.
       if (cloudCommit) {
         void cloudCommit
           .then((committed) => {
             if (activeUidRef.current !== uid) return;
-            const stillShowingThisAction =
-              comparePetSaveFreshness(saveRef.current, result.save) === 0;
-            if (stillShowingThisAction) setVisibleSave(committed.save, uid);
-            else setVisibleSaveIfNewer(committed.save, uid);
+            setVisibleSaveIfNewer(committed.save, uid);
             if (pendingCloudWriteOwnerUidRef.current === uid) {
               pendingCloudWriteOwnerUidRef.current = undefined;
             }
@@ -1112,12 +1105,19 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
           })
           .catch((error: unknown) => {
             if (activeUidRef.current !== uid) return;
-            setVisibleSaveIfNewer(result.save, uid);
-            void writeCottageCache(uid, result.save);
-            queueCloudSave(result.save);
+            // Rebase an offline fallback on the latest committed state; other
+            // care transactions may have completed while this one was pending.
+            const fallbackResult = applyCareActionWithWish(
+              saveRef.current, uid, action, actionNow,
+            );
+            setVisibleSave(fallbackResult.save, uid);
+            void writeCottageCache(uid, fallbackResult.save);
+            queueCloudSave(fallbackResult.save);
             logger.warn("Cloud Cottage care transaction deferred", error);
           });
       } else {
+        setVisibleSave(result.save, uid);
+        void writeCottageCache(uid, result.save);
         if (!isDemo) queueCloudSave(result.save);
       }
       triggerAction(animation, emoji, animation === "sleep");

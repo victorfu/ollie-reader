@@ -83,6 +83,8 @@ const convertToVocabularyWord = (
     createdAt: data.createdAt?.toDate() || new Date(),
     updatedAt: data.updatedAt?.toDate() || new Date(),
     reviewCount: data.reviewCount || 0,
+    rememberedCount: data.rememberedCount ?? 0,
+    forgotCount: data.forgotCount ?? 0,
     lastReviewedAt: data.lastReviewedAt?.toDate(),
   };
 };

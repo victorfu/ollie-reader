@@ -407,3 +407,25 @@ def test_oikid_upstream_error_maps_502(client, monkeypatch):
 
     assert resp.status_code == 502
     assert resp.json()["detail"] == "OIKID fetch error"
+
+
+@pytest.mark.parametrize("filename", ["課本.pdf", "😀.pdf"])
+def test_fetch_url_serves_unicode_pdf_filename(client, monkeypatch, filename):
+    import httpx
+    from urllib.parse import quote
+    from server.fetch_url import fetch_url_content_async
+
+    async def fetch_with_mock_upstream(**kwargs):
+        transport = httpx.MockTransport(lambda _: httpx.Response(
+            200, headers={"Content-Type": "application/pdf"}, content=b"%PDF"
+        ))
+        async with httpx.AsyncClient(transport=transport) as upstream:
+            return await fetch_url_content_async(**kwargs, client=upstream)
+
+    monkeypatch.setattr(app_module, "fetch_url_content_async", fetch_with_mock_upstream)
+    response = client.get("/api/fetch-url", params={
+        "url": "https://example.com/" + quote(filename, safe="")
+    })
+    assert response.status_code == 200
+    assert response.content == b"%PDF"
+    assert "filename*=UTF-8''" + quote(filename, safe="") in response.headers["Content-Disposition"]

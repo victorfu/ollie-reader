@@ -28,9 +28,19 @@ export function PracticeHistory({
   // Track fetched IDs to avoid re-triggering the effect via audioUrls dependency
   const fetchedIdsRef = useRef<Set<string>>(new Set());
 
+  const refreshedIdsRef = useRef(new Set<string>());
+  const inFlightIdsRef = useRef(new Set<string>());
+
   // Fetch signed URL for a record's audio
   const fetchAudioUrl = useCallback(async (recordId: string, path: string) => {
-    if (!path) return;
+    if (!path || inFlightIdsRef.current.has(recordId)) return;
+    inFlightIdsRef.current.add(recordId);
+    // Do not remount the failed URL while a manual retry is still signing.
+    setAudioUrls((prev) => {
+      const next = new Map(prev);
+      next.delete(recordId);
+      return next;
+    });
 
     setAudioLoading((prev) => new Set(prev).add(recordId));
     setAudioErrors((prev) => {
@@ -46,6 +56,7 @@ export function PracticeHistory({
       console.error(`Failed to get audio URL for ${recordId}:`, error);
       setAudioErrors((prev) => new Set(prev).add(recordId));
     } finally {
+      inFlightIdsRef.current.delete(recordId);
       setAudioLoading((prev) => {
         const next = new Set(prev);
         next.delete(recordId);
@@ -190,9 +201,10 @@ export function PracticeHistory({
                         <button
                           type="button"
                           className="btn btn-ghost btn-xs"
-                          onClick={() =>
-                            fetchAudioUrl(record.id!, record.recordingUrl!)
-                          }
+                          onClick={() => {
+                            refreshedIdsRef.current.delete(record.id!);
+                            void fetchAudioUrl(record.id!, record.recordingUrl!);
+                          }}
                         >
                           重試
                         </button>
@@ -203,14 +215,19 @@ export function PracticeHistory({
                         className="w-full h-10"
                         src={audioUrls.get(record.id)}
                         preload="metadata"
-                        onError={() => {
-                          // Re-fetch signed URL if playback fails (URL may have expired)
-                          fetchedIdsRef.current.delete(record.id!);
-                          setAudioUrls((prev) => {
-                            const next = new Map(prev);
-                            next.delete(record.id!);
-                            return next;
-                          });
+                        onError={(event) => {
+                          const id = record.id!;
+                          if (inFlightIdsRef.current.has(id)) return;
+                          // Network/source failures may be an expired URL. A
+                          // decode failure cannot be repaired by signing again.
+                          if (
+                            event.currentTarget.error?.code === 3
+                            || refreshedIdsRef.current.has(id)
+                          ) {
+                            setAudioErrors((prev) => new Set(prev).add(id));
+                            return;
+                          }
+                          refreshedIdsRef.current.add(id);
                           void fetchAudioUrl(record.id!, record.recordingUrl!);
                         }}
                       >
