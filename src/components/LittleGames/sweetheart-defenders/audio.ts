@@ -132,6 +132,9 @@ export function applyAudioSettings(next: AudioSettings): void {
   }
 
   if (next.muted) {
+    // 取消尚未完成的換曲與手勢補播，保留 currentMusicId 供解除靜音時接續。
+    clearFade();
+    clearPendingMusic();
     musicElement?.pause();
     return;
   }
@@ -194,6 +197,8 @@ export function playMusic(id: MusicId | null): void {
 }
 
 function startTrack(id: MusicId): void {
+  if (settings.muted || currentMusicId !== id) return;
+
   if (!musicElement) {
     musicElement = new Audio();
     musicElement.loop = true;
@@ -210,7 +215,7 @@ function startTrack(id: MusicId): void {
     .play()
     .then(() => {
       // 這次 play 完成前可能已經離開遊戲或換曲；舊 Promise 不可以把音樂復活。
-      if (currentMusicId !== id) {
+      if (settings.muted || currentMusicId !== id) {
         // 所有曲目共用同一個 audio element；若已切到另一首，不能由舊 Promise
         // pause，否則反而會把新曲停掉。真正的 stop 已有 fade/pause 負責收尾。
         return;
@@ -220,7 +225,7 @@ function startTrack(id: MusicId): void {
     })
     .catch(() => {
       // autoplay 的拒絕也是非同步的。若期間已 stop，就不要再掛一個過期的補播。
-      if (currentMusicId === id) queueUnlock(id);
+      if (!settings.muted && currentMusicId === id) queueUnlock(id);
     });
 }
 
@@ -242,13 +247,18 @@ export function stopMusic(): void {
   playMusic(null);
 }
 
+function clearFade(): void {
+  if (fadeTimer !== null) clearInterval(fadeTimer);
+  fadeTimer = null;
+}
+
 function fadeTo(target: number, onDone?: () => void): void {
   if (!musicElement) {
     onDone?.();
     return;
   }
 
-  if (fadeTimer) clearInterval(fadeTimer);
+  clearFade();
   const element = musicElement;
   const step = ((target - element.volume) * FADE_STEP_MS) / FADE_MS;
 
@@ -259,8 +269,7 @@ function fadeTo(target: number, onDone?: () => void): void {
     element.volume = clamp01(done ? target : next);
     if (!done) return;
 
-    if (fadeTimer) clearInterval(fadeTimer);
-    fadeTimer = null;
+    clearFade();
     onDone?.();
   }, FADE_STEP_MS);
 }

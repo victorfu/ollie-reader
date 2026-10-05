@@ -207,3 +207,111 @@ describe("music lifecycle", () => {
     expect(element!.play).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("muting music transitions", () => {
+  const audible = { music: 0.4, sfx: 0.7, muted: false };
+
+  async function setup() {
+    vi.useFakeTimers();
+    vi.resetModules();
+    const element = {
+      loop: false,
+      volume: 0,
+      paused: true,
+      src: "",
+      play: vi.fn(async () => { element.paused = false; }),
+      pause: vi.fn(() => { element.paused = true; }),
+    };
+    vi.stubGlobal("Audio", class { constructor() { return element; } });
+    const audio = await import("./audio");
+    audio.applyAudioSettings(audible);
+    audio.playMusic("menu");
+    await vi.advanceTimersByTimeAsync(600);
+    return { audio, element };
+  }
+
+  it.each(["battle", "boss"] as const)("stays paused when muted during the fade to %s", async (track) => {
+    const { audio, element } = await setup();
+    const originalSource = element.src;
+    audio.playMusic(track);
+    await vi.advanceTimersByTimeAsync(200);
+    audio.applyAudioSettings({ ...audible, muted: true });
+    expect(element.paused).toBe(true);
+
+    await vi.advanceTimersByTimeAsync(2000);
+    window.dispatchEvent(new Event("pointerdown"));
+    expect(element.play).toHaveBeenCalledTimes(1);
+    expect(element.paused).toBe(true);
+    expect(element.src).toBe(originalSource);
+
+    audio.applyAudioSettings(audible);
+    await vi.advanceTimersByTimeAsync(600);
+    expect(element.play).toHaveBeenCalledTimes(2);
+    expect(element.paused).toBe(false);
+    expect(element.src).not.toBe(originalSource);
+    expect(element.volume).toBeCloseTo(audible.music);
+  });
+
+  it("cancels the old transition even when unmuted before its next tick", async () => {
+    const { audio, element } = await setup();
+    audio.playMusic("battle");
+    await vi.advanceTimersByTimeAsync(200);
+    audio.applyAudioSettings({ ...audible, muted: true });
+    let finish: (() => void) | undefined;
+    element.play.mockImplementationOnce(() => new Promise<void>((resolve) => {
+      element.paused = false;
+      finish = resolve;
+    }));
+    audio.applyAudioSettings(audible);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(element.play).toHaveBeenCalledTimes(2);
+    finish?.();
+    await vi.advanceTimersByTimeAsync(600);
+    expect(element.volume).toBeCloseTo(audible.music);
+  });
+
+  it.each(["resolve", "reject"] as const)("ignores a play promise that settles with %s while muted", async (outcome) => {
+    const { audio, element } = await setup();
+    let resolvePlay: (() => void) | undefined;
+    let rejectPlay: ((reason: Error) => void) | undefined;
+    element.play.mockImplementationOnce(() => new Promise<void>((resolve, reject) => {
+      resolvePlay = resolve;
+      rejectPlay = reject;
+    }));
+    audio.playMusic("battle");
+    await vi.advanceTimersByTimeAsync(600);
+    audio.applyAudioSettings({ ...audible, muted: true });
+    if (outcome === "resolve") resolvePlay?.();
+    else rejectPlay?.(new Error("play interrupted"));
+    await vi.advanceTimersByTimeAsync(600);
+    expect(element.paused).toBe(true);
+    expect(element.volume).toBe(0);
+
+    // A late rejection must not restore the old track on the next gesture.
+    audio.playMusic("boss");
+    window.dispatchEvent(new Event("pointerdown"));
+    audio.applyAudioSettings(audible);
+    await vi.advanceTimersByTimeAsync(600);
+    expect(element.src).toContain("warden_trial_loop");
+    audio.stopMusic();
+    await vi.advanceTimersByTimeAsync(600);
+  });
+
+  it("still changes tracks normally and stays stopped after leaving while muted", async () => {
+    const { audio, element } = await setup();
+    audio.playMusic("battle");
+    await vi.advanceTimersByTimeAsync(1200);
+    expect(element.src).toContain("region_map_loop");
+    expect(element.volume).toBeCloseTo(audible.music);
+    audio.playMusic("boss");
+    await vi.advanceTimersByTimeAsync(200);
+    audio.applyAudioSettings({ ...audible, muted: true });
+    audio.stopMusic();
+    await vi.advanceTimersByTimeAsync(1200);
+    audio.applyAudioSettings(audible);
+    window.dispatchEvent(new Event("keydown"));
+    await vi.advanceTimersByTimeAsync(1200);
+    expect(element.play).toHaveBeenCalledTimes(2);
+    expect(element.paused).toBe(true);
+  });
+});
