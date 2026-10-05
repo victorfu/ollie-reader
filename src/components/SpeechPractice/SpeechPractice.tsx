@@ -172,11 +172,11 @@ export function SpeechPractice() {
 
     setSavingSessionId((current) => (current === sessionId ? null : current));
 
-    // A save can finish after the user has already started another practice.
-    // Never let an older session reset or navigate away from the newer one.
-    if (practiceSessionIdRef.current !== sessionId) return;
-
     if (result.success) {
+      // A save can finish after the user has already started another practice.
+      // Never let an older session reset or navigate away from the newer one.
+      if (practiceSessionIdRef.current !== sessionId) return;
+
       setToastMessage({ message: result.message, type: "success" });
       setViewMode("select");
       setSelectedTopic(null);
@@ -186,7 +186,10 @@ export function SpeechPractice() {
       setScript("");
       scriptGenerator.resetState();
     } else {
-      setToastMessage({ message: result.message, type: "error" });
+      setToastMessage({
+        message: `「${selectedTopic.titleChinese}」：${result.message}`,
+        type: "error",
+      });
     }
   };
 
