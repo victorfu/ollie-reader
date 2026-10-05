@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   startTimer: vi.fn(),
   resetRecording: vi.fn(),
   startRecording: vi.fn(),
+  saveRecord: vi.fn(),
   recorderSupported: false,
   recorderStarting: false,
   recorderError: null as string | null,
@@ -43,7 +44,7 @@ vi.mock("../../hooks/useSpeechPractice", () => ({
     topicCounts: new Map(),
     topicScripts: new Map([["topic-a", "A saved script"]]),
     loadMoreRecords: vi.fn(),
-    saveRecord: vi.fn(),
+    saveRecord: mocks.saveRecord,
     deleteRecord: vi.fn(),
     saveScript: vi.fn(),
   }),
@@ -145,6 +146,7 @@ beforeEach(() => {
   mocks.recorderError = null;
   mocks.timerTime = 1;
   mocks.startRecording.mockResolvedValue(true);
+  mocks.saveRecord.mockResolvedValue({ success: true, message: "saved" });
   host = document.createElement("div");
   document.body.appendChild(host);
   root = createRoot(host);
@@ -244,5 +246,33 @@ describe("SpeechPractice recorder startup", () => {
       (button) => button.textContent?.trim() === "開始練習",
     );
     expect(startButton?.disabled).toBe(false);
+  });
+});
+
+
+describe("SpeechPractice save session ownership", () => {
+  it("does not let an older save reset a newer practice", async () => {
+    let resolveSave!: (result: { success: boolean; message: string }) => void;
+    const pendingSave = new Promise<{ success: boolean; message: string }>((resolve) => {
+      resolveSave = resolve;
+    });
+    mocks.saveRecord.mockReturnValueOnce(pendingSave);
+
+    clickButton("select-a");
+    clickButton("start-practice");
+    clickButton("儲存練習記錄");
+
+    clickButton("主題選擇");
+    clickButton("select-b");
+    clickButton("start-practice");
+    const timerResetsAfterStartingB = mocks.resetTimer.mock.calls.length;
+    const recorderResetsAfterStartingB = mocks.resetRecording.mock.calls.length;
+
+    resolveSave({ success: true, message: "saved" });
+    await flushAsyncWork();
+
+    expect(host.textContent).toContain("主題 B");
+    expect(mocks.resetTimer).toHaveBeenCalledTimes(timerResetsAfterStartingB);
+    expect(mocks.resetRecording).toHaveBeenCalledTimes(recorderResetsAfterStartingB);
   });
 });
