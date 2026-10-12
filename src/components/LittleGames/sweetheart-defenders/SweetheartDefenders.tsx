@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "../../../hooks/useAuth";
+import { isLevelUnlocked } from "./data/unlocks";
 import { LEVELS } from "./data/levels";
 import { BattleScreen } from "./ui/BattleScreen";
 import { SquadSelect } from "./ui/SquadSelect";
@@ -53,7 +54,7 @@ function SweetheartSession({
   // 整頁 reload(部署自動更新、iPad 回收分頁、錯誤重試)後,回到上次
   // 所在關卡的選隊畫面,而不是把打到一半的人丟回標題頁。
   const [screen, setScreen] = useState<Screen>(() => {
-    const levelId = readScreenSession();
+    const levelId = readScreenSession(uid);
     return levelId ? { kind: "squad", levelId } : { kind: "title" };
   });
   const {
@@ -91,8 +92,8 @@ function SweetheartSession({
   }, []);
 
   useEffect(() => {
-    writeScreenSession(screen.kind === "title" ? null : screen.levelId);
-  }, [screen]);
+    writeScreenSession(uid, screen.kind === "title" ? null : screen.levelId);
+  }, [screen, uid]);
 
   // 不在戰鬥裡就放選單音樂；戰鬥的曲子由 BattleScreen 自己接手。
   const inBattle = screen.kind === "battle";
@@ -104,12 +105,14 @@ function SweetheartSession({
 
   // 點關卡不再直接開戰，先進選隊畫面挑這一場要帶誰。
   const openSquadSelect = useCallback((levelId: string) => {
+    if (!isLevelUnlocked(levelId, save.levelStars)) return;
     playSfx("select");
     setScreen({ kind: "squad", levelId });
-  }, []);
+  }, [save.levelStars]);
 
   const startBattle = useCallback(
     (levelId: string, squadIds: string[]) => {
+      if (!isLevelUnlocked(levelId, save.levelStars)) return;
       settlementIdRef.current += 1;
       settlementPendingRef.current = false;
       setIsSettling(false);
@@ -121,7 +124,7 @@ function SweetheartSession({
       writeSquadCache(uid, squadIds);
       setScreen({ kind: "battle", levelId, squadIds, runId: 0 });
     },
-    [uid],
+    [uid, save.levelStars],
   );
 
   // runId 換掉會讓 BattleScreen 整個重建，戰鬥狀態自然歸零。
@@ -144,7 +147,7 @@ function SweetheartSession({
       : undefined;
 
   // 找不到關卡（例如舊存檔指到已移除的圖）就退回路線頁，不要卡在空畫面。
-  if (screen.kind === "title" || !level) {
+  if (screen.kind === "title" || !level || !isLevelUnlocked(level.id, save.levelStars)) {
     return (
       <TitleScreen
         levelStars={save.levelStars}

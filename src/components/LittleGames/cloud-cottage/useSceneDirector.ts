@@ -34,7 +34,8 @@ type DirectorEvent =
   | { type: "play"; request: SceneRequest }
   | { type: "enqueue"; request: SceneRequest }
   | { type: "advance" }
-  | { type: "reset" };
+  | { type: "reset" }
+  | { type: "stopPersistent"; action: CottageSceneAction };
 
 const INITIAL: DirectorState = {
   current: null,
@@ -69,6 +70,15 @@ function reduce(state: DirectorState, event: DirectorEvent): DirectorState {
       return { ...state, current: state.resume, key: state.key + 1 };
     }
 
+    case "stopPersistent": {
+      const matches = (request: SceneRequest | null) =>
+        request?.persist && request.action === event.action;
+      const queue = state.queue.filter((request) => !matches(request));
+      const resume = matches(state.resume) ? null : state.resume;
+      if (!matches(state.current)) return { ...state, queue, resume };
+      return { current: queue[0] ?? resume, queue: queue.slice(1), resume, key: state.key + 1 };
+    }
+
     case "reset":
       return { ...INITIAL, key: state.key + 1 };
   }
@@ -83,6 +93,7 @@ export type SceneDirector = {
   /** Waits its turn. For reactions the game raises on the player's behalf. */
   enqueue: (request: SceneRequest) => void;
   reset: () => void;
+  stopPersistent: (action: CottageSceneAction) => void;
 };
 
 /**
@@ -121,6 +132,10 @@ export function useSceneDirector(): SceneDirector {
     (request: SceneRequest) => dispatch({ type: "enqueue", request }),
     [],
   );
+  const stopPersistent = useCallback(
+    (action: CottageSceneAction) => dispatch({ type: "stopPersistent", action }),
+    [],
+  );
   const reset = useCallback(() => dispatch({ type: "reset" }), []);
 
   return useMemo(
@@ -131,7 +146,8 @@ export function useSceneDirector(): SceneDirector {
       play,
       enqueue,
       reset,
+      stopPersistent,
     }),
-    [current, key, play, enqueue, reset],
+    [current, key, play, enqueue, reset, stopPersistent],
   );
 }

@@ -147,6 +147,7 @@ export function useAdventure(): UseAdventureReturn {
   const activeUidRef = useRef<string | null>(null);
   const accountGenerationRef = useRef(0);
   const runIdRef = useRef(0);
+  const runResetVersionRef = useRef(0);
   const gamePoolControllerRef = useRef<AbortController | null>(null);
   const settlementAttemptIdRef = useRef(0);
   const settlementInFlightRef = useRef<number | null>(null);
@@ -287,6 +288,18 @@ export function useAdventure(): UseAdventureReturn {
     setCanRetrySettlement(false);
     return runIdRef.current;
   }, [clearRunTimeouts]);
+
+  useEffect(() => {
+    if (!progress || progress.resetVersion === runResetVersionRef.current) return;
+    if (!quizState && !gamePoolControllerRef.current) return;
+    invalidateRun();
+    setQuizSnapshot(null);
+    setBossSnapshot(null);
+    setPendingReward(null);
+    setIsLoading(false);
+    setGameView("home");
+    setTokenSyncError("遊戲進度已在其他分頁重設，本輪結果不再套用。");
+  }, [progress, quizState, invalidateRun, setQuizSnapshot, setBossSnapshot]);
   useEffect(() => {
     bossStateRef.current = bossState;
   }, [bossState]);
@@ -394,6 +407,7 @@ export function useAdventure(): UseAdventureReturn {
       }
 
       const runId = invalidateRun();
+      runResetVersionRef.current = currentProgress.resetVersion;
       const gamePoolController = new AbortController();
       gamePoolControllerRef.current = gamePoolController;
 
@@ -701,7 +715,7 @@ export function useAdventure(): UseAdventureReturn {
               )
             : 0),
         defLanguage,
-        expectedResetVersion: currentProgress.resetVersion,
+        expectedResetVersion: runResetVersionRef.current,
       };
       pendingSettlementRef.current = request;
       void attemptSettlement(request);

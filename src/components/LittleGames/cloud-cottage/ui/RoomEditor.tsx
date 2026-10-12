@@ -22,7 +22,7 @@ import {
   applyPersonalizationAction,
   type PersonalizationAction,
 } from "../logic/personalization";
-import { clampPlacement } from "../logic/roomLayout";
+import { clampPlacement, placementBounds } from "../logic/roomLayout";
 import type {
   FloorId,
   FurnitureId,
@@ -189,9 +189,10 @@ function buildRoomActions(
     }
 
     if (hasSamePosition(original, placement)) {
-      const temporaryX = placement.x >= 99.99
-        ? Math.max(0, placement.x - 0.01)
-        : Math.min(100, placement.x + 0.01);
+      const { maxX } = placementBounds(placement.id);
+      const temporaryX = placement.x + 0.01 > maxX
+        ? placement.x - 0.01
+        : placement.x + 0.01;
       actions.push({
         type: "move-furniture",
         furnitureId: placement.id,

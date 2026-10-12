@@ -12,15 +12,16 @@ import { getLevel } from "./data/levels";
 // (隊伍預選由 squad.ts 的快取負責)——比直接把人丟回戰鬥溫和,殘留的
 // 舊紀錄被回復時也不突兀。
 
-const SCREEN_SESSION_KEY = "ollie-sweetheart-defenders-screen-v1";
+// v1 had no account owner, so it cannot safely be migrated to a signed-in user.
+const SCREEN_SESSION_KEY = "ollie-sweetheart-defenders-screen-v2";
 
 export type ScreenStorage = Pick<
   Storage,
   "getItem" | "setItem" | "removeItem"
 >;
 
-export function getScreenSessionKey(): string {
-  return SCREEN_SESSION_KEY;
+export function getScreenSessionKey(uid: string | null): string {
+  return `${SCREEN_SESSION_KEY}:${uid === null ? "guest" : `user:${uid}`}`;
 }
 
 export function defaultScreenStorage(): ScreenStorage | null {
@@ -34,12 +35,13 @@ export function defaultScreenStorage(): ScreenStorage | null {
 
 /** 回傳上次離開時所在的關卡 id;沒有紀錄或關卡已不存在就回 null。 */
 export function readScreenSession(
+  uid: string | null,
   storage: ScreenStorage | null = defaultScreenStorage(),
 ): string | null {
   if (!storage) return null;
 
   try {
-    const levelId = storage.getItem(SCREEN_SESSION_KEY);
+    const levelId = storage.getItem(getScreenSessionKey(uid));
     if (!levelId || !getLevel(levelId)) return null;
     return levelId;
   } catch {
@@ -49,14 +51,15 @@ export function readScreenSession(
 
 /** 記下目前所在的關卡;傳 null(回到標題)就清掉紀錄。 */
 export function writeScreenSession(
+  uid: string | null,
   levelId: string | null,
   storage: ScreenStorage | null = defaultScreenStorage(),
 ): void {
   if (!storage) return;
 
   try {
-    if (levelId === null) storage.removeItem(SCREEN_SESSION_KEY);
-    else storage.setItem(SCREEN_SESSION_KEY, levelId);
+    if (levelId === null) storage.removeItem(getScreenSessionKey(uid));
+    else storage.setItem(getScreenSessionKey(uid), levelId);
   } catch {
     // 無痕模式或容量滿了:只是少了斷線回復,不用讓遊戲中斷。
   }

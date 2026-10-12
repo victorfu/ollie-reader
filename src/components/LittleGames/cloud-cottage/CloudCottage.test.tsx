@@ -122,13 +122,15 @@ vi.mock("./useAudioSettings", () => ({
 }));
 vi.mock("./audio", () => audioMocks);
 
-vi.mock("./storage", () => {
+vi.mock("./storage", async (importOriginal) => {
+  const { reconcileCottageSaveSnapshots } = await importOriginal<typeof import("./storage")>();
   class CottageAlreadyOwnedError extends Error {}
   class CottageInsufficientCoinsError extends Error {
     availableCoins = 0;
   }
 
   return {
+    reconcileCottageSaveSnapshots,
     CottageAlreadyOwnedError,
     CottageInsufficientCoinsError,
     compareCottageSaveVersions: (left: PetSaveV1, right: PetSaveV1) =>
@@ -626,12 +628,12 @@ describe("CloudCottage network transitions", () => {
     expect(storage.readCottageCache("cloud-reader")?.bond.total).toBe(expectedBond);
   });
 
-  it.each([false, true])("retains a failed feed before the next pet (fallback save fails: %s)", async (saveFails) => {
+  it.each([false, true])("retains a failed free feed before the next pet (fallback save fails: %s)", async (saveFails) => {
     const storage = await vi.importActual<typeof import("./storage")>("./storage");
     localStorage.clear();
     const initial = createInitialPetSave(Date.now());
     initial.stats.fullness = 20;
-    initial.inventory.snacks.apple = 2;
+    initial.freeFood.milk = 2;
     initial.wish = { date: initial.freeFood.restockDate, wishId: "bubble-bath", progress: 0, target: 1, fulfilled: false };
     await renderSignedInCottage(initial);
     let cloud = initial;
@@ -660,14 +662,14 @@ describe("CloudCottage network transitions", () => {
       };
     }));
     act(() => button('[data-toolbar="food"]').click());
-    act(() => button('[data-food-id="apple"]').click());
+    act(() => button('[data-food-id="milk"]').click());
     await flushAsyncWork();
     act(() => button('[data-pet]').click());
     await flushAsyncWork();
     await act(async () => rejectFeed(new Error("transaction failed")));
     await flushAsyncWork();
-    expect(gameState().inventory.snacks.apple).toBe(1);
-    expect(gameState().pet.bond.total).toBe(6);
+    expect(gameState().inventory.freeFood.milk).toBe(1);
+    expect(gameState().pet.bond.total).toBe(3);
     expect(storageMocks.commitCottageCareAction).toHaveBeenCalledTimes(1);
     expect(pending).toHaveLength(0);
     await act(async () => finishFallback());
@@ -675,17 +677,17 @@ describe("CloudCottage network transitions", () => {
     expect(pending).toHaveLength(1);
     await act(async () => pending[0]());
     await flushAsyncWork();
-    expect(cloud.inventory.snacks.apple).toBe(1);
-    expect(cloud.bond.total).toBe(8);
-    expect(gameState().inventory.snacks.apple).toBe(1);
-    expect(gameState().pet.bond.total).toBe(8);
-    expect(storage.readCottageCache("cloud-reader")?.bond.total).toBe(8);
+    expect(cloud.freeFood.milk).toBe(1);
+    expect(cloud.bond.total).toBe(5);
+    expect(gameState().inventory.freeFood.milk).toBe(1);
+    expect(gameState().pet.bond.total).toBe(5);
+    expect(storage.readCottageCache("cloud-reader")?.bond.total).toBe(5);
   });
 
-  it("rebases a failed feed on a pet action that already committed", async () => {
+  it("rebases a failed free feed on a pet action that already committed", async () => {
     const initial = createInitialPetSave(Date.now());
     initial.stats.fullness = 20;
-    initial.inventory.snacks.apple = 2;
+    initial.freeFood.milk = 2;
     initial.wish = { date: initial.freeFood.restockDate, wishId: "bubble-bath", progress: 0, target: 1, fulfilled: false };
     let rejectFeed!: (error: Error) => void;
     storageMocks.commitCottageCareAction
@@ -695,13 +697,13 @@ describe("CloudCottage network transitions", () => {
     act(() => button('[data-pet]').click());
     await flushAsyncWork();
     act(() => button('[data-toolbar="food"]').click());
-    act(() => button('[data-food-id="apple"]').click());
+    act(() => button('[data-food-id="milk"]').click());
     await flushAsyncWork();
     expect(gameState().pet.bond.total).toBe(2);
     await act(async () => rejectFeed(new Error("offline")));
     await flushAsyncWork();
-    expect(gameState().inventory.snacks.apple).toBe(1);
-    expect(gameState().pet.bond.total).toBe(8);
+    expect(gameState().inventory.freeFood.milk).toBe(1);
+    expect(gameState().pet.bond.total).toBe(5);
   });
 
   it("queues offline care behind an already pending online action", async () => {
@@ -1909,4 +1911,73 @@ describe("CloudCottage demo care loop", () => {
 
     expect(hookMocks.speakAsync).toHaveBeenCalledWith("Good afternoon!");
   });
+});
+
+it("clears persistent sleep after another tab wakes the pet", async () => {
+  const bedtime = new Date("2026-07-30T21:00:00+08:00").getTime();
+  vi.setSystemTime(bedtime);
+  const initial = createInitialPetSave(bedtime);
+  const slept = applyCareActionWithWish(initial, "cloud-reader", { type: "sleep" }, bedtime);
+  storageMocks.commitCottageCareAction.mockResolvedValueOnce(slept);
+  await renderSignedInCottage(initial);
+  act(() => button('[data-toolbar="sleep"]').click());
+  await flushAsyncWork();
+  expect(gameState().action).toBe("sleep");
+  const awake = { ...slept.save, revision: slept.save.revision + 2, sleepingUntil: null };
+  storageMocks.parseCottageCacheValue.mockReturnValueOnce(awake);
+  act(() => window.dispatchEvent(new StorageEvent("storage", {
+    key: "cloud-cottage:cloud-reader", newValue: JSON.stringify(awake),
+  })));
+  await flushAsyncWork();
+  expect(gameState().pet.sleeping).toBe(false);
+  expect(gameState().action).not.toBe("sleep");
+});
+
+it("keeps paid snacks untouched when their online transaction fails", async () => {
+  const initial = createInitialPetSave(Date.now());
+  initial.stats.fullness = 20;
+  initial.inventory.snacks.apple = 1;
+  await renderSignedInCottage(initial);
+  storageMocks.commitCottageCareAction.mockRejectedValueOnce(new Error("offline"));
+  storageMocks.saveCottageCloud.mockClear();
+  act(() => button('[data-toolbar="food"]').click());
+  act(() => button('[data-food-id="apple"]').click());
+  await flushAsyncWork();
+  expect(gameState().inventory.snacks.apple).toBe(1);
+  expect(gameState().pet.bond.total).toBe(0);
+  expect(storageMocks.saveCottageCloud).not.toHaveBeenCalled();
+  expect(hookMocks.addToast).toHaveBeenCalledWith(expect.stringContaining("點心尚未確認"), "error");
+});
+
+it("disables paid snacks offline while allowing free food", async () => {
+  const initial = createInitialPetSave(Date.now());
+  initial.stats.fullness = 20;
+  initial.inventory.snacks.apple = 1;
+  await renderSignedInCottage(initial);
+  await setOnlineState(false);
+  act(() => button('[data-toolbar="food"]').click());
+  expect(button('[data-food-id="apple"]').disabled).toBe(true);
+  expect(button('[data-food-id="milk"]').disabled).toBe(false);
+  act(() => button('[data-food-id="milk"]').click());
+  await flushAsyncWork();
+  expect(gameState().inventory.freeFood.milk).toBe(1);
+  expect(gameState().inventory.snacks.apple).toBe(1);
+});
+
+it("refreshes newer snack inventory even when local care has a higher revision", async () => {
+  const initial = createInitialPetSave(Date.now());
+  initial.revision = 100;
+  initial.snackRevision = 1;
+  initial.inventory.snacks.apple = 2;
+  await renderSignedInCottage(initial);
+  const incoming = {
+    ...initial, revision: 5, snackRevision: 2,
+    inventory: { ...initial.inventory, snacks: {} },
+  };
+  storageMocks.parseCottageCacheValue.mockReturnValueOnce(incoming);
+  act(() => window.dispatchEvent(new StorageEvent("storage", {
+    key: "cloud-cottage:cloud-reader", newValue: JSON.stringify(incoming),
+  })));
+  await flushAsyncWork();
+  expect(gameState().inventory.snacks.apple ?? 0).toBe(0);
 });

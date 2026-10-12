@@ -2909,3 +2909,34 @@ describe("GachaMachine collection reset", () => {
     expect(container.textContent).not.toContain("代幣 100");
   });
 });
+
+it.each([true, false])("keeps current coins when restoring an old receipt (coins arrive first: %s)", async (coinsFirst) => {
+  const committed: CommittedGachaAttempt = {
+    coinsAfter: 0,
+    save: { ...EMPTY_SAVE, totalDraws: 1 },
+    result: { kind: "miss", totalDraws: 1 },
+  };
+  let resolveCloud!: (state: GachaMachineState) => void;
+  let resolveCoins!: (coins: number) => void;
+  storageMocks.loadPlayerCoins.mockReturnValue(new Promise<number>(resolve => {
+    resolveCoins = resolve;
+  }));
+  storageMocks.loadGachaMachineState.mockReturnValue(new Promise<GachaMachineState>(resolve => {
+    resolveCloud = resolve;
+  }));
+  await renderAt("/games/gacha");
+  if (coinsFirst) {
+    await act(async () => resolveCoins(500));
+    expect(container.querySelector('[aria-label="代幣餘額 500"]')).toBeTruthy();
+  }
+  await act(async () => resolveCloud({
+    save: committed.save,
+    pendingReveal: cloudPendingReveal("old-paid", committed),
+  }));
+  if (!coinsFirst) await act(async () => resolveCoins(500));
+  act(() => container.querySelector<HTMLButtonElement>('button[aria-label="膠囊已經出來，點擊開獎"]')!.click());
+  await flushRevealAcknowledgement();
+  act(() => container.querySelector<HTMLButtonElement>('[data-testid="reveal-dialog"]')!.click());
+  expect(container.querySelector('[aria-label="代幣餘額 500"]')).toBeTruthy();
+  expect(buttonWithText("投入 50 代幣").disabled).toBe(false);
+});

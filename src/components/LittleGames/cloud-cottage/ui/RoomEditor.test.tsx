@@ -240,8 +240,9 @@ describe("RoomEditor action round trip", () => {
     expect(placedFurniture("lamp").style.top).toBe("67%");
   });
 
-  it("preserves changed z-order when a moved item returns to its original coordinates", async () => {
+  it.each([34, 93])("preserves changed z-order after returning to x=%s", async (x) => {
     const original = zOrderSave();
+    original.room.placed.find((item) => item.id === "lamp")!.x = x;
     let committed = original;
     const onSave = vi.fn(async (actions: PersonalizationAction[]) => {
       for (const action of actions) {
@@ -252,17 +253,17 @@ describe("RoomEditor action round trip", () => {
 
     act(() => {
       placedFurniture("lamp").dispatchEvent(
-        new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }),
-      );
-    });
-    expect(placedFurniture("lamp").style.left).toBe("35%");
-    act(() => {
-      placedFurniture("lamp").dispatchEvent(
         new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true }),
       );
     });
+    expect(placedFurniture("lamp").style.left).toBe(`${x - 1}%`);
+    act(() => {
+      placedFurniture("lamp").dispatchEvent(
+        new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }),
+      );
+    });
 
-    expect(placedFurniture("lamp").style.left).toBe("34%");
+    expect(placedFurniture("lamp").style.left).toBe(`${x}%`);
     expect(
       [...container.querySelectorAll<HTMLButtonElement>(
         "button[data-placed-furniture-id]",
@@ -279,14 +280,14 @@ describe("RoomEditor action round trip", () => {
       {
         type: "move-furniture",
         furnitureId: "lamp",
-        x: 34.01,
+        x: x === 93 ? 92.99 : 34.01,
         y: 72,
         zone: "floor",
       },
       {
         type: "move-furniture",
         furnitureId: "lamp",
-        x: 34,
+        x,
         y: 72,
         zone: "floor",
       },
@@ -294,7 +295,7 @@ describe("RoomEditor action round trip", () => {
     expect(committed.room.placed).toEqual([
       { id: "cloud-bed", x: 76, y: 68, zone: "floor" },
       { id: "plant", x: 62, y: 72, zone: "floor" },
-      { id: "lamp", x: 34, y: 72, zone: "floor" },
+      { id: "lamp", x, y: 72, zone: "floor" },
     ]);
     expect(buttonWithText("儲存").disabled).toBe(true);
   });

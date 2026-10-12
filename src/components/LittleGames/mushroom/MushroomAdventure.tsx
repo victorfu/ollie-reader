@@ -404,9 +404,9 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
     setGameState("tutorialComplete");
   };
 
-  const hitPlayer = () => {
+  const hitPlayer = (cause: "contact" | "fall" = "contact") => {
     const s = stateRef.current;
-    if (s.invincibleTimer > 0) return false;
+    if (cause === "contact" && s.invincibleTimer > 0) return false;
 
     // 教學關不扣生命：輕震動 + 擊退 + 短暫無敵，讓小孩安心試錯
     if (getLevel(s.levelIndex).tutorial) {
@@ -963,7 +963,7 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
         p.vx = 0;
         p.vy = 0;
       } else {
-        hitPlayer();
+        hitPlayer("fall");
       }
     }
   };

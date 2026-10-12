@@ -72,7 +72,8 @@ export const ACHIEVEMENTS: Achievement[] = [
     rarity: "gold",
   },
 
-  // Combo Achievements
+  // Combo Achievements: a perfect 15-HP boss run ends after 9 answers.
+  // Keep the original achievement IDs stable while using reachable thresholds.
   {
     id: "combo-5",
     name: "連擊新手",
@@ -84,17 +85,17 @@ export const ACHIEVEMENTS: Achievement[] = [
   {
     id: "combo-10",
     name: "連擊達人",
-    description: "達成 10 連擊",
+    description: "達成 7 連擊",
     icon: "💥",
-    requirement: (p) => p.highestCombo >= 10,
+    requirement: (p) => p.highestCombo >= 7,
     rarity: "silver",
   },
   {
     id: "combo-15",
     name: "連擊大師",
-    description: "達成 15 連擊",
+    description: "達成 9 連擊",
     icon: "⚡",
-    requirement: (p) => p.highestCombo >= 15,
+    requirement: (p) => p.highestCombo >= 9,
     rarity: "gold",
   },
 

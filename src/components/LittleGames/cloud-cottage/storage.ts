@@ -13,6 +13,7 @@ import {
   type CareWithWishResult,
 } from "./logic/petState";
 import { applyPurchase, getProduct } from "./logic/purchases";
+import { isSnackId } from "./data/foods";
 import {
   applyPersonalizationAction,
   grantEarnedBondGifts,
@@ -134,12 +135,17 @@ export function reconcileCottageSaveSnapshots(
     comparePetSaveFreshness(right, left) > 0
       ? [right, left]
       : [left, right];
+  const snackSource = (secondary.snackRevision ?? 0) > (primary.snackRevision ?? 0)
+    ? secondary
+    : primary;
 
   return normalizePetSave(
     {
       ...primary,
+      snackRevision: snackSource.snackRevision ?? 0,
       inventory: {
         ...primary.inventory,
+        snacks: { ...snackSource.inventory.snacks },
         toys: unionOwnedIds(
           primary.inventory.toys,
           secondary.inventory.toys,
@@ -165,6 +171,22 @@ export function reconcileCottageSaveSnapshots(
     now,
     localDate,
   );
+}
+
+/** Only cloud transactions can buy or consume paid snacks. Offline snapshots
+ * may update care and permanent ownership, but cannot replace that inventory. */
+function reconcileWithCloud(
+  cloud: PetSaveV1,
+  candidate: PetSaveV1 | null,
+  now: number,
+  localDate: string,
+): PetSaveV1 {
+  const reconciled = reconcileCottageSaveSnapshots(cloud, candidate, now, localDate);
+  return {
+    ...reconciled,
+    snackRevision: cloud.snackRevision ?? 0,
+    inventory: { ...reconciled.inventory, snacks: { ...cloud.inventory.snacks } },
+  };
 }
 
 function hasAdditionalPermanentOwnership(
@@ -331,7 +353,10 @@ export async function loadCottageCloud(
     ? normalizePetSave(snapshot.data(), now, localDate)
     : createInitialPetSave(now, localDate);
 
-  await writeCottageCache(uid, cloud, storage);
+  const reconciled = reconcileWithCloud(
+    cloud, readCottageCache(uid, storage, now), now, localDate,
+  );
+  await writeCottageCache(uid, reconciled, storage);
   return readCottageCache(uid, storage, now) ?? cloud;
 }
 
@@ -367,7 +392,7 @@ export async function saveCottageCloud(
       ? normalizePetSave(raw, now, localDate)
       : createInitialPetSave(now, localDate);
 
-    const reconciled = reconcileCottageSaveSnapshots(
+    const reconciled = reconcileWithCloud(
       current,
       candidate,
       now,
@@ -446,7 +471,7 @@ export async function purchaseCottageProduct(
     const cloud = snapshot.exists()
       ? normalizePetSave(raw, now, localDate)
       : createInitialPetSave(now, localDate);
-    const current = reconcileCottageSaveSnapshots(
+    const current = reconcileWithCloud(
       cloud,
       cachedCandidate,
       now,
@@ -476,6 +501,9 @@ export async function purchaseCottageProduct(
       throw new Error(`Cloud Cottage purchase failed: ${applied.reason}.`);
     }
 
+    if (product.kind === "snack") {
+      applied.save.snackRevision = (cloud.snackRevision ?? 0) + 1;
+    }
     const timestamp = serverTimestamp();
     const envelope = buildFirestoreEnvelope(applied.save, raw, timestamp);
     transaction.set(ref, envelope);
@@ -531,7 +559,7 @@ export async function commitCottageCareAction(
     const cloud = snapshot.exists()
       ? normalizePetSave(raw, now, localDate)
       : createInitialPetSave(now, localDate);
-    const current = reconcileCottageSaveSnapshots(
+    const current = reconcileWithCloud(
       cloud,
       cachedCandidate,
       now,
@@ -544,6 +572,9 @@ export async function commitCottageCareAction(
       now,
       localDate,
     );
+    if (care.applied && action.type === "feed" && isSnackId(action.foodId)) {
+      care.save.snackRevision = (cloud.snackRevision ?? 0) + 1;
+    }
     const result: CommittedCottageCareAction = care;
     const shouldWrite =
       !snapshot.exists() ||
@@ -595,7 +626,7 @@ export async function commitCottagePersonalizationAction(
     const cloud = snapshot.exists()
       ? normalizePetSave(raw, now, localDate)
       : createInitialPetSave(now, localDate);
-    const current = reconcileCottageSaveSnapshots(
+    const current = reconcileWithCloud(
       cloud,
       cachedCandidate,
       now,
@@ -690,7 +721,7 @@ export async function commitCottagePersonalizationActions(
     const cloud = snapshot.exists()
       ? normalizePetSave(raw, now, localDate)
       : createInitialPetSave(now, localDate);
-    const current = reconcileCottageSaveSnapshots(
+    const current = reconcileWithCloud(
       cloud,
       cachedCandidate,
       now,

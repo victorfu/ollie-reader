@@ -573,7 +573,7 @@ describe("purchaseCottageProduct", () => {
 
     expect(committed.save.revision).toBe(5);
     expect(committed.save.stats.mood).toBe(77);
-    expect(committed.save.inventory.snacks).toEqual({ apple: 2 });
+    expect(committed.save.inventory.snacks).toEqual({});
     expect(committed.save.inventory.toys).toContain("ball");
     expect(committed.save.equipped).toEqual({ head: "strawberry-clip" });
     expect(committed.save.room).toEqual(cached.room);
@@ -1019,11 +1019,12 @@ describe("commitCottageCareAction", () => {
     expect(transaction.set).toHaveBeenCalledTimes(1);
   });
 
-  it("reconciles a fresher cached save before consuming inventory", async () => {
+  it("uses cloud inventory while reconciling fresher cached care", async () => {
     const cloudBase = makeSave(1, NOW - 20);
     const cloud = {
       ...cloudBase,
       stats: { ...cloudBase.stats, fullness: 20 },
+      inventory: { ...cloudBase.inventory, snacks: { pudding: 2 } },
     };
     const cached: PetSaveV1 = {
       ...cloud,
@@ -1031,7 +1032,7 @@ describe("commitCottageCareAction", () => {
       clientUpdatedAt: NOW - 10,
       inventory: {
         ...cloud.inventory,
-        snacks: { pudding: 2 },
+        snacks: { pudding: 9 },
       },
     };
     await writeCottageCache("cached-care", cached);
@@ -1612,4 +1613,43 @@ describe("commitCottagePersonalizationActions", () => {
     expect(cacheStorage.getItem).toHaveBeenCalledTimes(1);
     expect(cacheStorage.setItem).not.toHaveBeenCalled();
   });
+});
+
+it("preserves paid inventory across offline care and never revives consumed snacks", async () => {
+  let cloud = makeSave();
+  cloud.stats.fullness = 20;
+  const offline = { ...cloud, revision: 20, stats: { ...cloud.stats, mood: 77 } };
+  let coins = 100;
+  firestoreMocks.runTransaction.mockImplementation(async (_db, update) => update({
+    get: async (ref: unknown) => snapshot(ref === progressRef ? { coins } : cloud),
+    set: (_ref: unknown, value: PetSaveV1) => { cloud = value; },
+    update: (_ref: unknown, value: { coins: number }) => { coins = value.coins; },
+  }));
+  await purchaseCottageProduct("reader", "apple", null, NOW);
+  expect(coins).toBe(85);
+  expect(cloud.inventory.snacks.apple).toBe(1);
+  expect(cloud.snackRevision).toBe(1);
+  await saveCottageCloud("reader", offline, localStorage, NOW);
+  expect(cloud.inventory.snacks.apple).toBe(1);
+  expect(cloud.stats.mood).toBe(77);
+  const stale = { ...cloud, revision: 40 };
+  await commitCottageCareAction("reader", { type: "feed", foodId: "apple" }, NOW, localStorage);
+  expect(cloud.inventory.snacks.apple ?? 0).toBe(0);
+  expect(cloud.snackRevision).toBe(2);
+  await saveCottageCloud("reader", stale, localStorage, NOW);
+  expect(cloud.inventory.snacks.apple ?? 0).toBe(0);
+  expect(readCottageCache("reader", localStorage, NOW)?.inventory.snacks.apple ?? 0).toBe(0);
+  const refused = await commitCottageCareAction("reader", { type: "feed", foodId: "apple" }, NOW, localStorage);
+  expect(refused.applied).toBe(false);
+  expect(coins).toBe(85);
+});
+
+it("merges cloud snack versions independently from offline care revisions", () => {
+  const offline = { ...makeSave(100), snackRevision: 1 };
+  offline.inventory.snacks.apple = 5;
+  const cloud = { ...makeSave(3), snackRevision: 2 };
+  const result = reconcileCottageSaveSnapshots(offline, cloud, NOW, LOCAL_DATE);
+  expect(result.revision).toBe(100);
+  expect(result.snackRevision).toBe(2);
+  expect(result.inventory.snacks).toEqual({});
 });

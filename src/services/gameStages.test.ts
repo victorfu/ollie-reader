@@ -1,4 +1,5 @@
-import { describe, it, expect } from "vitest";
+vi.mock("../utils/firebaseUtil", () => ({ db: {} }));
+import { describe, it, expect, vi } from "vitest";
 import { STAGES, LEVEL_EXP_TABLE } from "./gameProgressService";
 import { CHAPTERS, getChapterForStageIndex } from "../constants/chapters";
 

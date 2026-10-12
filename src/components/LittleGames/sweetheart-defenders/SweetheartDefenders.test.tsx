@@ -37,15 +37,11 @@ vi.mock("../../../hooks/useAuth", () => ({
   useAuth: () => ({ user: authState.user }),
 }));
 vi.mock("./audio", () => audioMocks);
-vi.mock("./screenSession", () => ({
-  readScreenSession: () => null,
-  writeScreenSession: vi.fn(),
-}));
 vi.mock("./useCampaignSave", () => ({
   useCampaignSave: () => ({
     save: {
       schemaVersion: 1,
-      levelStars: {},
+      levelStars: authState.user?.uid === "uid-a" ? { "shop-path": 3 } : {},
       bestWave: {},
       claimedClear: [],
       claimedThreeStars: [],
@@ -128,6 +124,7 @@ let host: HTMLDivElement;
 let root: Root;
 
 beforeEach(() => {
+  sessionStorage.clear();
   (
     globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
   ).IS_REACT_ACT_ENVIRONMENT = true;
@@ -265,4 +262,23 @@ describe("battle settlement lifecycle", () => {
     expect(host.querySelector('[data-testid="coins"]')?.textContent).toBe("25");
     expect(host.textContent).toContain("獎勵同步完成");
   });
+});
+
+it("does not restore another account's locked level", () => {
+  act(() => root.render(<SweetheartDefenders />));
+  act(() => [...host.querySelectorAll("button")].find(b => b.textContent === "選擇關卡")!.click());
+  act(() => [...host.querySelectorAll("button")].find(b => b.textContent === "開始戰鬥")!.click());
+  authState.user = { uid: "uid-b" };
+  act(() => root.render(<SweetheartDefenders />));
+  expect(host.textContent).not.toContain("開始戰鬥");
+  act(() => [...host.querySelectorAll("button")].find(b => b.textContent === "選擇關卡")!.click());
+  expect(host.textContent).not.toContain("開始戰鬥");
+});
+
+it("rejects a same-account session pointing at a locked level", () => {
+  authState.user = { uid: "uid-b" };
+  sessionStorage.setItem("ollie-sweetheart-defenders-screen-v2:user:uid-b", "kitchen-cross");
+  act(() => root.render(<SweetheartDefenders />));
+  expect(host.textContent).toContain("選擇關卡");
+  expect(host.textContent).not.toContain("開始戰鬥");
 });

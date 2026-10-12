@@ -122,6 +122,8 @@ export type PetWish = {
 export type PetSaveV1 = {
   schemaVersion: 1;
   revision: number;
+  /** Cloud transaction version for paid snacks, independent of offline care. */
+  snackRevision?: number;
   clientUpdatedAt: number;
   stats: PetStats;
   bond: PetBond;

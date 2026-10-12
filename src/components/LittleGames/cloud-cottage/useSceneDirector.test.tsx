@@ -146,3 +146,15 @@ describe("useSceneDirector", () => {
     expect(director.action).toBe("idle");
   });
 });
+
+it.each([false, true])("stops synchronized sleep without resuming it after celebrations (%s)", (celebrating) => {
+  act(() => {
+    director.play({ action: "sleep", persist: true });
+    director.enqueue({ action: "celebrate" });
+  });
+  if (celebrating) advance(1_450);
+  act(() => director.stopPersistent("sleep"));
+  expect(director.action).toBe("celebrate");
+  advance(2_650);
+  expect(director.action).toBe("idle");
+});

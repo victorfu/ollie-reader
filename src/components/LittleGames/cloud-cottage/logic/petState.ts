@@ -98,6 +98,7 @@ export function createInitialPetSave(
   return {
     schemaVersion: 1,
     revision: 0,
+    snackRevision: 0,
     clientUpdatedAt: now,
     stats: { ...INITIAL_STATS, statsAt: now },
     bond: { total: 0, earnedToday: 0, earnedDate: localDate },
@@ -234,6 +235,7 @@ export function normalizePetSave(
   return {
     schemaVersion: 1,
     revision: nonNegativeInteger(root.revision),
+    snackRevision: nonNegativeInteger(root.snackRevision),
     // Missing on legacy cloud documents means "older than any optimistic edit".
     clientUpdatedAt: nonNegativeInteger(root.clientUpdatedAt),
     stats: {

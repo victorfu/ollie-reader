@@ -7,6 +7,8 @@ import {
   type PendingPracticeAudioCleanup,
 } from "./practiceAudioCleanupQueue";
 
+vi.mock("./audioStorageService", () => ({ deletePracticeAudio: vi.fn() }));
+
 class MemoryStorage {
   private readonly values = new Map<string, string>();
 

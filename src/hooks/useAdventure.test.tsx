@@ -37,6 +37,8 @@ const TEST_STAGES = vi.hoisted(() => [
     rewardExp: 60,
     questionCount: 1,
   },
+  { id: "boss", name: "Boss", stageNumber: 3, isBoss: true,
+    requiredLevel: 1, rewardExp: 100, questionCount: 20, bossHp: 15 },
 ]);
 
 vi.mock("./useAuth", () => ({ useAuth: mocks.useAuth }));
@@ -68,6 +70,7 @@ vi.mock("../components/Game/quizQuestions", () => ({
   ) => preferred,
 }));
 
+import { ACHIEVEMENTS } from "../constants/achievements";
 import { useAdventure } from "./useAdventure";
 
 type HookValue = ReturnType<typeof useAdventure>;
@@ -495,5 +498,32 @@ describe("useAdventure run ownership and settlement", () => {
     expect(mocks.saveProgressWithTokenReward.mock.calls[0][1]).toEqual(
       expect.objectContaining({ outcome: "victory", maxCombo: 3 }),
     );
+  });
+  it("a mid-run reset must invalidate the old run", async () => {
+    await mount();
+    await start(1, "before-reset");
+    mocks.fetchProgress.mockResolvedValueOnce(progressFor("player-1", {
+      currentStageIndex: 0, resetVersion: 1, exp: 0, coins: 0,
+    }));
+    await act(async () => { window.dispatchEvent(new Event("focus")); });
+    expect(current.progress?.resetVersion).toBe(1);
+    act(() => current.submitAnswer(0));
+    await act(async () => { await vi.advanceTimersByTimeAsync(1500); });
+    expect(mocks.saveProgressWithTokenReward).not.toHaveBeenCalled();
+  });
+
+  it("awards every combo achievement within a supported boss battle", async () => {
+    await mount();
+    await start(2, "boss-combo");
+    for (let answer = 0; answer < 9; answer++) {
+      act(() => current.submitAnswer(0));
+      await act(async () => { await vi.advanceTimersByTimeAsync(1_500); });
+    }
+    const request = mocks.saveProgressWithTokenReward.mock.calls[0][1];
+    expect(request.maxCombo).toBe(9);
+    const earned = { ...initialProgress, highestCombo: request.maxCombo };
+    for (const achievement of ACHIEVEMENTS.filter(item => item.id.startsWith("combo-"))) {
+      expect(achievement.requirement(earned), achievement.name).toBe(true);
+    }
   });
 });

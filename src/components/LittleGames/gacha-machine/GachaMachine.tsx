@@ -538,9 +538,8 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
       setCloudPendingReveal(pendingReveal);
       pendingAttemptRef.current = pendingReveal.committedAttempt;
       bufferedSaveRef.current = pendingReveal.committedAttempt.save;
-      coinLoadSequenceRef.current += 1;
-      setCoinLoadError(null);
-      setCoinBalance(pendingReveal.committedAttempt.coinsAfter);
+      // A recovered receipt records a historical balance; the independent
+      // coin refresh owns the current balance, even while this capsule waits.
       drawInFlightRef.current = false;
       if (preserveRevealedUi) {
         refreshRevealGuards(uid);

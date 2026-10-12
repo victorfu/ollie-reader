@@ -11,6 +11,10 @@ const mocks = vi.hoisted(() => ({
   updateVocabularyPanelMode: vi.fn(),
 }));
 
+vi.mock("../utils/translateFactory", () => ({
+  createTranslateFn: () => vi.fn(),
+}));
+
 vi.mock("../hooks/usePdfState", () => ({ usePdfState: mocks.usePdfState }));
 vi.mock("../hooks/usePdfWorker", () => ({ usePdfWorker: vi.fn() }));
 vi.mock("../hooks/useSpeechState", () => ({

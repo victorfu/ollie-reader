@@ -30,7 +30,7 @@ import { todayLocal } from "../../../services/economyService";
 import { logger } from "../../../utils/logger";
 import { openGameTab } from "../../../utils/gameTabs";
 import { DAILY_BOND_CAP } from "./constants";
-import { FREE_FOODS, SNACKS } from "./data/foods";
+import { FREE_FOODS, SNACKS, isSnackId } from "./data/foods";
 import { getPhrase, getUnlockedPhrases } from "./data/phrases";
 import { getToy } from "./data/toys";
 import { getWishDefinition } from "./logic/wish";
@@ -78,6 +78,7 @@ import {
   parseCottageCacheValue,
   purchaseCottageProduct,
   readCottageCache,
+  reconcileCottageSaveSnapshots,
   saveCottageCloud,
   writeCottageCache,
 } from "./storage";
@@ -360,6 +361,7 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
     play: playScene,
     enqueue: enqueueScene,
     reset: resetScene,
+    stopPersistent,
   } = useSceneDirector();
   const [speech, setSpeech] = useState<CottageSpeechBubble | null>(null);
   const [bathRubCount, setBathRubCount] = useState(0);
@@ -433,11 +435,15 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
       || (
         visibleSaveOwnerUidRef.current === ownerUid
         && comparePetSaveFreshness(incoming, saveRef.current) < 0
+        && (incoming.snackRevision ?? 0) <= (saveRef.current.snackRevision ?? 0)
       )
     ) return false;
+    const next = visibleSaveOwnerUidRef.current === ownerUid
+      ? reconcileCottageSaveSnapshots(incoming, saveRef.current, nowRef.current)
+      : incoming;
     visibleSaveOwnerUidRef.current = ownerUid;
-    saveRef.current = incoming;
-    setSave(incoming);
+    saveRef.current = next;
+    setSave(next);
     return true;
   }, []);
 
@@ -1088,6 +1094,11 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
     ) => {
       if (!uid || visibleSaveOwnerUidRef.current !== uid) return;
       // Feedback must use the settled transition, never the click-time snapshot.
+      const paidSnack = action.type === "feed" && isSnackId(action.foodId);
+      if (paidSnack && !isDemo && !isOnline) {
+        addToast("進階點心需連線使用，離線時仍可餵免費食物。", "info");
+        return;
+      }
       const showResult = (
         result: ReturnType<typeof applyCareActionWithWish>,
         previous: PetSaveV1,
@@ -1159,6 +1170,13 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
             setSyncError(null);
             showResult(committed, previous);
           } catch (error: unknown) {
+            if (paidSnack) {
+              if (isCurrentIdentity(uid, generation)) {
+                addToast("點心尚未確認使用成功，請恢復連線後再試。", "error");
+              }
+              logger.warn("Cloud Cottage snack transaction failed", error);
+              return;
+            }
             // Persist for the captured owner even after exit/account changes.
             // Only rebase on visible state while it still belongs to this session.
             const fallbackPrevious = activeUidRef.current === uid
@@ -1293,6 +1311,7 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
     // save as belonging to the new account.
     const sleepingUntil = saveRef.current.sleepingUntil;
     if (sleepingUntil === null) {
+      stopPersistent("sleep");
       observedSleepDeadlineRef.current = null;
       return;
     }
@@ -1311,7 +1330,7 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
     // cannot perform the same automatic wake twice.
     observedSleepDeadlineRef.current = null;
     handleWake();
-  }, [handleWake, now, save.sleepingUntil, uid]);
+  }, [handleWake, now, save.sleepingUntil, uid, stopPersistent]);
 
   useEffect(() => {
     if (
@@ -1837,6 +1856,7 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
               <h3 className="text-sm font-black text-slate-700">買到的進階點心</h3>
               <button type="button" onClick={() => { setShopKind("snack"); setPanel("shop"); }} className="min-h-11 rounded-[9px] bg-pink-50 px-3 text-xs font-bold text-pink-700">去商店</button>
             </div>
+            <p className="mt-1 text-xs text-slate-500">進階點心需連線使用，免費食物可離線餵食。</p>
             <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-4">
               {SNACKS.map((food) => {
                 const count = save.inventory.snacks[food.id as SnackId] ?? 0;
@@ -1845,7 +1865,7 @@ export default function CloudCottage({ onExit }: CloudCottageProps) {
                     key={food.id}
                     type="button"
                     data-food-id={food.id}
-                    disabled={count <= 0}
+                    disabled={count <= 0 || (!isDemo && !isOnline)}
                     onClick={() => {
                       performCare({ type: "feed", foodId: food.id }, "feed", speechForPhrase("yummy"), FOOD_EMOJI[food.id]);
                       closePanel();
