@@ -40,15 +40,16 @@ if (!getApps().length) {
     ),
   );
 
-  // Pass your reCAPTCHA v3 site key (public key) to activate(). Make sure this
-  // key is the counterpart to the secret key you set in the Firebase console.
-  initializeAppCheck(app, {
-    provider: new ReCaptchaV3Provider(import.meta.env.VITE_RECAPTCHA_SITE_KEY),
-    isTokenAutoRefreshEnabled: true,
-  });
 } else {
   app = getApps()[0];
 }
+
+// Matching options return the existing instance, including after hot reload.
+// Export it so authenticated media preparation can forward the same App Check token.
+export const appCheck = initializeAppCheck(app, {
+  provider: new ReCaptchaV3Provider(import.meta.env.VITE_RECAPTCHA_SITE_KEY),
+  isTokenAutoRefreshEnabled: true,
+});
 
 // Auth, Firestore, and Gemini all use the same app
 export const firebaseApp = app;

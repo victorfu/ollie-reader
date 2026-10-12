@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Headphones } from "lucide-react";
 import { resolvePodcast } from "../../services/podcastService";
 import type { PodcastEpisode, PodcastShow } from "../../types/podcast";
-import { PodcastPlayer } from "./PodcastPlayer";
+import { PodcastTranscriptionPlayer } from "./PodcastTranscriptionPlayer";
 import { formatPodcastTime } from "../../utils/podcastTime";
 
 export default function Podcasts() {
@@ -60,7 +60,7 @@ export default function Podcasts() {
           {episode.artworkUrl && <img src={episode.artworkUrl} alt="" referrerPolicy="no-referrer" className="size-28 shrink-0 rounded-lg object-cover" onError={(event) => { event.currentTarget.hidden = true; }} />}
           <div className="min-w-0 space-y-2"><p className="break-words text-sm text-muted-foreground">{episode.podcastTitle}</p><h2 className="break-words text-xl font-semibold">{episode.title}</h2>{episode.durationSeconds !== null && <p className="text-sm text-muted-foreground">單集長度 {formatPodcastTime(episode.durationSeconds)}</p>}</div>
         </div>
-        <PodcastPlayer key={`${episode.podcastId}:${episode.guid}`} episode={episode} />
+        <PodcastTranscriptionPlayer key={`${episode.podcastId}:${episode.guid}`} episode={episode} />
       </article>}
     </div>
   );

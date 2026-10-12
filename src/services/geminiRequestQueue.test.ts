@@ -45,6 +45,15 @@ const options = {
 };
 
 describe("GeminiRequestQueue", () => {
+  it("does not retry expensive audio jobs but preserves quota handling", async () => {
+    const queue = new GeminiRequestQueue({ getMinimumStartIntervalMs: () => 0, storage: null });
+    const operation = vi.fn().mockRejectedValue(quotaError("GenerateRequestsPerMinutePerProjectPerModel-FreeTier", "1s"));
+    const result = queue.run(operation, { ...options, action: "podcast_transcript", retry: false });
+    const assertion = expect(result).rejects.toBeInstanceOf(GeminiRateLimitError);
+    await vi.advanceTimersByTimeAsync(10_000);
+    await assertion;
+    expect(operation).toHaveBeenCalledOnce();
+  });
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-08-12T12:00:00Z"));

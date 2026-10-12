@@ -22,6 +22,8 @@ export interface GeminiQueueOptions {
   action: string;
   quotaKey: string;
   signal?: AbortSignal;
+  /** Expensive multimodal jobs can disable retries while keeping shared cooldowns. */
+  retry?: boolean;
 }
 
 export interface GeminiRequestQueueConfig {
@@ -48,6 +50,7 @@ interface QueueJob {
   resolve: (value: unknown) => void;
   reject: (reason: unknown) => void;
   attempt: number;
+  retry: boolean;
   firstAttemptAt?: number;
   notBefore: number;
   state: "queued" | "active" | "settled";
@@ -216,6 +219,7 @@ export class GeminiRequestQueue {
         resolve: resolve as (value: unknown) => void,
         reject,
         attempt: 0,
+        retry: options.retry !== false,
         notBefore: 0,
         state: "queued",
         abortListener: () => undefined,
@@ -360,7 +364,7 @@ export class GeminiRequestQueue {
           const retryDelay = this.retryDelay(job, decision);
           const retryDeadline = (job.firstAttemptAt ?? this.now()) + this.maxRetryWindowMs;
           if (
-            job.attempt >= this.maxRetries ||
+            !job.retry || job.attempt >= this.maxRetries ||
             this.now() + retryDelay > retryDeadline
           ) {
             // Do not let every pending job repeat the same exhausted retry

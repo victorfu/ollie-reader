@@ -1,4 +1,4 @@
-import type { GenerateContentResult } from "firebase/ai";
+import type { GenerateContentResult, GenerateContentRequest, Part } from "firebase/ai";
 import {
   GEMINI_MODEL_NAME,
   firebaseApp,
@@ -15,18 +15,20 @@ export type GeminiAction =
   | "sentence_parse"
   | "word_definition"
   | "speech_script"
-  | "game_words";
+  | "game_words"
+  | "podcast_transcript";
 
 export interface GenerateGeminiContentOptions {
   action: GeminiAction;
   signal?: AbortSignal;
+  retry?: boolean;
 }
 
 const GEMINI_QUOTA_KEY = `${firebaseApp.options.projectId ?? "unknown-project"}:${GEMINI_MODEL_NAME}`;
 
 /** The only application boundary allowed to invoke Firebase generateContent. */
 export function generateGeminiContent(
-  prompt: string,
+  prompt: string | Array<string | Part> | GenerateContentRequest,
   options: GenerateGeminiContentOptions,
 ): Promise<GenerateContentResult> {
   return geminiRequestQueue.run(
@@ -64,6 +66,7 @@ export function generateGeminiContent(
       action: options.action,
       quotaKey: GEMINI_QUOTA_KEY,
       signal: options.signal,
+      ...(options.retry === false ? { retry: false } : {}),
     },
   );
 }
