@@ -6,7 +6,7 @@
 
 **An AI-assisted English-learning workspace for reading, listening, speaking, practice, and games.**
 
-Read PDFs and show transcripts, build a vocabulary book, rehearse travel English and speeches, practise school papers, and reinforce vocabulary through browser games. An optional macOS companion adds local PDF extraction and desktop TTS engines.
+Read PDFs and show transcripts, build a vocabulary book, rehearse speeches, practise school papers, and reinforce vocabulary through browser games. An optional macOS companion adds local PDF extraction and desktop TTS engines.
 
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white&style=flat-square)](https://react.dev)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?logo=typescript&logoColor=white&style=flat-square)](https://www.typescriptlang.org)
@@ -23,7 +23,7 @@ Read PDFs and show transcripts, build a vocabulary book, rehearse travel English
 
 ## Overview
 
-Ollie Reader is a responsive, authentication-gated web app for Chinese-speaking English learners. It combines a PDF learning workspace with bilingual Gemini assistance, vocabulary review, speech and sentence practice, travel scenarios, exam practice, transcripts, audio uploads, and games.
+Ollie Reader is a responsive, authentication-gated web app for Chinese-speaking English learners. It combines a PDF learning workspace with bilingual Gemini assistance, vocabulary review, speech and sentence practice, exam practice, transcripts, audio uploads, and games.
 
 The UI follows macOS Human Interface Guidelines adapted for the web: a collapsible desktop source list, mobile drawer navigation, hairline borders, restrained translucent surfaces, light/dark themes, and touch-friendly controls. The app can be installed as a PWA. Built assets are precached, while exam images, Google Fonts, and bundled transcripts use targeted runtime caches; cloud-backed features still require their services.
 
@@ -33,7 +33,6 @@ The UI follows macOS Human Interface Guidelines adapted for the web: a collapsib
 |---|---|
 | **PDF Reader** (閱讀器) | Opens local or remote PDFs with `react-pdf`; supports word or range selection, bilingual lookup, translation, TTS, and saving words. Text can be parsed in the browser or by a compatible backend. When the desktop companion has OIKID credentials, booking records can also be used to load lesson PDFs. |
 | **Smart Vocabulary Book** (生詞本) | Stores bilingual AI definitions and examples, tags, search, flashcards, and pronunciation practice through the Web Speech API. Smart review prioritises unseen, older, remembered, and forgotten items; it is not an SM-2-style spaced-repetition scheduler. |
-| **Travel English** (旅遊英文) | A 12-topic Singapore journey with vocabulary, useful phrases, bilingual dialogues, TTS, passport-style missions, and synced progress. |
 | **Speech Practice** (演講練習) | Generates topic scripts, records timed practice with pause/resume controls, and keeps history with playback. Metadata and scripts live in Firestore; private recording files live in Supabase Storage. |
 | **English Speech** (英文演講) | Splits and translates pasted text with Gemini, organises reusable speech collections, supports drag-to-reorder sentences, per-word lookup, and sentence/all-speech playback. |
 | **Show Subtitles** (影集字幕) | Reads the bundled *Gabby's Dollhouse* transcripts across nine seasons with the same lookup, translate, speak, and save workflow used by the reader. |
@@ -186,7 +185,7 @@ ollie-reader/
 │   └── transcripts/              # Bundled show transcript JSON
 ├── scripts/                      # Transcript, exam-image, and game-audio utilities
 ├── src/
-│   ├── assets/                   # Travel and game artwork/audio
+│   ├── assets/                   # Game artwork/audio
 │   ├── components/
 │   │   ├── AudioUploads/         # Audio library
 │   │   ├── Auth/                 # Google sign-in UI
@@ -197,12 +196,11 @@ ollie-reader/
 │   │   ├── SentencePractice/     # English speech collections
 │   │   ├── ShowSubtitles/        # Season/episode transcript reader
 │   │   ├── SpeechPractice/       # Script generation and recordings
-│   │   ├── TravelEnglish/        # Topics, phrases, and missions
 │   │   ├── Vocabulary/           # Vocabulary book and review
 │   │   └── common/               # Shared UI primitives
 │   ├── constants/                # API paths and static constants
 │   ├── contexts/                 # Auth, PDF, Settings, Speech, and Theme state
-│   ├── data/                     # Exam data and travel scenes/topics
+│   ├── data/                     # Exam data
 │   ├── hooks/                    # Feature and state hooks
 │   ├── services/                 # Firebase, AI, Supabase, backend, and domain services
 │   ├── types/                    # Shared TypeScript models
