@@ -11,7 +11,6 @@ import {
 import {
   BookOpen,
   BookMarked,
-  Globe,
   Mic,
   PenLine,
   Music,
@@ -65,11 +64,6 @@ const WordAdventure = lazyWithReload(
 const ShowSubtitlesPage = lazyWithReload(() =>
   import("./components/ShowSubtitles/ShowSubtitlesPage").then((module) => ({
     default: module.ShowSubtitlesPage,
-  })),
-);
-const TravelEnglishPage = lazyWithReload(() =>
-  import("./components/TravelEnglish/TravelEnglishPage").then((module) => ({
-    default: module.TravelEnglishPage,
   })),
 );
 const ExamPracticePage = lazyWithReload(
@@ -322,6 +316,11 @@ function AppContent() {
     normalizedPathname === "/games/wonder-academy" ||
     normalizedPathname === "/games/monster-academy";
 
+  // Keep retired travel bookmarks usable without retaining the feature route.
+  if (normalizedPathname === "/travel") {
+    return <Navigate to="/reader" replace />;
+  }
+
   if (isRetiredAcademyGame) {
     return <Navigate to="/games/sweetheart" replace />;
   }
@@ -428,7 +427,6 @@ function AppContent() {
   const navItems: { to: string; label: string; icon: typeof BookOpen }[] = [
     { to: "/reader", label: "閱讀器", icon: BookOpen },
     { to: "/vocabulary", label: "生詞本", icon: BookMarked },
-    { to: "/travel", label: "旅遊英文", icon: Globe },
     { to: "/english-speech", label: "英文演講", icon: PenLine },
     { to: "/speech-practice", label: "演講練習", icon: Mic },
     { to: "/audio-uploads", label: "音訊庫", icon: Music },
@@ -729,7 +727,6 @@ function AppContent() {
                         path="/games/spirit"
                         element={<WordAdventure />}
                       />
-                      <Route path="/travel" element={<TravelEnglishPage />} />
                       <Route path="/settings" element={<Settings />} />
                     </Routes>
                   </Suspense>

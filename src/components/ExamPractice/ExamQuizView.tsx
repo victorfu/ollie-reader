@@ -6,7 +6,7 @@ import type { ExamPaper, ExamQuizSession } from "../../types/exam";
 import { FULL_SCOPE_ID, isTextQuestion } from "../../types/exam";
 import { playSound } from "../../services/gameService";
 import { useSpeechState } from "../../hooks/useSpeechState";
-import { SpeakerButton } from "../TravelEnglish/SpeakerButton";
+import { SpeakerButton } from "../common/SpeakerButton";
 import { ExamRichText } from "./ExamRichText";
 import { ExamQuestionImage } from "./ExamQuestionImage";
 import { ExamTypedAnswerPanel } from "./ExamTypedAnswerPanel";
