@@ -474,6 +474,29 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
     [refreshRevealGuards, startOwnRevealGuardHeartbeat],
   );
 
+  const refreshCoinBalance = useCallback((uid: string) => {
+    const sequence = ++coinLoadSequenceRef.current;
+    setCoinLoadError(null);
+    void loadPlayerCoins(uid)
+      .then((coins) => {
+        if (coinLoadSequenceRef.current !== sequence) return;
+        if (activeUidRef.current !== uid) return;
+        setCoinBalance(coins);
+        setCoinLoadError(null);
+        if (coins >= GACHA_DRAW_COST) {
+          setActionError((current) =>
+            current?.startsWith("代幣不足") ? null : current,
+          );
+        }
+      })
+      .catch((error: unknown) => {
+        if (coinLoadSequenceRef.current !== sequence) return;
+        logger.error("Failed to load coin balance", error);
+        setCoinBalance(null);
+        setCoinLoadError("無法載入代幣餘額，請確認連線後重試。");
+      });
+  }, []);
+
   const restoreCloudPendingReveal = useCallback(
     (uid: string, pendingReveal: GachaCloudPendingReveal): void => {
       if (
@@ -535,7 +558,15 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
         startOwnRevealGuardHeartbeat();
       }
 
+      const isNewReceipt =
+        cloudPendingRevealRef.current?.attemptId !== pendingReveal.attemptId;
       setCloudPendingReveal(pendingReveal);
+      if (isNewReceipt) {
+        // Another tab may have committed after our last focus refresh. Do not
+        // enable another draw until a fresh read confirms the current balance.
+        setCoinBalance(null);
+        refreshCoinBalance(uid);
+      }
       pendingAttemptRef.current = pendingReveal.committedAttempt;
       bufferedSaveRef.current = pendingReveal.committedAttempt.save;
       // A recovered receipt records a historical balance; the independent
@@ -555,6 +586,7 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
     },
     [
       clearOwnRevealGuard,
+      refreshCoinBalance,
       refreshRevealGuards,
       setCloudPendingReveal,
       setVisibleSave,
@@ -950,29 +982,6 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
     refreshRevealGuards,
     user?.uid,
   ]);
-
-  const refreshCoinBalance = useCallback((uid: string) => {
-    const sequence = ++coinLoadSequenceRef.current;
-    setCoinLoadError(null);
-    void loadPlayerCoins(uid)
-      .then((coins) => {
-        if (coinLoadSequenceRef.current !== sequence) return;
-        if (activeUidRef.current !== uid) return;
-        setCoinBalance(coins);
-        setCoinLoadError(null);
-        if (coins >= GACHA_DRAW_COST) {
-          setActionError((current) =>
-            current?.startsWith("代幣不足") ? null : current,
-          );
-        }
-      })
-      .catch((error: unknown) => {
-        if (coinLoadSequenceRef.current !== sequence) return;
-        logger.error("Failed to load coin balance", error);
-        setCoinBalance(null);
-        setCoinLoadError("無法載入代幣餘額，請確認連線後重試。");
-      });
-  }, []);
 
   // 載入代幣餘額（登入/回到線上時）
   useEffect(() => {

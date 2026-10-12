@@ -1487,7 +1487,7 @@ describe("GachaMachine draw guard", () => {
       pendingReveal,
     });
 
-    act(() => {
+    await act(async () => {
       window.dispatchEvent(
         new StorageEvent("storage", {
           key: "ollie-gacha-machine-cache-v1:player-1",
@@ -2939,4 +2939,43 @@ it.each([true, false])("keeps current coins when restoring an old receipt (coins
   act(() => container.querySelector<HTMLButtonElement>('[data-testid="reveal-dialog"]')!.click());
   expect(container.querySelector('[aria-label="代幣餘額 500"]')).toBeTruthy();
   expect(buttonWithText("投入 50 代幣").disabled).toBe(false);
+});
+
+
+it("refreshes coins once for a new cross-tab receipt and blocks draws until it settles", async () => {
+  storageMocks.loadPlayerCoins.mockResolvedValue(50);
+  await renderAt("/games/gacha");
+  await act(async () => window.dispatchEvent(new Event("focus")));
+  expect(container.querySelector('[aria-label="代幣餘額 50"]')).toBeTruthy();
+
+  let finishRefresh!: (coins: number) => void;
+  storageMocks.loadPlayerCoins.mockReturnValueOnce(new Promise<number>((resolve) => {
+    finishRefresh = resolve;
+  }));
+  const committed: CommittedGachaAttempt = {
+    coinsAfter: 0,
+    save: { ...EMPTY_SAVE, totalDraws: 1 },
+    result: { kind: "miss", totalDraws: 1 },
+  };
+  const pendingReveal = cloudPendingReveal("cross-tab-paid", committed);
+  storageMocks.parseGachaMachineCacheState
+    .mockReturnValueOnce({ save: committed.save, pendingReveal })
+    .mockReturnValueOnce({ save: committed.save, pendingReveal });
+  const refreshCount = storageMocks.loadPlayerCoins.mock.calls.length;
+  const receiveReceipt = () => window.dispatchEvent(new StorageEvent("storage", {
+    key: "ollie-gacha-machine-cache-v1:player-1",
+    newValue: JSON.stringify({ save: committed.save, pendingReveal }),
+  }));
+  act(receiveReceipt);
+  expect(storageMocks.loadPlayerCoins).toHaveBeenCalledTimes(refreshCount + 1);
+  act(receiveReceipt);
+  expect(storageMocks.loadPlayerCoins).toHaveBeenCalledTimes(refreshCount + 1);
+
+  act(() => container.querySelector<HTMLButtonElement>('button[aria-label="膠囊已經出來，點擊開獎"]')!.click());
+  await flushRevealAcknowledgement();
+  act(() => container.querySelector<HTMLButtonElement>('[data-testid="reveal-dialog"]')!.click());
+  expect(buttonWithText("投入 50 代幣").disabled).toBe(true);
+  await act(async () => finishRefresh(0));
+  expect(container.querySelector('[aria-label="代幣餘額 0"]')).toBeTruthy();
+  expect(buttonWithText("投入 50 代幣").disabled).toBe(true);
 });
