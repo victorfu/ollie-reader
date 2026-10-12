@@ -26,7 +26,7 @@ const pageVariants = {
 };
 
 /**
- * 考卷練習頁(/exams):國語、數學同一頁,以 ?subject= 切換科別。
+ * 基本學力測驗頁(/exams):國語、數學同一頁,以 ?subject= 切換科別。
  * 已知限制:作答中經由 sidebar 站內導航離開無法攔截
  * (完整攔截需改用 data router 的 useBlocker,不在此功能範圍);
  * 頁內的離開/切科別路徑都有確認對話框,關閉分頁有 beforeunload 提示。

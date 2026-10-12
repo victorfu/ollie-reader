@@ -72,7 +72,7 @@ function idleState(subject: ExamTab): ExamQuizState {
   };
 }
 
-/** 考卷練習狀態機:idle(列表)→ active(作答)→ finished(成績)。 */
+/** 基本學力測驗狀態機:idle(列表)→ active(作答)→ finished(成績)。 */
 export function useExamQuiz(subject: ExamTab): UseExamQuizReturn {
   const [state, setState] = useState<ExamQuizState>(() => idleState(subject));
   const finishingRef = useRef<ExamQuizSession | null>(null);

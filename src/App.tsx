@@ -433,7 +433,7 @@ function AppContent() {
     { to: "/speech-practice", label: "演講練習", icon: Mic },
     { to: "/audio-uploads", label: "音訊庫", icon: Music },
     { to: "/show", label: "影集字幕", icon: MonitorPlay },
-    { to: "/exams", label: "考卷練習", icon: ClipboardCheck },
+    { to: "/exams", label: "基本學力測驗", icon: ClipboardCheck },
     { to: "/games", label: "小遊戲", icon: Joystick },
   ];
   const currentLabel =
