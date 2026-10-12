@@ -4,6 +4,12 @@ export const API_BASE_URL =
     .replace(/\/+$/, "");
 export const ETTS_API_BASE_URL =
   (import.meta.env.VITE_ETTS_API_BASE_URL?.trim() || API_BASE_URL).replace(/\/+$/, "");
+// Podcasts exist only in server/. A legacy cloud API setting must not send
+// local development requests to an older backend that lacks this route.
+export const PODCAST_API_BASE_URL =
+  (import.meta.env.VITE_PODCAST_API_BASE_URL?.trim() ||
+    (import.meta.env.DEV ? "http://localhost:3000" : API_BASE_URL))
+    .replace(/\/+$/, "");
 export const API_URL = `${API_BASE_URL}/api/pdf/extract`;
 export const VERSION_API_URL = `${API_BASE_URL}/api/version`;
 export const OIKID_BOOKING_RECORDS_PATH = "/api/oikid/booking-records";

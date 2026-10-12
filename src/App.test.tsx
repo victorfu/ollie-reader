@@ -57,3 +57,21 @@ describe("retired travel page", () => {
     expect(window.history.state.usr.from).toBe("/reader");
   });
 });
+
+describe("Podcast navigation", () => {
+  it("exposes the Podcast route in desktop and mobile navigation", () => {
+    window.history.replaceState(null, "", "/podcasts");
+    act(() => root.render(<App />));
+    expect(window.location.pathname).toBe("/podcasts");
+    expect(host.querySelector('a[href="/podcasts"]')?.textContent).toContain("Podcast 聽力");
+    act(() => host.querySelector<HTMLButtonElement>('button[aria-label="開啟選單"]')!.click());
+    expect(host.querySelectorAll('a[href="/podcasts"]')).toHaveLength(2);
+  });
+  it("requires authentication for the Podcast page", () => {
+    auth.user = null;
+    window.history.replaceState(null, "", "/podcasts");
+    act(() => root.render(<App />));
+    expect(window.location.pathname).toBe("/login");
+    expect(window.history.state.usr.from).toBe("/podcasts");
+  });
+});

@@ -125,3 +125,21 @@ Default allowed origins are `http://localhost:5173`, `http://127.0.0.1:5173`, `h
 If the new frontend variable is empty, Edge cloud requests continue using `VITE_API_BASE_URL`. The general compute base can point at this server once its OIKID environment and deployment have been verified; see the general-endpoint routing instructions above. The Web app's API speech uses only Edge TTS.
 
 Edge TTS uses Microsoft's network service through a community package, just like desktop. An upstream `403` is surfaced as `502` with an update hint. Network availability must be smoke-tested from the actual Vercel deployment; unit tests mock the upstream service. Runtime errors are logged by status and safe message without input text or audio.
+
+## POST /api/podcasts/resolve
+
+Accepts JSON `{ "url": "https://podcasts.apple.com/tw/podcast/storytime-sweeter-than-honey/id1567336024?i=1000539350317" }`.
+Returns `title`, `podcastTitle`, nullable `artworkUrl` and `durationSeconds`, `audioUrl`, `sourceUrl`, `podcastId`, `episodeId`, and the RSS `guid`.
+
+The entry URL must be HTTPS on exactly `podcasts.apple.com`, use a country/show path, and may contain one numeric episode `i` parameter. Duplicate, empty, or nonnumeric `i` parameters are rejected. Apple’s public episode page currently exposes `serialized-server-data`: the resolver requires an offer whose `contentId` **and** `showOffer.adamId` match the requested episode/show, then obtains its actual RSS GUID and feed URL. Repeated identical offers are deduplicated; conflicting offers fail. This avoids treating the Apple numeric ID as the RSS GUID. Only one RSS item with that exact GUID is accepted; title/date guesses and latest-episode fallback are deliberately unsupported.
+
+This strategy was checked against the requested Lingokids episode: direct iTunes episode Lookup returned no results, but the Apple page maps episode `1000539350317` to GUID `41de79d7-ab9c-4035-a1af-aee96c385002`. The live RSS contains that GUID once, with title `Storytime: Sweeter than Honey`, duration 382 seconds, and an MP3 enclosure. Apple page markup is not a versioned public API; if its structure changes or a feed removes an old episode, resolution fails explicitly and the adapter may need updating.
+
+Security/limits: 4 KiB request, 2 MiB Apple metadata, 4 MiB RSS, a shared 20-second upstream deadline, and at most three redirects per fetch. All backend connections use the existing public-address-only socket DNS dispatcher (including redirects), preventing DNS rebinding to private addresses. Apple page redirects stay on Apple Podcasts; RSS uses public HTTPS on the standard port. RSS DTD/entity declarations are rejected. Feed descriptions/HTML are never rendered. The API follows the existing public metadata endpoint CORS policy; it does not require a Firebase token. The frontend route remains inside the app's authentication boundary.
+
+No audio is downloaded or proxied by this route. The browser streams the HTTPS enclosure directly and handles hosting redirects; availability, codec support, and seek ranges remain dependent on the browser and audio host. Playback errors are surfaced in the player. Supported enclosure MIME types include MP3, M4A/MP4, AAC, OGG, WAV, and WebM; browser support varies. Sources requiring HTTP, subscriptions, signed-in cookies, or private networking are unsupported.
+
+Errors use `{ "detail": "..." }`: `400` invalid input, `404` requested GUID absent from RSS, `413` size limit, `422` ambiguous identity/unsupported source, `502` unavailable or malformed upstream, `504` deadline, `499` observed client cancellation. No API key, Firestore collection, or Supabase bucket is needed.
+
+
+For a show URL without `i`, the same endpoint returns `{ kind: "show", podcastTitle, sourceUrl, episodes, unavailableCount }`. Show metadata must match the requested `adamId` exactly (related-show recommendations are ignored). The public RSS supplies the episode choices; no episode is selected automatically. Every choice includes its exact GUID and validated enclosure. Its `episodeId` is `null` because Apple numeric IDs cannot be inferred from RSS GUIDs. Items with missing/duplicate GUIDs or unsupported/unsafe enclosures are excluded and counted in `unavailableCount`. No subscription or background synchronization is added.

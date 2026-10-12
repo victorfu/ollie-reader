@@ -15,6 +15,7 @@
     "test:runtime": "node scripts/smoke-auth-runtime.mjs"
   },
   "dependencies": {
+    "fast-xml-parser": "^5.11.2",
     "firebase-admin": "^14.4.0",
     "ipaddr.js": "^2.5.0",
     "msedge-tts": "2.0.7",

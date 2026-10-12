@@ -27,7 +27,7 @@ export function parseTarget(input: string): URL {
 
 // Validate the actual socket lookup, not a separate DNS preflight; redirects use
 // the same dispatcher so DNS changes cannot bypass the public-address boundary.
-function publicAgent(): Agent {
+export function publicAgent(): Agent {
   return new Agent({ connect: { lookup(hostname, options, callback) {
     lookup(hostname, { family: options.family, all: true }, (error, addresses) => {
       if (error) return callback(error, [], undefined);

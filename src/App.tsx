@@ -14,6 +14,7 @@ import {
   Mic,
   PenLine,
   Music,
+  Headphones,
   MonitorPlay,
   ClipboardCheck,
   Joystick,
@@ -58,6 +59,7 @@ const SentencePractice = lazyWithReload(
 const AudioUploads = lazyWithReload(
   () => import("./components/AudioUploads/AudioUploads"),
 );
+const Podcasts = lazyWithReload(() => import("./components/Podcasts/Podcasts"));
 const WordAdventure = lazyWithReload(
   () => import("./components/Game/WordAdventure"),
 );
@@ -430,6 +432,7 @@ function AppContent() {
     { to: "/english-speech", label: "英文演講", icon: PenLine },
     { to: "/speech-practice", label: "演講練習", icon: Mic },
     { to: "/audio-uploads", label: "音訊庫", icon: Music },
+    { to: "/podcasts", label: "Podcast 聽力", icon: Headphones },
     { to: "/show", label: "影集字幕", icon: MonitorPlay },
     { to: "/exams", label: "基本學力測驗", icon: ClipboardCheck },
     { to: "/games", label: "小遊戲", icon: Joystick },
@@ -720,6 +723,7 @@ function AppContent() {
                         element={<SentencePractice />}
                       />
                       <Route path="/audio-uploads" element={<AudioUploads />} />
+                      <Route path="/podcasts" element={<Podcasts />} />
                       <Route path="/show" element={<ShowSubtitlesPage />} />
                       <Route path="/exams" element={<ExamPracticePage />} />
                       <Route path="/games" element={<LittleGamesHub />} />

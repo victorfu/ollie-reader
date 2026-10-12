@@ -37,6 +37,7 @@ The UI follows macOS Human Interface Guidelines adapted for the web: a collapsib
 | **English Speech** (英文演講) | Splits and translates pasted text with Gemini, organises reusable speech collections, supports drag-to-reorder sentences, per-word lookup, and sentence/all-speech playback. |
 | **Show Subtitles** (影集字幕) | Reads the bundled *Gabby's Dollhouse* transcripts across nine seasons with the same lookup, translate, speak, and save workflow used by the reader. |
 | **Basic Academic Competency Test** (基本學力測驗) | Chinese, mathematics, and English papers with section/full-paper sessions, immediate feedback, wrong-answer retry, local best-score tracking, and random mixed-subject papers. |
+| **Podcast Listening** (Podcast 聽力) | Accepts Apple Podcasts show links with episode selection, or resolves an episode link to its exact RSS enclosure and plays it in the app, with seek, ±10 seconds, and 0.75–1.5× speed. |
 | **Audio Library** (音訊庫) | Uploads and organises MP3, WAV, M4A, WebM, OGG, AAC, and MP4 learning audio. Firestore stores metadata and private Supabase Storage serves short-lived signed playback URLs. |
 | **Word Adventure & Gacha** | Runs vocabulary quiz stages and boss battles from the learner's word pool, with achievements and cloud-synced tokens used by the Popular Character Gacha collection. |
 | **Little Games** (小遊戲) | Includes Sweetheart Defenders (in development, cloud save), Mushroom Adventure, Meteor Glider, and Bunny Jumper, alongside the Word Adventure and Gacha entries in the game hub. |
@@ -112,6 +113,7 @@ Next.js service continues to use `server/.env.local`.
 | `VITE_FIREBASE_APPCHECK_DEBUG_TOKEN` | Optional development-only App Check debug token |
 | `VITE_GEMINI_CLIENT_RPM_BUDGET` | Effective client-side Gemini RPM budget; defaults to `4` |
 | `VITE_API_BASE_URL` | Own server API; defaults to `http://localhost:3000` in development and `https://server-one-xi-16.vercel.app` in production |
+| `VITE_PODCAST_API_BASE_URL` | Optional Podcast API override; defaults to localhost:3000 in development and `VITE_API_BASE_URL` in production. |
 | `VITE_ETTS_API_BASE_URL` | Edge TTS cloud API base URL; falls back to `VITE_API_BASE_URL` when unset. Use `http://localhost:3000` for local server development. |
 | `VITE_SUPABASE_URL` | Supabase project URL |
 | `VITE_SUPABASE_PUBLISHABLE_KEY` | Public/publishable Supabase key; never use a service-role or secret key in the frontend |
@@ -236,3 +238,38 @@ Contributions are welcome. Use focused [Conventional Commits](https://www.conven
 ## License
 
 [MIT](LICENSE) © Victor Fu
+
+
+## Podcast player (Phase 1)
+
+Open **Podcast 聽力** (`/podcasts`) after signing in. Paste an Apple Podcasts show or episode sharing link and click **載入 Podcast**. A show link lists the playable public RSS episodes: choose one explicitly, then click **播放**. An episode link containing `?i=` loads only that exact episode. Playback does not start automatically. The page provides pause, a seek slider, ±10-second buttons, and 0.75× / 1× / 1.25× / 1.5× speed. Leaving the page releases the audio element and aborts pending resolution. No audio or listening history is persisted.
+
+Start the services in separate terminals (Node.js 24):
+
+```bash
+npm ci --prefix server
+npm run dev --prefix server
+```
+
+```bash
+npm ci
+npm run dev
+```
+
+Existing Firebase frontend configuration is still required for app sign-in. Podcasts use `VITE_PODCAST_API_BASE_URL` when set; otherwise development defaults to `http://localhost:3000` and production uses `VITE_API_BASE_URL`. This prevents a legacy cloud URL in local settings from intercepting the new route. The desktop compute-mode setting does not affect Podcasts. Deploy the new `server/` route before using this feature in the hosted frontend. See the [resolver contract and limits](server/README.md#post-apipodcastsresolve).
+
+Primary live test link: [Storytime: Sweeter than Honey](https://podcasts.apple.com/tw/podcast/storytime-sweeter-than-honey/id1567336024?i=1000539350317).
+
+Run the normal frontend and server lint/test/build checks. A repeatable live browser smoke test is also available:
+
+```bash
+npx playwright install chromium  # if no matching browser is installed
+node scripts/podcast-browser-smoke.mjs
+```
+
+The script mounts the actual Podcast page in a Playwright-only HTML harness, calls the real API, and tests the real remote audio. It checks playback, pause, skip, slider seeking, speed, cleanup, 375/768/1440px layouts, 44px touch targets, and light/dark screenshots in `/tmp/ollie-podcast-smoke`. It does not log into Firebase; app routing/authentication has separate component tests. `PODCAST_WEB_URL`, `PODCAST_CHROMIUM_PATH`, and `PODCAST_SCREENSHOTS` optionally override the frontend origin, browser executable, and screenshot directory. For a nonstandard Vite port, add its exact origin to the server's `OLLIE_CORS_ORIGINS`.
+
+Later transcript synchronization can key transcript data by `podcastId` + RSS `guid` (retaining `episodeId` when resolved from an Apple episode link), derive the active cue from the audio element's `currentTime`/`timeupdate`, and route cue clicks through the existing seek logic. No transcript, AI, download, or learning-history feature is included in Phase 1.
+
+
+If an older local environment still points `VITE_API_BASE_URL` at Cloud Run, update `.env.development` to `http://localhost:3000` and `.env.production` to the current Vercel backend (`https://server-one-xi-16.vercel.app`). Restart Vite after changing environment files; production values require a rebuild. A generic endpoint `404 Not Found` means the backend route is missing, not that the Podcast itself is missing. Deploy the new backend route before testing the production frontend.
