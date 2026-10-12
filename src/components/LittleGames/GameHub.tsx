@@ -155,8 +155,8 @@ export default function GameHub() {
   }, []);
 
   return (
-    <div className="mx-auto max-w-5xl">
-      <header className="mb-6">
+    <div className="mx-auto w-full max-w-6xl">
+      <header className="mb-4">
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
           Ollie Little Games
         </p>
@@ -166,14 +166,14 @@ export default function GameHub() {
         </p>
       </header>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {cards.map((card) => (
           <article
             key={card.id}
-            className="group flex flex-col rounded-[10px] border border-border-hairline bg-card p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg"
+            className="group flex min-w-0 flex-col rounded-[10px] border border-border-hairline bg-card p-4 shadow-sm transition-shadow duration-200 hover:shadow-md"
           >
             <div className="flex items-center justify-between">
-              <span className="text-3xl" aria-hidden="true">
+              <span className="text-2xl" aria-hidden="true">
                 {card.emoji}
               </span>
               <div className="flex flex-wrap items-center justify-end gap-1.5">
@@ -187,7 +187,7 @@ export default function GameHub() {
                 </span>
               </div>
             </div>
-            <h2 className="mt-3 text-lg font-semibold tracking-tight">
+            <h2 className="mt-2 text-base font-semibold tracking-tight">
               {card.title}
             </h2>
             {card.titleZh && (
@@ -198,7 +198,7 @@ export default function GameHub() {
             <p className="mt-1 flex-1 text-sm text-muted-foreground">
               {card.blurb}
             </p>
-            <div className="mt-4 flex flex-wrap items-end justify-between gap-3">
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
               <span className="text-xs text-muted-foreground">
                 {card.statusLabel ??
                 (card.best && card.best > 0
