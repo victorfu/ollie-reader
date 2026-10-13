@@ -6,6 +6,12 @@ import { downloadPodcastAudio, MAX_AUDIO_BYTES } from "./podcastAudio";
 const run = (url = "https://audio.example/episode.mp3") => downloadPodcastAudio(url, new AbortController().signal);
 const response = (headers = {}) => new Response("audio", { headers: { "content-type": "audio/mpeg", ...headers } });
 afterEach(() => vi.resetAllMocks());
+it.each(["audio/webm", "audio/webm; codecs=opus", "Audio/WebM"])("accepts WebM enclosure content type %s", async (mimeType) => {
+  mocks.fetch.mockResolvedValue(response({ "content-type": mimeType }));
+  mocks.parse.mockResolvedValue({ format: { duration: 80 } });
+  expect(await run("https://audio.example/episode.webm")).toMatchObject({ mimeType: "audio/webm", duration: 80 });
+  expect(mocks.parse).toHaveBeenCalledWith(expect.any(Uint8Array), { mimeType: "audio/webm", size: 5 }, { duration: true, skipCovers: true });
+});
 it("downloads with the public DNS dispatcher and verifies real duration", async () => {
   mocks.fetch.mockResolvedValue(response()); mocks.parse.mockResolvedValue({ format: { duration: 80 } });
   expect(await run()).toMatchObject({ mimeType: "audio/mpeg", duration: 80 });

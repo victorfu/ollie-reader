@@ -51,7 +51,7 @@ Its base64 representation plus prompt/schema fits comfortably under Firebase
 AI Logic's **20 MB total inline-request limit**. The frontend sends this audio
 as `inlineData` through `generateGeminiContent`; no arbitrary RSS URL is passed
 to `GoogleAIBackend`, and no browser cross-origin download from the RSS host is
-needed. Current verified source formats are MP3, MP4/M4A, AAC, OGG, WAV and FLAC.
+needed. Current verified source formats are MP3, MP4/M4A, AAC, OGG, WAV, FLAC and WebM.
 
 Download timeout is 45 seconds, conversion timeout is 60 seconds, and the overall
 server media deadline is 130 seconds. FFmpeg runs without a shell, external

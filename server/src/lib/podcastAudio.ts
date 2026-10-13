@@ -9,6 +9,7 @@ const MIME_TYPES = new Map([
   ["audio/mpeg", "audio/mpeg"], ["audio/mp3", "audio/mpeg"],
   ["audio/mp4", "audio/mp4"], ["audio/x-m4a", "audio/mp4"], ["audio/m4a", "audio/mp4"],
   ["audio/aac", "audio/aac"], ["audio/ogg", "audio/ogg"],
+  ["audio/webm", "audio/webm"],
   ["audio/wav", "audio/wav"], ["audio/x-wav", "audio/wav"], ["audio/flac", "audio/flac"],
 ]);
 

@@ -1,5 +1,11 @@
-import { expect, it } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
+import { parseBuffer } from "music-metadata";
+const mocks = vi.hoisted(() => ({ fetch: vi.fn() }));
+vi.mock("undici", async (original) => ({ ...await original<typeof import("undici")>(), fetch: mocks.fetch }));
+import { downloadPodcastAudio } from "./podcastAudio";
 import { preparePodcastAudio, MAX_PREPARED_BYTES } from "./podcastAudioPreparation";
+
+afterEach(() => vi.resetAllMocks());
 
 function wav(seconds: number) {
   const samples = seconds * 16000;
@@ -13,6 +19,18 @@ function wav(seconds: number) {
 it("prepares full-length WebM with the bundled FFmpeg, under the HTTP/Firebase limits", async () => {
   const result = await preparePodcastAudio({ bytes: wav(2), duration: 2 }, new AbortController().signal);
   expect(result.duration).toBe(2); expect(result.bytes.length).toBeGreaterThan(100);
+  expect(result.bytes.length).toBeLessThan(MAX_PREPARED_BYTES);
+}, 15000);
+it("downloads a real WebM enclosure and converts it without losing duration", async () => {
+  const signal = new AbortController().signal;
+  const source = await preparePodcastAudio({ bytes: wav(2), duration: 2 }, signal);
+  mocks.fetch.mockResolvedValue(new Response(source.bytes, { headers: { "content-type": "audio/webm; codecs=opus" } }));
+  const downloaded = await downloadPodcastAudio("https://audio.example/episode.webm", signal);
+  expect(downloaded.mimeType).toBe("audio/webm");
+  const result = await preparePodcastAudio(downloaded, signal);
+  const metadata = await parseBuffer(result.bytes, { mimeType: "audio/webm", size: result.bytes.length }, { duration: true });
+  expect(metadata.format.duration).toBeCloseTo(downloaded.duration, 1);
+  expect(result.bytes.length).toBeGreaterThan(100);
   expect(result.bytes.length).toBeLessThan(MAX_PREPARED_BYTES);
 }, 15000);
 it("rejects a mismatched/truncated duration", async () => {

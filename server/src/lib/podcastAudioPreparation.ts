@@ -24,7 +24,7 @@ export async function preparePodcastAudio(audio: { bytes: Uint8Array; duration: 
     await new Promise<void>((resolve, reject) => {
       let failure: Error | undefined;
       const process = spawn(executable, ["-nostdin", "-hide_banner", "-loglevel", "error", "-y",
-        "-protocol_whitelist", "file,pipe", "-format_whitelist", "mp3,mov,aac,ogg,wav,flac",
+        "-protocol_whitelist", "file,pipe", "-format_whitelist", "mp3,mov,aac,ogg,wav,flac,matroska,webm",
         "-i", input, "-map", "0:a:0", "-vn", "-sn", "-dn", "-map_metadata", "-1",
         "-c:a", "libopus", "-application", "voip", "-ac", "1", "-ar", "16000",
         "-b:a", String(bitrate), "-vbr", "off", "-threads", "1",
