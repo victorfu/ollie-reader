@@ -24,11 +24,18 @@ match /users/{uid}/podcastTranscriptJobs/{id} {
   allow read, delete: if ownsPodcastData(uid);
   allow create, update: if ownsPodcastData(uid)
     && id.matches('^[a-f0-9]{64}$')
-    && request.resource.data.keys().hasOnly(['token', 'status', 'expiresAt', 'error'])
+    && request.resource.data.keys().hasOnly(['token', 'status', 'startedAt', 'leaseDurationMs', 'error'])
     && request.resource.data.token is string
     && request.resource.data.token.size() <= 64
-    && request.resource.data.expiresAt is int
+    && request.resource.data.startedAt == request.time
+    && request.resource.data.leaseDurationMs in [30000, 120000, 600000]
     && request.resource.data.status in ['generating', 'failed'];
+}
+match /users/{uid}/podcastTranscriptClock/{id} {
+  allow read: if ownsPodcastData(uid) && id == 'current';
+  allow create, update: if ownsPodcastData(uid) && id == 'current'
+    && request.resource.data.keys().hasOnly(['sampledAt'])
+    && request.resource.data.sampledAt == request.time;
 }
 // Old server limiter documents are unused; keep them inaccessible to clients.
 match /users/{uid}/podcastTranscriptionLimits/{id} {

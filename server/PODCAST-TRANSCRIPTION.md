@@ -69,6 +69,8 @@ existing frontend coordination continue to protect model calls.
 addition to existing text input. Audio calls use the **same request queue and
 cross-tab gate**, with shared provider-error observation and cooldowns. Only
 Podcast jobs disable automatic retries, avoiding repeated expensive requests.
+For retryable short-term 429s, only that Podcast job fails; other model requests
+remain queued behind the shared short cooldown, without opening an unknown breaker.
 Other actions retain their current retry policy. No second Gemini quota system
 or alternate STT provider was introduced.
 
@@ -90,7 +92,16 @@ does not download audio or call Gemini. Failures never overwrite completed data.
 
 Client Firestore transactions claim a ten-minute lease at
 `users/{uid}/podcastTranscriptJobs/{id}`, preventing simultaneous same-episode
-generation across tabs/devices for normal clients. Completed writes atomically
+generation across tabs/devices for normal clients. Lease creation and failed-job
+cooldowns use Firestore `serverTimestamp()` plus a fixed duration. Expiry decisions
+read a resolved server timestamp from `users/{uid}/podcastTranscriptClock/current`
+(one write/read per expiry check); browser wall clocks never determine expiry.
+The rules require both timestamp fields to equal `request.time`. Deploy the updated
+rules fragment, including the clock document match, with this version. Clock-read
+failures stop new claims; completed-cache reads need no clock probe. Legacy leases
+created using browser `expiresAt` values are conservatively migrated to a full
+server-timed ten-minute lease while preserving the existing owner token.
+Completed writes atomically
 save the transcript and remove the lease. Failed jobs allow an explicit retry
 after 30 seconds; cancellation waits two minutes because provider work may
 continue after the caller aborts. Abandoned browser jobs expire after ten minutes.
