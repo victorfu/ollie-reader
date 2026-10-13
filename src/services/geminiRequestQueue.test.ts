@@ -45,6 +45,30 @@ const options = {
 };
 
 describe("GeminiRequestQueue", () => {
+  it("keeps unrelated same-model work queued after a no-retry short 429", async () => {
+    const storage = new MemoryStorage();
+    const queue = new GeminiRequestQueue({ getMinimumStartIntervalMs: () => 0, baseBackoffMs: 10, storage });
+    const podcast = vi.fn().mockRejectedValue(quotaError("GenerateRequestsPerMinutePerProjectPerModel", "1s"));
+    const translation = vi.fn().mockResolvedValue("translated");
+    const failed = expect(queue.run(podcast, { ...options, action: "podcast_transcript", retry: false })).rejects.toBeInstanceOf(GeminiRateLimitError);
+    const queued = queue.run(translation, { ...options, action: "translation" });
+    await vi.advanceTimersByTimeAsync(0);
+    await failed;
+    expect(podcast).toHaveBeenCalledOnce();
+    expect(translation).not.toHaveBeenCalled();
+    // A second tab using persisted quota state must wait for the same short
+    // cooldown, not fail behind a newly-created unknown breaker.
+    const otherTab = new GeminiRequestQueue({ getMinimumStartIntervalMs: () => 0, baseBackoffMs: 10, storage });
+    const lookup = vi.fn().mockResolvedValue("definition");
+    const fromOtherTab = otherTab.run(lookup, { ...options, action: "word_details" });
+    await vi.advanceTimersByTimeAsync(999);
+    expect(translation).not.toHaveBeenCalled();
+    expect(lookup).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
+    await expect(queued).resolves.toBe("translated");
+    await expect(fromOtherTab).resolves.toBe("definition");
+    expect(podcast).toHaveBeenCalledOnce();
+  });
   it("does not retry expensive audio jobs but preserves quota handling", async () => {
     const queue = new GeminiRequestQueue({ getMinimumStartIntervalMs: () => 0, storage: null });
     const operation = vi.fn().mockRejectedValue(quotaError("GenerateRequestsPerMinutePerProjectPerModel-FreeTier", "1s"));

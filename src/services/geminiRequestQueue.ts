@@ -361,10 +361,18 @@ export class GeminiRequestQueue {
             continue;
           }
 
+          if (!job.retry) {
+            // Opting one expensive job out of retries must not exhaust the
+            // model's retry budget. Keep observeProviderError's short cooldown
+            // and let unrelated queued work resume after it.
+            this.rejectJob(job, new GeminiRateLimitError(decision, error));
+            continue;
+          }
+
           const retryDelay = this.retryDelay(job, decision);
           const retryDeadline = (job.firstAttemptAt ?? this.now()) + this.maxRetryWindowMs;
           if (
-            !job.retry || job.attempt >= this.maxRetries ||
+            job.attempt >= this.maxRetries ||
             this.now() + retryDelay > retryDeadline
           ) {
             // Do not let every pending job repeat the same exhausted retry
