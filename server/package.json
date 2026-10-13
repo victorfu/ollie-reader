@@ -16,9 +16,11 @@
   },
   "dependencies": {
     "fast-xml-parser": "^5.11.2",
+    "ffmpeg-static": "^5.3.0",
     "firebase-admin": "^14.4.0",
     "ipaddr.js": "^2.5.0",
     "msedge-tts": "2.0.7",
+    "music-metadata": "^12.1.1",
     "next": "16.3.5",
     "pdfjs-dist": "^6.3.289",
     "react": "^19.2.4",
@@ -39,6 +41,7 @@
   },
   "allowScripts": {
     "msedge-tts@2.0.7": true,
-    "fsevents@2.3.3": true
+    "fsevents@2.3.3": true,
+    "ffmpeg-static@5.3.0": true
   }
 }

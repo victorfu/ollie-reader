@@ -1,0 +1,45 @@
+// Merge inside the deployment's existing /databases/{database}/documents block.
+// Replace the previous server-only Podcast fragment; do not replace all app rules.
+function ownsPodcastData(uid) {
+  return request.auth != null && request.auth.uid == uid
+    && request.auth.token.email_verified == true
+    && exists(/databases/$(database)/documents/allowedUsers/$(request.auth.token.email));
+}
+match /users/{uid}/podcastTranscripts/{id} {
+  allow read: if ownsPodcastData(uid);
+  allow create: if ownsPodcastData(uid)
+    && id.matches('^[a-f0-9]{64}$')
+    && request.resource.data.id == id
+    && request.resource.data.status == 'completed'
+    && request.resource.data.language == 'en'
+    && request.resource.data.model == 'gemini-3.5-flash-lite'
+    && request.resource.data.schemaVersion == 1
+    && request.resource.data.fullText is string
+    && request.resource.data.fullText.size() > 0
+    && request.resource.data.segments is list;
+  // Completed transcripts are immutable in this phase.
+  allow update, delete: if false;
+}
+match /users/{uid}/podcastTranscriptJobs/{id} {
+  allow read, delete: if ownsPodcastData(uid);
+  allow create, update: if ownsPodcastData(uid)
+    && id.matches('^[a-f0-9]{64}$')
+    && request.resource.data.keys().hasOnly(['token', 'status', 'startedAt', 'leaseDurationMs', 'error'])
+    && request.resource.data.token is string
+    && request.resource.data.token.size() <= 64
+    && request.resource.data.startedAt == request.time
+    && request.resource.data.leaseDurationMs in [30000, 120000, 600000]
+    && request.resource.data.status in ['generating', 'failed'];
+}
+match /users/{uid}/podcastTranscriptClock/{id} {
+  allow read: if ownsPodcastData(uid) && id == 'current';
+  allow create, update: if ownsPodcastData(uid) && id == 'current'
+    && request.resource.data.keys().hasOnly(['sampledAt'])
+    && request.resource.data.sampledAt == request.time;
+}
+// Old server limiter documents are unused; keep them inaccessible to clients.
+match /users/{uid}/podcastTranscriptionLimits/{id} {
+  allow read, write: if false;
+}
+// IMPORTANT: Remove/narrow overlapping public or cross-user wildcard grants.
+// Firestore grants access if ANY matching rule allows it.
