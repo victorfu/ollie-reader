@@ -27,7 +27,7 @@ dependencies = [
     # .app is fine as long as the notice + licence copy ship with the release.
     # Fragile by nature: relies on a Sec-MS-GEC token that Microsoft rotates on
     # Edge release cycles; a stale one means HTTP 403 until this pin is bumped.
-    "edge-tts",
+    "edge-tts>=7.3.1",
 ]
 
 [dependency-groups]
