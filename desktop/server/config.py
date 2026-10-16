@@ -3,7 +3,7 @@ import sys
 from pathlib import Path
 from typing import List
 
-VERSION = "0.4.2"
+VERSION = "0.4.3"
 HOST = "127.0.0.1"
 DEFAULT_PORT = 8765
 
