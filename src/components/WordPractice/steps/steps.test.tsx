@@ -709,6 +709,48 @@ describe("FillBlankStep", () => {
     expect(host.querySelector('input[type="text"]')).toBeNull();
   });
 
+  describe("a sentence blanked in two different forms", () => {
+    const DOG = makeWord({
+      word: "dog",
+      sentence: "Dogs love to run, and my dog runs fast.",
+      cloze: {
+        text: "_____ love to run, and my _____ runs fast.",
+        answer: "Dogs",
+        answers: ["Dogs", "dog"],
+      },
+    });
+
+    it("accepts any of the blanked forms", () => {
+      const first = mountStep(FillBlankStep, makeHomework([DOG]));
+      answer("dog");
+      expect(first.progress()[0].fill).toEqual({ attempts: 1, correct: true, done: true });
+      expect(feedback()).toContain("Correct!");
+    });
+
+    it("accepts the form shown as the answer, whatever its case", () => {
+      const { progress } = mountStep(FillBlankStep, makeHomework([DOG]));
+      answer(" dogs ");
+      expect(progress()[0].fill).toEqual({ attempts: 1, correct: true, done: true });
+    });
+
+    it("still marks another word wrong and reveals the first form", () => {
+      const { progress } = mountStep(FillBlankStep, makeHomework([DOG]));
+      answer("cat");
+      answer("doggy");
+      expect(progress()[0].fill).toEqual({ attempts: 2, correct: false, done: true });
+      expect(feedback()).toContain("The answer is Dogs.");
+    });
+
+    it("still grades a stored cloze that has no answers list", () => {
+      const stored = makeWord({ ...DOG, cloze: { text: "_____ love to run, and my _____ runs fast.", answer: "Dogs" } });
+      const { progress } = mountStep(FillBlankStep, makeHomework([stored]));
+      answer("dog");
+      expect(progress()[0].fill).toEqual({ attempts: 1, correct: false, done: false });
+      answer("dogs");
+      expect(progress()[0].fill).toEqual({ attempts: 2, correct: true, done: true });
+    });
+  });
+
   it("goes to the next word, and finishes after the last one", () => {
     const { onExit } = mountStep(FillBlankStep, makeHomework([RUN, APPLE]));
 
@@ -871,6 +913,17 @@ describe("DefinitionStep", () => {
     expect(text()).not.toContain("🍎");
     expect(textInput().getAttribute("autocorrect")).toBe("off");
     expect(document.activeElement).toBe(textInput());
+  });
+
+  it("hides the word where a meaning uses it as a possessive", () => {
+    const puppy = makeWord({
+      word: "puppy",
+      definitions: [{ partOfSpeech: "noun", definition: "a young dog, like a puppy's first walk" }],
+    });
+    mountStep(DefinitionStep, makeHomework([puppy]));
+
+    expect(text()).toContain("like a ____'s first walk");
+    expect(host.innerHTML).not.toMatch(/puppy/i);
   });
 
   it("hides the word in every meaning when a word has several", () => {

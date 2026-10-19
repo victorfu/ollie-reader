@@ -12,6 +12,8 @@
  * or looking words up, so it is not reused here.
  */
 
+import type { Cloze } from "../types/wordPractice";
+
 export const CLOZE_BLANK = "_____";
 
 /**
@@ -283,12 +285,21 @@ function formPattern(form: string): string {
     .join("\\s+");
 }
 
+/**
+ * What may follow a form for it to count as a whole word: not another letter,
+ * digit, apostrophe or hyphen. With `possessive`, a closing "'s", "’s" or "'"
+ * may follow as well (the puppy's bed, the puppies' beds), so that a blank
+ * hides the word there too. The suffix itself stays outside the match.
+ */
+const wordEnd = (possessive: boolean): string =>
+  possessive ? "(?=(?:['’]s?)?(?![\\p{L}\\p{N}'’-]))" : "(?![\\p{L}\\p{N}'’-])";
+
 /** A fresh matcher (the `g` flag makes regexes stateful, so none is shared) or null for an empty word. */
-function matcherFor(word: string): RegExp | null {
+function matcherFor(word: string, possessive = false): RegExp | null {
   const forms = formsOf(word);
   if (forms.length === 0) return null;
   return new RegExp(
-    `(?<![\\p{L}\\p{N}'’-])(?:${forms.map(formPattern).join("|")})(?![\\p{L}\\p{N}'’-])`,
+    `(?<![\\p{L}\\p{N}'’-])(?:${forms.map(formPattern).join("|")})${wordEnd(possessive)}`,
     "giu",
   );
 }
@@ -298,20 +309,45 @@ export function findWordForm(text: string, word: string): string | null {
   return matcherFor(word)?.exec(text)?.[0] ?? null;
 }
 
+/**
+ * Replaces every form of `word` in `text` with `blank` and lists what was
+ * replaced, as written. A possessive ("puppy's") is blanked too, so that the
+ * visible text never contains the word; its "'s" stays.
+ */
+function redact(text: string, word: string, blank: string): { text: string; replaced: string[] } {
+  const matcher = matcherFor(word, true);
+  const replaced: string[] = [];
+  if (!matcher) return { text, replaced };
+  const redacted = text.replace(matcher, (found) => {
+    replaced.push(found);
+    return blank;
+  });
+  return { text: redacted, replaced };
+}
+
 /** Replaces every form of `word` in `text` with `blank`. */
 export function redactWordForms(text: string, word: string, blank: string = CLOZE_BLANK): string {
-  const matcher = matcherFor(word);
-  return matcher ? text.replace(matcher, () => blank) : text;
+  return redact(text, word, blank).text;
 }
 
 /**
- * Blanks every form of `word` in `sentence`. `answer` is the first occurrence as
- * written. Null when the sentence does not use the word.
+ * Blanks every form of `word` in `sentence`. `answer` is the first blank as
+ * written; `answers` lists every different form that was blanked, so that a
+ * sentence with two ("Dogs love to run, and my dog runs fast.") accepts either,
+ * and is left out when there is only one. Null when the sentence does not use
+ * the word on its own (a use inside "puppy's" does not count).
  */
-export function makeCloze(sentence: string, word: string): { text: string; answer: string } | null {
-  const answer = findWordForm(sentence, word);
-  if (answer === null) return null;
-  return { text: redactWordForms(sentence, word), answer };
+export function makeCloze(sentence: string, word: string): Cloze | null {
+  if (findWordForm(sentence, word) === null) return null;
+  const { text, replaced } = redact(sentence, word, CLOZE_BLANK);
+  // The first spelling of each form, as written (a later "DOG" does not replace "Dog").
+  const firstOfForm = new Map<string, string>();
+  for (const found of replaced) {
+    const form = normalize(found);
+    if (!firstOfForm.has(form)) firstOfForm.set(form, found);
+  }
+  const answers = [...firstOfForm.values()];
+  return answers.length > 1 ? { text, answer: answers[0], answers } : { text, answer: answers[0] };
 }
 
 export function sentenceUsesWord(sentence: string, word: string): boolean {

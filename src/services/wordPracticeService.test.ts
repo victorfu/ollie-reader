@@ -270,6 +270,18 @@ describe("wordPracticeService", () => {
         ]);
       });
 
+      it("keeps every different form it blanks as an accepted answer and blanks possessives", async () => {
+        mockWords([withExample("ember", "Embers glow, and this ember's light is warm.")]);
+
+        await generateHomework(UID, OPTIONS);
+
+        expect(createdHomework().words[0].cloze).toEqual({
+          text: "_____ glow, and this _____'s light is warm.",
+          answer: "Embers",
+          answers: ["Embers", "ember"],
+        });
+      });
+
       it("asks for all missing sentences in one request and uses the ones that contain the word", async () => {
         mockWords([
           withExample("apple", "I ate an apple."),

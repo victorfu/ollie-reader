@@ -51,7 +51,7 @@ describe("sentence matching", () => {
   });
   it("blanks every form and answers with the first occurrence", () => {
     expect(makeCloze("Run fast! He runs every day.", "run")).toEqual({
-      text: `${CLOZE_BLANK} fast! He ${CLOZE_BLANK} every day.`, answer: "Run",
+      text: `${CLOZE_BLANK} fast! He ${CLOZE_BLANK} every day.`, answer: "Run", answers: ["Run", "runs"],
     });
     expect(makeCloze("No match here.", "run")).toBeNull();
   });
@@ -291,6 +291,56 @@ describe("spelling rules added after review", () => {
     expect(baseCandidatesOf("studying")).toContain("study");
     expect(baseCandidatesOf("playing")).toContain("play");
     expect(baseCandidatesOf("playing")).not.toContain("plaie");
+  });
+});
+
+describe("possessives", () => {
+  it("blanks the word in a possessive so that the sentence does not give it away", () => {
+    expect(makeCloze("My puppy sleeps in the puppy's bed.", "puppy")).toEqual({
+      text: `My ${CLOZE_BLANK} sleeps in the ${CLOZE_BLANK}'s bed.`,
+      answer: "puppy",
+    });
+    expect(makeCloze("My puppy sleeps in the puppy’s bed.", "puppy")?.text).toBe(
+      `My ${CLOZE_BLANK} sleeps in the ${CLOZE_BLANK}’s bed.`,
+    );
+  });
+  it("blanks a plural possessive and keeps its apostrophe", () => {
+    expect(redactWordForms("The puppies' beds are small.", "puppy", "____")).toBe("The ____' beds are small.");
+  });
+  it("redacts the word from a definition that uses it as a possessive", () => {
+    expect(redactWordForms("a dog's life is not a dog's life", "dog", "____")).toBe(
+      "a ____'s life is not a ____'s life",
+    );
+  });
+  it("does not blank the start of a contraction", () => {
+    expect(redactWordForms("He can't run and she won't.", "can", "__")).toBe("He can't run and she won't.");
+  });
+  it("still needs a plain use of the word to make a cloze", () => {
+    expect(makeCloze("The puppy's bed is red.", "puppy")).toBeNull();
+    expect(findWordForm("The puppy's bed is red.", "puppy")).toBeNull();
+    expect(sentenceUsesWord("The puppy's bed is red.", "puppy")).toBe(false);
+  });
+});
+
+describe("clozes with several forms", () => {
+  it("accepts every different form that was blanked, the first one is the answer", () => {
+    expect(makeCloze("Dogs love to run, and my dog runs fast.", "dog")).toEqual({
+      text: `${CLOZE_BLANK} love to run, and my ${CLOZE_BLANK} runs fast.`,
+      answer: "Dogs",
+      answers: ["Dogs", "dog"],
+    });
+  });
+  it("lists a form once, whatever its case, and leaves answers out when there is only one", () => {
+    const repeated = makeCloze("Dog is here. The dog runs. A DOG sleeps.", "dog");
+    expect(repeated).toEqual({ text: `${CLOZE_BLANK} is here. The ${CLOZE_BLANK} runs. A ${CLOZE_BLANK} sleeps.`, answer: "Dog" });
+    expect(repeated).not.toHaveProperty("answers");
+  });
+  it("takes the answer from the first blank, which can be a possessive", () => {
+    expect(makeCloze("The puppy's bed is where puppies sleep.", "puppy")).toEqual({
+      text: `The ${CLOZE_BLANK}'s bed is where ${CLOZE_BLANK} sleep.`,
+      answer: "puppy",
+      answers: ["puppy", "puppies"],
+    });
   });
 });
 

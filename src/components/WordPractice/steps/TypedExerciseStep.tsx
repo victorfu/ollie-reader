@@ -18,6 +18,8 @@ interface TypedExerciseStepProps extends StepProps {
   inputLabel: string;
   /** What the learner has to type, or null when this word has no question. */
   expectedAnswer: (word: HomeworkWord) => string | null;
+  /** Other answers that count as correct, besides the one shown when the learner gives up. */
+  alternativeAnswers?: (word: HomeworkWord) => readonly string[];
   /** The question itself. It must not give the answer away. */
   prompt: (word: HomeworkWord) => ReactNode;
   /** Shown instead of a question when `expectedAnswer` is null. */
@@ -41,6 +43,7 @@ export function TypedExerciseStep({
   kind,
   inputLabel,
   expectedAnswer,
+  alternativeAnswers,
   prompt,
   unavailableMessage,
   completeMessage,
@@ -85,7 +88,11 @@ export function TypedExerciseStep({
 
   const check = () => {
     if (expected === null || exercise.done) return;
-    const answered = applyExerciseAnswer(exercise, isAnswerCorrect(value, expected));
+    const accepted = [expected, ...(alternativeAnswers?.(word) ?? [])];
+    const answered = applyExerciseAnswer(
+      exercise,
+      accepted.some((answer) => isAnswerCorrect(value, answer)),
+    );
     onProgress(
       progress.map((entry, i) => (i === index ? withExercise(entry, kind, answered) : entry)),
     );

@@ -9,6 +9,7 @@ export function FillBlankStep(props: StepProps) {
       kind="fill"
       inputLabel="Type the missing word"
       expectedAnswer={(word) => word.cloze?.answer ?? null}
+      alternativeAnswers={(word) => word.cloze?.answers ?? []}
       prompt={(word) => <p className="text-xl leading-relaxed">{word.cloze?.text}</p>}
       unavailableMessage="No sentence for this word yet."
       completeMessage="All the blanks are filled in."

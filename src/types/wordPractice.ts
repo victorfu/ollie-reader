@@ -17,7 +17,14 @@ export interface WordPracticeState {
 
 export interface Cloze {
   text: string;
+  /** The first blank as written in the sentence; this is the one shown as the answer. */
   answer: string;
+  /**
+   * Every different form that is blanked, when the sentence blanks more than
+   * one ("Dogs love to run, and my dog runs fast."). Each one is accepted.
+   * Absent when there is a single form, and in homework stored before this existed.
+   */
+  answers?: string[];
 }
 export interface HomeworkWord {
   key: string; // practiceKey(word)
