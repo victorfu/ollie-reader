@@ -1,6 +1,6 @@
 # Ollie Reader API
 
-Standalone Next.js 16.3.5 App Router service, running on Node.js 24. It provides version, PDF extraction, URL fetching, OIKID booking records, and Edge speech synthesis. PDF extraction uses Mozilla PDF.js; no Python process is needed. Edge uses `msedge-tts` 2.0.7; each request owns its connection and completed MP3 audio is collected in memory before the response is sent.
+Standalone Next.js 16.3.5 App Router service, running on Node.js 24. It provides version, PDF extraction, URL fetching, OIKID booking records, and Edge speech synthesis. PDF extraction uses Mozilla PDF.js; no Python process is needed. Edge uses `msedge-tts` 2.1.0; each request owns its connection and completed MP3 audio is collected in memory before the response is sent.
 
 ## Development
 
