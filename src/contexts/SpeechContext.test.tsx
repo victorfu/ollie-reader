@@ -80,7 +80,7 @@ class MockUtterance {
   voice: SpeechSynthesisVoice | null = null;
   rate = 1;
   onend: (() => void) | null = null;
-  onerror: (() => void) | null = null;
+  onerror: ((event: { error: string }) => void) | null = null;
 
   constructor(text: string) {
     this.text = text;
@@ -386,5 +386,111 @@ describe("SpeechProvider request ownership", () => {
 
     await expect(playback).resolves.toBeUndefined();
     expect(speech().isSpeaking).toBe(false);
+  });
+});
+
+describe("SpeechProvider system-voice error reporting", () => {
+  const SPEECH_FAILED = "Speech playback failed";
+
+  it.each([
+    ["omitted", undefined],
+    ["false", { reportErrors: false }],
+  ])("resolves without speech synthesis support when reportErrors is %s", async (_label, options) => {
+    mocks.settings.ttsMode = "browser";
+    Reflect.deleteProperty(window, "speechSynthesis");
+    await mountProvider();
+
+    expect(speech().speechSupported).toBe(false);
+    await expect(speech().speakAsync("hi", options)).resolves.toBeUndefined();
+  });
+
+  it("rejects without speech synthesis support when reportErrors is true", async () => {
+    mocks.settings.ttsMode = "browser";
+    Reflect.deleteProperty(window, "speechSynthesis");
+    await mountProvider();
+
+    await expect(
+      speech().speakAsync("hi", { reportErrors: true }),
+    ).rejects.toThrow(SPEECH_FAILED);
+  });
+
+  it.each([
+    ["omitted", undefined],
+    ["false", { reportErrors: false }],
+  ])("resolves when the utterance errors and reportErrors is %s", async (_label, options) => {
+    mocks.settings.ttsMode = "browser";
+    await mountProvider();
+
+    const playback = speech().speakAsync("hi", options);
+    expect(spokenUtterances).toHaveLength(1);
+    act(() => spokenUtterances[0].onerror?.({ error: "synthesis-failed" }));
+
+    await expect(playback).resolves.toBeUndefined();
+    expect(speech().isSpeaking).toBe(false);
+  });
+
+  it("rejects when the utterance errors and reportErrors is true", async () => {
+    mocks.settings.ttsMode = "browser";
+    await mountProvider();
+
+    const playback = speech().speakAsync("hi", { reportErrors: true });
+    const rejection = expect(playback).rejects.toThrow(SPEECH_FAILED);
+    expect(spokenUtterances).toHaveLength(1);
+    act(() => spokenUtterances[0].onerror?.({ error: "synthesis-failed" }));
+
+    await rejection;
+    expect(speech().isSpeaking).toBe(false);
+  });
+
+  it("still resolves with reportErrors when the utterance ends normally", async () => {
+    mocks.settings.ttsMode = "browser";
+    await mountProvider();
+
+    const playback = speech().speakAsync("hi", { reportErrors: true });
+    act(() => spokenUtterances[0].onend?.());
+
+    await expect(playback).resolves.toBeUndefined();
+  });
+
+  it.each([
+    ["omitted", undefined],
+    ["true", { reportErrors: true }],
+  ])("resolves when stopSpeaking interrupts playback and reportErrors is %s", async (_label, options) => {
+    mocks.settings.ttsMode = "browser";
+    await mountProvider();
+
+    const playback = speech().speakAsync("hi", options);
+    const utterance = spokenUtterances[0];
+    act(() => speech().stopSpeaking());
+    // Browsers report the cancelled utterance as an error event.
+    act(() => utterance.onerror?.({ error: "interrupted" }));
+
+    await expect(playback).resolves.toBeUndefined();
+    expect(cancelSpeech).toHaveBeenCalled();
+  });
+
+  it("resolves when a newer speech supersedes the pending one with reportErrors", async () => {
+    mocks.settings.ttsMode = "browser";
+    await mountProvider();
+
+    const first = speech().speakAsync("first", { reportErrors: true });
+    const firstUtterance = spokenUtterances[0];
+    const second = speech().speakAsync("second", { reportErrors: true });
+    act(() => firstUtterance.onerror?.({ error: "interrupted" }));
+
+    await expect(first).resolves.toBeUndefined();
+    act(() => spokenUtterances[1].onend?.());
+    await expect(second).resolves.toBeUndefined();
+  });
+
+  it("resolves on the 30 second timeout even when reportErrors is true", async () => {
+    vi.useFakeTimers();
+    mocks.settings.ttsMode = "browser";
+    await mountProvider();
+
+    const playback = speech().speakAsync("hi", { reportErrors: true });
+    act(() => vi.advanceTimersByTime(30_000));
+
+    await expect(playback).resolves.toBeUndefined();
   });
 });

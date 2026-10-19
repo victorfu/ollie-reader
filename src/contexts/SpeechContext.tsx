@@ -7,7 +7,11 @@ import {
   type ReactNode,
 } from "react";
 import type { TTSMode } from "../types/pdf";
-import { SpeechContext, type SpeechContextType } from "./SpeechContextType";
+import {
+  SpeechContext,
+  type SpeakOptions,
+  type SpeechContextType,
+} from "./SpeechContextType";
 import { ETTS_API_BASE_URL, ETTS_PATH } from "../constants/api";
 import { useSettings } from "../hooks/useSettings";
 import { fetchWithComputeBase } from "../services/localBackend";
@@ -20,6 +24,7 @@ interface SpeechProviderProps {
 }
 
 const SPEECH_TIMEOUT_MS = 30_000;
+const SPEECH_PLAYBACK_FAILED = "Speech playback failed";
 
 interface PendingAsyncSpeech {
   generation: number;
@@ -337,9 +342,10 @@ export const SpeechProvider = ({ children }: SpeechProviderProps) => {
 
   // Async version of speak that returns a Promise resolving when speech ends
   const speakAsync = useCallback(
-    async (text: string): Promise<void> => {
+    async (text: string, options?: SpeakOptions): Promise<void> => {
       if (!text.trim()) return;
 
+      const reportErrors = options?.reportErrors === true;
       stopSpeaking();
       const generation = speechGenerationRef.current;
 
@@ -395,9 +401,12 @@ export const SpeechProvider = ({ children }: SpeechProviderProps) => {
         });
       } else {
         // Browser speech synthesis mode
-        if (!speechSupported) return;
+        if (!speechSupported) {
+          if (reportErrors) throw new Error(SPEECH_PLAYBACK_FAILED);
+          return;
+        }
 
-        return new Promise((resolve) => {
+        return new Promise((resolve, reject) => {
           const timeoutId = window.setTimeout(() => {
             if (isCurrentOperation(generation)) stopSpeaking();
           }, SPEECH_TIMEOUT_MS);
@@ -405,7 +414,7 @@ export const SpeechProvider = ({ children }: SpeechProviderProps) => {
             generation,
             timeoutId,
             resolve,
-            reject: () => resolve(),
+            reject,
           };
 
           const voice = pickEnglishVoice();
@@ -423,7 +432,10 @@ export const SpeechProvider = ({ children }: SpeechProviderProps) => {
           utterance.onerror = () => {
             if (!isCurrentOperation(generation)) return;
             setIsSpeaking(false);
-            settleAsyncSpeech(generation);
+            settleAsyncSpeech(
+              generation,
+              reportErrors ? new Error(SPEECH_PLAYBACK_FAILED) : undefined,
+            );
           };
 
           setIsSpeaking(true);

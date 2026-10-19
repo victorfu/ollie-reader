@@ -1,6 +1,14 @@
 import { createContext } from "react";
 import type { TTSMode, TTSEngine } from "../types/pdf";
 
+export interface SpeakOptions {
+  /**
+   * Reject `speakAsync` when system-voice playback fails instead of resolving
+   * silently, so callers can offer a retry. Off by default.
+   */
+  reportErrors?: boolean;
+}
+
 export interface SpeechContextType {
   speechRate: number;
   isSpeaking: boolean;
@@ -10,7 +18,7 @@ export interface SpeechContextType {
   isLoadingAudio: boolean;
   speechSupported: boolean;
   speak: (text: string) => void;
-  speakAsync: (text: string) => Promise<void>;
+  speakAsync: (text: string, options?: SpeakOptions) => Promise<void>;
   stopSpeaking: () => void;
 }
 
