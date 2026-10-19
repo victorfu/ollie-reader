@@ -136,12 +136,16 @@ export const VocabularyBook = () => {
   const { levelOf } = useCefrLevels();
   const isDesktop = useIsDesktop();
 
+  // One field for both: typing filters the list, submitting looks up and adds.
   const [query, setQuery] = useState("");
   const [isQuerying, setIsQuerying] = useState(false);
   const [typeFilter, setTypeFilter] = useState<FeedTypeFilter>("all");
   const [selected, setSelected] = useState<FeedItem | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
-  const debouncedSearchQuery = useDebounce(searchQuery, 300);
+  const debouncedQuery = useDebounce(query, 300);
+  // Clearing the field (or adding, which clears it) restores the full list
+  // right away instead of waiting out the debounce.
+  const searchText = query.trim() ? debouncedQuery.trim() : "";
+  const canAdd = query.trim().length > 0 && !CJK_PATTERN.test(query);
   const [searchItems, setSearchItems] = useState<FeedItem[] | null>(null);
   const [isSearching, setIsSearching] = useState(false);
 
@@ -221,8 +225,6 @@ export const VocabularyBook = () => {
   // Unified search: show local matches immediately, then merge complete
   // account-wide results from both streams.
   useEffect(() => {
-    const searchText = debouncedSearchQuery.trim();
-
     if (!searchText) {
       searchRequestIdRef.current += 1;
       setIsSearching(false);
@@ -294,7 +296,7 @@ export const VocabularyBook = () => {
     };
 
     void performSearch();
-  }, [debouncedSearchQuery, words, sentences, searchWords, searchSentences]);
+  }, [searchText, words, sentences, searchWords, searchSentences]);
 
   const handleUpdateWord = useCallback(
     async (wordId: string, updates: Partial<VocabularyWord>) => {
@@ -726,52 +728,46 @@ export const VocabularyBook = () => {
           {/* Compact toolbar */}
           <div className="shrink-0 space-y-2">
             <form className="flex gap-2" onSubmit={handleSmartSubmit}>
-              <input
-                ref={smartQueryInputRef}
-                id={smartQueryFieldId}
-                type="text"
-                placeholder="輸入英文單字或句子"
-                className={`${toolbarFieldClass} flex-1`}
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                // readOnly (not disabled) so the field keeps focus while querying
-                readOnly={isQuerying}
-                aria-busy={isQuerying}
-                autoComplete="off"
-              />
+              <div className="relative min-w-0 flex-1">
+                <Search
+                  className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+                  strokeWidth={1.75}
+                  aria-hidden="true"
+                />
+                <input
+                  ref={smartQueryInputRef}
+                  id={smartQueryFieldId}
+                  type="text"
+                  placeholder="搜尋或加入單字、句子"
+                  aria-label="搜尋或加入單字、句子"
+                  className={`${toolbarFieldClass} w-full pl-9 ${query.trim() ? "pr-16" : ""}`}
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  // readOnly (not disabled) so the field keeps focus while querying
+                  readOnly={isQuerying}
+                  aria-busy={isQuerying}
+                  autoComplete="off"
+                />
+                {query.trim() && (
+                  <div className="pointer-events-none absolute inset-y-0 right-2 flex items-center gap-1 text-xs text-muted-foreground">
+                    {isSearching && <span className="loading loading-spinner loading-xs" />}
+                    <span>{isSearching ? "更新中" : `${displayItems.length}`}</span>
+                  </div>
+                )}
+              </div>
               <button
                 type="submit"
                 className={toolbarPrimaryButtonClass}
-                disabled={isQuerying || query.trim().length === 0}
+                disabled={isQuerying || !canAdd}
+                title={canAdd ? "查詢並加入生詞本" : undefined}
               >
                 {isQuerying ? (
                   <span className="loading loading-spinner loading-xs" />
                 ) : (
-                  "查詢"
+                  "加入"
                 )}
               </button>
             </form>
-
-            <div className="relative">
-              <Search
-                className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-                strokeWidth={1.75}
-                aria-hidden="true"
-              />
-              <input
-                type="text"
-                placeholder="搜尋單字或句子..."
-                className={`${toolbarFieldClass} w-full pl-9 pr-16`}
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-              {searchQuery.trim() && (
-                <div className="absolute inset-y-0 right-2 flex items-center gap-1 text-xs text-muted-foreground">
-                  {isSearching && <span className="loading loading-spinner loading-xs" />}
-                  <span>{isSearching ? "更新中" : `${displayItems.length}`}</span>
-                </div>
-              )}
-            </div>
 
             <div className="flex items-center gap-2">
               <div className="flex h-11 flex-1 gap-1 rounded-lg border border-border-hairline bg-background/75 p-0.5 shadow-soft">
@@ -837,8 +833,13 @@ export const VocabularyBook = () => {
                   <div className="rounded-xl surface-card p-6 text-center">
                     <div className="mb-2 text-3xl">🔍</div>
                     <p className="text-sm text-muted-foreground">
-                      找不到符合「{debouncedSearchQuery || searchQuery.trim()}」的內容
+                      找不到符合「{searchText || query.trim()}」的內容
                     </p>
+                    {canAdd && (
+                      <p className="mt-1 text-xs text-muted-foreground/80">
+                        按 Enter 或「加入」查詢並收藏
+                      </p>
+                    )}
                   </div>
                 ) : (
                   <AnimatePresence mode="popLayout">
