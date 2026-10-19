@@ -82,6 +82,27 @@ export const IRREGULAR_FORMS: Record<string, string[]> = {
   blow: ["blew", "blown"],
   fight: ["fought"],
   lend: ["lent"],
+  drink: ["drank", "drunk"],
+  show: ["shown"],
+  mean: ["meant"],
+  feed: ["fed"],
+  dig: ["dug"],
+  ring: ["rang", "rung"],
+  light: ["lit"],
+  learn: ["learnt"],
+  dream: ["dreamt"],
+  smell: ["smelt"],
+  spell: ["spelt"],
+  lead: ["led"],
+  shoot: ["shot"],
+  bite: ["bit", "bitten"],
+  freeze: ["froze", "frozen"],
+  understand: ["understood"],
+  sink: ["sank", "sunk", "sunken"],
+  shine: ["shone"],
+  bend: ["bent"],
+  burn: ["burnt"],
+  tear: ["tore", "torn"],
   // nouns
   child: ["children"],
   man: ["men"],
@@ -93,6 +114,19 @@ export const IRREGULAR_FORMS: Record<string, string[]> = {
   goose: ["geese"],
   fish: ["fish"],
   sheep: ["sheep"],
+  // -f/-fe -> -ves is listed word by word: a general rule would turn "safe"
+  // into "saves" and "belief" into "believes".
+  leaf: ["leaves"],
+  life: ["lives"],
+  knife: ["knives"],
+  wife: ["wives"],
+  half: ["halves"],
+  shelf: ["shelves"],
+  wolf: ["wolves"],
+  thief: ["thieves"],
+  loaf: ["loaves"],
+  calf: ["calves"],
+  scarf: ["scarves"],
 };
 
 // Maps are used instead of plain objects so that lookups of words such as
@@ -112,7 +146,7 @@ for (const [base, forms] of IRREGULAR_BY_BASE) {
 /** Letters (and inner hyphens) only: the words regular suffix rules apply to. */
 const INFLECTABLE = /^\p{L}[\p{L}-]*$/u;
 /** Consonant-vowel-consonant ending whose last consonant is doubled (stop -> stopped). */
-const CVC_ENDING = /(?:[b-df-hj-np-tv-z]|qu)[aeiou][bcdfgjklmnpqrstvz]$/;
+const CVC_ENDING = /(?:[b-df-hj-np-tv-z]|qu)[aeiou][bdfgjklmnpqrstvz]$/;
 /** A doubled consonant that comes from the doubling rule, not from the word itself. */
 const DOUBLED_CONSONANT = /([b-df-hj-np-tv-z])\1$/;
 
@@ -143,9 +177,16 @@ function regularForms(word: string): string[] {
   const last = word.at(-1);
   const consonantY = last === "y" && !isVowel(word.at(-2));
 
-  if (consonantY) forms.push(`${word.slice(0, -1)}ies`);
-  else if (/(?:s|x|z|ch|sh)$/.test(word)) forms.push(`${word}es`);
-  else if (last === "o") forms.push(`${word}es`, `${word}s`);
+  if (consonantY) {
+    forms.push(`${word.slice(0, -1)}ies`);
+  } else if (/(?:s|x|z|ch|sh)$/.test(word)) {
+    // quiz -> quizzes (never "quizes"); bus -> buses or busses.
+    const doubles = (last === "s" || last === "z") && CVC_ENDING.test(word);
+    if (!(last === "z" && doubles && hasSingleVowelGroup(word))) forms.push(`${word}es`);
+    if (doubles) forms.push(`${word}${last}es`);
+    // stomach is pronounced with /k/, so its plural is "stomachs".
+    if (word.endsWith("ch")) forms.push(`${word}s`);
+  } else if (last === "o") forms.push(`${word}es`, `${word}s`);
   else forms.push(`${word}s`);
 
   if (consonantY) {
@@ -157,6 +198,10 @@ function regularForms(word: string): string[] {
     if (!(word.length === 3 && word.endsWith("ee"))) forms.push(`${word}d`);
     // see -> seeing, dye -> dyeing, but make -> making.
     forms.push(/(?:ee|ye|oe)$/.test(word) ? `${word}ing` : `${word.slice(0, -1)}ing`);
+  } else if (word.length >= 5 && word.endsWith("ic")) {
+    // panic -> panicked, picnic -> picnicking. Longer than "pic"/"tic", whose
+    // "k" forms would blank "picked" and "ticked".
+    forms.push(`${word}ked`, `${word}king`);
   } else if (CVC_ENDING.test(word)) {
     // One-syllable words always double (stop -> stopped); "hop" + "ed" would
     // blank "hoped". Longer words may or may not (begin -> beginning,
@@ -188,14 +233,24 @@ function strippedBases(word: string): string[] {
   const candidates: string[] = [];
   if (word.endsWith("ies") || word.endsWith("ied")) candidates.push(`${word.slice(0, -3)}y`);
   // "-es" only follows s/x/z/ch/sh/o; otherwise "tapes" would give "tap" ahead of "tape".
-  if (/(?:s|x|z|ch|sh|o)es$/.test(word)) candidates.push(word.slice(0, -2));
+  if (/(?:s|x|z|ch|sh|o)es$/.test(word)) {
+    const stem = word.slice(0, -2);
+    // quizzes -> quiz (zz only: "classes" must keep its natural "ss").
+    if (/zz$/.test(stem)) candidates.push(stem.slice(0, -1));
+    candidates.push(stem);
+  }
   if (word.endsWith("s") && !word.endsWith("ss")) candidates.push(word.slice(0, -1));
   for (const suffix of ["ed", "ing"]) {
     if (!word.endsWith(suffix)) continue;
     const stem = word.slice(0, -suffix.length);
+    // dying -> die, lying -> lie, tying -> tie (ahead of the generic -ing -> e: "dye").
+    if (suffix === "ing" && /[^aeiou]ying$/.test(word)) candidates.push(`${word.slice(0, -4)}ie`);
     // Not "ss": "hissed" must not give "his", "assessing" must not give "asses".
     if (DOUBLED_CONSONANT.test(stem) && !stem.endsWith("ss")) candidates.push(stem.slice(0, -1));
     candidates.push(`${stem}e`, stem);
+    // panicked -> panic, picnicking -> picnic. After the generic candidates so
+    // that "picked" stays "pick" ("pic" is too short to qualify anyway).
+    if (/.{3}ick$/.test(stem)) candidates.push(stem.slice(0, -1));
   }
   return candidates;
 }

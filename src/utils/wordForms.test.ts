@@ -210,3 +210,93 @@ describe("matching edge cases", () => {
     }
   });
 });
+
+describe("irregular verbs and plurals added after review", () => {
+  it.each([
+    ["She drank milk.", "drink"],
+    ["He has shown me the way.", "show"],
+    ["That meant a lot.", "mean"],
+    ["We fed the cat.", "feed"],
+    ["They dug a hole.", "dig"],
+    ["The phone rang twice.", "ring"],
+    ["He lit a candle.", "light"],
+    ["I learnt English.", "learn"],
+    ["She dreamt of home.", "dream"],
+    ["It smelt good.", "smell"],
+    ["He led the team.", "lead"],
+    ["He shot the ball.", "shoot"],
+    ["The dog bit me.", "bite"],
+    ["The lake froze.", "freeze"],
+    ["I understood it.", "understand"],
+    ["The ship sank.", "sink"],
+    ["The sun shone.", "shine"],
+    ["He bent the wire.", "bend"],
+    ["The toast burnt.", "burn"],
+    ["She tore the page.", "tear"],
+  ])("%s uses %s", (sentence, word) => {
+    expect(sentenceUsesWord(sentence, word)).toBe(true);
+  });
+  it.each([
+    ["The leaves are green.", "leaf"],
+    ["Cats have nine lives.", "life"],
+    ["Wash the knives.", "knife"],
+    ["Their wives came.", "wife"],
+    ["Cut it into halves.", "half"],
+    ["The shelves are full.", "shelf"],
+  ])("%s uses %s", (sentence, word) => {
+    expect(sentenceUsesWord(sentence, word)).toBe(true);
+  });
+  it("does not turn -fe and -f words into unrelated -ves words", () => {
+    expect(formsOf("safe")).not.toContain("saves");
+    expect(formsOf("belief")).not.toContain("believes");
+  });
+});
+
+describe("spelling rules added after review", () => {
+  it("handles quiz, stomach and panic", () => {
+    expect(sentenceUsesWord("We had two quizzes.", "quiz")).toBe(true);
+    expect(sentenceUsesWord("He panicked.", "panic")).toBe(true);
+    expect(formsOf("quiz")).toEqual(expect.arrayContaining(["quizzes", "quizzed", "quizzing"]));
+    expect(formsOf("stomach")).toEqual(expect.arrayContaining(["stomachs", "stomaches"]));
+    expect(formsOf("panic")).toEqual(expect.arrayContaining(["panicked", "panicking", "panics"]));
+    expect(formsOf("picnic")).toEqual(expect.arrayContaining(["picnicked", "picnicking"]));
+    expect(formsOf("bus")).toEqual(expect.arrayContaining(["buses", "busses"]));
+  });
+  it("keeps ordinary -ch, -s and -ic words intact", () => {
+    expect(formsOf("watch")).toEqual(expect.arrayContaining(["watches", "watched", "watching"]));
+    expect(formsOf("box")).toEqual(expect.arrayContaining(["boxes"]));
+    expect(formsOf("pic")).not.toContain("picked");
+    expect(formsOf("music")).toContain("musics");
+  });
+  it("reverses the new rules", () => {
+    expect(baseCandidatesOf("leaves")).toContain("leaf");
+    expect(baseCandidatesOf("knives")).toContain("knife");
+    expect(baseCandidatesOf("lives")).toEqual(expect.arrayContaining(["life", "live"]));
+    expect(baseCandidatesOf("quizzes")).toContain("quiz");
+    expect(baseCandidatesOf("quizzed")).toContain("quiz");
+    expect(baseCandidatesOf("quizzing")).toContain("quiz");
+    expect(baseCandidatesOf("panicked")).toContain("panic");
+    expect(baseCandidatesOf("panicking")).toContain("panic");
+    expect(baseCandidatesOf("picnicked")).toContain("picnic");
+    expect(baseCandidatesOf("stomachs")).toContain("stomach");
+    expect(baseCandidatesOf("stomaches")).toContain("stomach");
+    expect(baseCandidatesOf("classes")).toContain("class");
+    expect(baseCandidatesOf("picked")).toContain("pick");
+    expect(baseCandidatesOf("picked")).not.toContain("pic");
+  });
+  it("reverses -ying to -ie ahead of the generic -ing candidates", () => {
+    expect(baseCandidatesOf("dying")[0]).toBe("die");
+    expect(baseCandidatesOf("lying")[0]).toBe("lie");
+    expect(baseCandidatesOf("tying")[0]).toBe("tie");
+    expect(baseCandidatesOf("studying")).toContain("study");
+    expect(baseCandidatesOf("playing")).toContain("play");
+    expect(baseCandidatesOf("playing")).not.toContain("plaie");
+  });
+});
+
+describe("clitic keys", () => {
+  it("never produce a cloze inside a contraction", () => {
+    expect(makeCloze("I'm sure", "'m")).toBeNull();
+    expect(makeCloze("I’m sure", "'m")).toBeNull();
+  });
+});
