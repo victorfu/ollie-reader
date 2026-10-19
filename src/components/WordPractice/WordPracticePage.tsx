@@ -7,11 +7,13 @@ import { GenerateHomeworkPanel } from "./GenerateHomeworkPanel";
 import { HomeworkHistory } from "./HomeworkHistory";
 import { HomeworkOverview } from "./HomeworkOverview";
 import { HomeworkResultView } from "./HomeworkResult";
-import { STEP_LABELS, type StepProps } from "./stepTypes";
+import type { StepProps } from "./stepTypes";
 import { DefinitionStep } from "./steps/DefinitionStep";
 import { FillBlankStep } from "./steps/FillBlankStep";
 import { LearnStep } from "./steps/LearnStep";
+import { SentenceStep } from "./steps/SentenceStep";
 import { SpellStep } from "./steps/SpellStep";
+import { SpellingTestStep } from "./steps/SpellingTestStep";
 
 type Screen =
   | { view: "home" }
@@ -23,24 +25,11 @@ const CEFR_J_CREDIT =
 const OCTANOVE_CREDIT = "Octanove Vocabulary Profile (CC BY-SA 4.0)";
 const NO_WORDS_NOTICE = "生詞本裡沒有可以練習的新單字";
 
-/** Stands in for the practice steps that do not have a component yet. */
-function StepPlaceholder({ step, onExit }: Pick<StepProps, "onExit"> & { step: StepId }) {
-  return (
-    <section className="space-y-4 rounded-xl border border-border-hairline bg-card p-4 shadow-sm sm:p-6">
-      <h2 className="text-xl font-semibold">{STEP_LABELS[step]}</h2>
-      <p className="text-muted-foreground">這個步驟還在準備中。</p>
-      <button
-        type="button"
-        onClick={onExit}
-        className="btn btn-outline min-h-11 active:scale-[0.98]"
-      >
-        回到總覽
-      </button>
-    </section>
-  );
-}
-
-function PracticeStep({ step, ...props }: StepProps & { step: StepId }) {
+function PracticeStep({
+  step,
+  onFinish,
+  ...props
+}: StepProps & { step: StepId; onFinish: () => Promise<void> }) {
   switch (step) {
     case "learn":
       return <LearnStep {...props} />;
@@ -50,8 +39,10 @@ function PracticeStep({ step, ...props }: StepProps & { step: StepId }) {
       return <FillBlankStep {...props} />;
     case "define":
       return <DefinitionStep {...props} />;
-    default:
-      return <StepPlaceholder step={step} onExit={props.onExit} />;
+    case "sentence":
+      return <SentenceStep {...props} />;
+    case "test":
+      return <SpellingTestStep {...props} onFinish={onFinish} />;
   }
 }
 
@@ -74,9 +65,15 @@ export default function WordPracticePage() {
 
   const goHome = () => setScreen({ view: "home" });
   const openStep = (step: StepId) => {
-    // The cloze exercise needs the example sentences. The hook tries once per homework.
-    if (step === "fill") void wordPractice.ensureSentences();
+    // The cloze exercise and the spelling test need the example sentences. The hook tries once per homework.
+    if (step === "fill" || step === "test") void wordPractice.ensureSentences();
     setScreen({ view: "step", step });
+  };
+  const finishTest = async (): Promise<void> => {
+    // When the homework could not be completed the hook has set its error, which
+    // the page shows, and the learner stays on the test.
+    const completed = await wordPractice.finishTest();
+    if (completed) setScreen({ view: "result", homeworkId: completed.id });
   };
   const generate = async (options: HomeworkOptions): Promise<void> => {
     setNoWords(false);
@@ -108,6 +105,7 @@ export default function WordPracticePage() {
         homework={active}
         onProgress={wordPractice.updateProgress}
         onExit={goHome}
+        onFinish={finishTest}
       />
     );
   } else if (resultHomework) {

@@ -8,7 +8,14 @@ import { emptyProgress } from "../../utils/homeworkProgress";
 const hook = vi.hoisted(() => ({ current: null as unknown as UseWordPractice }));
 vi.mock("../../hooks/useWordPractice", () => ({ useWordPractice: () => hook.current }));
 // The practice steps play words; the page is normally wrapped in SpeechProvider.
-vi.mock("../../hooks/useSpeechState", () => ({ useSpeechState: () => ({ speak: vi.fn() }) }));
+const speech = vi.hoisted(() => ({
+  speak: vi.fn(),
+  speakAsync: vi.fn(),
+  stopSpeaking: vi.fn(),
+}));
+vi.mock("../../hooks/useSpeechState", () => ({ useSpeechState: () => speech }));
+// The sentence step asks Gemini for feedback; importing the real service would start Firebase.
+vi.mock("../../services/wordPracticeAi", () => ({ getSentenceFeedback: vi.fn() }));
 
 import WordPracticePage from "./WordPracticePage";
 
@@ -162,6 +169,7 @@ beforeEach(() => {
     },
   });
   window.localStorage.clear();
+  speech.speakAsync.mockReset().mockResolvedValue(undefined);
   hook.current = makeHook();
   host = document.createElement("div");
   document.body.appendChild(host);
@@ -387,14 +395,19 @@ describe("overview", () => {
     expect(host.querySelectorAll("ol > li")).toHaveLength(6);
   });
 
-  it("keeps a placeholder for the steps that are not built yet", () => {
-    hook.current = makeHook({ active: makeHomework() });
+  it("opens Write a Sentence and the unlocked Spelling Test, and comes back to the overview", async () => {
+    hook.current = makeHook({ active: makeUnlockedHomework() });
     render();
 
     act(() => getButton("Write a Sentence").click());
     expect(host.querySelector("h2")?.textContent).toBe("Write a Sentence");
+    act(() => getButton("Back to overview").click());
+    expect(host.querySelectorAll("ol > li")).toHaveLength(6);
 
-    act(() => getButton("回到總覽").click());
+    await act(async () => getButton("Spelling Test").click());
+    expect(host.querySelector("h2")?.textContent).toBe("Spelling Test");
+    expect(speech.speakAsync).toHaveBeenCalledWith("apple", { reportErrors: true });
+    act(() => getButton("Back to overview").click());
     expect(host.querySelectorAll("ol > li")).toHaveLength(6);
   });
 
@@ -420,6 +433,18 @@ describe("overview", () => {
     act(() => getButton("Back to overview").click());
 
     act(() => getButton("Fill in the Blank").click());
+    expect(hook.current.ensureSentences).toHaveBeenCalledTimes(1);
+  });
+
+  it("fetches the missing example sentences when the Spelling Test opens", async () => {
+    hook.current = makeHook({ active: makeUnlockedHomework() });
+    render();
+
+    act(() => getButton("Write a Sentence").click());
+    expect(hook.current.ensureSentences).not.toHaveBeenCalled();
+    act(() => getButton("Back to overview").click());
+
+    await act(async () => getButton("Spelling Test").click());
     expect(hook.current.ensureSentences).toHaveBeenCalledTimes(1);
   });
 
@@ -520,6 +545,69 @@ describe("overview", () => {
     render();
     expect(host.querySelector("ol")).toBeNull();
     expect(host.textContent).not.toContain("放棄這份功課");
+  });
+});
+
+describe("finishing the spelling test", () => {
+  /** An unlocked homework whose every test question has been answered. */
+  function makeAnswered(): Homework {
+    const homework = makeUnlockedHomework();
+    return {
+      ...homework,
+      progress: homework.progress.map((progress, i) => ({
+        ...progress,
+        testAnswer: i === 0 ? "apple" : "banan",
+      })),
+    };
+  }
+
+  async function openFinishedTest() {
+    await act(async () => getButton("Spelling Test").click());
+  }
+
+  it("shows the result when the homework is completed, once the active homework is gone", async () => {
+    const completed = { ...makeCompleted(), id: "hw-active" };
+    const finishTest = vi.fn(async () => {
+      // The hook moves the homework from `active` to `history` before it resolves.
+      hook.current = { ...hook.current, active: null, history: [completed] };
+      return completed;
+    });
+    hook.current = makeHook({ active: makeAnswered(), finishTest });
+    render();
+    await openFinishedTest();
+
+    await act(async () => getButton("Finish test").click());
+
+    expect(finishTest).toHaveBeenCalledTimes(1);
+    expect(host.textContent).toContain("拼字考試成績");
+    expect(host.textContent).toContain("1 / 2");
+    expect(host.querySelector("ol")).toBeNull();
+
+    act(() => getButton("返回").click());
+    expect(host.textContent).not.toContain("拼字考試成績");
+    expect(host.textContent).toContain("產生功課");
+  });
+
+  it("stays on the test, with the button back, when the homework could not be completed", async () => {
+    let finishing: (homework: Homework | null) => void = () => {};
+    const finishTest = vi.fn(
+      () =>
+        new Promise<Homework | null>((resolve) => {
+          finishing = resolve;
+        }),
+    );
+    hook.current = makeHook({ active: makeAnswered(), finishTest });
+    render();
+    await openFinishedTest();
+
+    act(() => getButton("Finish test").click());
+    expect(getButton("Finish test").disabled).toBe(true);
+
+    await act(async () => finishing(null));
+
+    expect(host.querySelector("h2")?.textContent).toBe("Spelling Test");
+    expect(getButton("Finish test").disabled).toBe(false);
+    expect(host.textContent).not.toContain("拼字考試成績");
   });
 });
 
