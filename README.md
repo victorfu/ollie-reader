@@ -6,7 +6,7 @@
 
 **An AI-assisted English-learning workspace for reading, listening, speaking, practice, and games.**
 
-Read PDFs and show transcripts, build a vocabulary book, rehearse speeches, practise school papers, and reinforce vocabulary through browser games. An optional macOS companion adds local PDF extraction and desktop TTS engines.
+Read PDFs and show transcripts, listen to podcasts with AI-generated English transcripts, build a vocabulary and sentence book, rehearse speeches, practise school papers, and reinforce vocabulary through browser games. A standalone Next.js API and an optional macOS companion provide PDF extraction, Edge TTS, podcast resolution, and other backend features.
 
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white&style=flat-square)](https://react.dev)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?logo=typescript&logoColor=white&style=flat-square)](https://www.typescriptlang.org)
@@ -14,6 +14,7 @@ Read PDFs and show transcripts, build a vocabulary book, rehearse speeches, prac
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind-4-06B6D4?logo=tailwindcss&logoColor=white&style=flat-square)](https://tailwindcss.com)
 [![Firebase](https://img.shields.io/badge/Firebase-12-FFCA28?logo=firebase&logoColor=black&style=flat-square)](https://firebase.google.com)
 [![Supabase](https://img.shields.io/badge/Supabase-2-3FCF8E?logo=supabase&logoColor=white&style=flat-square)](https://supabase.com)
+[![Next.js](https://img.shields.io/badge/Next.js-16-000000?logo=nextdotjs&logoColor=white&style=flat-square)](https://nextjs.org)
 [![PWA](https://img.shields.io/badge/PWA-installable-5A0FC8?logo=pwa&logoColor=white&style=flat-square)](https://web.dev/progressive-web-apps/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg?style=flat-square)](LICENSE)
 
@@ -23,7 +24,7 @@ Read PDFs and show transcripts, build a vocabulary book, rehearse speeches, prac
 
 ## Overview
 
-Ollie Reader is a responsive, authentication-gated web app for Chinese-speaking English learners. It combines a PDF learning workspace with bilingual Gemini assistance, vocabulary review, speech and sentence practice, exam practice, transcripts, audio uploads, and games.
+Ollie Reader is a responsive web app for Chinese-speaking English learners. Its main workspace requires Google sign-in and an allow-listed account. It combines a PDF learning workspace with bilingual Gemini assistance, a vocabulary and sentence book, speech and sentence practice, exam practice, show transcripts, podcasts with AI transcripts, audio uploads, and games.
 
 The UI follows macOS Human Interface Guidelines adapted for the web: a collapsible desktop source list, mobile drawer navigation, hairline borders, restrained translucent surfaces, light/dark themes, and touch-friendly controls. The app can be installed as a PWA. Built assets are precached, while exam images, Google Fonts, and bundled transcripts use targeted runtime caches; cloud-backed features still require their services.
 
@@ -31,41 +32,44 @@ The UI follows macOS Human Interface Guidelines adapted for the web: a collapsib
 
 | Feature | What it does |
 |---|---|
-| **PDF Reader** (閱讀器) | Opens local or remote PDFs with `react-pdf`; supports word or range selection, bilingual lookup, translation, TTS, and saving words. Text can be parsed in the browser or by a compatible backend. When the desktop companion has OIKID credentials, booking records can also be used to load lesson PDFs. |
-| **Smart Vocabulary Book** (生詞本) | Stores bilingual AI definitions and examples, tags, search, flashcards, and pronunciation practice through the Web Speech API. Smart review prioritises unseen, older, remembered, and forgotten items; it is not an SM-2-style spaced-repetition scheduler. |
-| **Speech Practice** (演講練習) | Generates topic scripts, records timed practice with pause/resume controls, and keeps history with playback. Metadata and scripts live in Firestore; private recording files live in Supabase Storage. |
+| **PDF Reader** (閱讀器) | Opens local or remote PDFs with `react-pdf`; supports word or range selection, bilingual lookup, translation, TTS, and saving words or translated sentences. Text can be parsed in the browser or by a compatible backend. OIKID booking records can load lesson PDFs through the desktop sidecar or the standalone server when either has OIKID credentials. |
+| **Smart Vocabulary Book** (生詞本) | One newest-first feed of saved words and translated sentences, filterable by all/words/sentences, with search across both. Words store bilingual AI definitions and examples, tags, flashcards, and pronunciation practice through the Web Speech API. Smart review prioritises unseen, older, remembered, and forgotten items; it is not an SM-2-style spaced-repetition scheduler. |
 | **English Speech** (英文演講) | Splits and translates pasted text with Gemini, organises reusable speech collections, supports drag-to-reorder sentences, per-word lookup, and sentence/all-speech playback. |
+| **Speech Practice** (演講練習) | Generates topic scripts, records timed practice with pause/resume controls, and keeps history with playback. Metadata and scripts live in Firestore; private recording files live in Supabase Storage. |
+| **Audio Library** (音訊庫) | Uploads and organises MP3, WAV, M4A, WebM, OGG, AAC, and MP4 learning audio. Firestore stores metadata and private Supabase Storage serves short-lived signed playback URLs. |
+| **Podcast Listening** (Podcast 聽力) | Accepts Apple Podcasts show links with episode selection, or resolves an episode link to its exact RSS enclosure and plays it in the app, with seek, ±10 seconds, and 0.75–1.5× speed. Can generate an English transcript with Gemini (episodes up to 30 minutes / 80 MiB), save it per episode in Firestore, and highlight and seek by approximate timestamps. |
 | **Show Subtitles** (影集字幕) | Reads the bundled *Gabby's Dollhouse* transcripts across nine seasons with the same lookup, translate, speak, and save workflow used by the reader. |
 | **Basic Academic Competency Test** (基本學力測驗) | Chinese, mathematics, and English papers with section/full-paper sessions, immediate feedback, wrong-answer retry, local best-score tracking, and random mixed-subject papers. |
-| **Podcast Listening** (Podcast 聽力) | Accepts Apple Podcasts show links with episode selection, or resolves an episode link to its exact RSS enclosure and plays it in the app, with seek, ±10 seconds, and 0.75–1.5× speed. |
-| **Audio Library** (音訊庫) | Uploads and organises MP3, WAV, M4A, WebM, OGG, AAC, and MP4 learning audio. Firestore stores metadata and private Supabase Storage serves short-lived signed playback URLs. |
 | **Word Adventure & Gacha** | Runs vocabulary quiz stages and boss battles from the learner's word pool, with achievements and cloud-synced tokens used by the Popular Character Gacha collection. |
-| **Little Games** (小遊戲) | Includes Sweetheart Defenders (in development, cloud save), Mushroom Adventure, Meteor Glider, and Bunny Jumper, alongside the Word Adventure and Gacha entries in the game hub. |
+| **Little Games** (小遊戲) | The game hub opens each game in its own browser tab: Word Adventure, Popular Character Gacha, Cloud Cottage (大耳狗的雲朵小窩; pet care, in development, cloud save), Sweetheart Defenders (tower defence, in development, cloud save), Mushroom Adventure, Meteor Glider, and Bunny Jumper. |
+| **Settings** (設定) | Theme, speech mode (system voices or Edge TTS), speech rate, compute backend (`auto`/`local`/`cloud`), the gacha empty-capsule rate, a device-only "show all gacha entries" view, and game progress reset. |
 | **Desktop Companion** | Adds a loopback FastAPI service and PySide6 menu-bar app. Piper and Kokoro run offline; PDF extraction is local. Edge TTS, OIKID, and remote URL fetching still need network access. |
 
 ## Tech stack
 
 - **React 19**, **React Router 7**, and strict **TypeScript 5.9**
 - **Vite 7** with **vite-plugin-pwa** and lazy route-level code splitting
-- **Tailwind CSS 4**, **DaisyUI 5**, OKLCH design tokens, and **Framer Motion**
+- **Tailwind CSS 4**, **DaisyUI 5**, OKLCH design tokens, **Framer Motion**, and **lucide-react** icons
 - **Firebase 12** for Google Auth, the `allowedUsers/{email}` access check, Firestore, App Check, and Firebase AI Logic
-- **Gemini 3.5 Flash-Lite** through `firebase/ai` and `GoogleAIBackend`; the frontend does not read a standalone Gemini API key
+- **Gemini 3.5 Flash-Lite** through `firebase/ai` and `GoogleAIBackend` for text features and podcast audio transcription; the frontend does not read a standalone Gemini API key
 - **Supabase 2** for private audio/recording object storage, authenticated with Firebase ID tokens and protected by Storage RLS
 - **react-pdf** for browser PDF rendering and text extraction
 - **Web Speech API**, **MediaRecorder**, IndexedDB, and local storage for browser-native speech, recording, and device-local caches/preferences
+- **Vitest** for Web (jsdom) and server (Node) tests; **Playwright** for the podcast browser smoke test
+- **Server:** Next.js 16 on Node.js 24 (deployed to Vercel), PDF.js, `msedge-tts`, `firebase-admin`, FFmpeg (`ffmpeg-static`), and `music-metadata`
 - **Desktop:** Python, PySide6, FastAPI, PyMuPDF, Piper, Kokoro ONNX, Edge TTS, and PyInstaller
 
 ## Getting started
 
 ### Prerequisites
 
-- **Node.js `^20.19.0` or `>=22.12.0`** and npm (the requirement imposed by the current Vite version)
+- **Node.js `^20.19.0` or `>=22.12.0`** and npm for the Web app (the requirement imposed by the current Vite version); **Node.js 24** for `server/`
 - A Firebase project configured for Google Auth, Firestore, App Check with reCAPTCHA v3, and Firebase AI Logic
 - An `allowedUsers/{email}` Firestore document for each authorised account, backed by matching Firestore Security Rules
 - A Supabase project with a private `ollie-reader` Storage bucket, Firebase Third-Party Auth, and RLS policies matching the Firebase user ID
-- For backend PDF/TTS/URL/OIKID modes, either a compatible cloud API or the optional desktop sidecar
+- For backend PDF/TTS/URL/OIKID/Podcast features, the standalone [`server/`](server/README.md) API (or, except for Podcasts, the optional desktop sidecar)
 
-Firestore rules and Supabase policies/schema are deployment infrastructure. A standalone Next.js API for Edge TTS, PDF extraction, URL fetching, OIKID bookings and version checks is included in [`server/`](server/README.md).
+Firestore rules and Supabase policies/schema are deployment infrastructure; the repository does not contain the complete deployed rules. Podcast transcripts need the owner-scoped rules in [`server/podcast-firestore-rules.fragment`](server/podcast-firestore-rules.fragment) merged into the deployed Firestore rules. The standalone Next.js API in [`server/`](server/README.md) provides Edge TTS, PDF extraction, URL fetching, OIKID bookings, version checks, Podcast resolution, and Podcast audio preparation.
 
 ### Install and run
 
@@ -75,7 +79,7 @@ cp .env.development.example .env.development
 npm run dev
 ```
 
-The Vite development server runs at `http://localhost:5173`.
+The Vite development server runs at `http://localhost:5173`. Most backend features also need the API server at `http://localhost:3000`; see [Compute and speech modes](#compute-and-speech-modes).
 
 Frontend environment files are separated by Vite mode:
 
@@ -91,6 +95,7 @@ running `npm run build`. Both Firebase Hosting workflows generate `.env.producti
 from GitHub Actions repository variables. Their PR previews also use production mode.
 
 Actual environment files are ignored by Git; only the examples are committed.
+`.env.example` is a combined variable reference; prefer the mode-specific templates.
 Keep environment-specific settings out of shared `.env` and `.env.local` files,
 which Vite loads in both modes. Mode-specific files override those shared values;
 optional `.env.development.local` / `.env.production.local` files override the
@@ -113,22 +118,24 @@ Next.js service continues to use `server/.env.local`.
 | `VITE_FIREBASE_APPCHECK_DEBUG_TOKEN` | Optional development-only App Check debug token |
 | `VITE_GEMINI_CLIENT_RPM_BUDGET` | Effective client-side Gemini RPM budget; defaults to `4` |
 | `VITE_API_BASE_URL` | Own server API; defaults to `http://localhost:3000` in development and `https://server-one-xi-16.vercel.app` in production |
-| `VITE_PODCAST_API_BASE_URL` | Optional Podcast API override; defaults to localhost:3000 in development and `VITE_API_BASE_URL` in production. |
+| `VITE_PODCAST_API_BASE_URL` | Optional Podcast API override; defaults to `http://localhost:3000` in development and `VITE_API_BASE_URL` in production |
 | `VITE_ETTS_API_BASE_URL` | Edge TTS cloud API base URL; falls back to `VITE_API_BASE_URL` when unset. Use `http://localhost:3000` for local server development. |
 | `VITE_SUPABASE_URL` | Supabase project URL |
 | `VITE_SUPABASE_PUBLISHABLE_KEY` | Public/publishable Supabase key; never use a service-role or secret key in the frontend |
 
 There is no `VITE_GEMINI_API_KEY`: Gemini is initialised through the configured Firebase app and protected by App Check.
 
-Gemini requests are serialized through one global client queue. Set
-`VITE_GEMINI_CLIENT_RPM_BUDGET` from the active model's AI Studio RPM limit after
-reserving capacity for other active clients. An unset or invalid value uses a
-conservative 4 RPM fallback (15 seconds between request starts). This is a Vite
-build-time variable, so restart the development server or rebuild the deployment
-after changing it.
+Gemini requests, including podcast transcription, are serialized through one global
+client queue. Set `VITE_GEMINI_CLIENT_RPM_BUDGET` from the active model's AI Studio
+RPM limit after reserving capacity for other active clients. An unset or invalid
+value uses a conservative 4 RPM fallback (15 seconds between request starts). This
+is a Vite build-time variable, so restart the development server or rebuild the
+deployment after changing it.
 Same-origin tabs coordinate through Web Locks and shared browser state. Structured
 minute/capacity 429 responses receive bounded retries; daily exhaustion opens a
 circuit breaker until the next US Pacific midnight instead of being resent.
+Podcast transcription jobs never retry automatically, to avoid repeating expensive
+audio requests.
 
 ### npm scripts
 
@@ -141,7 +148,7 @@ npm run test              # Run the Vitest suite once
 npm run fetch-transcripts # Refresh bundled show transcripts
 ```
 
-The root `Makefile` exposes equivalent Web targets (`make install`, `make dev`, `make build`, `make lint`, `make web-test`, and `make preview`), aggregate setup/test targets, the exam-image crop utility, and all desktop workflows. Run `make help` for the complete list.
+The root `Makefile` exposes equivalent Web targets (`make install`, `make dev`, `make build`, `make lint`, `make web-test`, and `make preview`), server targets (`make server-setup`, `server-dev`, `server-build`, `server-start`, `server-lint`, and `server-test`), aggregate setup/test targets, the exam-image crop utility, and all desktop workflows. Run `make help` for the complete list.
 
 ## Compute and speech modes
 
@@ -151,9 +158,52 @@ Reader settings separate three concerns:
 - **Speech:** the browser's system voices or backend AI speech.
 - **Compute location:** `auto` uses the desktop sidecar when it is available and otherwise the cloud API; `local` requires the sidecar; `cloud` skips local detection.
 
+Compute location applies to PDF extraction, Edge TTS, URL fetching, and OIKID booking records. Podcasts always use the server API, and Supabase Storage is accessed directly from the browser.
+
 The Web app supports system speech and Edge TTS. Edge requires network access and works through either the desktop sidecar or the standalone Next.js API. Edge cloud requests use `VITE_ETTS_API_BASE_URL`; other cloud features continue using `VITE_API_BASE_URL`. In `auto` mode, a reachable desktop sidecar is preferred; `local` requires desktop, and `cloud` uses the configured cloud endpoint. Legacy engine preferences are treated as Edge TTS and saved as Edge on the next settings update; the system/API speech mode is preserved. The Web app no longer calls the Piper or Kokoro endpoints, which remain available in the desktop sidecar.
 
-For local server development, run `make server-setup` and `make server-dev` alongside Vite. The development template sets `VITE_ETTS_API_BASE_URL=http://localhost:3000`; the development settings also use that address for `VITE_API_BASE_URL`. Use the deployed HTTPS API base in `.env.production`. The server uses PDF.js instead of the desktop's PyMuPDF, so extracted text formatting can differ; its PDF/file endpoints have a 4 MiB limit. See the [server guide](server/README.md) for API contracts, server-only OIKID/Firebase configuration, validation, and Vercel deployment settings.
+For local server development, run `make server-setup` and `make server-dev` alongside Vite. The development template sets `VITE_API_BASE_URL`, `VITE_ETTS_API_BASE_URL`, and `VITE_PODCAST_API_BASE_URL` to `http://localhost:3000`. Use the deployed HTTPS API base in `.env.production`. The server uses PDF.js instead of the desktop's PyMuPDF, so extracted text formatting can differ; its PDF/file endpoints have a 4 MiB limit. See the [server guide](server/README.md) for API contracts, server-only OIKID/Firebase configuration, validation, and Vercel deployment settings.
+
+If an older local environment still points `VITE_API_BASE_URL` at Cloud Run, update `.env.development` to `http://localhost:3000` and `.env.production` to the current Vercel backend (`https://server-one-xi-16.vercel.app`). Restart Vite after changing environment files; production values require a rebuild. A generic endpoint `404 Not Found` means the backend route is missing, not that the requested resource (for example a Podcast) is missing.
+
+## Podcasts
+
+Open **Podcast 聽力** (`/podcasts`) after signing in. Paste an Apple Podcasts show or episode sharing link and click **載入 Podcast**. A show link lists the playable public RSS episodes: choose one explicitly, then click **播放**. An episode link containing `?i=` loads only that exact episode. Playback does not start automatically. The page provides pause, a seek slider, ±10-second buttons, and 0.75× / 1× / 1.25× / 1.5× speed. Leaving the page releases the audio element and aborts pending resolution. No audio or listening history is persisted.
+
+Below the player, **產生英文字幕** creates an English transcript:
+
+- `POST /api/podcasts/audio` re-resolves the episode by its RSS GUID, downloads at most 80 MiB / 30 minutes, and compresses the full audio with FFmpeg to mono 16 kHz WebM/Opus (capped at 4 MiB).
+- The browser sends that audio inline to Gemini through Firebase AI Logic, using the same request queue and App Check setup as other AI features.
+- Completed transcripts are saved at `users/{uid}/podcastTranscripts/{id}`, keyed by podcast ID, RSS GUID, model, and schema version, and reused without another model call. A Firestore lease prevents the same episode from being generated twice at once across tabs and devices.
+- Valid approximate timestamps enable active-sentence highlighting and click-to-seek; if timing is unreliable, the full text is shown without timestamps.
+- Generation runs only while the page is open; closing the browser does not continue the job.
+
+Deploy the `server/` podcast routes and merge [the Firestore rules fragment](server/podcast-firestore-rules.fragment) before using these features in the hosted frontend. See the [resolver contract and limits](server/README.md#post-apipodcastsresolve) and [transcription setup, architecture and troubleshooting](server/PODCAST-TRANSCRIPTION.md).
+
+Start the services in separate terminals (Node.js 24 for the server):
+
+```bash
+npm ci --prefix server
+npm run dev --prefix server
+```
+
+```bash
+npm ci
+npm run dev
+```
+
+Existing Firebase frontend configuration is still required for app sign-in. Podcasts use `VITE_PODCAST_API_BASE_URL` when set; otherwise development defaults to `http://localhost:3000` and production uses `VITE_API_BASE_URL`. This prevents a legacy cloud URL in local settings from intercepting the Podcast routes. The desktop compute-mode setting does not affect Podcasts.
+
+Primary live test link: [Storytime: Sweeter than Honey](https://podcasts.apple.com/tw/podcast/storytime-sweeter-than-honey/id1567336024?i=1000539350317).
+
+A repeatable live browser smoke test for playback is also available:
+
+```bash
+npx playwright install chromium  # if no matching browser is installed
+node scripts/podcast-browser-smoke.mjs
+```
+
+The script mounts the actual Podcast page in a Playwright-only HTML harness, calls the real API, and tests the real remote audio. It checks playback, pause, skip, slider seeking, speed, cleanup, 375/768/1440px layouts, 44px touch targets, and light/dark screenshots in `/tmp/ollie-podcast-smoke`. It does not log into Firebase or generate transcripts; app routing/authentication and transcription have separate component tests. `PODCAST_WEB_URL`, `PODCAST_CHROMIUM_PATH`, and `PODCAST_SCREENSHOTS` optionally override the frontend origin, browser executable, and screenshot directory. For a nonstandard Vite port, add its exact origin to the server's `OLLIE_CORS_ORIGINS`.
 
 ## Desktop companion
 
@@ -182,10 +232,12 @@ The official release workflow currently targets macOS 12+ on Apple Silicon. See 
 
 ```text
 ollie-reader/
+├── .github/workflows/            # Firebase Hosting preview and live deploys
+├── docs/superpowers/             # Design specs and implementation plans
 ├── public/
 │   ├── exams/                    # Question PDFs and runtime-cached figures
 │   └── transcripts/              # Bundled show transcript JSON
-├── scripts/                      # Transcript, exam-image, and game-audio utilities
+├── scripts/                      # Transcript, exam-image, game-asset, and podcast smoke-test utilities
 ├── src/
 │   ├── assets/                   # Game artwork/audio
 │   ├── components/
@@ -193,26 +245,31 @@ ollie-reader/
 │   │   ├── Auth/                 # Google sign-in UI
 │   │   ├── ExamPractice/         # Subject papers, quizzes, and results
 │   │   ├── Game/                 # Word Adventure
-│   │   ├── LittleGames/          # Gacha and browser games
-│   │   ├── PdfReader/            # PDF viewer, selection, and lookup panels
+│   │   ├── LittleGames/          # Game hub, Gacha, Cloud Cottage, and browser games
+│   │   ├── PdfReader/            # PDF viewer, selection, lookup panels, and OIKID bookings
+│   │   ├── Podcasts/             # Podcast player and AI transcripts
 │   │   ├── SentencePractice/     # English speech collections
+│   │   ├── SentenceTranslation/  # Translated-sentence rows and details in the vocabulary book
+│   │   ├── Settings/             # Theme, speech, compute, and game settings
 │   │   ├── ShowSubtitles/        # Season/episode transcript reader
 │   │   ├── SpeechPractice/       # Script generation and recordings
 │   │   ├── Vocabulary/           # Vocabulary book and review
-│   │   └── common/               # Shared UI primitives
+│   │   ├── common/               # Shared UI primitives
+│   │   └── icons/                # Custom icon components
 │   ├── constants/                # API paths and static constants
 │   ├── contexts/                 # Auth, PDF, Settings, Speech, and Theme state
 │   ├── data/                     # Exam data
 │   ├── hooks/                    # Feature and state hooks
-│   ├── services/                 # Firebase, AI, Supabase, backend, and domain services
+│   ├── services/                 # Firebase, Gemini, Supabase, backend, and domain services
 │   ├── types/                    # Shared TypeScript models
 │   ├── utils/                    # Firebase/Supabase clients and utilities
 │   ├── App.tsx                   # Auth boundary, responsive shell, and routes
 │   ├── main.tsx                  # Application entry point
 │   └── index.css                 # Tailwind, DaisyUI themes, and design tokens
+├── server/                       # Standalone Next.js API (Edge TTS, PDF, OIKID, Podcasts)
 ├── desktop/                      # Optional PySide6 + FastAPI macOS companion
 ├── tests/                        # Additional data/utility tests
-├── Makefile                      # Unified Web and desktop task runner
+├── Makefile                      # Unified Web, server, and desktop task runner
 ├── vite.config.ts                # Vite, Vitest, and PWA configuration
 └── firebase.json                 # Firebase Hosting SPA/cache configuration
 ```
@@ -227,9 +284,9 @@ npm run test
 npm run build
 ```
 
-For desktop changes, also run `make desktop-test`. `make test` runs both Web and desktop suites.
+For server changes, also run `make server-lint`, `make server-test`, and `make server-build`. For desktop changes, run `make desktop-test`. `make test` runs both Web and desktop suites (not the server suite).
 
-The production build is served from `dist/`. `firebase.json` configures an SPA rewrite to `index.html`, immutable caching for hashed assets, and no-cache headers for the service worker and HTML entry point. GitHub Actions builds Firebase Hosting preview channels for pull requests and deploys the `master` branch to the live channel.
+The production build is served from `dist/`. `firebase.json` configures an SPA rewrite to `index.html`, immutable caching for hashed assets, and no-cache headers for the service worker and HTML entry point. GitHub Actions builds Firebase Hosting preview channels for pull requests and deploys the `master` branch to the live channel. The `server/` API is deployed separately as its own Vercel project (Root Directory `server`, Node.js 24); see the [server guide](server/README.md#frontend-and-vercel).
 
 ## Contributing
 
@@ -238,38 +295,3 @@ Contributions are welcome. Use focused [Conventional Commits](https://www.conven
 ## License
 
 [MIT](LICENSE) © Victor Fu
-
-
-## Podcast player (Phase 1)
-
-Open **Podcast 聽力** (`/podcasts`) after signing in. Paste an Apple Podcasts show or episode sharing link and click **載入 Podcast**. A show link lists the playable public RSS episodes: choose one explicitly, then click **播放**. An episode link containing `?i=` loads only that exact episode. Playback does not start automatically. The page provides pause, a seek slider, ±10-second buttons, and 0.75× / 1× / 1.25× / 1.5× speed. Leaving the page releases the audio element and aborts pending resolution. No audio or listening history is persisted.
-
-Start the services in separate terminals (Node.js 24):
-
-```bash
-npm ci --prefix server
-npm run dev --prefix server
-```
-
-```bash
-npm ci
-npm run dev
-```
-
-Existing Firebase frontend configuration is still required for app sign-in. Podcasts use `VITE_PODCAST_API_BASE_URL` when set; otherwise development defaults to `http://localhost:3000` and production uses `VITE_API_BASE_URL`. This prevents a legacy cloud URL in local settings from intercepting the new route. The desktop compute-mode setting does not affect Podcasts. Deploy the new `server/` route before using this feature in the hosted frontend. See the [resolver contract and limits](server/README.md#post-apipodcastsresolve).
-
-Primary live test link: [Storytime: Sweeter than Honey](https://podcasts.apple.com/tw/podcast/storytime-sweeter-than-honey/id1567336024?i=1000539350317).
-
-Run the normal frontend and server lint/test/build checks. A repeatable live browser smoke test is also available:
-
-```bash
-npx playwright install chromium  # if no matching browser is installed
-node scripts/podcast-browser-smoke.mjs
-```
-
-The script mounts the actual Podcast page in a Playwright-only HTML harness, calls the real API, and tests the real remote audio. It checks playback, pause, skip, slider seeking, speed, cleanup, 375/768/1440px layouts, 44px touch targets, and light/dark screenshots in `/tmp/ollie-podcast-smoke`. It does not log into Firebase; app routing/authentication has separate component tests. `PODCAST_WEB_URL`, `PODCAST_CHROMIUM_PATH`, and `PODCAST_SCREENSHOTS` optionally override the frontend origin, browser executable, and screenshot directory. For a nonstandard Vite port, add its exact origin to the server's `OLLIE_CORS_ORIGINS`.
-
-Later transcript synchronization can key transcript data by `podcastId` + RSS `guid` (retaining `episodeId` when resolved from an Apple episode link), derive the active cue from the audio element's `currentTime`/`timeupdate`, and route cue clicks through the existing seek logic. No transcript, AI, download, or learning-history feature is included in Phase 1.
-
-
-If an older local environment still points `VITE_API_BASE_URL` at Cloud Run, update `.env.development` to `http://localhost:3000` and `.env.production` to the current Vercel backend (`https://server-one-xi-16.vercel.app`). Restart Vite after changing environment files; production values require a rebuild. A generic endpoint `404 Not Found` means the backend route is missing, not that the Podcast itself is missing. Deploy the new backend route before testing the production frontend.
