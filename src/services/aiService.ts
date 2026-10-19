@@ -55,7 +55,7 @@ export interface GameWord {
 /**
  * Parse JSON response from Gemini, handling potential markdown code blocks
  */
-function parseJsonResponse(text: string): unknown {
+export function parseJsonResponse(text: string): unknown {
   let jsonText = text.trim();
   if (jsonText.startsWith("```")) {
     jsonText = jsonText

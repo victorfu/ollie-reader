@@ -16,7 +16,10 @@ export type GeminiAction =
   | "word_definition"
   | "speech_script"
   | "game_words"
-  | "podcast_transcript";
+  | "podcast_transcript"
+  | "cefr_estimate"
+  | "example_sentence"
+  | "sentence_feedback";
 
 export interface GenerateGeminiContentOptions {
   action: GeminiAction;
