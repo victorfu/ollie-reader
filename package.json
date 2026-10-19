@@ -52,10 +52,10 @@
     "lightningcss": "^1.33.0"
   },
   "allowScripts": {
-    "@firebase/util@1.13.0": true,
     "esbuild@0.27.2": true,
-    "protobufjs@7.6.5": true,
     "fsevents@2.3.3": true,
-    "fsevents@2.3.2": true
+    "fsevents@2.3.2": true,
+    "@firebase/util@1.15.3": true,
+    "protobufjs@7.6.6": true
   }
 }
