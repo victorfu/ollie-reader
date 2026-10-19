@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { SpellCheck } from "lucide-react";
 import { useWordPractice } from "../../hooks/useWordPractice";
+import type { HomeworkOptions } from "../../types/wordPractice";
 import type { StepId } from "../../utils/homeworkProgress";
 import { GenerateHomeworkPanel } from "./GenerateHomeworkPanel";
 import { HomeworkHistory } from "./HomeworkHistory";
@@ -16,6 +17,7 @@ type Screen =
 const CEFR_J_CREDIT =
   "The CEFR-J Wordlist Version 1.5. Compiled by Yukio Tono, Tokyo University of Foreign Studies.";
 const OCTANOVE_CREDIT = "Octanove Vocabulary Profile (CC BY-SA 4.0)";
+const NO_WORDS_NOTICE = "生詞本裡沒有可以練習的新單字";
 
 /** Stands in for a practice step until its real component replaces it. */
 function StepPlaceholder({ step, onExit }: Pick<StepProps, "onExit"> & { step: StepId }) {
@@ -37,9 +39,26 @@ function StepPlaceholder({ step, onExit }: Pick<StepProps, "onExit"> & { step: S
 export default function WordPracticePage() {
   const wordPractice = useWordPractice();
   const [screen, setScreen] = useState<Screen>({ view: "home" });
+  const [noWords, setNoWords] = useState(false);
   const { status, error, saveError, active, history } = wordPractice;
 
+  // A different homework taking over (a replacement was generated) must not
+  // leave the page on a step of the old one. A homework ending (`active`
+  // becoming null) is not reset here: the screen that finished it chooses
+  // where to go next.
+  const activeId = active?.id ?? null;
+  const [seenActiveId, setSeenActiveId] = useState(activeId);
+  if (activeId !== seenActiveId) {
+    setSeenActiveId(activeId);
+    if (activeId !== null) setScreen({ view: "home" });
+  }
+
   const goHome = () => setScreen({ view: "home" });
+  const generate = async (options: HomeworkOptions): Promise<void> => {
+    setNoWords(false);
+    const result = await wordPractice.generate(options);
+    setNoWords(result === "empty");
+  };
   const resultHomework =
     screen.view === "result"
       ? history.find((homework) => homework.id === screen.homeworkId)
@@ -47,12 +66,7 @@ export default function WordPracticePage() {
 
   let content;
   if (status === "loading") {
-    content = (
-      <p role="status" className="flex items-center gap-2 text-muted-foreground">
-        <span className="loading loading-spinner loading-sm" aria-hidden="true" />
-        載入中…
-      </p>
-    );
+    content = null;
   } else if (status === "error") {
     content = (
       <button
@@ -73,6 +87,7 @@ export default function WordPracticePage() {
         {active && (
           <HomeworkOverview
             homework={active}
+            generating={wordPractice.generating}
             onOpenStep={(step) => setScreen({ view: "step", step })}
             onAbandon={wordPractice.abandon}
           />
@@ -80,7 +95,7 @@ export default function WordPracticePage() {
         <GenerateHomeworkPanel
           hasActive={active !== null}
           generating={wordPractice.generating}
-          onGenerate={wordPractice.generate}
+          onGenerate={generate}
         />
         <HomeworkHistory
           history={history}
@@ -90,16 +105,45 @@ export default function WordPracticePage() {
     );
   }
 
+  const busyMessage =
+    status === "loading" ? "載入中…" : wordPractice.generating ? "正在產生功課…" : null;
+  const statusMessage = busyMessage ?? (noWords ? NO_WORDS_NOTICE : null);
+  const saveMessage = status === "ready" ? saveError : null;
+
   return (
     <div className="mx-auto w-full max-w-3xl space-y-6 p-4 md:p-6">
-      <header className="space-y-2">
-        <h1 className="flex items-center gap-3 text-3xl font-semibold tracking-tight">
-          <SpellCheck className="shrink-0" aria-hidden="true" />
-          單字練習
-        </h1>
-        <p className="text-muted-foreground">
-          從生詞本挑出單字，認識、拼寫、填空、造句，最後來一場拼字考試。
-        </p>
+      <header>
+        <div className="space-y-2">
+          <h1 className="flex items-center gap-3 text-3xl font-semibold tracking-tight">
+            <SpellCheck className="shrink-0" aria-hidden="true" />
+            單字練習
+          </h1>
+          <p className="text-muted-foreground">
+            從生詞本挑出單字，認識、拼寫、填空、造句，最後來一場拼字考試。
+          </p>
+        </div>
+        {/* The live regions stay mounted so that a change in their text is announced. */}
+        <div role="status" className="[&:not(:empty)]:mt-3">
+          {statusMessage && (
+            <p
+              className={`flex items-center gap-2 text-sm ${
+                busyMessage ? "font-medium" : "text-muted-foreground"
+              }`}
+            >
+              {busyMessage && (
+                <span className="loading loading-spinner loading-sm" aria-hidden="true" />
+              )}
+              {statusMessage}
+            </p>
+          )}
+        </div>
+        <div role="status" className="[&:not(:empty)]:mt-3">
+          {saveMessage && (
+            <p className="rounded-[10px] border border-warning/25 bg-warning/10 px-4 py-3 text-sm text-warning">
+              {saveMessage}
+            </p>
+          )}
+        </div>
       </header>
 
       {error && (
@@ -108,14 +152,6 @@ export default function WordPracticePage() {
           className="rounded-[10px] border border-error/20 bg-error/10 px-4 py-3 text-sm text-error"
         >
           {error}
-        </p>
-      )}
-      {status === "ready" && saveError && (
-        <p
-          role="status"
-          className="rounded-[10px] border border-warning/25 bg-warning/10 px-4 py-3 text-sm text-warning"
-        >
-          {saveError}
         </p>
       )}
 

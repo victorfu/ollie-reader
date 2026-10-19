@@ -25,6 +25,11 @@ export function HomeworkHistory({ history, onOpen }: HomeworkHistoryProps) {
               <button
                 type="button"
                 onClick={() => onOpen(homework.id)}
+                aria-label={
+                  homework.result
+                    ? `${formatHomeworkDate(homework)}，答對 ${formatHomeworkScore(homework)}`
+                    : formatHomeworkDate(homework)
+                }
                 className="flex min-h-11 w-full items-center gap-3 px-4 py-2 text-left transition-colors hover:bg-accent-tint focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
               >
                 <span className="flex-1">{formatHomeworkDate(homework)}</span>

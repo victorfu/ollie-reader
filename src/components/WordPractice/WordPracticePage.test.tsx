@@ -130,6 +130,13 @@ function choose(select: HTMLSelectElement, value: string) {
   });
 }
 
+/** The text of every live region that currently has something to announce. */
+function statusMessages(): string[] {
+  return Array.from(host.querySelectorAll('[role="status"]'))
+    .map((region) => region.textContent ?? "")
+    .filter((text) => text !== "");
+}
+
 function openDialog(): HTMLDialogElement | null {
   return host.querySelector<HTMLDialogElement>("dialog[open]");
 }
@@ -293,12 +300,44 @@ describe("generate panel", () => {
     render();
 
     expect(getButton("產生功課").disabled).toBe(true);
-    expect(host.querySelector('[role="status"]')?.textContent).toContain("正在產生功課…");
+    expect(statusMessages()).toEqual(["正在產生功課…"]);
   });
 
   it("shows no waiting message when it is not generating", () => {
     render();
-    expect(host.querySelector('[role="status"]')).toBeNull();
+    expect(statusMessages()).toEqual([]);
+  });
+
+  it("keeps the live region mounted so that the waiting message is announced", () => {
+    render();
+    const region = host.querySelector('[role="status"]');
+    expect(region).not.toBeNull();
+
+    hook.current = makeHook({ generating: true });
+    render();
+
+    expect(host.querySelector('[role="status"]')).toBe(region);
+    expect(region?.textContent).toContain("正在產生功課…");
+  });
+
+  it("keeps the empty notice when the page moved to another view while generating", async () => {
+    let finishGenerating: (outcome: "empty") => void = () => {};
+    const generate = vi.fn(
+      () =>
+        new Promise<"empty">((resolve) => {
+          finishGenerating = resolve;
+        }),
+    );
+    hook.current = makeHook({ history: [makeCompleted()], generate });
+    render();
+    act(() => getButton("產生功課").click());
+    act(() => getButton("1 / 2").click());
+    expect(host.textContent).toContain("拼字考試成績");
+
+    await act(async () => finishGenerating("empty"));
+
+    expect(statusMessages()).toEqual(["生詞本裡沒有可以練習的新單字"]);
+    expect(host.textContent).toContain("拼字考試成績");
   });
 });
 
@@ -383,6 +422,46 @@ describe("overview", () => {
     expect(openDialog()).toBeNull();
   });
 
+  it("is read-only while a replacement homework is generating", () => {
+    hook.current = makeHook({ active: makeHomework(), generating: true });
+    render();
+
+    const stepButtons = Array.from(host.querySelectorAll("ol button"));
+    expect(stepButtons).toHaveLength(6);
+    stepButtons.forEach((button) => expect((button as HTMLButtonElement).disabled).toBe(true));
+    expect(getButton("繼續").disabled).toBe(true);
+    expect(getButton("放棄這份功課").disabled).toBe(true);
+  });
+
+  it("goes back to the overview when a different homework becomes active", () => {
+    hook.current = makeHook({ active: makeHomework() });
+    render();
+    act(() => getButton("Fill in the Blank").click());
+    expect(host.querySelector("ol")).toBeNull();
+
+    hook.current = makeHook({ active: makeHomework({ id: "hw-replacement" }) });
+    render();
+
+    expect(host.querySelectorAll("ol > li")).toHaveLength(6);
+  });
+
+  it("stays on the step when the same homework gets new progress", () => {
+    const homework = makeHomework();
+    hook.current = makeHook({ active: homework });
+    render();
+    act(() => getButton("Fill in the Blank").click());
+
+    hook.current = makeHook({
+      active: {
+        ...homework,
+        progress: homework.progress.map((progress) => ({ ...progress, learned: true })),
+      },
+    });
+    render();
+
+    expect(host.querySelector("h2")?.textContent).toBe("Fill in the Blank");
+  });
+
   it("is not shown when no homework is in progress", () => {
     render();
     expect(host.querySelector("ol")).toBeNull();
@@ -397,6 +476,13 @@ describe("history and result", () => {
 
     const entry = getButton("1 / 2");
     expect(entry.textContent).toContain("2026/10/12");
+  });
+
+  it("names each history entry with its date and score", () => {
+    hook.current = makeHook({ history: [makeCompleted()] });
+    render();
+
+    expect(getButton("1 / 2").getAttribute("aria-label")).toBe("2026/10/12，答對 1 / 2");
   });
 
   it("says so when there is no past homework", () => {
@@ -419,6 +505,18 @@ describe("history and result", () => {
     expect(banana.textContent).toContain("banan");
     expect(banana.textContent).toContain("banana");
     expect(host.textContent).toContain("1 / 2");
+  });
+
+  it("marks a word as correct only when the result lists it as correct", () => {
+    const completed = makeCompleted();
+    completed.result = { correctKeys: [], missedKeys: [], correctCount: 0, total: 2 };
+    hook.current = makeHook({ history: [completed] });
+    render();
+
+    act(() => getButton("0 / 2").click());
+
+    const rows = Array.from(host.querySelectorAll("li"));
+    expect(rows.every((row) => row.textContent?.includes("答錯"))).toBe(true);
   });
 
   it("shows an unanswered word as such", () => {
@@ -449,7 +547,7 @@ describe("page states", () => {
     hook.current = makeHook({ status: "loading" });
     render();
 
-    expect(host.querySelector('[role="status"]')?.textContent).toContain("載入中");
+    expect(statusMessages()).toEqual(["載入中…"]);
     expect(host.textContent).not.toContain("產生功課");
   });
 
@@ -481,7 +579,7 @@ describe("page states", () => {
     });
     render();
 
-    expect(host.textContent).toContain("進度尚未儲存");
+    expect(statusMessages()).toEqual(["進度尚未儲存，下一次作答時會再試一次"]);
     expect(getButton("Learn").disabled).toBe(false);
   });
 

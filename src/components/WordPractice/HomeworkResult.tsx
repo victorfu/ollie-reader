@@ -10,7 +10,7 @@ interface HomeworkResultViewProps {
 
 export function HomeworkResultView({ homework, onBack }: HomeworkResultViewProps) {
   const headingId = useId();
-  const missedKeys = new Set(homework.result?.missedKeys);
+  const correctKeys = new Set(homework.result?.correctKeys);
 
   return (
     <section aria-labelledby={headingId} className="space-y-4">
@@ -35,17 +35,17 @@ export function HomeworkResultView({ homework, onBack }: HomeworkResultViewProps
       <ul className="divide-y divide-border-hairline overflow-hidden rounded-xl border border-border-hairline bg-card shadow-sm">
         {homework.words.map((word, index) => {
           const answer = homework.progress[index]?.testAnswer ?? null;
-          const missed = answer === null || missedKeys.has(word.key);
-          const MarkIcon = missed ? X : Check;
+          const correct = answer !== null && correctKeys.has(word.key);
+          const MarkIcon = correct ? Check : X;
           return (
             <li key={word.key} className="space-y-1 px-4 py-3">
               <p
                 className={`flex items-center gap-1.5 text-sm font-medium ${
-                  missed ? "text-error" : "text-success"
+                  correct ? "text-success" : "text-error"
                 }`}
               >
                 <MarkIcon className="size-4" strokeWidth={2} aria-hidden="true" />
-                {missed ? "答錯" : "答對"}
+                {correct ? "答對" : "答錯"}
               </p>
               <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5">
                 <dt className="text-sm text-muted-foreground">你的作答</dt>

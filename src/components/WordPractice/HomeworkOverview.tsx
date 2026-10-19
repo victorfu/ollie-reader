@@ -12,11 +12,18 @@ import { STEP_LABELS } from "./stepTypes";
 
 interface HomeworkOverviewProps {
   homework: Homework;
+  /** While a replacement homework is being generated this one is read-only. */
+  generating: boolean;
   onOpenStep: (step: StepId) => void;
   onAbandon: () => Promise<void>;
 }
 
-export function HomeworkOverview({ homework, onOpenStep, onAbandon }: HomeworkOverviewProps) {
+export function HomeworkOverview({
+  homework,
+  generating,
+  onOpenStep,
+  onAbandon,
+}: HomeworkOverviewProps) {
   const headingId = useId();
   const [confirming, setConfirming] = useState(false);
   const [abandoning, setAbandoning] = useState(false);
@@ -52,6 +59,7 @@ export function HomeworkOverview({ homework, onOpenStep, onAbandon }: HomeworkOv
         </div>
         <button
           type="button"
+          disabled={generating}
           onClick={() => onOpenStep(nextStep)}
           className="btn btn-primary min-h-11 active:scale-[0.98]"
         >
@@ -68,7 +76,7 @@ export function HomeworkOverview({ homework, onOpenStep, onAbandon }: HomeworkOv
             <li key={step}>
               <button
                 type="button"
-                disabled={locked}
+                disabled={locked || generating}
                 onClick={() => onOpenStep(step)}
                 className="flex min-h-11 w-full items-center gap-3 rounded-[10px] border border-border-hairline bg-background px-3 py-2 text-left shadow-sm transition-colors hover:bg-accent-tint focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-background disabled:active:scale-100"
               >
@@ -99,6 +107,7 @@ export function HomeworkOverview({ homework, onOpenStep, onAbandon }: HomeworkOv
 
       <button
         type="button"
+        disabled={generating}
         onClick={() => setConfirming(true)}
         className="btn btn-ghost min-h-11 text-error active:scale-[0.98]"
       >

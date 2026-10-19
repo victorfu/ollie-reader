@@ -29,7 +29,8 @@ interface GenerateHomeworkPanelProps {
   /** Whether a homework is in progress, which generating would give up. */
   hasActive: boolean;
   generating: boolean;
-  onGenerate: (options: HomeworkOptions) => Promise<"created" | "empty" | "failed">;
+  /** Starts generating; the page shows the outcome. */
+  onGenerate: (options: HomeworkOptions) => Promise<void>;
 }
 
 export function GenerateHomeworkPanel({
@@ -43,23 +44,18 @@ export function GenerateHomeworkPanel({
   const [wordCount, setWordCount] = useState(DEFAULT_WORD_COUNT);
   const [startLevel, setStartLevel] = useState<CefrLevel>(readStartLevel);
   const [confirming, setConfirming] = useState(false);
-  const [noWords, setNoWords] = useState(false);
 
-  const generate = async () => {
-    setNoWords(false);
-    const result = await onGenerate({ wordCount, startLevel });
-    setNoWords(result === "empty");
-  };
+  const generate = () => void onGenerate({ wordCount, startLevel });
 
   const handleGenerateClick = () => {
     if (generating) return;
     if (hasActive) setConfirming(true);
-    else void generate();
+    else generate();
   };
 
   const handleConfirm = () => {
     setConfirming(false);
-    void generate();
+    generate();
   };
 
   return (
@@ -124,24 +120,13 @@ export function GenerateHomeworkPanel({
         disabled={generating}
         className="btn btn-primary min-h-11 w-full active:scale-[0.98] sm:w-auto"
       >
+        {generating && <span className="loading loading-spinner loading-sm" aria-hidden="true" />}
         產生功課
       </button>
 
       {generating && (
-        <div className="space-y-1">
-          <p role="status" className="flex items-center gap-2 text-sm font-medium">
-            <span className="loading loading-spinner loading-sm" aria-hidden="true" />
-            正在產生功課…
-          </p>
-          <p className="text-xs text-muted-foreground">
-            Gemini 排隊時可能要等一分鐘以上，請先不要離開這一頁。
-          </p>
-        </div>
-      )}
-
-      {noWords && (
-        <p role="status" className="text-sm text-muted-foreground">
-          生詞本裡沒有可以練習的新單字
+        <p className="text-xs text-muted-foreground">
+          Gemini 排隊時可能要等一分鐘以上，請先不要離開這一頁。
         </p>
       )}
 
