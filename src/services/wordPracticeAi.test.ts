@@ -55,6 +55,24 @@ describe("wordPracticeAi", () => {
       expect(await estimateCefrLevels(["Zeitgeist", "ollie's"])).toEqual({ zeitgeist: "B2", "ollie's": "A2" });
     });
 
+    it("accepts a level in lower case or with spaces around it", async () => {
+      respond({
+        levels: [
+          { word: "run", level: "b1" },
+          { word: "sing", level: " B2 " },
+          { word: "jump", level: "c1\n" },
+          { word: "swim", level: "b 1" },
+          { word: "fly", level: "" },
+        ],
+      });
+
+      expect(await estimateCefrLevels(["run", "sing", "jump", "swim", "fly"])).toEqual({
+        run: "B1",
+        sing: "B2",
+        jump: "C1",
+      });
+    });
+
     it("keeps the first valid estimate when a word is returned twice", async () => {
       respond({ levels: [{ word: "run", level: "A1" }, { word: "Run", level: "C2" }] });
 

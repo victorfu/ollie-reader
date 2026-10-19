@@ -22,8 +22,12 @@ const CJK = /[㐀-鿿]/;
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
-const isCefrLevel = (value: unknown): value is CefrLevel =>
-  typeof value === "string" && (CEFR_LEVELS as readonly string[]).includes(value);
+/** A level as Gemini wrote it ("b1", " B1 " are fine), or null when it is not one of A1 to C2. */
+function toCefrLevel(value: unknown): CefrLevel | null {
+  if (typeof value !== "string") return null;
+  const level = value.trim().toUpperCase();
+  return (CEFR_LEVELS as readonly string[]).includes(level) ? (level as CefrLevel) : null;
+}
 
 /** Trimmed English text of at most `maxLength` characters, or null. */
 function cleanEnglishText(value: unknown, maxLength: number): string | null {
@@ -78,9 +82,10 @@ Rules:
   const requested = new Set(words.map(practiceKey));
   const levels = new Map<string, CefrLevel>();
   for (const entry of entries) {
-    if (!isRecord(entry) || typeof entry.word !== "string" || !isCefrLevel(entry.level)) continue;
+    if (!isRecord(entry) || typeof entry.word !== "string") continue;
+    const level = toCefrLevel(entry.level);
     const key = practiceKey(entry.word);
-    if (requested.has(key) && !levels.has(key)) levels.set(key, entry.level);
+    if (level && requested.has(key) && !levels.has(key)) levels.set(key, level);
   }
   return Object.fromEntries(levels);
 }
