@@ -33,7 +33,8 @@ The UI follows macOS Human Interface Guidelines adapted for the web: a collapsib
 | Feature | What it does |
 |---|---|
 | **PDF Reader** (閱讀器) | Opens local or remote PDFs with `react-pdf`; supports word or range selection, bilingual lookup, translation, TTS, and saving words or translated sentences. Text can be parsed in the browser or by a compatible backend. OIKID booking records can load lesson PDFs through the desktop sidecar or the standalone server when either has OIKID credentials. |
-| **Smart Vocabulary Book** (生詞本) | One newest-first feed of saved words and translated sentences, filterable by all/words/sentences, with search across both. Words store bilingual AI definitions and examples, tags, flashcards, and pronunciation practice through the Web Speech API. Smart review prioritises unseen, older, remembered, and forgotten items; it is not an SM-2-style spaced-repetition scheduler. |
+| **Smart Vocabulary Book** (生詞本) | One newest-first feed of saved words and translated sentences, filterable by all/words/sentences, with search across both. Words store bilingual AI definitions and examples, tags, flashcards, and pronunciation practice through the Web Speech API. Smart review prioritises unseen, older, remembered, and forgotten items; it is not an SM-2-style spaced-repetition scheduler. Each word carries a CEFR level badge (A1–C2), shown as an estimate (≈B1) when the word is not on the bundled list. |
+| **Word Practice** (單字練習) | Ollie generates a homework on demand from the vocabulary book: 5–20 words (default 10) from an optional starting CEFR level, chosen missed-first, then by level A1→C2, then oldest saved first; learned words never return. Six typed steps, all in English: Learn, Spell It (look–say–cover–write–check, three correct per word), Fill in the Blank, What's the Word? (definition to word), Write a Sentence (Gemini feedback in simple English), and an auto-graded Spelling Test where the word, a sentence, and the word are read aloud (correct means learned; wrong means practised first next time). Progress saves to Firestore after every answer, and finished homework is kept in a history with scores. |
 | **English Speech** (英文演講) | Splits and translates pasted text with Gemini, organises reusable speech collections, supports drag-to-reorder sentences, per-word lookup, and sentence/all-speech playback. |
 | **Speech Practice** (演講練習) | Generates topic scripts, records timed practice with pause/resume controls, and keeps history with playback. Metadata and scripts live in Firestore; private recording files live in Supabase Storage. |
 | **Audio Library** (音訊庫) | Uploads and organises MP3, WAV, M4A, WebM, OGG, AAC, and MP4 learning audio. Firestore stores metadata and private Supabase Storage serves short-lived signed playback URLs. |
@@ -69,7 +70,7 @@ The UI follows macOS Human Interface Guidelines adapted for the web: a collapsib
 - A Supabase project with a private `ollie-reader` Storage bucket, Firebase Third-Party Auth, and RLS policies matching the Firebase user ID
 - For backend PDF/TTS/URL/OIKID/Podcast features, the standalone [`server/`](server/README.md) API (or, except for Podcasts, the optional desktop sidecar)
 
-Firestore rules and Supabase policies/schema are deployment infrastructure; the repository does not contain the complete deployed rules. Podcast transcripts need the owner-scoped rules in [`server/podcast-firestore-rules.fragment`](server/podcast-firestore-rules.fragment) merged into the deployed Firestore rules. The standalone Next.js API in [`server/`](server/README.md) provides Edge TTS, PDF extraction, URL fetching, OIKID bookings, version checks, Podcast resolution, and Podcast audio preparation.
+Firestore rules and Supabase policies/schema are deployment infrastructure; the repository does not contain the complete deployed rules. Podcast transcripts need the owner-scoped rules in [`server/podcast-firestore-rules.fragment`](server/podcast-firestore-rules.fragment) merged into the deployed Firestore rules. Word Practice likewise needs [`word-practice-firestore-rules.fragment`](word-practice-firestore-rules.fragment) merged in, which covers `users/{uid}/wordHomeworks/{homeworkId}` and `users/{uid}/wordPractice/state`. The standalone Next.js API in [`server/`](server/README.md) provides Edge TTS, PDF extraction, URL fetching, OIKID bookings, version checks, Podcast resolution, and Podcast audio preparation.
 
 ### Install and run
 
@@ -146,6 +147,7 @@ npm run preview           # Preview the production build
 npm run lint              # Run ESLint
 npm run test              # Run the Vitest suite once
 npm run fetch-transcripts # Refresh bundled show transcripts
+npm run build-cefr        # Rebuild src/data/cefr/cefrLevels.json (needs network access)
 ```
 
 The root `Makefile` exposes equivalent Web targets (`make install`, `make dev`, `make build`, `make lint`, `make web-test`, and `make preview`), server targets (`make server-setup`, `server-dev`, `server-build`, `server-start`, `server-lint`, and `server-test`), aggregate setup/test targets, the exam-image crop utility, and all desktop workflows. Run `make help` for the complete list.
@@ -254,11 +256,12 @@ ollie-reader/
 │   │   ├── ShowSubtitles/        # Season/episode transcript reader
 │   │   ├── SpeechPractice/       # Script generation and recordings
 │   │   ├── Vocabulary/           # Vocabulary book and review
+│   │   ├── WordPractice/         # Generated homework, six typed steps, and history
 │   │   ├── common/               # Shared UI primitives
 │   │   └── icons/                # Custom icon components
 │   ├── constants/                # API paths and static constants
 │   ├── contexts/                 # Auth, PDF, Settings, Speech, and Theme state
-│   ├── data/                     # Exam data
+│   ├── data/                     # Exam data and CEFR levels (cefr/cefrLevels.json)
 │   ├── hooks/                    # Feature and state hooks
 │   ├── services/                 # Firebase, Gemini, Supabase, backend, and domain services
 │   ├── types/                    # Shared TypeScript models
@@ -269,6 +272,7 @@ ollie-reader/
 ├── server/                       # Standalone Next.js API (Edge TTS, PDF, OIKID, Podcasts)
 ├── desktop/                      # Optional PySide6 + FastAPI macOS companion
 ├── tests/                        # Additional data/utility tests
+├── word-practice-firestore-rules.fragment  # Firestore rules to merge for Word Practice
 ├── Makefile                      # Unified Web, server, and desktop task runner
 ├── vite.config.ts                # Vite, Vitest, and PWA configuration
 └── firebase.json                 # Firebase Hosting SPA/cache configuration
@@ -292,6 +296,15 @@ The production build is served from `dist/`. `firebase.json` configures an SPA r
 
 Contributions are welcome. Use focused [Conventional Commits](https://www.conventionalcommits.org) (`feat:`, `fix:`, `refactor:`, `chore:`), do not commit secrets, and follow the design and code conventions in [AGENTS.md](AGENTS.md).
 
+## Acknowledgements
+
+The CEFR levels shown in the vocabulary book and used by Word Practice come from two open word lists, compiled into [`src/data/cefr/cefrLevels.json`](src/data/cefr/cefrLevels.json) by `npm run build-cefr`:
+
+- A1–B2: The CEFR-J Wordlist Version 1.5. Compiled by Yukio Tono, Tokyo University of Foreign Studies.
+- C1/C2: Octanove Vocabulary Profile (CC BY-SA 4.0)
+
+The CEFR-J Wordlist may be used for research and commercial purposes provided the source is credited as above. Because `cefrLevels.json` contains data derived from the Octanove Vocabulary Profile, that file is released under [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/) rather than the MIT license below. See [`src/data/cefr/README.md`](src/data/cefr/README.md) for sources, versions, and how the file is built.
+
 ## License
 
-[MIT](LICENSE) © Victor Fu
+[MIT](LICENSE) © Victor Fu. The bundled CEFR word list (`src/data/cefr/cefrLevels.json`) is the exception noted under [Acknowledgements](#acknowledgements).
