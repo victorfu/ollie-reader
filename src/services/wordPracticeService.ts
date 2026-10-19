@@ -9,7 +9,7 @@
  */
 import type { VocabularyWord } from "../types/vocabulary";
 import type { CefrLevel, Cloze, Homework, HomeworkOptions, HomeworkWord, WordPracticeState } from "../types/wordPractice";
-import { loadCefrTable, lookupCefrLevel, practiceKey, resolveCefr, type CefrTable } from "../utils/cefr";
+import { loadCefrTable, lookupCefrLevel, practiceForm, practiceKey, resolveCefr, type CefrTable } from "../utils/cefr";
 import { isAbortError } from "../utils/errorUtils";
 import { emptyProgress } from "../utils/homeworkProgress";
 import { logger } from "../utils/logger";
@@ -68,7 +68,7 @@ async function estimateMissingLevels(
     ) {
       continue;
     }
-    unrated.set(key, word);
+    unrated.set(key, practiceForm(table, word));
   }
 
   const requested = [...unrated.values()];
@@ -151,8 +151,11 @@ export async function generateHomework(
   };
   const levelOf = (word: VocabularyWord) => resolveCefr(table, state.cefrEstimates, word.word);
 
-  // Selection only returns members of `candidates`, all of which have an id.
-  const selected = selectHomeworkWords({ words: candidates, state, levelOf, options }) as PracticableWord[];
+  // Selection only returns members of `candidates`, all of which have an id. Each one carries
+  // its practice form from here on: that is the spelling graded, blanked and read aloud.
+  const selected = (selectHomeworkWords({ words: candidates, state, levelOf, options }) as PracticableWord[]).map(
+    (word) => ({ ...word, word: practiceForm(table, word.word) }),
+  );
   if (selected.length === 0) return { status: "empty" };
 
   const examples = new Map(selected.map((word) => [word, findExampleCloze(word)]));

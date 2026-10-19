@@ -1,6 +1,6 @@
 import type { VocabularyWord } from "../types/vocabulary";
 import type { CefrInfo, HomeworkOptions, WordPracticeState } from "../types/wordPractice";
-import { cefrRank, practiceKey } from "../utils/cefr";
+import { cefrRank, hasEdgePunctuation, practiceKey } from "../utils/cefr";
 
 export interface SelectionInput {
   words: VocabularyWord[];
@@ -39,6 +39,8 @@ interface Candidate {
   rank: number;
   /** Epoch ms; an invalid date counts as the newest. */
   createdAt: number;
+  /** Saved without punctuation around it ("river", not "river."). */
+  clean: boolean;
   level: CefrInfo | null;
 }
 
@@ -57,12 +59,21 @@ function compareCandidates(a: Candidate, b: Candidate): number {
 }
 
 /**
+ * Which of two vocabulary entries with the same practiceKey represents the
+ * word: one saved without edge punctuation (selected text such as "river." is
+ * cleaned later, but a plain "river" needs no cleaning), then the older one.
+ */
+function isPreferred(candidate: Candidate, known: Candidate): boolean {
+  return candidate.clean === known.clean ? candidate.createdAt < known.createdAt : candidate.clean;
+}
+
+/**
  * Picks the words for a new homework (spec 7.2 and 7.3): practicable, not yet
  * learned words, missed ones first and then from A1 up to C2. A word that
  * was never missed is skipped when its list level is below `startLevel`.
  */
 export function selectHomeworkWords({ words, state, levelOf, options }: SelectionInput): VocabularyWord[] {
-  const earliestByKey = new Map<string, Candidate>();
+  const byKey = new Map<string, Candidate>();
 
   for (const word of words) {
     if (!isEligibleWord(word)) continue;
@@ -70,24 +81,23 @@ export function selectHomeworkWords({ words, state, levelOf, options }: Selectio
     const practiced = Object.hasOwn(state.words, key) ? state.words[key] : undefined;
     if (typeof practiced?.learnedAt === "number") continue;
 
-    const createdAt = createdAtOf(word);
-    const known = earliestByKey.get(key);
-    if (known && known.createdAt <= createdAt) continue;
-
     const level = levelOf(word);
-    earliestByKey.set(key, {
+    const candidate: Candidate = {
       word,
       key,
       missed: (practiced?.missCount ?? 0) > 0,
       lastMissedAt: practiced?.lastMissedAt ?? Number.NEGATIVE_INFINITY,
       rank: level ? cefrRank(level.level) : UNRATED_RANK,
-      createdAt,
+      createdAt: createdAtOf(word),
+      clean: !hasEdgePunctuation(word.word),
       level,
-    });
+    };
+    const known = byKey.get(key);
+    if (!known || isPreferred(candidate, known)) byKey.set(key, candidate);
   }
 
   const startRank = cefrRank(options.startLevel);
-  return [...earliestByKey.values()]
+  return [...byKey.values()]
     .filter(({ missed, level }) => missed || level?.source !== "list" || cefrRank(level.level) >= startRank)
     .sort(compareCandidates)
     .slice(0, Math.max(0, options.wordCount))

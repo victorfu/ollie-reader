@@ -288,9 +288,30 @@ describe("selectHomeworkWords", () => {
 
   it("chooses among duplicates only from the eligible entries", () => {
     const withoutDefinition = makeWord("run", 1, { definitions: [] });
-    const usable = makeWord("Run.", 5);
+    const usable = makeWord("RUN", 5);
 
-    expect(select([withoutDefinition, usable], {})).toEqual(["Run."]);
+    expect(select([withoutDefinition, usable], {})).toEqual(["RUN"]);
+  });
+
+  it("prefers the entry without edge punctuation over an older punctuated duplicate", () => {
+    const punctuated = makeWord("river.", 1);
+    const clean = makeWord("river", 5);
+
+    expect(selectWords([punctuated, clean], {})).toEqual([clean]);
+    expect(selectWords([clean, punctuated], {})).toEqual([clean]);
+  });
+
+  it("falls back to the earliest createdAt when every duplicate has edge punctuation", () => {
+    const earlier = makeWord("river.", 1);
+    const later = makeWord("River,", 5);
+
+    expect(selectWords([later, earlier], {})).toEqual([earlier]);
+  });
+
+  it("still picks a word whose only entry has trailing punctuation", () => {
+    const only = makeWord("Run.", 0);
+
+    expect(selectWords([only], {})).toEqual([only]);
   });
 
   it("does not exceed wordCount and returns everything when fewer words are available", () => {

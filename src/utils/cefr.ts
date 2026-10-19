@@ -8,6 +8,9 @@ export const CEFR_LEVELS: readonly CefrLevel[] = ["A1", "A2", "B1", "B2", "C1", 
 export const cefrRank = (level: CefrLevel): number => CEFR_LEVELS.indexOf(level);
 
 const EDGE_PUNCTUATION = /^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu;
+const HAS_EDGE_PUNCTUATION = /^[^\p{L}\p{N}]|[^\p{L}\p{N}]$/u;
+/** Letters or digits joined by dots, with a closing dot: "e.g.", "U.S.", "a.m.". */
+const DOTTED_ABBREVIATION = /^[\p{L}\p{N}]+(?:\.[\p{L}\p{N}]+)+\.$/u;
 const straightenApostrophes = (text: string): string => text.replace(/’/g, "'");
 
 /**
@@ -18,7 +21,27 @@ const straightenApostrophes = (text: string): string => text.replace(/’/g, "'"
 export const practiceKey = (word: string): string =>
   straightenApostrophes(normalizeUniqueText(word)).replace(EDGE_PUNCTUATION, "");
 
+/** Whether the trimmed word starts or ends with something that is not a letter or a digit. */
+export const hasEdgePunctuation = (word: string): boolean => HAS_EDGE_PUNCTUATION.test(word.trim());
+
 export type CefrTable = ReadonlyMap<string, CefrLevel>;
+
+/**
+ * The spelling a learner practises for a vocabulary word. The book keeps words
+ * the way they were selected in a text, so "river." or "hello," carry the
+ * punctuation of their sentence, which would make the correct spelling "river"
+ * wrong. Punctuation at either edge is dropped; the casing is kept. A word the
+ * punctuation belongs to stays as it is: a word list headword such as "Mr." or
+ * "a.m.", or a dotted abbreviation such as "e.g.".
+ */
+export function practiceForm(table: CefrTable, word: string): string {
+  const trimmed = word.trim();
+  if (!hasEdgePunctuation(trimmed)) return trimmed;
+  if (table.has(straightenApostrophes(normalizeUniqueText(trimmed))) || DOTTED_ABBREVIATION.test(trimmed)) {
+    return trimmed;
+  }
+  return trimmed.replace(EDGE_PUNCTUATION, "") || trimmed;
+}
 
 let tablePromise: Promise<CefrTable> | null = null;
 

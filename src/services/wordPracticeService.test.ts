@@ -1,8 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { VocabularyWord } from "../types/vocabulary";
 import type { CefrLevel, Homework, HomeworkWord, WordPracticeState } from "../types/wordPractice";
+import { isAnswerCorrect } from "../utils/answerMatch";
 import { practiceKey } from "../utils/cefr";
 import { emptyProgress } from "../utils/homeworkProgress";
+import { makeCloze, redactWordForms, sentenceUsesWord } from "../utils/wordForms";
 
 const mocks = vi.hoisted(() => ({
   getAllVocabularyWords: vi.fn(),
@@ -47,6 +49,7 @@ const TABLE = new Map<string, CefrLevel>([
   ["apple", "A1"],
   ["banana", "A2"],
   ["cat", "B1"],
+  ["mr.", "A1"],
 ]);
 
 function makeWord(word: string, overrides: Partial<VocabularyWord> = {}): VocabularyWord {
@@ -392,6 +395,65 @@ describe("wordPracticeService", () => {
 
         expect(createdHomework().words).toHaveLength(1);
         expect(createdHomework().words[0]).toMatchObject({ word: "Apple", vocabularyId: "id-second" });
+      });
+    });
+
+    describe("words saved with edge punctuation", () => {
+      it("snapshots the clean form, so grading, sentences and blanks accept the plain word", async () => {
+        mockWords([withExample("Run.", "I like to run fast.")]);
+
+        await generateHomework(UID, OPTIONS);
+
+        const [word] = createdHomework().words;
+        expect(word).toMatchObject({
+          key: "run",
+          word: "Run",
+          sentence: "I like to run fast.",
+          cloze: { text: "I like to _____ fast.", answer: "run" },
+        });
+        expect(isAnswerCorrect("run", word.word)).toBe(true);
+        expect(sentenceUsesWord("I run fast.", word.word)).toBe(true);
+        expect(makeCloze("She ran home.", word.word)).toEqual({ text: "She _____ home.", answer: "ran" });
+        expect(redactWordForms("To run is to move fast.", word.word, "____")).toBe("To ____ is to move fast.");
+      });
+
+      it("asks Gemini about the clean form and builds the cloze from the sentence it returns", async () => {
+        mockWords([makeWord("hello,")]);
+        mocks.generateExampleSentences.mockResolvedValue({ hello: "Hello, my friend." });
+
+        await generateHomework(UID, OPTIONS);
+
+        expect(mocks.estimateCefrLevels).toHaveBeenCalledWith(["hello"], undefined);
+        expect(mocks.generateExampleSentences).toHaveBeenCalledWith(["hello"], undefined);
+        expect(createdHomework().words[0]).toMatchObject({
+          word: "hello",
+          sentence: "Hello, my friend.",
+          cloze: { text: "_____, my friend.", answer: "Hello" },
+        });
+      });
+
+      it("keeps the period of an abbreviation that is a word list headword", async () => {
+        mockWords([withExample("Mr.", "Mr. Lee is kind.")]);
+
+        await generateHomework(UID, OPTIONS);
+
+        expect(createdHomework().words[0]).toMatchObject({
+          key: "mr",
+          word: "Mr.",
+          cefr: { level: "A1", source: "list" },
+          cloze: { text: "_____ Lee is kind.", answer: "Mr." },
+        });
+      });
+
+      it("uses the clean entry when a punctuated duplicate was saved earlier", async () => {
+        mockWords([
+          makeWord("river.", { id: "id-old", createdAt: new Date(Date.UTC(2025, 0, 1)) }),
+          makeWord("river", { id: "id-new", createdAt: new Date(Date.UTC(2026, 0, 1)) }),
+        ]);
+
+        await generateHomework(UID, OPTIONS);
+
+        expect(createdHomework().words.map((word) => [word.word, word.vocabularyId])).toEqual([["river", "id-new"]]);
       });
     });
 
