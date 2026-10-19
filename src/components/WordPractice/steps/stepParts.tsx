@@ -44,8 +44,15 @@ export function StepFrame({ step, position, onExit, children }: StepFrameProps) 
   );
 }
 
+interface StepCompleteProps {
+  message: string;
+  onExit: () => void;
+  /** An optional second button, for steps the learner may want to look at again. */
+  secondary?: { label: string; onClick: () => void };
+}
+
 /** Shown once every word of a step is done. */
-export function StepComplete({ message, onExit }: { message: string; onExit: () => void }) {
+export function StepComplete({ message, onExit, secondary }: StepCompleteProps) {
   return (
     <div className="flex flex-col items-center gap-3 py-4 text-center">
       <CheckCircle2 className="size-10 text-success" strokeWidth={1.5} aria-hidden="true" />
@@ -59,7 +66,34 @@ export function StepComplete({ message, onExit }: { message: string; onExit: () 
       >
         Back to overview
       </button>
+      {secondary && (
+        <button
+          type="button"
+          onClick={secondary.onClick}
+          className="btn btn-outline min-h-11 active:scale-[0.98]"
+        >
+          {secondary.label}
+        </button>
+      )}
     </div>
+  );
+}
+
+/** One meaning of a word. Stored data may lack the part of speech, in which case no badge is drawn. */
+export function DefinitionItem({
+  partOfSpeech,
+  children,
+}: {
+  partOfSpeech: string | undefined;
+  children: ReactNode;
+}) {
+  return (
+    <li className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-lg">
+      {typeof partOfSpeech === "string" && partOfSpeech.trim() !== "" && (
+        <span className="badge badge-outline badge-sm shrink-0">{partOfSpeech}</span>
+      )}
+      <span>{children}</span>
+    </li>
   );
 }
 

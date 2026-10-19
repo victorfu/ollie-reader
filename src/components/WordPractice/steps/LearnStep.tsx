@@ -3,7 +3,7 @@ import { ArrowLeft, ArrowRight } from "lucide-react";
 import { useSpeechState } from "../../../hooks/useSpeechState";
 import type { StepProps } from "../stepTypes";
 import { findIndexFrom } from "./stepHelpers";
-import { PlayButton, StepComplete, StepFrame } from "./stepParts";
+import { DefinitionItem, PlayButton, StepComplete, StepFrame } from "./stepParts";
 
 /** Step 1: one card per word. A card counts as learned as soon as it is shown. */
 export function LearnStep({ homework, onProgress, onExit }: StepProps) {
@@ -20,7 +20,13 @@ export function LearnStep({ homework, onProgress, onExit }: StepProps) {
   if (index === -1) {
     return (
       <StepFrame step="learn">
-        <StepComplete message="You have looked at every word." onExit={onExit} />
+        <StepComplete
+          message="You have looked at every word."
+          onExit={onExit}
+          secondary={
+            words.length > 0 ? { label: "Review the cards", onClick: () => setIndex(0) } : undefined
+          }
+        />
       </StepFrame>
     );
   }
@@ -48,10 +54,9 @@ export function LearnStep({ homework, onProgress, onExit }: StepProps) {
 
         <ul className="space-y-2">
           {word.definitions.map((definition, i) => (
-            <li key={i} className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-lg">
-              <span className="badge badge-outline badge-sm shrink-0">{definition.partOfSpeech}</span>
-              <span>{definition.definition}</span>
-            </li>
+            <DefinitionItem key={i} partOfSpeech={definition.partOfSpeech}>
+              {definition.definition}
+            </DefinitionItem>
           ))}
         </ul>
 

@@ -71,6 +71,11 @@ const KITE = makeWord({
   definitions: [{ partOfSpeech: "noun", definition: "a toy that flies on a string" }],
 });
 
+/** The word as it looks once its example sentence has been filled in. */
+function withSentence(word: HomeworkWord, sentence: string, answer: string): HomeworkWord {
+  return { ...word, sentence, cloze: { text: sentence.replace(answer, "_____"), answer } };
+}
+
 function deepFreeze<T>(value: T): T {
   if (value && typeof value === "object") {
     Object.values(value).forEach(deepFreeze);
@@ -414,6 +419,36 @@ describe("LearnStep", () => {
     expect(onExit).toHaveBeenCalledTimes(1);
   });
 
+  it("offers to go through the cards again after the last one, without changing progress", () => {
+    const homework = makeHomework([APPLE, RUN], (progress) => {
+      progress.forEach((entry) => (entry.learned = true));
+    });
+    const { onProgress } = mountStep(LearnStep, homework);
+    expect(text()).toContain("You have looked at every word.");
+
+    click(button("Review the cards"));
+
+    expect(text()).toContain("Word 1 of 2");
+    expect(text()).toContain("a round fruit with red or green skin");
+    expect(onProgress).not.toHaveBeenCalled();
+
+    click(button("Next"));
+    click(button("Next"));
+    expect(text()).toContain("You have looked at every word.");
+    expect(onProgress).not.toHaveBeenCalled();
+  });
+
+  it("draws no part-of-speech badge when a meaning has none", () => {
+    const bare = makeWord({
+      word: "kite",
+      definitions: [{ partOfSpeech: "", definition: "a toy that flies on a string" }],
+    });
+    mountStep(LearnStep, makeHomework([bare]));
+
+    expect(text()).toContain("a toy that flies on a string");
+    expect(host.querySelector(".badge")).toBeNull();
+  });
+
   it("goes straight to the finish when every card was already seen", () => {
     const homework = makeHomework([APPLE], (progress) => {
       progress[0].learned = true;
@@ -444,6 +479,8 @@ describe("SpellStep", () => {
     click(button("I’m ready"));
 
     expect(text()).not.toContain("apple");
+    // Nothing that is on the page, visible or not, gives the spelling away.
+    expect(host.innerHTML).not.toMatch(/apple/i);
     const input = textInput();
     expect(input.getAttribute("spellcheck")).toBe("false");
     expect(input.getAttribute("autocorrect")).toBe("off");
@@ -451,6 +488,44 @@ describe("SpellStep", () => {
     // The learner can still hear the word while it is hidden.
     click(labelledButton("Play pronunciation"));
     expect(speech.speak).toHaveBeenLastCalledWith("apple");
+  });
+
+  it("says the word once when it first comes up, not again on a later round or Look again", () => {
+    mountStep(SpellStep, makeHomework([APPLE, RUN]));
+    expect(speech.speak).toHaveBeenCalledTimes(1);
+    expect(speech.speak).toHaveBeenLastCalledWith("apple");
+
+    round("aple");
+    click(button("Look again"));
+    round("apple");
+    expect(speech.speak).toHaveBeenCalledTimes(1);
+
+    round("apple");
+    round("apple");
+
+    // Third correct spelling: on to the next word, which is said once as well.
+    expect(text()).toContain("Word 2 of 2");
+    expect(speech.speak).toHaveBeenCalledTimes(2);
+    expect(speech.speak).toHaveBeenLastCalledWith("run");
+  });
+
+  it("says the word a returning learner resumes at", () => {
+    const homework = makeHomework([APPLE, RUN], (progress) => {
+      progress[0].spellCorrect = 3;
+    });
+    mountStep(SpellStep, homework);
+
+    expect(speech.speak).toHaveBeenCalledTimes(1);
+    expect(speech.speak).toHaveBeenLastCalledWith("run");
+  });
+
+  it("does not say anything on the finish screen", () => {
+    const homework = makeHomework([APPLE], (progress) => {
+      progress[0].spellCorrect = 3;
+    });
+    mountStep(SpellStep, homework);
+
+    expect(speech.speak).not.toHaveBeenCalled();
   });
 
   it("counts a correct spelling, ignoring case and spaces around it", () => {
@@ -575,6 +650,9 @@ describe("FillBlankStep", () => {
     expect(text()).toContain("She _____ to the park.");
     expect(text()).not.toMatch(/\bran\b/);
     expect(text()).not.toMatch(/\brun\b/);
+    // Neither the answer nor the word turns up anywhere in the markup either.
+    expect(host.innerHTML).not.toMatch(/\bran\b/i);
+    expect(host.innerHTML).not.toMatch(/\brun\b/i);
     expect(textInput().getAttribute("autocorrect")).toBe("off");
     expect(document.activeElement).toBe(textInput());
   });
@@ -673,9 +751,65 @@ describe("FillBlankStep", () => {
     expect(text()).toContain("I ate an _____.");
   });
 
-  it("finishes straight away when only words without a sentence are left", () => {
+  it("says there is no sentence, instead of finishing, when no word has one yet", () => {
     mountStep(FillBlankStep, makeHomework([KITE]));
+
+    expect(text()).toContain("Word 1 of 1");
+    expect(text()).toContain("No sentence for this word yet.");
+    expect(text()).not.toContain("Well done");
+    expect(host.querySelector('input[type="text"]')).toBeNull();
+  });
+
+  it("starts on the words without a sentence when every other word is done", () => {
+    const homework = makeHomework([RUN, KITE], (progress) => {
+      progress[0].fill = { attempts: 1, correct: true, done: true };
+    });
+    mountStep(FillBlankStep, homework);
+
+    expect(text()).toContain("Word 2 of 2");
+    expect(text()).toContain("No sentence for this word yet.");
+  });
+
+  it("finishes once the words without a sentence have been passed over", () => {
+    mountStep(FillBlankStep, makeHomework([KITE]));
+    click(button("Next"));
     expect(text()).toContain("All the blanks are filled in.");
+  });
+
+  it("starts the questions when sentences arrive after the step opened", () => {
+    const ice = makeWord({ word: "ice" });
+    const { setWords } = mountStep(FillBlankStep, makeHomework([KITE, ice]));
+    expect(text()).toContain("No sentence for this word yet.");
+
+    setWords([withSentence(KITE, "I fly a kite.", "kite"), withSentence(ice, "I like ice.", "ice")]);
+
+    expect(text()).toContain("I fly a _____.");
+    expect(text()).not.toContain("No sentence");
+    expect(textInput().getAttribute("autocorrect")).toBe("off");
+  });
+
+  it("moves on to a later word whose sentence arrives while an earlier one still has none", () => {
+    const ice = makeWord({ word: "ice" });
+    const { setWords } = mountStep(FillBlankStep, makeHomework([KITE, ice]));
+
+    setWords([KITE, withSentence(ice, "I like ice.", "ice")]);
+    expect(text()).toContain("No sentence for this word yet.");
+    click(button("Next"));
+
+    expect(text()).toContain("Word 2 of 2");
+    expect(text()).toContain("I like _____.");
+  });
+
+  it("starts the questions when sentences arrive after the learner passed over every word", () => {
+    const { setWords } = mountStep(FillBlankStep, makeHomework([KITE]));
+    click(button("Next"));
+    expect(text()).toContain("All the blanks are filled in.");
+
+    setWords([withSentence(KITE, "I fly a kite.", "kite")]);
+
+    expect(text()).toContain("Word 1 of 1");
+    expect(text()).toContain("I fly a _____.");
+    expect(text()).not.toContain("Well done");
   });
 
   it("resumes a half-finished word on its second chance", () => {
@@ -733,6 +867,7 @@ describe("DefinitionStep", () => {
     expect(text()).toContain("to keep ____");
     expect(text()).not.toContain("running");
     expect(text()).not.toMatch(/\brun\b/i);
+    expect(host.innerHTML).not.toMatch(/\brun(ning)?\b/i);
     expect(text()).not.toContain("🍎");
     expect(textInput().getAttribute("autocorrect")).toBe("off");
     expect(document.activeElement).toBe(textInput());
@@ -744,6 +879,17 @@ describe("DefinitionStep", () => {
     expect(text()).toContain("noun");
     expect(text()).toContain("an act of going to ____ fast");
     expect(text()).not.toMatch(/\brun\b/i);
+  });
+
+  it("draws no part-of-speech badge when a meaning has none", () => {
+    const bare = makeWord({
+      word: "kite",
+      definitions: [{ partOfSpeech: "", definition: "a toy that flies on a string" }],
+    });
+    mountStep(DefinitionStep, makeHomework([bare]));
+
+    expect(text()).toContain("a toy that flies on a string");
+    expect(host.querySelector(".badge")).toBeNull();
   });
 
   it("never shows Chinese", () => {

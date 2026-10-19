@@ -53,9 +53,23 @@ export function TypedExerciseStep({
   // Words without a question are never done, but they are never waited for either.
   const isPending = (i: number) => expectedAnswer(words[i]) !== null && !isDone(i);
 
-  // -1 once every question is done: a returning learner finds the finish screen.
-  const [index, setIndex] = useState(() => findIndexFrom(0, words.length, isPending));
+  const pendingNow = findIndexFrom(0, words.length, isPending);
+  // Start at the first question still waiting for an answer. When only words
+  // without a question are left (their sentences may still be on the way) start
+  // on the first of them, so that the step is not "finished" before it began.
+  // -1 means every word is done: a returning learner finds the finish screen.
+  const [position, setPosition] = useState(() =>
+    pendingNow !== -1 ? pendingNow : findIndexFrom(0, words.length, (i) => !isDone(i)),
+  );
   const [value, setValue] = useState("");
+
+  // The learner passed over the words without a question and reached the end, but
+  // one of them has its sentence now: that question is still waiting.
+  let index = position;
+  if (position === -1 && pendingNow !== -1) {
+    index = pendingNow;
+    setPosition(pendingNow);
+  }
 
   if (index === -1) {
     return (
@@ -79,7 +93,7 @@ export function TypedExerciseStep({
   };
 
   const next = () => {
-    setIndex(nextWordIndex(index, words.length, isPending, (i) => !isDone(i)));
+    setPosition(nextWordIndex(index, words.length, isPending, (i) => !isDone(i)));
     setValue("");
   };
 

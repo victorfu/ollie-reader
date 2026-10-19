@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSpeechState } from "../../../hooks/useSpeechState";
 import { isAnswerCorrect } from "../../../utils/answerMatch";
 import { SPELL_TARGET } from "../../../utils/homeworkProgress";
@@ -26,6 +26,15 @@ export function SpellStep({ homework, onProgress, onExit }: StepProps) {
   const [typed, setTyped] = useState("");
   // What the last correct spelling earned, shown while the learner looks at the next round.
   const [praise, setPraise] = useState<string | null>(null);
+
+  // Say each word once when it first comes up. Later rounds and "Look again" leave
+  // it to the play button.
+  const spokenIndexRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (index === -1 || spokenIndexRef.current === index) return;
+    spokenIndexRef.current = index;
+    speak(words[index].word);
+  }, [index, speak, words]);
 
   if (index === -1) {
     return (
