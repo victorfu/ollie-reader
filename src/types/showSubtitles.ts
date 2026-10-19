@@ -7,6 +7,8 @@ export interface Episode {
   number: number;
   title: string;
   slug: string;
+  /** Omitted for existing bundled transcripts; false for catalog-only entries. */
+  transcriptAvailable?: boolean;
 }
 
 export interface Season {
