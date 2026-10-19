@@ -6,7 +6,7 @@
 
 **An AI-assisted English-learning workspace for reading, listening, speaking, practice, and games.**
 
-Read PDFs and show transcripts, listen to podcasts with AI-generated English transcripts, build a vocabulary and sentence book, rehearse speeches, practise school papers, and reinforce vocabulary through browser games. A standalone Next.js API and an optional macOS companion provide PDF extraction, Edge TTS, podcast resolution, and other backend features.
+Read PDFs and show transcripts, listen to podcasts with AI-generated English transcripts, build a vocabulary and sentence book, practise saved words with generated spelling homework, rehearse speeches, practise school papers, and reinforce vocabulary through browser games. A standalone Next.js API and an optional macOS companion provide PDF extraction, Edge TTS, podcast resolution, and other backend features.
 
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white&style=flat-square)](https://react.dev)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?logo=typescript&logoColor=white&style=flat-square)](https://www.typescriptlang.org)
@@ -24,7 +24,7 @@ Read PDFs and show transcripts, listen to podcasts with AI-generated English tra
 
 ## Overview
 
-Ollie Reader is a responsive web app for Chinese-speaking English learners. Its main workspace requires Google sign-in and an allow-listed account. It combines a PDF learning workspace with bilingual Gemini assistance, a vocabulary and sentence book, speech and sentence practice, exam practice, show transcripts, podcasts with AI transcripts, audio uploads, and games.
+Ollie Reader is a responsive web app for Chinese-speaking English learners. Its main workspace requires Google sign-in and an allow-listed account. It combines a PDF learning workspace with bilingual Gemini assistance, a vocabulary and sentence book, word-practice homework, speech and sentence practice, exam practice, show transcripts, podcasts with AI transcripts, audio uploads, and games.
 
 The UI follows macOS Human Interface Guidelines adapted for the web: a collapsible desktop source list, mobile drawer navigation, hairline borders, restrained translucent surfaces, light/dark themes, and touch-friendly controls. The app can be installed as a PWA. Built assets are precached, while exam images, Google Fonts, and bundled transcripts use targeted runtime caches; cloud-backed features still require their services.
 
@@ -33,8 +33,8 @@ The UI follows macOS Human Interface Guidelines adapted for the web: a collapsib
 | Feature | What it does |
 |---|---|
 | **PDF Reader** (閱讀器) | Opens local or remote PDFs with `react-pdf`; supports word or range selection, bilingual lookup, translation, TTS, and saving words or translated sentences. Text can be parsed in the browser or by a compatible backend. OIKID booking records can load lesson PDFs through the desktop sidecar or the standalone server when either has OIKID credentials. |
-| **Smart Vocabulary Book** (生詞本) | One newest-first feed of saved words and translated sentences, filterable by all/words/sentences, with search across both. Words store bilingual AI definitions and examples, tags, flashcards, and pronunciation practice through the Web Speech API. Smart review prioritises unseen, older, remembered, and forgotten items; it is not an SM-2-style spaced-repetition scheduler. Each word carries a CEFR level badge (A1–C2), shown as an estimate (≈B1) when the word is not on the bundled list. |
-| **Word Practice** (單字練習) | Ollie generates a homework on demand from the vocabulary book: 5–20 words (default 10) from an optional starting CEFR level, chosen missed-first, then by level A1→C2, then oldest saved first; learned words never return. Six typed steps, all in English: Learn, Spell It (look–say–cover–write–check, three correct per word), Fill in the Blank, What's the Word? (definition to word), Write a Sentence (Gemini feedback in simple English), and an auto-graded Spelling Test where the word, a sentence, and the word are read aloud (correct means learned; wrong means practised first next time). Progress saves to Firestore after every answer, and finished homework is kept in a history with scores. |
+| **Smart Vocabulary Book** (生詞本) | One newest-first feed of saved words and translated sentences, filterable by all/words/sentences, with search across both. Words store bilingual AI definitions and examples, tags, flashcards, and pronunciation practice through the Web Speech API. Smart review prioritises unseen, older, remembered, and forgotten items; it is not an SM-2-style spaced-repetition scheduler. Words on the bundled CEFR list show their level (A1–C2) as a badge; other words show an estimate (≈B1) once one has been made while generating a Word Practice homework. |
+| **Word Practice** (單字練習) | Ollie generates a homework on demand from the vocabulary book: 5–20 words (default 10), chosen missed-first, then by level A1→C2, then oldest saved first; an optional starting CEFR level skips listed words below it that were never missed, and learned words never return. Six steps, all in English, five with typed answers (Learn is read-and-listen): Learn, Spell It (look–listen–cover–write–check, three correct per word), Fill in the Blank, What's the Word? (definition to word), Write a Sentence (Gemini feedback in simple English), and an auto-graded Spelling Test where the word, a sentence, and the word are read aloud (correct means learned; wrong means practised first next time). Progress saves to Firestore after every answer, and finished homework is kept in a history with scores. |
 | **English Speech** (英文演講) | Splits and translates pasted text with Gemini, organises reusable speech collections, supports drag-to-reorder sentences, per-word lookup, and sentence/all-speech playback. |
 | **Speech Practice** (演講練習) | Generates topic scripts, records timed practice with pause/resume controls, and keeps history with playback. Metadata and scripts live in Firestore; private recording files live in Supabase Storage. |
 | **Audio Library** (音訊庫) | Uploads and organises MP3, WAV, M4A, WebM, OGG, AAC, and MP4 learning audio. Firestore stores metadata and private Supabase Storage serves short-lived signed playback URLs. |
@@ -256,7 +256,7 @@ ollie-reader/
 │   │   ├── ShowSubtitles/        # Season/episode transcript reader
 │   │   ├── SpeechPractice/       # Script generation and recordings
 │   │   ├── Vocabulary/           # Vocabulary book and review
-│   │   ├── WordPractice/         # Generated homework, six typed steps, and history
+│   │   ├── WordPractice/         # Generated homework, six steps, and history
 │   │   ├── common/               # Shared UI primitives
 │   │   └── icons/                # Custom icon components
 │   ├── constants/                # API paths and static constants
