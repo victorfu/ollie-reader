@@ -39,7 +39,7 @@ The UI follows macOS Human Interface Guidelines adapted for the web: a collapsib
 | **Speech Practice** (演講練習) | Generates topic scripts, records timed practice with pause/resume controls, and keeps history with playback. Metadata and scripts live in Firestore; private recording files live in Supabase Storage. |
 | **Audio Library** (音訊庫) | Uploads and organises MP3, WAV, M4A, WebM, OGG, AAC, and MP4 learning audio. Firestore stores metadata and private Supabase Storage serves short-lived signed playback URLs. |
 | **Podcast Listening** (Podcast 聽力) | Accepts Apple Podcasts show links with episode selection, or resolves an episode link to its exact RSS enclosure and plays it in the app, with seek, ±10 seconds, and 0.75–1.5× speed. Can generate an English transcript with Gemini (episodes up to 30 minutes / 80 MiB), save it per episode in Firestore, and highlight and seek by approximate timestamps. |
-| **Show Subtitles** (影集字幕) | Reads the bundled *Gabby's Dollhouse* transcripts across seasons 1–10 and 12 with the same lookup, translate, speak, and save workflow used by the reader. |
+| **Show Subtitles** (影集字幕) | Lists *Gabby's Dollhouse* seasons 1–14 (90 episodes), with 72 bundled transcripts across seasons 1–10 and 12 using the reader's lookup, translate, speak, and save workflow. The remaining 18 episodes are marked as unavailable until transcript assets are supplied. |
 | **Basic Academic Competency Test** (基本學力測驗) | Chinese, mathematics, and English papers with section/full-paper sessions, immediate feedback, wrong-answer retry, local best-score tracking, and random mixed-subject papers. |
 | **Word Adventure & Gacha** | Runs vocabulary quiz stages and boss battles from the learner's word pool, with achievements and cloud-synced tokens used by the Popular Character Gacha collection. |
 | **Little Games** (小遊戲) | The game hub opens each game in its own browser tab: Word Adventure, Popular Character Gacha, Cinnamoroll 3D Companion (大耳狗 3D 夥伴; pet his head and he reacts, in development, no save data), Sweetheart Defenders (tower defence, in development, cloud save), Mushroom Adventure, Meteor Glider, and Bunny Jumper. |
@@ -306,6 +306,16 @@ The CEFR levels shown in the vocabulary book and used by Word Practice come from
 - C1/C2: Octanove Vocabulary Profile (CC BY-SA 4.0)
 
 The CEFR-J Wordlist may be used for research and commercial purposes provided the source is credited as above. Because `cefrLevels.json` contains data derived from the Octanove Vocabulary Profile, that file is released under [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/) rather than the MIT license below. See [`src/data/cefr/README.md`](src/data/cefr/README.md) for sources, versions, and how the file is built.
+
+## Show subtitle catalog maintenance
+
+`src/data/showSeasons.ts` is the `/show` episode catalog. Episodes without a bundled transcript (the season 8 Christmas special, season 10 episodes 5–6, and seasons 11, 13, and 14) are metadata only. Their `transcriptAvailable: false` flag disables selection and prevents requests for missing assets.
+
+To enable an episode, supply its transcript as `public/transcripts/season-N/<slug>.json` using the existing nonempty array format (`{ "index": 0, "text": "..." }`, with sequential indexes), then remove its `transcriptAvailable: false` flag. Verify the actual file before enabling the entry.
+
+`npm run fetch-transcripts` covers the seasons subslikescript lists (1–10 and 12); it has no source for the others. New local slugs are asset identifiers, not verified source URLs.
+
+Catalog metadata checked on 2026-10-19 against [Netflix](https://www.netflix.com/title/81009946) and the [episode listing](https://en.wikipedia.org/wiki/List_of_Gabby%27s_Dollhouse_episodes).
 
 ## License
 

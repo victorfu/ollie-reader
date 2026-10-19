@@ -123,6 +123,10 @@ export function ShowSubtitlesPage() {
         </div>
       </div>
 
+      <p className="text-sm text-muted-foreground">
+        已收錄 {seasons.reduce((sum, season) => sum + season.episodes.filter((episode) => episode.transcriptAvailable !== false).length, 0)} 集字幕；標示「字幕尚未提供」的集數目前僅提供目錄。
+      </p>
+
       {/* Season Selector */}
       {seasons.length > 0 && (
         <div className="surface-card p-4 sm:p-5 md:p-6">
