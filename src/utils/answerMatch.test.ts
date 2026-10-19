@@ -15,6 +15,18 @@ it("converts both single and double curly quotes to straight quotes", () => {
   expect(isAnswerCorrect("“quote”", "\"quote\"")).toBe(true);
 });
 
+it("treats a precomposed accent and a combining accent as the same letter", () => {
+  const precomposed = "café";
+  const combining = "café";
+  expect(precomposed).not.toBe(combining);
+  expect(normalizeAnswer(combining)).toBe(precomposed);
+  expect(isAnswerCorrect(combining, precomposed)).toBe(true);
+  expect(isAnswerCorrect(precomposed, combining)).toBe(true);
+  expect(isAnswerCorrect("CAFÉ", precomposed)).toBe(true);
+  expect(isAnswerCorrect("cafe", precomposed)).toBe(false);
+  expect(diffSpelling(combining, precomposed)).toEqual([{ text: precomposed, kind: "same" }]);
+});
+
 it("collapses any run of whitespace and trims the ends", () => {
   expect(normalizeAnswer("\t ice \n  cream  ")).toBe("ice cream");
   expect(isAnswerCorrect("ice   cream", "ice cream")).toBe(true);

@@ -7,12 +7,15 @@
  */
 
 /**
- * The one normalization rule shared by grading and diffing: trim, collapse
- * whitespace runs to a single space, turn curly quotes into straight quotes,
- * then ignore case. Everything else (hyphens, punctuation) must match exactly.
+ * The one normalization rule shared by grading and diffing: compose accents
+ * (so "é" typed as one character or as "e" plus a combining accent is the same
+ * letter), trim, collapse whitespace runs to a single space, turn curly quotes
+ * into straight quotes, then ignore case. Everything else (hyphens,
+ * punctuation) must match exactly.
  */
 export function normalizeAnswer(value: string): string {
   return value
+    .normalize("NFC")
     .trim()
     .replace(/\s+/g, " ")
     .replace(/[‘’]/g, "'")
