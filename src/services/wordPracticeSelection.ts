@@ -23,7 +23,10 @@ const STARTS_WITH_LETTER_OR_DIGIT = /^[\p{L}\p{N}]/u;
 export function isEligibleWord(word: VocabularyWord): boolean {
   return (
     STARTS_WITH_LETTER_OR_DIGIT.test(word.word.trim()) &&
-    word.definitions.some((definition) => definition.definition.trim() !== "")
+    word.definitions.some(
+      // Stored records are not validated, so an item or its text can be missing.
+      (definition) => typeof definition?.definition === "string" && definition.definition.trim() !== "",
+    )
   );
 }
 

@@ -70,6 +70,36 @@ describe("isEligibleWord", () => {
     ).toBe(false);
   });
 
+  it("treats malformed stored definitions as missing instead of throwing", () => {
+    const missingText = makeWord("apple", 0, {
+      definitions: [{ partOfSpeech: "noun", definition: undefined as unknown as string }],
+    });
+    const nullText = makeWord("apple", 0, {
+      definitions: [{ partOfSpeech: "noun", definition: null as unknown as string }],
+    });
+    const nonStringText = makeWord("apple", 0, {
+      definitions: [{ partOfSpeech: "noun", definition: 42 as unknown as string }],
+    });
+    const nullItem = makeWord("apple", 0, { definitions: [null as unknown as VocabularyWord["definitions"][number]] });
+
+    expect(isEligibleWord(missingText)).toBe(false);
+    expect(isEligibleWord(nullText)).toBe(false);
+    expect(isEligibleWord(nonStringText)).toBe(false);
+    expect(isEligibleWord(nullItem)).toBe(false);
+  });
+
+  it("still accepts a word whose valid definition sits next to malformed ones", () => {
+    const word = makeWord("apple", 0, {
+      definitions: [
+        null as unknown as VocabularyWord["definitions"][number],
+        { partOfSpeech: "noun", definition: undefined as unknown as string },
+        { partOfSpeech: "noun", definition: "a round fruit" },
+      ],
+    });
+
+    expect(isEligibleWord(word)).toBe(true);
+  });
+
   it("rejects clitic and punctuation-led entries that a sentence could never contain", () => {
     expect(isEligibleWord(makeWord("'m", 0))).toBe(false);
     expect(isEligibleWord(makeWord("'s", 0))).toBe(false);
@@ -89,8 +119,8 @@ describe("selectHomeworkWords", () => {
     const words = [
       makeWord("unrated", 0),
       makeWord("b1-old", 1),
-      makeWord("a2-new", 4),
-      makeWord("ai-a2", 5),
+      makeWord("a2-new", 5),
+      makeWord("ai-a2", 4),
       makeWord("a1", 6),
       makeWord("c2", 2),
       makeWord("a2-old", 3),
@@ -109,8 +139,8 @@ describe("selectHomeworkWords", () => {
     expect(select(words, levels)).toEqual([
       "a1",
       "a2-old",
-      "a2-new",
       "ai-a2",
+      "a2-new",
       "b1-old",
       "b1-new",
       "c2",
@@ -149,7 +179,7 @@ describe("selectHomeworkWords", () => {
     expect(select(words, levels, { state })).toEqual(["timed", "no-time", "plain"]);
   });
 
-  it("falls back to createdAt then key when missed words share a lastMissedAt or lack one", () => {
+  it("falls back to createdAt then key when missed words share a lastMissedAt", () => {
     const words = [makeWord("beta", 2), makeWord("alpha", 2), makeWord("gamma", 1)];
     const state = {
       words: {
@@ -160,6 +190,19 @@ describe("selectHomeworkWords", () => {
     };
 
     expect(select(words, {}, { state })).toEqual(["gamma", "alpha", "beta"]);
+  });
+
+  it("falls back to createdAt then key when missed words all lack lastMissedAt", () => {
+    const words = [makeWord("delta", 2), makeWord("charlie", 2), makeWord("echo", 1)];
+    const state = {
+      words: {
+        delta: { missCount: 1 },
+        charlie: { missCount: 4 },
+        echo: { missCount: 2 },
+      },
+    };
+
+    expect(select(words, {}, { state })).toEqual(["echo", "charlie", "delta"]);
   });
 
   it("excludes learned words, including words that were missed before being learned", () => {
@@ -212,6 +255,16 @@ describe("selectHomeworkWords", () => {
     const words = [
       makeWord("no-definition", 0, { definitions: [] }),
       makeWord("blank-definition", 1, { definitions: [{ partOfSpeech: "noun", definition: " " }] }),
+      makeWord("ok", 2),
+    ];
+
+    expect(select(words, {})).toEqual(["ok"]);
+  });
+
+  it("skips a record with malformed definitions instead of failing the whole selection", () => {
+    const words = [
+      makeWord("broken", 0, { definitions: [{ partOfSpeech: "noun", definition: undefined as unknown as string }] }),
+      makeWord("hollow", 1, { definitions: [null as unknown as VocabularyWord["definitions"][number]] }),
       makeWord("ok", 2),
     ];
 
