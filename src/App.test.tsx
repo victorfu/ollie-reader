@@ -58,6 +58,37 @@ describe("retired travel page", () => {
   });
 });
 
+describe("Word Practice navigation", () => {
+  it("exposes the Word Practice route in desktop and mobile navigation", () => {
+    window.history.replaceState(null, "", "/word-practice");
+    act(() => root.render(<App />));
+    expect(window.location.pathname).toBe("/word-practice");
+    expect(host.querySelector('a[href="/word-practice"]')?.textContent).toContain("單字練習");
+    act(() => host.querySelector<HTMLButtonElement>('button[aria-label="開啟選單"]')!.click());
+    const links = host.querySelectorAll('a[href="/word-practice"]');
+    expect(links).toHaveLength(2);
+    links.forEach((link) => expect(link.textContent).toContain("單字練習"));
+  });
+  it("places it right after Vocabulary in the desktop navigation", () => {
+    window.history.replaceState(null, "", "/reader");
+    act(() => root.render(<App />));
+    const hrefs = Array.from(host.querySelectorAll("aside nav a")).map((link) => link.getAttribute("href"));
+    expect(hrefs[hrefs.indexOf("/vocabulary") + 1]).toBe("/word-practice");
+  });
+  it("renders the page for the Word Practice route", () => {
+    window.history.replaceState(null, "", "/word-practice");
+    act(() => root.render(<App />));
+    expect(host.textContent).toContain("Page content");
+  });
+  it("requires authentication for the Word Practice page", () => {
+    auth.user = null;
+    window.history.replaceState(null, "", "/word-practice");
+    act(() => root.render(<App />));
+    expect(window.location.pathname).toBe("/login");
+    expect(window.history.state.usr.from).toBe("/word-practice");
+  });
+});
+
 describe("Podcast navigation", () => {
   it("exposes the Podcast route in desktop and mobile navigation", () => {
     window.history.replaceState(null, "", "/podcasts");

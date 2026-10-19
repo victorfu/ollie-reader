@@ -11,6 +11,7 @@ import {
 import {
   BookOpen,
   BookMarked,
+  SpellCheck,
   Mic,
   PenLine,
   Music,
@@ -44,6 +45,9 @@ const VocabularyBook = lazyWithReload(() =>
   import("./components/Vocabulary/VocabularyBook").then((module) => ({
     default: module.VocabularyBook,
   })),
+);
+const WordPracticePage = lazyWithReload(
+  () => import("./components/WordPractice/WordPracticePage"),
 );
 const Settings = lazyWithReload(() =>
   import("./components/Settings/Settings").then((module) => ({
@@ -429,6 +433,7 @@ function AppContent() {
   const navItems: { to: string; label: string; icon: typeof BookOpen }[] = [
     { to: "/reader", label: "閱讀器", icon: BookOpen },
     { to: "/vocabulary", label: "生詞本", icon: BookMarked },
+    { to: "/word-practice", label: "單字練習", icon: SpellCheck },
     { to: "/english-speech", label: "英文演講", icon: PenLine },
     { to: "/speech-practice", label: "演講練習", icon: Mic },
     { to: "/audio-uploads", label: "音訊庫", icon: Music },
@@ -714,6 +719,10 @@ function AppContent() {
                       <Route path="/" element={<Navigate to="/reader" replace />} />
                       <Route path="/reader" element={<PdfReader />} />
                       <Route path="/vocabulary" element={<VocabularyBook />} />
+                      <Route
+                        path="/word-practice"
+                        element={<WordPracticePage />}
+                      />
                       <Route
                         path="/speech-practice"
                         element={<SpeechPractice />}
