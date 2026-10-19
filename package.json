@@ -9,7 +9,8 @@
     "lint": "eslint . --ignore-pattern 'desktop/.venv/**' --ignore-pattern 'desktop/dist/**' --ignore-pattern 'desktop/build/**'",
     "preview": "vite preview",
     "test": "vitest run --passWithNoTests",
-    "fetch-transcripts": "node scripts/fetch-transcripts.mjs"
+    "fetch-transcripts": "node scripts/fetch-transcripts.mjs",
+    "build-cefr": "node scripts/build-cefr-levels.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.108.2",
