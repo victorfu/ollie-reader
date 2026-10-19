@@ -47,8 +47,10 @@ export function findExampleCloze(word: VocabularyWord): { sentence: string; cloz
 
 /**
  * Estimates the CEFR level of every word that has neither a list level nor a
- * stored estimate, one batch at a time, and stores what came back. A failed
- * batch is logged and skipped, so those words stay unrated until the next try.
+ * stored estimate, one batch at a time, and stores each batch as soon as it
+ * comes back, so leaving the page half way keeps the estimates already paid
+ * for. A failed batch is logged and skipped, so those words stay unrated until
+ * the next try; a failed save is logged and does not stop the next batch.
  */
 async function estimateMissingLevels(
   uid: string,
@@ -74,21 +76,21 @@ async function estimateMissingLevels(
   const requested = [...unrated.values()];
   const estimates = new Map<string, CefrLevel>();
   for (let start = 0; start < requested.length; start += CEFR_ESTIMATE_BATCH_SIZE) {
+    let batch: Record<string, CefrLevel> = {};
     try {
-      const batch = await estimateCefrLevels(requested.slice(start, start + CEFR_ESTIMATE_BATCH_SIZE), signal);
-      for (const [key, level] of Object.entries(batch)) estimates.set(key, level);
+      batch = await estimateCefrLevels(requested.slice(start, start + CEFR_ESTIMATE_BATCH_SIZE), signal);
     } catch (error) {
       if (isAbortError(error)) throw error;
       logger.error("Could not estimate CEFR levels for a batch of words:", error);
     }
     signal?.throwIfAborted();
-  }
-
-  if (estimates.size > 0) {
-    try {
-      await saveCefrEstimates(uid, Object.fromEntries(estimates));
-    } catch (error) {
-      logger.error("Could not save CEFR estimates:", error);
+    if (Object.keys(batch).length > 0) {
+      for (const [key, level] of Object.entries(batch)) estimates.set(key, level);
+      try {
+        await saveCefrEstimates(uid, batch);
+      } catch (error) {
+        logger.error("Could not save CEFR estimates:", error);
+      }
     }
     signal?.throwIfAborted();
   }

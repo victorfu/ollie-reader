@@ -174,7 +174,7 @@ describe("wordPracticeService", () => {
         expect(mocks.saveCefrEstimates).not.toHaveBeenCalled();
       });
 
-      it("sends 120 words in three sequential batches of 50, 50 and 20 and saves the estimates once", async () => {
+      it("sends 120 words in three sequential batches of 50, 50 and 20 and saves each batch's estimates", async () => {
         mockWords(unlistedWords(120));
         let inFlight = 0;
         let maxInFlight = 0;
@@ -191,9 +191,31 @@ describe("wordPracticeService", () => {
         const batches = mocks.estimateCefrLevels.mock.calls.map(([words]) => (words as string[]).length);
         expect(batches).toEqual([50, 50, 20]);
         expect(maxInFlight).toBe(1);
-        expect(mocks.saveCefrEstimates).toHaveBeenCalledTimes(1);
-        expect(Object.keys(mocks.saveCefrEstimates.mock.calls[0][1])).toHaveLength(120);
-        expect(mocks.saveCefrEstimates.mock.calls[0][0]).toBe(UID);
+        expect(mocks.saveCefrEstimates).toHaveBeenCalledTimes(3);
+        expect(mocks.saveCefrEstimates.mock.calls.map(([uid]) => uid)).toEqual([UID, UID, UID]);
+        expect(mocks.saveCefrEstimates.mock.calls.map(([, saved]) => Object.keys(saved).length)).toEqual([50, 50, 20]);
+        // Each save holds exactly the words its batch asked about.
+        mocks.estimateCefrLevels.mock.calls.forEach(([asked], index) => {
+          expect(Object.keys(mocks.saveCefrEstimates.mock.calls[index][1]).sort()).toEqual(
+            (asked as string[]).map(practiceKey).sort(),
+          );
+        });
+      });
+
+      it("saves a batch's estimates before it asks for the next batch", async () => {
+        mockWords(unlistedWords(120));
+        const events: string[] = [];
+        mocks.estimateCefrLevels.mockImplementation(async (words: string[]) => {
+          events.push(`estimate ${words.length}`);
+          return estimateAs("B1")(words);
+        });
+        mocks.saveCefrEstimates.mockImplementation(async (_uid: string, saved: Record<string, CefrLevel>) => {
+          events.push(`save ${Object.keys(saved).length}`);
+        });
+
+        await generateHomework(UID, OPTIONS);
+
+        expect(events).toEqual(["estimate 50", "save 50", "estimate 50", "save 50", "estimate 20", "save 20"]);
       });
 
       it("keeps the other batches when one batch fails and saves only the successful estimates", async () => {
@@ -207,10 +229,10 @@ describe("wordPracticeService", () => {
         const result = await generateHomework(UID, OPTIONS);
 
         expect(mocks.estimateCefrLevels).toHaveBeenCalledTimes(3);
-        const saved = mocks.saveCefrEstimates.mock.calls[0][1] as Record<string, CefrLevel>;
+        const saved = mocks.saveCefrEstimates.mock.calls.map(([, estimates]) => estimates as Record<string, CefrLevel>);
         const batchTwo = (mocks.estimateCefrLevels.mock.calls[1][0] as string[]).map(practiceKey);
-        expect(Object.keys(saved)).toHaveLength(70);
-        expect(batchTwo.some((key) => key in saved)).toBe(false);
+        expect(saved.map((estimates) => Object.keys(estimates).length)).toEqual([50, 20]);
+        expect(batchTwo.some((key) => saved.some((estimates) => key in estimates))).toBe(false);
         expect(mocks.logError).toHaveBeenCalledWith(expect.any(String), failure);
         expect(result.status).toBe("created");
       });
@@ -240,6 +262,30 @@ describe("wordPracticeService", () => {
         expect(mocks.logError).toHaveBeenCalledWith(expect.any(String), failure);
         expect(result.status).toBe("created");
         expect(createdHomework().words[0].cefr).toEqual({ level: "B1", source: "ai" });
+      });
+
+      it("keeps estimating and saving the later batches when one save fails", async () => {
+        mockWords(unlistedWords(120));
+        const failure = new Error("offline");
+        mocks.saveCefrEstimates.mockRejectedValueOnce(failure).mockResolvedValue(undefined);
+
+        const result = await generateHomework(UID, OPTIONS);
+
+        expect(mocks.estimateCefrLevels).toHaveBeenCalledTimes(3);
+        expect(mocks.saveCefrEstimates).toHaveBeenCalledTimes(3);
+        expect(mocks.logError).toHaveBeenCalledWith(expect.any(String), failure);
+        expect(result.status).toBe("created");
+      });
+
+      it("does not save a batch that came back without any level", async () => {
+        mockWords(unlistedWords(60));
+        mocks.estimateCefrLevels.mockImplementationOnce(async () => ({})).mockImplementationOnce(estimateAs("B1"));
+
+        await generateHomework(UID, OPTIONS);
+
+        expect(mocks.estimateCefrLevels).toHaveBeenCalledTimes(2);
+        expect(mocks.saveCefrEstimates).toHaveBeenCalledTimes(1);
+        expect(Object.keys(mocks.saveCefrEstimates.mock.calls[0][1])).toHaveLength(10);
       });
 
       it("lets the new estimates decide the selection order", async () => {
@@ -504,6 +550,20 @@ describe("wordPracticeService", () => {
         await expect(generateHomework(UID, OPTIONS)).rejects.toMatchObject({ name: "AbortError" });
 
         expect(mocks.estimateCefrLevels).toHaveBeenCalledTimes(1);
+        expect(mocks.createHomework).not.toHaveBeenCalled();
+      });
+
+      it("keeps the estimates of the batches that finished before an abort", async () => {
+        mockWords(unlistedWords(120));
+        mocks.estimateCefrLevels
+          .mockImplementationOnce(estimateAs("B1"))
+          .mockRejectedValueOnce(new DOMException("Aborted", "AbortError"));
+
+        await expect(generateHomework(UID, OPTIONS)).rejects.toMatchObject({ name: "AbortError" });
+
+        expect(mocks.estimateCefrLevels).toHaveBeenCalledTimes(2);
+        expect(mocks.saveCefrEstimates).toHaveBeenCalledTimes(1);
+        expect(Object.keys(mocks.saveCefrEstimates.mock.calls[0][1])).toHaveLength(50);
         expect(mocks.createHomework).not.toHaveBeenCalled();
       });
 
