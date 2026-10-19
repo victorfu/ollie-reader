@@ -35,7 +35,7 @@ The UI follows macOS Human Interface Guidelines adapted for the web: a collapsib
 | **Smart Vocabulary Book** (生詞本) | Stores bilingual AI definitions and examples, tags, search, flashcards, and pronunciation practice through the Web Speech API. Smart review prioritises unseen, older, remembered, and forgotten items; it is not an SM-2-style spaced-repetition scheduler. |
 | **Speech Practice** (演講練習) | Generates topic scripts, records timed practice with pause/resume controls, and keeps history with playback. Metadata and scripts live in Firestore; private recording files live in Supabase Storage. |
 | **English Speech** (英文演講) | Splits and translates pasted text with Gemini, organises reusable speech collections, supports drag-to-reorder sentences, per-word lookup, and sentence/all-speech playback. |
-| **Show Subtitles** (影集字幕) | Reads the bundled *Gabby's Dollhouse* transcripts across nine seasons with the same lookup, translate, speak, and save workflow used by the reader. |
+| **Show Subtitles** (影集字幕) | Lists *Gabby's Dollhouse* seasons 1–14 (90 episodes), with 63 bundled transcripts across seasons 1–9 using the reader's lookup, translate, speak, and save workflow. The remaining 27 episodes are marked as unavailable until transcript assets are supplied. |
 | **Basic Academic Competency Test** (基本學力測驗) | Chinese, mathematics, and English papers with section/full-paper sessions, immediate feedback, wrong-answer retry, local best-score tracking, and random mixed-subject papers. |
 | **Podcast Listening** (Podcast 聽力) | Accepts Apple Podcasts show links with episode selection, or resolves an episode link to its exact RSS enclosure and plays it in the app, with seek, ±10 seconds, and 0.75–1.5× speed. |
 | **Audio Library** (音訊庫) | Uploads and organises MP3, WAV, M4A, WebM, OGG, AAC, and MP4 learning audio. Firestore stores metadata and private Supabase Storage serves short-lived signed playback URLs. |
@@ -273,3 +273,13 @@ Later transcript synchronization can key transcript data by `podcastId` + RSS `g
 
 
 If an older local environment still points `VITE_API_BASE_URL` at Cloud Run, update `.env.development` to `http://localhost:3000` and `.env.production` to the current Vercel backend (`https://server-one-xi-16.vercel.app`). Restart Vite after changing environment files; production values require a rebuild. A generic endpoint `404 Not Found` means the backend route is missing, not that the Podcast itself is missing. Deploy the new backend route before testing the production frontend.
+
+### Show subtitle catalog maintenance
+
+`src/data/showSeasons.ts` is the `/show` episode catalog. New entries for seasons 10–14 and the missing season 8 Christmas special are metadata only. Their `transcriptAvailable: false` flag disables selection and prevents requests for missing assets.
+
+To enable an episode, supply its transcript as `public/transcripts/season-N/<slug>.json` using the existing nonempty array format (`{ "index": 0, "text": "..." }`, with sequential indexes), then remove its `transcriptAvailable: false` flag. Verify the actual file before enabling the entry. Existing season 1–9 filenames have not changed.
+
+The legacy `npm run fetch-transcripts` script retains its original season 1–9 source mappings; it does not populate these new catalog entries. New local slugs are asset identifiers, not verified source URLs.
+
+Catalog metadata checked on 2026-10-19 against [Netflix](https://www.netflix.com/title/81009946) and the [episode listing](https://en.wikipedia.org/wiki/List_of_Gabby%27s_Dollhouse_episodes).

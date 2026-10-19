@@ -27,11 +27,12 @@ export function EpisodeList({
           <button
             key={episode.number}
             type="button"
-            className={`text-left p-4 rounded-lg border transition-all duration-200 active:scale-[0.98] ${
+            className={`disabled:cursor-not-allowed disabled:opacity-60 text-left p-4 rounded-lg border transition-all duration-200 active:scale-[0.98] ${
               isSelected
                 ? "border-transparent ring-2 ring-accent bg-accent-tint shadow-soft"
                 : "border-border-hairline bg-card hover:bg-accent-tint hover:border-accent/20"
             }`}
+            disabled={episode.transcriptAvailable === false}
             onClick={() => onSelectEpisode(episode)}
           >
             <div className="flex items-center gap-3">
@@ -52,6 +53,9 @@ export function EpisodeList({
                 {episode.title}
               </span>
             </div>
+            {episode.transcriptAvailable === false && (
+              <span className="block mt-2 text-xs text-muted-foreground">字幕尚未提供</span>
+            )}
           </button>
         );
       })}
