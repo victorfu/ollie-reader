@@ -1,10 +1,14 @@
 import { motion } from "framer-motion";
 import type { VocabularyWord } from "../../types/vocabulary";
+import type { CefrInfo } from "../../types/wordPractice";
 import { SpeakerIcon, TrashIcon } from "../icons";
+import { CefrBadge } from "../common/CefrBadge";
 import { useSettings } from "../../hooks/useSettings";
 
 interface VocabularyRowProps {
   word: VocabularyWord;
+  /** CEFR level of the word; no badge when null or omitted. */
+  cefr?: CefrInfo | null;
   isActive: boolean;
   onSelect: () => void;
   onPlay: (e: React.MouseEvent) => void;
@@ -19,6 +23,7 @@ const difficultyDot: Record<string, string> = {
 
 export const VocabularyRow = ({
   word,
+  cefr,
   isActive,
   onSelect,
   onPlay,
@@ -70,6 +75,7 @@ export const VocabularyRow = ({
             <span className="truncate text-sm font-semibold tracking-tight">
               {word.word}
             </span>
+            {cefr && <CefrBadge info={cefr} />}
           </span>
           {previewDef && (
             <span className="mt-0.5 block truncate text-xs text-muted-foreground">

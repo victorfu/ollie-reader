@@ -3,7 +3,9 @@ import { useSpeechState } from "../../hooks/useSpeechState";
 import { useSettings } from "../../hooks/useSettings";
 import { Toast } from "../common/Toast";
 import { SpeakerIcon, RefreshIcon } from "../icons";
+import { CefrBadge } from "../common/CefrBadge";
 import type { VocabularyWord } from "../../types/vocabulary";
+import type { CefrInfo } from "../../types/wordPractice";
 
 export interface WordDetailPanelProps {
   word: VocabularyWord;
@@ -21,6 +23,8 @@ export interface WordDetailPanelProps {
     updatedWord?: Partial<VocabularyWord>;
   }>;
   availableTags?: string[];
+  /** CEFR level of the word; no badge when null or omitted. */
+  cefr?: CefrInfo | null;
 }
 
 export const WordDetailPanel = ({
@@ -28,6 +32,7 @@ export const WordDetailPanel = ({
   onUpdateWord,
   onRegenerateWordDetails,
   availableTags = [],
+  cefr,
 }: WordDetailPanelProps) => {
   const { speak } = useSpeechState();
   const { showChineseTranslation, updateShowChineseTranslation } = useSettings();
@@ -129,6 +134,7 @@ export const WordDetailPanel = ({
             <h2 className="text-3xl sm:text-4xl font-semibold tracking-tight truncate">
               {word.word}
             </h2>
+            {cefr && <CefrBadge info={cefr} />}
             <button
               type="button"
               onClick={() => speak(word.word)}

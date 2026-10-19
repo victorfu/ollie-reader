@@ -6,6 +6,7 @@ import { useVocabulary } from "../../hooks/useVocabulary";
 import { useSentenceTranslation } from "../../hooks/useSentenceTranslation";
 import { useSpeechState } from "../../hooks/useSpeechState";
 import { useDebounce } from "../../hooks/useDebounce";
+import { useCefrLevels } from "../../hooks/useCefrLevels";
 import { smartLookup } from "../../services/aiService";
 import { isGeminiRateLimitError } from "../../services/geminiErrorPolicy";
 import type {
@@ -132,6 +133,7 @@ export const VocabularyBook = () => {
     searchSentences,
   } = useSentenceTranslation();
   const { speak, isSpeaking, stopSpeaking } = useSpeechState();
+  const { levelOf } = useCefrLevels();
   const isDesktop = useIsDesktop();
 
   const [query, setQuery] = useState("");
@@ -663,6 +665,7 @@ export const VocabularyBook = () => {
         <VocabularyRow
           key={feedItemKey(item)}
           word={word}
+          cefr={levelOf(word.word)}
           isActive={selected?.kind === "word" && selected.word.id === word.id}
           onSelect={() => setSelected({ kind: "word", word })}
           onPlay={(e) => {
@@ -883,6 +886,7 @@ export const VocabularyBook = () => {
               onUpdateWord={handleUpdateWord}
               onRegenerateWordDetails={regenerateWordDetails}
               availableTags={availableTags}
+              cefr={levelOf(selected.word.word)}
             />
           ) : selected?.kind === "sentence" ? (
             <SentenceDetailPanel
@@ -907,6 +911,7 @@ export const VocabularyBook = () => {
           onUpdateWord={handleUpdateWord}
           onRegenerateWordDetails={regenerateWordDetails}
           availableTags={availableTags}
+          cefr={levelOf(selected.word.word)}
         />
       )}
       {!isDesktop && selected?.kind === "sentence" && (

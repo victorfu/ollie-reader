@@ -11,6 +11,7 @@ export const WordDetail = ({
   onUpdateWord,
   onRegenerateWordDetails,
   availableTags = [],
+  cefr,
 }: WordDetailProps) => {
   return (
     <div className="modal modal-open modal-bottom sm:modal-middle">
@@ -29,6 +30,7 @@ export const WordDetail = ({
           onUpdateWord={onUpdateWord}
           onRegenerateWordDetails={onRegenerateWordDetails}
           availableTags={availableTags}
+          cefr={cefr}
         />
       </div>
       <div className="modal-backdrop" onClick={onClose}></div>
