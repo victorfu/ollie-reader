@@ -7,6 +7,8 @@ import { emptyProgress } from "../../utils/homeworkProgress";
 
 const hook = vi.hoisted(() => ({ current: null as unknown as UseWordPractice }));
 vi.mock("../../hooks/useWordPractice", () => ({ useWordPractice: () => hook.current }));
+// The practice steps play words; the page is normally wrapped in SpeechProvider.
+vi.mock("../../hooks/useSpeechState", () => ({ useSpeechState: () => ({ speak: vi.fn() }) }));
 
 import WordPracticePage from "./WordPracticePage";
 
@@ -381,8 +383,60 @@ describe("overview", () => {
     expect(host.querySelector("h2")?.textContent).toBe("Fill in the Blank");
     expect(host.querySelector("ol")).toBeNull();
 
+    act(() => getButton("Back to overview").click());
+    expect(host.querySelectorAll("ol > li")).toHaveLength(6);
+  });
+
+  it("keeps a placeholder for the steps that are not built yet", () => {
+    hook.current = makeHook({ active: makeHomework() });
+    render();
+
+    act(() => getButton("Write a Sentence").click());
+    expect(host.querySelector("h2")?.textContent).toBe("Write a Sentence");
+
     act(() => getButton("回到總覽").click());
     expect(host.querySelectorAll("ol > li")).toHaveLength(6);
+  });
+
+  it("saves the progress a step reports through the hook", () => {
+    const homework = makeHomework();
+    hook.current = makeHook({ active: homework });
+    render();
+
+    act(() => getButton("Learn").click());
+
+    expect(hook.current.updateProgress).toHaveBeenCalledTimes(1);
+    const reported = vi.mocked(hook.current.updateProgress).mock.calls[0][0];
+    expect(reported.map((progress) => progress.learned)).toEqual([true, false]);
+    expect(homework.progress.map((progress) => progress.learned)).toEqual([false, false]);
+  });
+
+  it("fetches the missing example sentences when Fill in the Blank opens, and not for other steps", () => {
+    hook.current = makeHook({ active: makeHomework() });
+    render();
+
+    act(() => getButton("Spell It").click());
+    expect(hook.current.ensureSentences).not.toHaveBeenCalled();
+    act(() => getButton("Back to overview").click());
+
+    act(() => getButton("Fill in the Blank").click());
+    expect(hook.current.ensureSentences).toHaveBeenCalledTimes(1);
+  });
+
+  it("fetches the sentences when 繼續 lands on Fill in the Blank", () => {
+    const homework = makeHomework();
+    homework.progress = homework.progress.map((progress) => ({
+      ...progress,
+      learned: true,
+      spellCorrect: 3,
+    }));
+    hook.current = makeHook({ active: homework });
+    render();
+
+    act(() => getButton("繼續").click());
+
+    expect(host.querySelector("h2")?.textContent).toBe("Fill in the Blank");
+    expect(hook.current.ensureSentences).toHaveBeenCalledTimes(1);
   });
 
   it("continues with the first step that is not complete", () => {

@@ -8,6 +8,10 @@ import { HomeworkHistory } from "./HomeworkHistory";
 import { HomeworkOverview } from "./HomeworkOverview";
 import { HomeworkResultView } from "./HomeworkResult";
 import { STEP_LABELS, type StepProps } from "./stepTypes";
+import { DefinitionStep } from "./steps/DefinitionStep";
+import { FillBlankStep } from "./steps/FillBlankStep";
+import { LearnStep } from "./steps/LearnStep";
+import { SpellStep } from "./steps/SpellStep";
 
 type Screen =
   | { view: "home" }
@@ -19,7 +23,7 @@ const CEFR_J_CREDIT =
 const OCTANOVE_CREDIT = "Octanove Vocabulary Profile (CC BY-SA 4.0)";
 const NO_WORDS_NOTICE = "生詞本裡沒有可以練習的新單字";
 
-/** Stands in for a practice step until its real component replaces it. */
+/** Stands in for the practice steps that do not have a component yet. */
 function StepPlaceholder({ step, onExit }: Pick<StepProps, "onExit"> & { step: StepId }) {
   return (
     <section className="space-y-4 rounded-xl border border-border-hairline bg-card p-4 shadow-sm sm:p-6">
@@ -34,6 +38,21 @@ function StepPlaceholder({ step, onExit }: Pick<StepProps, "onExit"> & { step: S
       </button>
     </section>
   );
+}
+
+function PracticeStep({ step, ...props }: StepProps & { step: StepId }) {
+  switch (step) {
+    case "learn":
+      return <LearnStep {...props} />;
+    case "spell":
+      return <SpellStep {...props} />;
+    case "fill":
+      return <FillBlankStep {...props} />;
+    case "define":
+      return <DefinitionStep {...props} />;
+    default:
+      return <StepPlaceholder step={step} onExit={props.onExit} />;
+  }
 }
 
 export default function WordPracticePage() {
@@ -54,6 +73,11 @@ export default function WordPracticePage() {
   }
 
   const goHome = () => setScreen({ view: "home" });
+  const openStep = (step: StepId) => {
+    // The cloze exercise needs the example sentences. The hook tries once per homework.
+    if (step === "fill") void wordPractice.ensureSentences();
+    setScreen({ view: "step", step });
+  };
   const generate = async (options: HomeworkOptions): Promise<void> => {
     setNoWords(false);
     const result = await wordPractice.generate(options);
@@ -78,7 +102,14 @@ export default function WordPracticePage() {
       </button>
     );
   } else if (screen.view === "step" && active) {
-    content = <StepPlaceholder step={screen.step} onExit={goHome} />;
+    content = (
+      <PracticeStep
+        step={screen.step}
+        homework={active}
+        onProgress={wordPractice.updateProgress}
+        onExit={goHome}
+      />
+    );
   } else if (resultHomework) {
     content = <HomeworkResultView homework={resultHomework} onBack={goHome} />;
   } else {
@@ -88,7 +119,7 @@ export default function WordPracticePage() {
           <HomeworkOverview
             homework={active}
             generating={wordPractice.generating}
-            onOpenStep={(step) => setScreen({ view: "step", step })}
+            onOpenStep={openStep}
             onAbandon={wordPractice.abandon}
           />
         )}
