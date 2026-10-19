@@ -354,6 +354,29 @@ export const getVocabularyForReview = async (
   }
 };
 
+// Get every vocabulary word for a user, without filtering or pagination
+export const getAllVocabularyWords = async (
+  userId: string,
+): Promise<VocabularyWord[]> => {
+  try {
+    const q = query(
+      collection(db, COLLECTION_NAME),
+      where("userId", "==", userId),
+    );
+
+    const querySnapshot = await getDocs(q);
+
+    return querySnapshot.docs.map(
+      (doc: QueryDocumentSnapshot<DocumentData>) => {
+        return convertToVocabularyWord(doc.id, doc.data());
+      },
+    );
+  } catch (error) {
+    console.error("Error getting all vocabulary words:", error);
+    throw error;
+  }
+};
+
 // Update review statistics for a word (atomic increments)
 export const updateReviewStats = async (
   wordId: string,
