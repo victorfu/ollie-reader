@@ -92,4 +92,9 @@ describe("cefr", () => {
     expect(loaded.get("abandon")).toBe("B1");
     expect(loaded.get("cloak")).toBe("C1");
   });
+  it("loads the table once and shares it", async () => {
+    const first = loadCefrTable();
+    expect(loadCefrTable()).toBe(first);
+    expect(await first).toBe(await loadCefrTable());
+  });
 });

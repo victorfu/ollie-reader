@@ -47,12 +47,14 @@ let tablePromise: Promise<CefrTable> | null = null;
 
 /**
  * Loads the CEFR word list. The JSON is large, so it is imported dynamically
- * (it becomes its own chunk) and the same promise is reused. A failed load is
+ * (it becomes its own chunk) and the same promise is reused. It is imported as
+ * raw text and parsed here: as a JSON module the bundler would emit one named
+ * export per headword, more than twice the size of the file. A failed load is
  * not cached, so a later call can retry.
  */
 export function loadCefrTable(): Promise<CefrTable> {
-  tablePromise ??= import("../data/cefr/cefrLevels.json")
-    .then((module): CefrTable => new Map(Object.entries(module.default as Record<string, CefrLevel>)))
+  tablePromise ??= import("../data/cefr/cefrLevels.json?raw")
+    .then((module): CefrTable => new Map(Object.entries(JSON.parse(module.default) as Record<string, CefrLevel>)))
     .catch((error: unknown) => {
       tablePromise = null;
       throw error;
