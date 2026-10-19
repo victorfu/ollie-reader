@@ -350,6 +350,57 @@ describe("useWordPractice progress saving", () => {
   });
 });
 
+describe("useWordPractice saves across unmount", () => {
+  it("still saves the latest answers that were queued behind a save when the page unmounts", async () => {
+    await renderProbe();
+    const firstSave = deferred<void>();
+    mocks.saveHomeworkProgress.mockReturnValueOnce(firstSave.promise);
+    const first = progressWithLearned(2, 1);
+    const second = progressWithLearned(2, 2);
+
+    act(() => hook().updateProgress(first));
+    await flushAsyncWork();
+    act(() => hook().updateProgress(second));
+    await flushAsyncWork();
+    expect(mocks.saveHomeworkProgress).toHaveBeenCalledTimes(1);
+
+    act(() => root?.unmount());
+    root = null;
+    firstSave.resolve();
+    await flushAsyncWork();
+
+    expect(mocks.saveHomeworkProgress).toHaveBeenCalledTimes(2);
+    expect(mocks.saveHomeworkProgress).toHaveBeenLastCalledWith("user-1", "hw-1", second);
+  });
+
+  it("saves a previous account's queued answers for that account after an account switch", async () => {
+    await renderProbe();
+    const firstSave = deferred<void>();
+    mocks.saveHomeworkProgress.mockReturnValueOnce(firstSave.promise);
+    const first = progressWithLearned(2, 1);
+    const second = progressWithLearned(2, 2);
+
+    act(() => hook().updateProgress(first));
+    await flushAsyncWork();
+    act(() => hook().updateProgress(second));
+
+    mocks.useAuth.mockReturnValue({ user: { uid: "user-2" } });
+    mocks.getActiveHomework.mockResolvedValueOnce(null);
+    await act(async () => {
+      root?.render(<Probe />);
+    });
+    await act(async () => {
+      firstSave.resolve();
+    });
+    await flushAsyncWork();
+
+    expect(mocks.saveHomeworkProgress).toHaveBeenLastCalledWith("user-1", "hw-1", second);
+    expect(mocks.saveHomeworkProgress).toHaveBeenCalledTimes(2);
+    expect(hook().saveError).toBeNull();
+    expect(hook().active).toBeNull();
+  });
+});
+
 describe("useWordPractice sentence retry", () => {
   it("asks for missing sentences only once per homework", async () => {
     await renderProbe();
@@ -639,6 +690,44 @@ describe("useWordPractice overlapping operations", () => {
 
     expect(hook().active?.id).toBe("hw-2");
     expect(hook().history.map((item) => item.id)).toEqual(["hw-1", "old-1"]);
+  });
+
+  it("saves the finishing homework's last answers even if another homework became active meanwhile", async () => {
+    await renderProbe();
+    const firstSave = deferred<void>();
+    mocks.saveHomeworkProgress.mockReturnValueOnce(firstSave.promise);
+    mocks.generateHomework.mockResolvedValueOnce({
+      status: "created",
+      homework: homework("hw-2"),
+    });
+    const first = progressWithLearned(2, 1);
+    const last = progressWithLearned(2, 2);
+
+    act(() => hook().updateProgress(first));
+    await flushAsyncWork();
+    act(() => hook().updateProgress(last));
+    let finishing!: Promise<Homework | null>;
+    act(() => {
+      finishing = hook().finishTest();
+    });
+    await act(async () => {
+      await hook().generate(OPTIONS);
+    });
+    expect(hook().active?.id).toBe("hw-2");
+
+    await act(async () => {
+      firstSave.resolve();
+      await finishing;
+    });
+
+    expect(mocks.saveHomeworkProgress).toHaveBeenCalledTimes(2);
+    expect(mocks.saveHomeworkProgress).toHaveBeenLastCalledWith("user-1", "hw-1", last);
+    expect(mocks.completeHomework).toHaveBeenCalledTimes(1);
+    expect(mocks.saveHomeworkProgress.mock.invocationCallOrder[1]).toBeLessThan(
+      mocks.completeHomework.mock.invocationCallOrder[0],
+    );
+    expect(hook().active?.id).toBe("hw-2");
+    expect(hook().saveError).toBeNull();
   });
 });
 
