@@ -44,6 +44,10 @@ const FEED_FILTERS: VocabularyFilters = {
   sortOrder: "desc",
 };
 
+// Account-wide word matches fetched per search. Local (already loaded) matches
+// are shown as well, so this only bounds what the prefix query pulls down.
+const REMOTE_WORD_SEARCH_LIMIT = 50;
+
 // Han + kana + hangul — the smart query only handles English input.
 const CJK_PATTERN = /\p{Script=Han}|[぀-ヿ가-힯]/u;
 
@@ -220,8 +224,9 @@ export const VocabularyBook = () => {
     [displayItems],
   );
 
-  // Unified search: show local matches immediately, then merge complete
-  // account-wide results from both streams.
+  // Unified search: show local matches immediately, then merge account-wide
+  // results. Words come from a bounded Firestore prefix query; sentences from
+  // the hook's in-memory copy of the book.
   useEffect(() => {
     if (!searchText) {
       searchRequestIdRef.current += 1;
@@ -261,8 +266,8 @@ export const VocabularyBook = () => {
       try {
         const [remoteWords, remoteSentences] = await Promise.all([
           searchWords(searchText, {
-            mode: "contains",
-            limit: null,
+            mode: "prefix",
+            limit: REMOTE_WORD_SEARCH_LIMIT,
           }),
           searchSentences(searchText),
         ]);

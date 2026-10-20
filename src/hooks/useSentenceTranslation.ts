@@ -6,8 +6,9 @@ import {
   getUserSentenceTranslations,
   deleteSentenceTranslation,
   deleteAllSentenceTranslations,
-  searchUserSentenceTranslations,
+  listUserSentenceTranslations,
 } from "../services/sentenceTranslationService";
+import { filterSentenceTranslations } from "../utils/sentenceSearch";
 import type {
   SentenceKeyWord,
   SentenceTranslation,
@@ -24,10 +25,29 @@ export const useSentenceTranslation = () => {
   const [error, setError] = useState<string | null>(null);
   const loadRequestIdRef = useRef(0);
   const activeUidRef = useRef(user?.uid);
+  // The whole book, downloaded once per user for searching. Adds and deletes
+  // patch the copy so a search never has to download the book again.
+  const searchCacheRef = useRef<{
+    uid: string;
+    sentences: Promise<SentenceTranslation[]>;
+  } | null>(null);
+
+  const patchSearchCache = useCallback(
+    (
+      uid: string,
+      update: (sentences: SentenceTranslation[]) => SentenceTranslation[],
+    ) => {
+      const cache = searchCacheRef.current;
+      if (!cache || cache.uid !== uid) return;
+      cache.sentences = cache.sentences.then(update);
+    },
+    [],
+  );
 
   useEffect(() => {
     activeUidRef.current = user?.uid;
     loadRequestIdRef.current += 1;
+    searchCacheRef.current = null;
     setSentences([]);
     setHasMore(false);
     setLastDocId(undefined);
@@ -176,14 +196,16 @@ export const useSentenceTranslation = () => {
         const added = await addSentenceTranslation(sentence);
         if (activeUidRef.current !== user.uid) return null;
         if (!added.created && added.sentence) return added.sentence;
-        return { ...sentence, id: added.id, createdAt: new Date() };
+        const created = { ...sentence, id: added.id, createdAt: new Date() };
+        patchSearchCache(user.uid, (cached) => [created, ...cached]);
+        return created;
       } catch (err) {
         logger.error("Failed to save translated sentence:", err);
         setError("儲存句子失敗");
         return null;
       }
     },
-    [user]
+    [user, patchSearchCache]
   );
 
   // Delete a sentence
@@ -198,6 +220,7 @@ export const useSentenceTranslation = () => {
           return { success: false, message: "帳號已切換" };
         }
         setSentences((prev) => prev.filter((s) => s.id !== id));
+        patchSearchCache(uid, (cached) => cached.filter((s) => s.id !== id));
         return { success: true };
       } catch (err) {
         if (activeUidRef.current !== uid) {
@@ -208,7 +231,7 @@ export const useSentenceTranslation = () => {
         return { success: false, message: "刪除失敗" };
       }
     },
-    []
+    [patchSearchCache]
   );
 
   // Clear all sentences
@@ -220,6 +243,7 @@ export const useSentenceTranslation = () => {
       await deleteAllSentenceTranslations(uid);
       if (activeUidRef.current !== uid) return;
       setSentences([]);
+      patchSearchCache(uid, () => []);
       setHasMore(false);
       setLastDocId(undefined);
     } catch (err) {
@@ -227,16 +251,25 @@ export const useSentenceTranslation = () => {
       logger.error("Failed to clear all sentences:", err);
       setError("清除失敗");
     }
-  }, [user]);
+  }, [user, patchSearchCache]);
 
   const searchSentences = useCallback(
     async (searchText: string): Promise<SentenceTranslation[]> => {
       if (!user) return [];
       const uid = user.uid;
+      if (!searchText.trim()) return [];
+      let cache = searchCacheRef.current;
+      if (!cache || cache.uid !== uid) {
+        cache = { uid, sentences: listUserSentenceTranslations(uid) };
+        searchCacheRef.current = cache;
+      }
       try {
-        const result = await searchUserSentenceTranslations(uid, searchText);
-        return activeUidRef.current === uid ? result : [];
+        const all = await cache.sentences;
+        if (activeUidRef.current !== uid) return [];
+        return filterSentenceTranslations(all, searchText);
       } catch (err) {
+        // Forget the failed download so the next search can retry.
+        if (searchCacheRef.current === cache) searchCacheRef.current = null;
         logger.error("Failed to search sentence translations:", err);
         return [];
       }

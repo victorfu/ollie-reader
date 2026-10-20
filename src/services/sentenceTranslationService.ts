@@ -273,13 +273,14 @@ export const addSentenceTranslation = async (
   });
 };
 
-export const searchUserSentenceTranslations = async (
+/**
+ * Every sentence the user has saved, newest first. This reads the whole
+ * collection, so callers should fetch it once and search the copy (see
+ * `useSentenceTranslation.searchSentences`).
+ */
+export const listUserSentenceTranslations = async (
   userId: string,
-  searchText: string,
 ): Promise<SentenceTranslation[]> => {
-  const normalizedSearch = searchText.trim().toLocaleLowerCase("en-US");
-  if (!normalizedSearch) return [];
-
   const snapshot = await getDocs(
     query(
       collection(db, COLLECTION_NAME),
@@ -287,16 +288,9 @@ export const searchUserSentenceTranslations = async (
       orderBy("createdAt", "desc"),
     ),
   );
-
-  return snapshot.docs
-    .map((document) =>
-      convertToSentenceTranslation(document.id, document.data()),
-    )
-    .filter(
-      (sentence) =>
-        sentence.english.toLocaleLowerCase("en-US").includes(normalizedSearch) ||
-        sentence.chinese.includes(searchText.trim()),
-    );
+  return snapshot.docs.map((document) =>
+    convertToSentenceTranslation(document.id, document.data()),
+  );
 };
 
 // Get user's sentence translations with pagination

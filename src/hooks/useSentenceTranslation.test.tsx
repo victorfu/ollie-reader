@@ -13,7 +13,7 @@ const mocks = vi.hoisted(() => ({
   getUserSentenceTranslations: vi.fn(),
   deleteSentenceTranslation: vi.fn(),
   deleteAllSentenceTranslations: vi.fn(),
-  searchUserSentenceTranslations: vi.fn(),
+  listUserSentenceTranslations: vi.fn(),
 }));
 
 vi.mock("./useAuth", () => ({ useAuth: mocks.useAuth }));
@@ -23,7 +23,7 @@ vi.mock("../services/sentenceTranslationService", () => ({
   getUserSentenceTranslations: mocks.getUserSentenceTranslations,
   deleteSentenceTranslation: mocks.deleteSentenceTranslation,
   deleteAllSentenceTranslations: mocks.deleteAllSentenceTranslations,
-  searchUserSentenceTranslations: mocks.searchUserSentenceTranslations,
+  listUserSentenceTranslations: mocks.listUserSentenceTranslations,
 }));
 
 import { useSentenceTranslation } from "./useSentenceTranslation";
@@ -60,6 +60,9 @@ const renderHook = () => {
     get current() {
       if (!value) throw new Error("hook did not render");
       return value;
+    },
+    rerender() {
+      root?.render(<Harness />);
     },
     unmount() {
       act(() => root?.unmount());
@@ -153,5 +156,79 @@ describe("useSentenceTranslation", () => {
 
     expect(result).toEqual({ success: false, message: "刪除失敗" });
     expect(hook.current.sentences).toHaveLength(1);
+  });
+
+  describe("searchSentences", () => {
+    const search = async (text: string) => {
+      let result: SentenceTranslation[] = [];
+      await act(async () => {
+        result = (await hook?.current.searchSentences(text)) ?? [];
+      });
+      return result;
+    };
+
+    it("downloads the sentences once and filters later searches locally", async () => {
+      mocks.listUserSentenceTranslations.mockResolvedValue([
+        makeSentence("a", "I like fruit."),
+        makeSentence("b", "The weather is nice."),
+      ]);
+      hook = renderHook();
+
+      expect((await search("fruit")).map((s) => s.id)).toEqual(["a"]);
+      expect((await search("weather")).map((s) => s.id)).toEqual(["b"]);
+      expect((await search("nice.-zh")).map((s) => s.id)).toEqual(["b"]);
+
+      expect(mocks.listUserSentenceTranslations).toHaveBeenCalledTimes(1);
+    });
+
+    it("finds a sentence added after the download without downloading again", async () => {
+      mocks.listUserSentenceTranslations.mockResolvedValue([
+        makeSentence("a", "I like fruit."),
+      ]);
+      mocks.addSentenceTranslation.mockResolvedValue({ id: "c", created: true });
+      hook = renderHook();
+
+      await search("fruit");
+      await act(async () => {
+        await hook?.current.addTranslatedSentence("Cats sleep a lot.", "貓很會睡。");
+      });
+
+      expect((await search("cats")).map((s) => s.id)).toEqual(["c"]);
+      expect(mocks.listUserSentenceTranslations).toHaveBeenCalledTimes(1);
+    });
+
+    it("drops a deleted sentence from later searches without downloading again", async () => {
+      mocks.listUserSentenceTranslations.mockResolvedValue([
+        makeSentence("a", "I like fruit."),
+        makeSentence("b", "Fruit is sweet."),
+      ]);
+      mocks.deleteSentenceTranslation.mockResolvedValue(undefined);
+      hook = renderHook();
+
+      expect(await search("fruit")).toHaveLength(2);
+      await act(async () => {
+        await hook?.current.deleteSentence("a");
+      });
+
+      expect((await search("fruit")).map((s) => s.id)).toEqual(["b"]);
+      expect(mocks.listUserSentenceTranslations).toHaveBeenCalledTimes(1);
+    });
+
+    it("downloads again for a different user", async () => {
+      mocks.listUserSentenceTranslations.mockResolvedValue([
+        makeSentence("a", "I like fruit."),
+      ]);
+      hook = renderHook();
+      await search("fruit");
+
+      mocks.useAuth.mockReturnValue({ user: { uid: "user-2" } });
+      mocks.listUserSentenceTranslations.mockResolvedValue([]);
+      await act(async () => {
+        hook?.rerender();
+      });
+
+      expect(await search("fruit")).toEqual([]);
+      expect(mocks.listUserSentenceTranslations).toHaveBeenCalledTimes(2);
+    });
   });
 });
