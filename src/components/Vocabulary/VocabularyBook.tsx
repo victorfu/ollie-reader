@@ -4,7 +4,6 @@ import { AnimatePresence } from "framer-motion";
 import { Search } from "lucide-react";
 import { useVocabulary } from "../../hooks/useVocabulary";
 import { useSentenceTranslation } from "../../hooks/useSentenceTranslation";
-import { useSpeechState } from "../../hooks/useSpeechState";
 import { useDebounce } from "../../hooks/useDebounce";
 import { useCefrLevels } from "../../hooks/useCefrLevels";
 import { smartLookup } from "../../services/aiService";
@@ -132,7 +131,6 @@ export const VocabularyBook = () => {
     deleteSentence,
     searchSentences,
   } = useSentenceTranslation();
-  const { speak, isSpeaking, stopSpeaking } = useSpeechState();
   const { levelOf } = useCefrLevels();
   const isDesktop = useIsDesktop();
 
@@ -535,17 +533,6 @@ export const VocabularyBook = () => {
     [addWord, loadVocabulary, refreshTags],
   );
 
-  const handleSpeakSentence = useCallback(
-    (text: string) => {
-      if (isSpeaking) {
-        stopSpeaking();
-      } else {
-        speak(text);
-      }
-    },
-    [isSpeaking, stopSpeaking, speak],
-  );
-
   const confirmDelete = async () => {
     if (!pendingDelete) return;
 
@@ -670,10 +657,6 @@ export const VocabularyBook = () => {
           cefr={levelOf(word.word)}
           isActive={selected?.kind === "word" && selected.word.id === word.id}
           onSelect={() => setSelected({ kind: "word", word })}
-          onPlay={(e) => {
-            e.stopPropagation();
-            speak(word.word);
-          }}
           onDelete={(e) => {
             e.stopPropagation();
             setPendingDelete({ kind: "word", id: word.id! });
@@ -691,10 +674,6 @@ export const VocabularyBook = () => {
           selected?.kind === "sentence" && selected.sentence.id === sentence.id
         }
         onSelect={() => setSelected({ kind: "sentence", sentence })}
-        onPlay={(e) => {
-          e.stopPropagation();
-          handleSpeakSentence(sentence.english);
-        }}
         onDelete={(e) => {
           e.stopPropagation();
           setPendingDelete({ kind: "sentence", id: sentence.id! });

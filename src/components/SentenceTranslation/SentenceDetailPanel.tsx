@@ -1,8 +1,7 @@
 import { useState } from "react";
 import { Check, Plus } from "lucide-react";
-import { useSpeechState } from "../../hooks/useSpeechState";
 import type { SentenceTranslation } from "../../types/sentenceTranslation";
-import { SpeakerIcon } from "../icons";
+import { SpeakButton } from "../common/SpeakButton";
 
 export interface SentenceDetailPanelProps {
   sentence: SentenceTranslation;
@@ -16,19 +15,10 @@ export const SentenceDetailPanel = ({
   sentence,
   onAddKeyWord,
 }: SentenceDetailPanelProps) => {
-  const { speak, isSpeaking, stopSpeaking } = useSpeechState();
   // addWord aborts any previous in-flight AI request, so chip adds are
   // serialized: while one is pending all chips are disabled.
   const [pendingWord, setPendingWord] = useState<string | null>(null);
   const [addedWords, setAddedWords] = useState<Set<string>>(new Set());
-
-  const handleSpeak = () => {
-    if (isSpeaking) {
-      stopSpeaking();
-    } else {
-      speak(sentence.english);
-    }
-  };
 
   const handleAddKeyWord = async (word: string) => {
     if (pendingWord) return;
@@ -54,14 +44,7 @@ export const SentenceDetailPanel = ({
             <h2 className="text-3xl sm:text-4xl font-semibold tracking-tight">
               {sentence.english}
             </h2>
-            <button
-              type="button"
-              onClick={handleSpeak}
-              className="btn btn-circle btn-sm btn-ghost shrink-0"
-              title={isSpeaking ? "停止朗讀" : "朗讀句子"}
-            >
-              <SpeakerIcon />
-            </button>
+            <SpeakButton text={sentence.english} label="朗讀句子" size="md" />
           </div>
         </div>
       </div>

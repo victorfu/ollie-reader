@@ -63,6 +63,7 @@ const FAKE_SPEECH: SpeechContextType = {
   ttsEngine: "edge",
   setTtsMode: vi.fn(),
   isLoadingAudio: false,
+  speakingText: null,
   speechSupported: true,
   speak: vi.fn(),
   speakAsync: vi.fn().mockResolvedValue(undefined),

@@ -1,13 +1,18 @@
 import { motion } from "framer-motion";
 import { Languages } from "lucide-react";
 import type { SentenceTranslation } from "../../types/sentenceTranslation";
-import { SpeakerIcon, TrashIcon } from "../icons";
+import { TrashIcon } from "../icons";
+import { SpeakButton } from "../common/SpeakButton";
+import {
+  ROW_ACTIONS_CLASS,
+  ROW_DELETE_CLASS,
+  ROW_DELETE_ICON_CLASS,
+} from "../common/rowActionStyles";
 
 interface SentenceRowProps {
   sentence: SentenceTranslation;
   isActive: boolean;
   onSelect: () => void;
-  onPlay: (e: React.MouseEvent) => void;
   onDelete: (e: React.MouseEvent) => void;
 }
 
@@ -16,7 +21,6 @@ export const SentenceRow = ({
   sentence,
   isActive,
   onSelect,
-  onPlay,
   onDelete,
 }: SentenceRowProps) => {
   return (
@@ -54,25 +58,18 @@ export const SentenceRow = ({
         </span>
       </button>
 
-      {/* Action buttons — siblings of the selector, not descendants */}
-      <span className="flex shrink-0 items-center self-center opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
-        <button
-          type="button"
-          onClick={onPlay}
-          className="btn btn-ghost btn-xs btn-circle text-accent/70 hover:text-accent"
-          title="朗讀句子"
-          aria-label="朗讀句子"
-        >
-          <SpeakerIcon />
-        </button>
+      {/* Action buttons — siblings of the selector, not descendants.
+          Always visible on touch screens; revealed on hover with a mouse. */}
+      <span className={ROW_ACTIONS_CLASS}>
+        <SpeakButton text={sentence.english} label="朗讀句子" />
         <button
           type="button"
           onClick={onDelete}
-          className="btn btn-ghost btn-xs btn-circle text-error/60 hover:text-error"
+          className={ROW_DELETE_CLASS}
           title="刪除句子"
           aria-label="刪除句子"
         >
-          <TrashIcon className="h-4 w-4" />
+          <TrashIcon className={ROW_DELETE_ICON_CLASS} />
         </button>
       </span>
     </motion.div>

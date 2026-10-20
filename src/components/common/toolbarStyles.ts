@@ -1,6 +1,7 @@
 export const toolbarFieldClass = [
   "h-11 min-w-0 rounded-lg border border-border-hairline bg-background/80 px-3",
-  "text-sm text-foreground shadow-soft outline-none",
+  // 16px on touch screens: iOS Safari zooms into any smaller input on focus.
+  "text-base md:text-sm text-foreground shadow-soft outline-none",
   "transition-[border-color,background-color,box-shadow]",
   "placeholder:text-muted-foreground/60 hover:bg-background",
   "focus:border-accent/50 focus:outline-none focus:ring-4 focus:ring-accent/15",

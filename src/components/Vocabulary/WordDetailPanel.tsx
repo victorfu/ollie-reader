@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useSpeechState } from "../../hooks/useSpeechState";
 import { useSettings } from "../../hooks/useSettings";
 import { Toast } from "../common/Toast";
-import { SpeakerIcon, RefreshIcon } from "../icons";
+import { RefreshIcon } from "../icons";
+import { SpeakButton } from "../common/SpeakButton";
 import { CefrBadge } from "../common/CefrBadge";
 import type { VocabularyWord } from "../../types/vocabulary";
 import type { CefrInfo } from "../../types/wordPractice";
@@ -34,7 +34,6 @@ export const WordDetailPanel = ({
   availableTags = [],
   cefr,
 }: WordDetailPanelProps) => {
-  const { speak } = useSpeechState();
   const { showChineseTranslation, updateShowChineseTranslation } = useSettings();
   const [word, setWord] = useState<VocabularyWord>(initialWord);
   const [isEditing, setIsEditing] = useState(false);
@@ -135,14 +134,7 @@ export const WordDetailPanel = ({
               {word.word}
             </h2>
             {cefr && <CefrBadge info={cefr} />}
-            <button
-              type="button"
-              onClick={() => speak(word.word)}
-              className="btn btn-circle btn-sm btn-ghost shrink-0"
-              title="發音"
-            >
-              <SpeakerIcon />
-            </button>
+            <SpeakButton text={word.word} label="發音" size="md" />
             <button
               type="button"
               onClick={handleRegenerate}
@@ -316,14 +308,7 @@ export const WordDetailPanel = ({
                   <p className="font-medium text-accent capitalize mb-1">
                     {def.partOfSpeech}
                   </p>
-                  <button
-                    type="button"
-                    onClick={() => speak(def.definition)}
-                    className="btn btn-circle btn-xs btn-ghost shrink-0"
-                    title="朗讀定義"
-                  >
-                    <SpeakerIcon />
-                  </button>
+                  <SpeakButton text={def.definition} label="朗讀定義" />
                 </div>
                 <p className="text-base-content">
                   {def.definition || def.definitionChinese}
@@ -351,14 +336,7 @@ export const WordDetailPanel = ({
               >
                 <div className="flex justify-between items-start gap-2 mb-1">
                   <p className="italic flex-1">{example.sentence}</p>
-                  <button
-                    type="button"
-                    onClick={() => speak(example.sentence)}
-                    className="btn btn-circle btn-xs btn-ghost shrink-0"
-                    title="朗讀例句"
-                  >
-                    <SpeakerIcon />
-                  </button>
+                  <SpeakButton text={example.sentence} label="朗讀例句" />
                 </div>
                 {example.translation && (
                   <p className="text-sm text-muted-foreground">{example.translation}</p>

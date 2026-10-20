@@ -112,6 +112,7 @@ export const SpeechProvider = ({ children }: SpeechProviderProps) => {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const currentAudioRef = useRef<HTMLAudioElement | null>(null);
   const [isLoadingAudio, setIsLoadingAudio] = useState(false);
+  const [speakingText, setSpeakingText] = useState<string | null>(null);
   const currentAudioUrl = useRef<string | null>(null);
   const ttsAbortRef = useRef<AbortController | null>(null);
   const speechGenerationRef = useRef(0);
@@ -306,6 +307,7 @@ export const SpeechProvider = ({ children }: SpeechProviderProps) => {
       if (!text.trim()) return;
 
       stopSpeaking();
+      setSpeakingText(text);
       const generation = speechGenerationRef.current;
 
       if (ttsMode === "api") {
@@ -347,6 +349,7 @@ export const SpeechProvider = ({ children }: SpeechProviderProps) => {
 
       const reportErrors = options?.reportErrors === true;
       stopSpeaking();
+      setSpeakingText(text);
       const generation = speechGenerationRef.current;
 
       if (ttsMode === "api") {
@@ -471,6 +474,7 @@ export const SpeechProvider = ({ children }: SpeechProviderProps) => {
       ttsEngine,
       setTtsMode: handleSetTtsMode,
       isLoadingAudio,
+      speakingText,
       speechSupported,
       speak,
       speakAsync,
@@ -483,6 +487,7 @@ export const SpeechProvider = ({ children }: SpeechProviderProps) => {
       ttsEngine,
       handleSetTtsMode,
       isLoadingAudio,
+      speakingText,
       speechSupported,
       speak,
       speakAsync,

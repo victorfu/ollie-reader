@@ -1,8 +1,14 @@
 import { motion } from "framer-motion";
 import type { VocabularyWord } from "../../types/vocabulary";
 import type { CefrInfo } from "../../types/wordPractice";
-import { SpeakerIcon, TrashIcon } from "../icons";
+import { TrashIcon } from "../icons";
 import { CefrBadge } from "../common/CefrBadge";
+import { SpeakButton } from "../common/SpeakButton";
+import {
+  ROW_ACTIONS_CLASS,
+  ROW_DELETE_CLASS,
+  ROW_DELETE_ICON_CLASS,
+} from "../common/rowActionStyles";
 import { useSettings } from "../../hooks/useSettings";
 
 interface VocabularyRowProps {
@@ -11,7 +17,6 @@ interface VocabularyRowProps {
   cefr?: CefrInfo | null;
   isActive: boolean;
   onSelect: () => void;
-  onPlay: (e: React.MouseEvent) => void;
   onDelete: (e: React.MouseEvent) => void;
 }
 
@@ -26,7 +31,6 @@ export const VocabularyRow = ({
   cefr,
   isActive,
   onSelect,
-  onPlay,
   onDelete,
 }: VocabularyRowProps) => {
   const { showChineseTranslation } = useSettings();
@@ -90,25 +94,18 @@ export const VocabularyRow = ({
         </span>
       </button>
 
-      {/* Action buttons — siblings of the selector, not descendants */}
-      <span className="flex shrink-0 items-center self-center opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
-        <button
-          type="button"
-          onClick={onPlay}
-          className="btn btn-ghost btn-xs btn-circle text-accent/70 hover:text-accent"
-          title="播放發音"
-          aria-label="播放發音"
-        >
-          <SpeakerIcon />
-        </button>
+      {/* Action buttons — siblings of the selector, not descendants.
+          Always visible on touch screens; revealed on hover with a mouse. */}
+      <span className={ROW_ACTIONS_CLASS}>
+        <SpeakButton text={word.word} label="播放發音" />
         <button
           type="button"
           onClick={onDelete}
-          className="btn btn-ghost btn-xs btn-circle text-error/60 hover:text-error"
+          className={ROW_DELETE_CLASS}
           title="刪除單字"
           aria-label="刪除單字"
         >
-          <TrashIcon className="h-4 w-4" />
+          <TrashIcon className={ROW_DELETE_ICON_CLASS} />
         </button>
       </span>
     </motion.div>

@@ -7,6 +7,15 @@ import type { CefrInfo } from "../../types/wordPractice";
 vi.mock("../../hooks/useSettings", () => ({
   useSettings: () => ({ showChineseTranslation: false }),
 }));
+vi.mock("../../hooks/useSpeechState", () => ({
+  useSpeechState: () => ({
+    speak: vi.fn(),
+    stopSpeaking: vi.fn(),
+    isSpeaking: false,
+    isLoadingAudio: false,
+    speakingText: null,
+  }),
+}));
 
 import { VocabularyRow } from "./VocabularyRow";
 
@@ -37,7 +46,6 @@ async function renderRow(cefr?: CefrInfo | null) {
         cefr={cefr}
         isActive={false}
         onSelect={vi.fn()}
-        onPlay={vi.fn()}
         onDelete={vi.fn()}
       />,
     );

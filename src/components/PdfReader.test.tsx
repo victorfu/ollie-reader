@@ -21,6 +21,7 @@ vi.mock("../hooks/useSpeechState", () => ({
   useSpeechState: () => ({
     isSpeaking: false,
     isLoadingAudio: false,
+    speakingText: null,
     speechSupported: true,
     speak: vi.fn(),
     stopSpeaking: vi.fn(),

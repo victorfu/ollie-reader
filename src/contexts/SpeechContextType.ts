@@ -16,6 +16,8 @@ export interface SpeechContextType {
   ttsEngine: TTSEngine;
   setTtsMode: (mode: TTSMode) => void;
   isLoadingAudio: boolean;
+  /** Text passed to the most recent speak/speakAsync call; lets a button know it is the one playing. */
+  speakingText: string | null;
   speechSupported: boolean;
   speak: (text: string) => void;
   speakAsync: (text: string, options?: SpeakOptions) => Promise<void>;
