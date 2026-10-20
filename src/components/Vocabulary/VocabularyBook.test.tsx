@@ -101,7 +101,7 @@ async function renderBook() {
 /** The toolbar has exactly one text field for both searching and adding. */
 function getField(container: HTMLElement): HTMLInputElement {
   const fields = container.querySelectorAll<HTMLInputElement>(
-    'input[type="text"]',
+    'input[type="search"]',
   );
   expect(fields).toHaveLength(1);
   return fields[0];

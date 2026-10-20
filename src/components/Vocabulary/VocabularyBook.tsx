@@ -721,16 +721,22 @@ export const VocabularyBook = () => {
                 <input
                   ref={smartQueryInputRef}
                   id={smartQueryFieldId}
-                  type="text"
+                  // A search field, not a login form: keeps iOS from offering
+                  // passwords, addresses and cards above the keyboard.
+                  type="search"
                   placeholder="搜尋或加入單字、句子"
                   aria-label="搜尋或加入單字、句子"
-                  className={`${toolbarFieldClass} w-full pl-9 ${query.trim() ? "pr-16" : ""}`}
+                  className={`${toolbarFieldClass} w-full pl-9 [&::-webkit-search-cancel-button]:appearance-none ${query.trim() ? "pr-16" : ""}`}
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   // readOnly (not disabled) so the field keeps focus while querying
                   readOnly={isQuerying}
                   aria-busy={isQuerying}
                   autoComplete="off"
+                  autoCorrect="off"
+                  autoCapitalize="none"
+                  spellCheck={false}
+                  enterKeyHint="search"
                 />
                 {query.trim() && (
                   <div className="pointer-events-none absolute inset-y-0 right-2 flex items-center gap-1 text-xs text-muted-foreground">
