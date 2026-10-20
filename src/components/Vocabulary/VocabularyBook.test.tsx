@@ -145,6 +145,7 @@ beforeEach(() => {
   mocks.vocabulary.words = [makeWord("w-1", "apple"), makeWord("w-2", "banana")];
   mocks.sentences.sentences = [SENTENCE];
   mocks.vocabulary.lookupOrAddWord.mockReset();
+  mocks.vocabulary.searchWords.mockClear();
   root = null;
   host = document.createElement("div");
   document.body.appendChild(host);
@@ -166,6 +167,21 @@ describe("VocabularyBook search-or-add field", () => {
 
     expect(container.textContent).toContain("apple");
     expect(container.textContent).not.toContain("banana");
+  });
+
+  it("searches words by prefix with a limit instead of downloading the whole book", async () => {
+    const container = await renderBook();
+    const field = getField(container);
+
+    await typeInto(field, "app");
+    await waitForSearch();
+
+    expect(mocks.vocabulary.searchWords).toHaveBeenCalledTimes(1);
+    const [text, options] = mocks.vocabulary.searchWords.mock.calls[0];
+    expect(text).toBe("app");
+    expect(options.mode).toBe("prefix");
+    expect(typeof options.limit).toBe("number");
+    expect(options.limit).toBeGreaterThan(0);
   });
 
   it("looks up and adds the typed word on Enter", async () => {
