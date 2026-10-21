@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useSettings } from "../../hooks/useSettings";
 import { Toast } from "../common/Toast";
 import { RefreshIcon } from "../icons";
@@ -25,6 +25,8 @@ export interface WordDetailPanelProps {
   availableTags?: string[];
   /** CEFR level of the word; no badge when null or omitted. */
   cefr?: CefrInfo | null;
+  /** Optional trailing header control, kept in flow to avoid title overlap. */
+  headerAction?: ReactNode;
 }
 
 export const WordDetailPanel = ({
@@ -33,6 +35,7 @@ export const WordDetailPanel = ({
   onRegenerateWordDetails,
   availableTags = [],
   cefr,
+  headerAction,
 }: WordDetailPanelProps) => {
   const { showChineseTranslation, updateShowChineseTranslation } = useSettings();
   const [word, setWord] = useState<VocabularyWord>(initialWord);
@@ -150,6 +153,7 @@ export const WordDetailPanel = ({
             </button>
           </div>
         </div>
+        {headerAction}
       </div>
 
       {/* Tags and Difficulty */}
