@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const pdfMocks = vi.hoisted(() => ({
   renderWidths: [] as Array<number | undefined>,
   pdfJsText: "PDF.js extracted page text",
+  pdfJsItems: null as Array<{ str: string; hasEOL: boolean }> | null,
   renderTextLayerValues: [] as Array<boolean | undefined>,
   // Left null so pages report no size at all, as they did before fitting.
   pageDimensions: null as {
@@ -60,7 +61,9 @@ vi.mock("react-pdf", async () => {
         if (!renderTextLayer || didReportText.current) return;
         didReportText.current = true;
         onGetTextSuccess?.({
-          items: [{ str: pdfMocks.pdfJsText, hasEOL: false }],
+          items: pdfMocks.pdfJsItems ?? [
+            { str: pdfMocks.pdfJsText, hasEOL: false },
+          ],
         });
       }, [onGetTextSuccess, renderTextLayer]);
       return (
@@ -202,6 +205,7 @@ afterEach(() => {
   Reflect.deleteProperty(document, "caretRangeFromPoint");
   window.getSelection()?.removeAllRanges();
   pdfMocks.pageDimensions = null;
+  pdfMocks.pdfJsItems = null;
   if (clientWidthDescriptor) {
     Object.defineProperty(
       HTMLElement.prototype,
@@ -293,6 +297,29 @@ describe("PdfViewer PDF-only layout", () => {
     expect(speakButton?.disabled).toBe(false);
     act(() => speakButton?.click());
     expect(onSpeak).toHaveBeenCalledWith(pdfMocks.pdfJsText);
+  });
+
+  it("joins PDF.js text runs as stored, so split words stay whole", async () => {
+    // PDF.js already includes word spaces in its runs; some PDFs store a word
+    // one glyph per run (e.g. "IRS.gov/Spanish"), which must not gain spaces.
+    pdfMocks.pdfJsItems = [
+      { str: "• ", hasEOL: false },
+      { str: "I", hasEOL: false },
+      { str: "R", hasEOL: false },
+      { str: "S", hasEOL: false },
+      { str: ".gov (English)", hasEOL: true },
+      { str: "Learn more", hasEOL: false },
+    ];
+    const onSpeak = vi.fn();
+    renderViewer("blob:split-runs", null, vi.fn(), { onSpeak });
+
+    await act(async () => Promise.resolve());
+    act(() =>
+      host
+        .querySelector<HTMLButtonElement>('[aria-label="朗讀第 1 頁"]')
+        ?.click(),
+    );
+    expect(onSpeak).toHaveBeenCalledWith("• IRS.gov (English)\nLearn more");
   });
 });
 

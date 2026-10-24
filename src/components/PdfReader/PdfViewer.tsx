@@ -479,10 +479,13 @@ export const PdfViewer = memo(
                                 pageNumber === 1 ? handleFirstPageLoad : undefined
                               }
                               onGetTextSuccess={({ items }) => {
+                                // Runs already carry their word spaces; a
+                                // separator would split words stored one glyph
+                                // per run ("I R S . g o v").
                                 const pageTextFromPdf = items
                                   .map((item) => {
                                     if (!("str" in item)) return "";
-                                    return `${item.str}${item.hasEOL ? "\n" : " "}`;
+                                    return `${item.str}${item.hasEOL ? "\n" : ""}`;
                                   })
                                   .join("")
                                   .trim();
@@ -504,8 +507,7 @@ export const PdfViewer = memo(
                               loading={
                                 <div className="skeleton h-150 w-full rounded-lg" />
                               }
-                            >
-                            </Page>
+                            />
                           ) : (
                             <div className="skeleton h-150 w-full rounded-lg" />
                           )}

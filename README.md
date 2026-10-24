@@ -32,7 +32,7 @@ The UI follows macOS Human Interface Guidelines adapted for the web: a collapsib
 
 | Feature | What it does |
 |---|---|
-| **PDF Reader** (閱讀器) | Opens local or remote PDFs with `react-pdf`; supports word or range selection, bilingual lookup, translation, TTS, and saving words or translated sentences. Text can be parsed in the browser or by a compatible backend. OIKID booking records can load lesson PDFs through the desktop sidecar or the standalone server when either has OIKID credentials. |
+| **PDF Reader** (閱讀器) | Opens local or remote PDFs with `react-pdf`; supports word or range selection, bilingual lookup, translation, TTS, and saving words or translated sentences. Page text comes from the PDF.js text layer in the browser. OIKID booking records can load lesson PDFs through the desktop sidecar or the standalone server when either has OIKID credentials. |
 | **Smart Vocabulary Book** (生詞本) | One newest-first feed of saved words and translated sentences, filterable by all/words/sentences, with search across both. Words store bilingual AI definitions and examples, tags, flashcards, and pronunciation practice through the Web Speech API. Smart review prioritises unseen, older, remembered, and forgotten items; it is not an SM-2-style spaced-repetition scheduler. Words on the bundled CEFR list show their level (A1–C2) as a badge; other words show an estimate (≈B1) once one has been made while generating a Word Practice homework. |
 | **Word Practice** (單字練習) | Ollie generates a homework on demand from the vocabulary book: 5–20 words (default 10), chosen missed-first, then by level A1→C2, then oldest saved first; an optional starting CEFR level skips listed words below it that were never missed, and learned words never return. Six steps, all in English, five with typed answers (Learn is read-and-listen): Learn, Spell It (look–listen–cover–write–check, three correct per word), Fill in the Blank, What's the Word? (definition to word), Write a Sentence (Gemini feedback in simple English), and an auto-graded Spelling Test where the word, a sentence, and the word are read aloud (correct means learned; wrong means practised first next time). Progress saves to Firestore after every answer, and finished homework is kept in a history with scores. |
 | **English Speech** (英文演講) | Splits and translates pasted text with Gemini, organises reusable speech collections, supports drag-to-reorder sentences, per-word lookup, and sentence/all-speech playback. |
@@ -57,7 +57,7 @@ The UI follows macOS Human Interface Guidelines adapted for the web: a collapsib
 - **react-pdf** for browser PDF rendering and text extraction (the only PDF text source)
 - **Web Speech API**, **MediaRecorder**, IndexedDB, and local storage for browser-native speech, recording, and device-local caches/preferences
 - **Vitest** for Web (jsdom) and server (Node) tests; **Playwright** for the podcast browser smoke test
-- **Server:** Next.js 16 on Node.js 24 (deployed to Vercel), PDF.js, vendored `msedge-tts`, `firebase-admin`, FFmpeg (`ffmpeg-static`), and `music-metadata`
+- **Server:** Next.js 16 on Node.js 24 (deployed to Vercel), vendored `msedge-tts`, `firebase-admin`, FFmpeg (`ffmpeg-static`), and `music-metadata`
 - **Desktop:** Python, PySide6, FastAPI, Piper, Kokoro ONNX, Edge TTS, and PyInstaller
 
 ## Getting started
@@ -68,7 +68,7 @@ The UI follows macOS Human Interface Guidelines adapted for the web: a collapsib
 - A Firebase project configured for Google Auth, Firestore, App Check with reCAPTCHA v3, and Firebase AI Logic
 - An `allowedUsers/{email}` Firestore document for each authorised account, backed by matching Firestore Security Rules
 - A Supabase project with a private `ollie-reader` Storage bucket, Firebase Third-Party Auth, and RLS policies matching the Firebase user ID
-- For backend PDF/TTS/URL/OIKID/Podcast features, the standalone [`server/`](server/README.md) API (or, except for Podcasts, the optional desktop sidecar)
+- For backend TTS/URL/OIKID/Podcast features, the standalone [`server/`](server/README.md) API (or, except for Podcasts, the optional desktop sidecar)
 
 Firestore rules and Supabase policies/schema are deployment infrastructure; the repository does not contain the complete deployed rules. Podcast transcripts need the owner-scoped rules in [`server/podcast-firestore-rules.fragment`](server/podcast-firestore-rules.fragment) merged into the deployed Firestore rules. Word Practice likewise needs [`word-practice-firestore-rules.fragment`](word-practice-firestore-rules.fragment) merged in, which covers `users/{uid}/wordHomeworks/{homeworkId}` and `users/{uid}/wordPractice/state`. The standalone Next.js API in [`server/`](server/README.md) provides Edge TTS, URL fetching, OIKID bookings, version checks, Podcast resolution, and Podcast audio preparation.
 
@@ -268,7 +268,7 @@ ollie-reader/
 │   ├── App.tsx                   # Auth boundary, responsive shell, and routes
 │   ├── main.tsx                  # Application entry point
 │   └── index.css                 # Tailwind, DaisyUI themes, and design tokens
-├── server/                       # Standalone Next.js API (Edge TTS, PDF, OIKID, Podcasts)
+├── server/                       # Standalone Next.js API (Edge TTS, URL fetch, OIKID, Podcasts)
 ├── desktop/                      # Optional PySide6 + FastAPI macOS companion
 ├── tests/                        # Additional data/utility tests
 ├── word-practice-firestore-rules.fragment  # Firestore rules to merge for Word Practice

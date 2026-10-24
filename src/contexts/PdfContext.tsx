@@ -333,7 +333,7 @@ export const PdfProvider = ({ children }: PdfProviderProps) => {
         );
         setSelectedFile(null);
         setPdfUrl(null);
-          throw loadError;
+        throw loadError;
       } finally {
         if (isCurrentRequest(request.generation)) {
           setIsLoadingFromUrl(false);
