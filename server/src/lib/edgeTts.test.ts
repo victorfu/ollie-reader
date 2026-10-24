@@ -2,7 +2,7 @@ import { PassThrough } from "node:stream";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({ create: vi.fn() }));
-vi.mock("msedge-tts", () => ({
+vi.mock("./msedge-tts", () => ({
   MsEdgeTTS: class { constructor() { return mocks.create(); } },
   OUTPUT_FORMAT: { AUDIO_24KHZ_48KBITRATE_MONO_MP3: "mp3" },
 }));
@@ -50,6 +50,11 @@ describe("Edge synthesis lifecycle", () => {
     await expect(synthesizeSpeech(request)).rejects.toMatchObject({ status: 502, message: expect.stringContaining("msedge-tts") });
     expect(tts.close).toHaveBeenCalled();
     expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("reports a handshake answered with 200 as a rejection", async () => {
+    tts.setMetadata.mockRejectedValue(new Error("Edge TTS WebSocket error: Unexpected server response: 200"));
+    await expect(synthesizeSpeech(request)).rejects.toMatchObject({ status: 502, message: expect.stringContaining("（200）") });
   });
 
   it("rejects empty audio", async () => {

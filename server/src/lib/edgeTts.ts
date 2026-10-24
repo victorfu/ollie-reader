@@ -1,4 +1,4 @@
-import { MsEdgeTTS, OUTPUT_FORMAT } from "msedge-tts";
+import { MsEdgeTTS, OUTPUT_FORMAT } from "./msedge-tts";
 import { Agent } from "node:https";
 import type { Readable } from "node:stream";
 import type { SpeechRequest } from "../types/speech";
@@ -10,9 +10,11 @@ const MAX_AUDIO_BYTES = 4 * 1024 * 1024;
 function upstreamError(error: unknown): SpeechError {
   if (error instanceof SpeechError) return error;
   const message = error instanceof Error ? error.message : String(error);
+  // A rejected handshake (403, or 200 instead of 101) means Microsoft changed the protocol.
+  const handshakeStatus = /Unexpected server response: (\d+)/.exec(message)?.[1];
   return new SpeechError(
-    message.includes("403")
-      ? "Edge TTS 被服務端拒絕（403），請更新伺服器的 msedge-tts 套件後重試"
+    handshakeStatus
+      ? `Edge TTS 被服務端拒絕（${handshakeStatus}），請更新伺服器的 src/lib/msedge-tts 後重試`
       : "Edge TTS 語音合成失敗，請稍後重試",
     502,
   );

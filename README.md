@@ -57,7 +57,7 @@ The UI follows macOS Human Interface Guidelines adapted for the web: a collapsib
 - **react-pdf** for browser PDF rendering and text extraction
 - **Web Speech API**, **MediaRecorder**, IndexedDB, and local storage for browser-native speech, recording, and device-local caches/preferences
 - **Vitest** for Web (jsdom) and server (Node) tests; **Playwright** for the podcast browser smoke test
-- **Server:** Next.js 16 on Node.js 24 (deployed to Vercel), PDF.js, `msedge-tts`, `firebase-admin`, FFmpeg (`ffmpeg-static`), and `music-metadata`
+- **Server:** Next.js 16 on Node.js 24 (deployed to Vercel), PDF.js, vendored `msedge-tts`, `firebase-admin`, FFmpeg (`ffmpeg-static`), and `music-metadata`
 - **Desktop:** Python, PySide6, FastAPI, PyMuPDF, Piper, Kokoro ONNX, Edge TTS, and PyInstaller
 
 ## Getting started
