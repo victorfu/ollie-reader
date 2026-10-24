@@ -1,8 +1,12 @@
 # 大耳狗的雲朵小窩 — 溫柔養成遊戲設計
 
+> **已被取代（2026-10-25）：** 雲朵小窩的養成玩法已整個移除，`/games/cottage` 改為「大耳狗 3D 夥伴」，
+> 規格見 [victorfu/ollie-reader#27](https://github.com/victorfu/ollie-reader/issues/27)。
+> 本文件只保留作為歷史紀錄；舊的雲端存檔 `gameProgress/{uid}/littleGames/cloudCottage` 不再讀寫，但也沒有刪除。
+
 <metadata>
 date: 2026-07-30
-status: approved design, pending implementation plan
+status: superseded by #27 (2026-10-25)
 scope: /games/cottage
 audience: 開發者的女兒(台灣國小中高年級、繁中閱讀流暢)+ 開發者本人;私人使用、不公開發行。
 </metadata>

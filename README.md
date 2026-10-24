@@ -42,7 +42,7 @@ The UI follows macOS Human Interface Guidelines adapted for the web: a collapsib
 | **Show Subtitles** (影集字幕) | Reads the bundled *Gabby's Dollhouse* transcripts across nine seasons with the same lookup, translate, speak, and save workflow used by the reader. |
 | **Basic Academic Competency Test** (基本學力測驗) | Chinese, mathematics, and English papers with section/full-paper sessions, immediate feedback, wrong-answer retry, local best-score tracking, and random mixed-subject papers. |
 | **Word Adventure & Gacha** | Runs vocabulary quiz stages and boss battles from the learner's word pool, with achievements and cloud-synced tokens used by the Popular Character Gacha collection. |
-| **Little Games** (小遊戲) | The game hub opens each game in its own browser tab: Word Adventure, Popular Character Gacha, Cloud Cottage (大耳狗的雲朵小窩; pet care, in development, cloud save), Sweetheart Defenders (tower defence, in development, cloud save), Mushroom Adventure, Meteor Glider, and Bunny Jumper. |
+| **Little Games** (小遊戲) | The game hub opens each game in its own browser tab: Word Adventure, Popular Character Gacha, Cinnamoroll 3D Companion (大耳狗 3D 夥伴; pet his head and he reacts, in development, no save data), Sweetheart Defenders (tower defence, in development, cloud save), Mushroom Adventure, Meteor Glider, and Bunny Jumper. |
 | **Settings** (設定) | Theme, speech mode (system voices or Edge TTS), speech rate, compute backend (`auto`/`local`/`cloud`), the gacha empty-capsule rate, a device-only "show all gacha entries" view, and game progress reset. |
 | **Desktop Companion** | Adds a loopback FastAPI service and PySide6 menu-bar app. Piper and Kokoro run offline. Edge TTS, OIKID, and remote URL fetching still need network access. |
 
@@ -246,7 +246,7 @@ ollie-reader/
 │   │   ├── Auth/                 # Google sign-in UI
 │   │   ├── ExamPractice/         # Subject papers, quizzes, and results
 │   │   ├── Game/                 # Word Adventure
-│   │   ├── LittleGames/          # Game hub, Gacha, Cloud Cottage, and browser games
+│   │   ├── LittleGames/          # Game hub, Gacha, 3D Cinnamoroll companion, and browser games
 │   │   ├── PdfReader/            # PDF viewer, selection, lookup panels, and OIKID bookings
 │   │   ├── Podcasts/             # Podcast player and AI transcripts
 │   │   ├── SentencePractice/     # English speech collections

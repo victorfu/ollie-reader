@@ -94,14 +94,14 @@ export default function GameHub() {
       {
         id: "cottage",
         to: "/games/cottage",
-        title: "大耳狗的雲朵小窩",
+        title: "大耳狗 3D 夥伴",
         blurb:
-          "大耳狗喜拿住進了雲朵小窩:餵點心、洗泡泡澡、佈置房間,越照顧感情越好。",
-        tag: "Pet Care",
+          "立體的大耳狗就在眼前：摸摸他的頭，他會閉上眼睛、搖搖耳朵跟你撒嬌。",
+        tag: "3D Companion",
         emoji: "☁️",
         best: null,
         inDevelopment: true,
-        statusLabel: "開發中 · 雲端存檔",
+        statusLabel: "打開就能玩",
       },
       {
         id: "sweetheart",

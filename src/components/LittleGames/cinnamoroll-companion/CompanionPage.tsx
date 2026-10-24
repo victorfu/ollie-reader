@@ -140,7 +140,7 @@ export default function CompanionPage({ onExit }: { onExit: () => void }) {
       <header className="pointer-events-none absolute inset-x-0 top-0 flex items-center justify-between gap-3 p-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
         <div className="pointer-events-auto">{backButton}</div>
         <span className="rounded-full bg-white/60 px-3 py-1 text-xs font-medium text-sky-900 backdrop-blur-md">
-          大耳狗 3D 夥伴 · 原型
+          大耳狗 3D 夥伴
         </span>
       </header>
 

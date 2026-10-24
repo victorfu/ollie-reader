@@ -6,7 +6,7 @@ import type { CompanionRuntime } from "./logic/companionRuntime";
 /** At most this many hearts are on screen; extra hearts are skipped. */
 const MAX_HEARTS = 4;
 const LIFE_MS = 1_600;
-const SPAWN = new THREE.Vector3(0, 3.05, 0.5);
+const SPAWN = new THREE.Vector3(0, 2.95, 0.5);
 
 type Slot = { born: number; x: number; active: boolean };
 

@@ -96,9 +96,6 @@ const SweetheartDefenders = lazyWithReload(
 const GachaMachine = lazyWithReload(
   () => import("./components/LittleGames/gacha-machine/GachaMachine"),
 );
-const CloudCottage = lazyWithReload(
-  () => import("./components/LittleGames/cloud-cottage/CloudCottage"),
-);
 const CinnamorollCompanion = lazyWithReload(
   () =>
     import("./components/LittleGames/cinnamoroll-companion/CompanionPage"),
@@ -319,9 +316,8 @@ function AppContent() {
   const isStandaloneBunny = normalizedPathname === "/games/bunny";
   const isStandaloneMeteor = normalizedPathname === "/games/meteor";
   const isStandaloneGacha = normalizedPathname === "/games/gacha";
+  // 大耳狗 3D 夥伴取代了雲朵小窩，沿用原網址讓書籤與已開的分頁繼續有效。
   const isStandaloneCottage = normalizedPathname === "/games/cottage";
-  // 3D 大耳狗原型（#27），尚未放進 GameHub，完成後會取代 /games/cottage。
-  const isStandaloneCompanion = normalizedPathname === "/games/companion";
   // 甜心防衛隊取代了 Wonder Academy / Monster Academy，舊網址（含已開著的分頁
   // 與書籤）一律導到新遊戲。
   const isRetiredAcademyGame =
@@ -381,18 +377,6 @@ function AppContent() {
   }
 
   if (isStandaloneCottage) {
-    return (
-      <SettingsProvider>
-        <SpeechProvider>
-          <Suspense fallback={<RouteLoadingFallback />}>
-            <CloudCottage onExit={() => navigate("/games")} />
-          </Suspense>
-        </SpeechProvider>
-      </SettingsProvider>
-    );
-  }
-
-  if (isStandaloneCompanion) {
     return (
       <Suspense fallback={<RouteLoadingFallback />}>
         <CinnamorollCompanion onExit={() => navigate("/games")} />

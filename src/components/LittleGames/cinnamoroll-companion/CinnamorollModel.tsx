@@ -8,12 +8,23 @@ import { useCompanionAnimation } from "./useCompanionAnimation";
  * Procedural stand-in for the final Cinnamoroll GLB: same rig (head, ears,
  * eyes, mouth, tail) so the interaction and animation code can be built and
  * tuned now and keep working when the real model replaces the geometry.
+ *
+ * Proportions follow the official look: a wide bun-shaped head, very long
+ * paddle ears growing sideways from the top of the head, sky-blue oval eyes,
+ * a blue "ω" mouth, a small chubby body and a cinnamon-roll tail.
  */
 
 /** Head ellipsoid in head-group space. */
-const HEAD_CENTER_Y = 0.9;
-const HEAD_SEMI_AXES = new THREE.Vector3(1.2, 0.96, 1);
+const HEAD_CENTER_Y = 0.86;
+const HEAD_SEMI_AXES = new THREE.Vector3(1.32, 0.92, 1);
 const HEAD_PIVOT = new THREE.Vector3(0, HEAD_PIVOT_Y, 0.05);
+
+const EAR_LENGTH = 2.75;
+/** Half-height at the widest point, and half-thickness. */
+const EAR_HALF_HEIGHT = 0.4;
+const EAR_HALF_THICKNESS = 0.14;
+/** Fraction of the length where the ear is widest; the tip end stays round. */
+const EAR_WIDEST_AT = 0.66;
 
 function emptyRig(): RigParts {
   return {
@@ -47,6 +58,54 @@ function onFace(x: number, yOffset: number, lift = 0) {
   return { position, quaternion };
 }
 
+/**
+ * A long, flat ear growing along +x from its root at the origin: narrow at
+ * the root, widest two-thirds out, a round tip, curving down and slightly
+ * back. Built by reshaping a sphere so it stays smooth and well lit.
+ */
+function createEarGeometry(): THREE.BufferGeometry {
+  const geometry = new THREE.SphereGeometry(1, 72, 36);
+  const position = geometry.attributes.position;
+  const v = new THREE.Vector3();
+  for (let i = 0; i < position.count; i += 1) {
+    v.fromBufferAttribute(position, i);
+    const u = (v.x + 1) / 2;
+    const ring = Math.sqrt(Math.max(0, 1 - v.x * v.x));
+    const span = u < EAR_WIDEST_AT ? EAR_WIDEST_AT : 1 - EAR_WIDEST_AT;
+    const profile = Math.sqrt(
+      Math.max(0, 1 - ((u - EAR_WIDEST_AT) / span) ** 2),
+    );
+    const dirY = ring > 1e-6 ? v.y / ring : 0;
+    const dirZ = ring > 1e-6 ? v.z / ring : 0;
+    position.setXYZ(
+      i,
+      u * EAR_LENGTH,
+      dirY * profile * EAR_HALF_HEIGHT - 0.36 * u * u,
+      dirZ * profile * EAR_HALF_THICKNESS - 0.3 * u * u,
+    );
+  }
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
+/** "ω": two small dips meeting in a point. */
+class OmegaCurve extends THREE.Curve<THREE.Vector3> {
+  private readonly radius: number;
+
+  constructor(radius: number) {
+    super();
+    this.radius = radius;
+  }
+
+  getPoint(t: number, target = new THREE.Vector3()) {
+    const r = this.radius;
+    const side = t < 0.5 ? -1 : 1;
+    const local = t < 0.5 ? t * 2 : (t - 0.5) * 2;
+    const angle = Math.PI + local * Math.PI;
+    return target.set(side * r + Math.cos(angle) * r, Math.sin(angle) * r * 0.9, 0);
+  }
+}
+
 /** Cinnamon-roll curl, wound from the inside out. */
 class TailCurve extends THREE.Curve<THREE.Vector3> {
   constructor() {
@@ -54,9 +113,9 @@ class TailCurve extends THREE.Curve<THREE.Vector3> {
   }
 
   getPoint(t: number, target = new THREE.Vector3()) {
-    const angle = t * Math.PI * 2 * 1.6;
-    const radius = 0.05 + 0.2 * t;
-    return target.set(Math.cos(angle) * radius, Math.sin(angle) * radius, 0.05 * t);
+    const angle = t * Math.PI * 2 * 1.55;
+    const radius = 0.05 + 0.27 * t;
+    return target.set(Math.cos(angle) * radius, Math.sin(angle) * radius, 0.08 * t);
   }
 }
 
@@ -65,33 +124,33 @@ function useModelResources() {
     const geometries = {
       sphere: new THREE.SphereGeometry(1, 48, 32),
       smallSphere: new THREE.SphereGeometry(1, 20, 14),
-      tail: new THREE.TubeGeometry(new TailCurve(), 64, 0.075, 12, false),
+      ear: createEarGeometry(),
+      tail: new THREE.TubeGeometry(new TailCurve(), 96, 0.105, 16, false),
       // Upper half ring: the happy "^" of closed eyes.
-      eyeArc: new THREE.TorusGeometry(0.085, 0.02, 8, 24, Math.PI),
-      // Lower half ring: the smile line.
-      mouthArc: new THREE.TorusGeometry(0.075, 0.017, 8, 24, Math.PI),
-      mouthOpen: new THREE.CircleGeometry(0.07, 24, Math.PI, Math.PI),
+      eyeArc: new THREE.TorusGeometry(0.085, 0.019, 8, 24, Math.PI),
+      mouthLine: new THREE.TubeGeometry(new OmegaCurve(0.06), 48, 0.015, 8, false),
+      mouthOpen: new THREE.CircleGeometry(0.085, 24, Math.PI, Math.PI),
     };
     const materials = {
       fur: new THREE.MeshStandardMaterial({
         color: "#ffffff",
-        emissive: "#e8f0ff",
-        emissiveIntensity: 0.18,
-        roughness: 0.82,
+        emissive: "#eef2fb",
+        emissiveIntensity: 0.16,
+        roughness: 0.78,
       }),
-      eye: new THREE.MeshStandardMaterial({ color: "#3f6fc0", roughness: 0.3 }),
+      eye: new THREE.MeshStandardMaterial({ color: "#45a6ee", roughness: 0.25 }),
       eyeShine: new THREE.MeshBasicMaterial({ color: "#ffffff" }),
-      line: new THREE.MeshStandardMaterial({ color: "#2f5596", roughness: 0.5 }),
+      line: new THREE.MeshStandardMaterial({ color: "#3a8fd6", roughness: 0.45 }),
       mouthOpen: new THREE.MeshStandardMaterial({
-        color: "#f28fab",
+        color: "#f48aa8",
         roughness: 0.6,
         side: THREE.DoubleSide,
       }),
       cheek: new THREE.MeshStandardMaterial({
-        color: "#f9a9c6",
+        color: "#fbb3cc",
         roughness: 0.9,
         transparent: true,
-        opacity: 0.45,
+        opacity: 0.5,
         depthWrite: false,
       }),
       cloud: new THREE.MeshStandardMaterial({
@@ -117,13 +176,13 @@ function useModelResources() {
 
 const CLOUD_PUFFS: ReadonlyArray<[number, number, number, number, number]> = [
   // x, y, z, radius, vertical squash
-  [0, -0.12, 0, 0.95, 0.36],
-  [-0.85, -0.12, 0.1, 0.48, 0.5],
-  [0.85, -0.12, 0.06, 0.5, 0.5],
-  [-0.42, -0.06, 0.45, 0.42, 0.5],
-  [0.45, -0.05, 0.45, 0.4, 0.5],
-  [-0.4, -0.08, -0.42, 0.46, 0.5],
-  [0.45, -0.08, -0.42, 0.46, 0.5],
+  [0, -0.14, 0, 0.95, 0.36],
+  [-0.85, -0.14, 0.1, 0.48, 0.5],
+  [0.85, -0.14, 0.06, 0.5, 0.5],
+  [-0.42, -0.08, 0.45, 0.42, 0.5],
+  [0.45, -0.07, 0.45, 0.4, 0.5],
+  [-0.4, -0.1, -0.42, 0.46, 0.5],
+  [0.45, -0.1, -0.42, 0.46, 0.5],
 ];
 
 type CinnamorollModelProps = {
@@ -146,9 +205,9 @@ export function CinnamorollModel({
 
   const face = useMemo(
     () => ({
-      eyes: [onFace(-0.42, -0.1, 0.02), onFace(0.42, -0.1, 0.02)],
-      cheeks: [onFace(-0.72, -0.34, 0.005), onFace(0.72, -0.34, 0.005)],
-      mouth: onFace(0, -0.3, 0.01),
+      eyes: [onFace(-0.5, -0.06, 0.02), onFace(0.5, -0.06, 0.02)],
+      cheeks: [onFace(-0.82, -0.27, 0.005), onFace(0.82, -0.27, 0.005)],
+      mouth: onFace(0, -0.2, 0.012),
     }),
     [],
   );
@@ -166,15 +225,16 @@ export function CinnamorollModel({
       ))}
 
       <group ref={(node) => { rig.current.body = node; }}>
-        <mesh geometry={g.sphere} material={m.fur} position={[0, 0.6, 0]} scale={[0.68, 0.56, 0.6]} />
+        <mesh geometry={g.sphere} material={m.fur} position={[0, 0.55, 0]} scale={[0.6, 0.6, 0.55]} />
+        {/* Paws held up in front of the chest. */}
         {[-1, 1].map((side) => (
           <mesh
             key={`arm${side}`}
             geometry={g.smallSphere}
             material={m.fur}
-            position={[side * 0.58, 0.68, 0.28]}
-            rotation={[0, 0, side * 0.6]}
-            scale={[0.17, 0.21, 0.17]}
+            position={[side * 0.34, 0.8, 0.4]}
+            rotation={[0.5, 0, side * -0.55]}
+            scale={[0.14, 0.21, 0.14]}
           />
         ))}
         {[-1, 1].map((side) => (
@@ -182,16 +242,23 @@ export function CinnamorollModel({
             key={`foot${side}`}
             geometry={g.smallSphere}
             material={m.fur}
-            position={[side * 0.32, 0.1, 0.3]}
-            scale={[0.23, 0.13, 0.27]}
+            position={[side * 0.26, 0.08, 0.24]}
+            scale={[0.17, 0.12, 0.2]}
           />
         ))}
         <group
           ref={(node) => { rig.current.tail = node; }}
-          position={[0.3, 0.62, -0.55]}
-          rotation={[0, Math.PI * 0.8, 0]}
+          position={[0.62, 0.42, -0.08]}
+          rotation={[0, -0.3, 0]}
         >
           <mesh geometry={g.tail} material={m.fur} />
+          {/* Round off the open end in the middle of the curl. */}
+          <mesh
+            geometry={g.smallSphere}
+            material={m.fur}
+            position={[0.05, 0, 0]}
+            scale={0.105}
+          />
         </group>
       </group>
 
@@ -210,7 +277,7 @@ export function CinnamorollModel({
           ref={headHitRef}
           geometry={g.smallSphere}
           position={[0, HEAD_CENTER_Y, 0]}
-          scale={[1.24, 1.02, 1.06]}
+          scale={[1.37, 0.96, 1.04]}
           visible={false}
         />
 
@@ -218,27 +285,21 @@ export function CinnamorollModel({
           <group
             key={`ear${side}`}
             ref={(node) => { rig.current.ears[index] = node; }}
-            position={[side * 0.55, 1.7, -0.05]}
+            position={[side * 0.52, HEAD_CENTER_Y + 0.78, -0.12]}
           >
-            <mesh
-              geometry={g.sphere}
-              material={m.fur}
-              position={[side * 0.95, 0, 0]}
-              rotation={[0, side * 0.15, 0]}
-              scale={[1, 0.36, 0.14]}
-            />
+            <mesh geometry={g.ear} material={m.fur} scale={[side, 1, 1]} />
           </group>
         ))}
 
         {face.eyes.map(({ position, quaternion }, index) => (
           <group key={`eye${index}`} position={position} quaternion={quaternion}>
             <group ref={(node) => { rig.current.eyesOpen[index] = node; }}>
-              <mesh geometry={g.smallSphere} material={m.eye} scale={[0.1, 0.14, 0.04]} />
+              <mesh geometry={g.smallSphere} material={m.eye} scale={[0.11, 0.16, 0.04]} />
               <mesh
                 geometry={g.smallSphere}
                 material={m.eyeShine}
-                position={[0.03, 0.05, 0.03]}
-                scale={0.032}
+                position={[0.025, 0.065, 0.03]}
+                scale={[0.03, 0.036, 0.02]}
               />
             </group>
             <mesh
@@ -257,18 +318,18 @@ export function CinnamorollModel({
             material={m.cheek}
             position={position}
             quaternion={quaternion}
-            scale={[0.14, 0.085, 0.02]}
+            scale={[0.17, 0.1, 0.02]}
           />
         ))}
 
         <group position={face.mouth.position} quaternion={face.mouth.quaternion}>
           <group ref={(node) => { rig.current.mouth = node; }}>
-            <mesh geometry={g.mouthArc} material={m.line} rotation={[0, 0, Math.PI]} />
+            <mesh geometry={g.mouthLine} material={m.line} />
             <mesh
               ref={(node) => { rig.current.mouthOpen = node; }}
               geometry={g.mouthOpen}
               material={m.mouthOpen}
-              position={[0, 0, -0.005]}
+              position={[0, -0.03, -0.004]}
               scale={[1, 0, 1]}
             />
           </group>

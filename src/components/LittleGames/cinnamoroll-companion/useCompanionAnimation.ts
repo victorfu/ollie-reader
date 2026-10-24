@@ -6,7 +6,7 @@ import type { CompanionRuntime } from "./logic/companionRuntime";
 import { petExpression, type PetPhase } from "./logic/petMachine";
 
 /** Ears hang this far below horizontal at rest (radians). */
-const EAR_DROOP = 0.42;
+const EAR_DROOP = 0.16;
 const EAR_STIFFNESS = 70;
 const EAR_DAMPING = 7;
 /** Frame steps longer than this (tab switch, jank) are clamped. */
