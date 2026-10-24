@@ -99,6 +99,10 @@ const GachaMachine = lazyWithReload(
 const CloudCottage = lazyWithReload(
   () => import("./components/LittleGames/cloud-cottage/CloudCottage"),
 );
+const CinnamorollCompanion = lazyWithReload(
+  () =>
+    import("./components/LittleGames/cinnamoroll-companion/CompanionPage"),
+);
 
 const SIDEBAR_COLLAPSED_KEY = "ollie-sidebar-collapsed";
 
@@ -316,6 +320,8 @@ function AppContent() {
   const isStandaloneMeteor = normalizedPathname === "/games/meteor";
   const isStandaloneGacha = normalizedPathname === "/games/gacha";
   const isStandaloneCottage = normalizedPathname === "/games/cottage";
+  // 3D 大耳狗原型（#27），尚未放進 GameHub，完成後會取代 /games/cottage。
+  const isStandaloneCompanion = normalizedPathname === "/games/companion";
   // 甜心防衛隊取代了 Wonder Academy / Monster Academy，舊網址（含已開著的分頁
   // 與書籤）一律導到新遊戲。
   const isRetiredAcademyGame =
@@ -383,6 +389,14 @@ function AppContent() {
           </Suspense>
         </SpeechProvider>
       </SettingsProvider>
+    );
+  }
+
+  if (isStandaloneCompanion) {
+    return (
+      <Suspense fallback={<RouteLoadingFallback />}>
+        <CinnamorollCompanion onExit={() => navigate("/games")} />
+      </Suspense>
     );
   }
 

@@ -13,6 +13,7 @@
     "build-cefr": "node scripts/build-cefr-levels.mjs"
   },
   "dependencies": {
+    "@react-three/fiber": "^9.8.2",
     "@supabase/supabase-js": "^2.108.2",
     "@tailwindcss/vite": "^4.1.18",
     "@types/canvas-confetti": "^1.9.0",
@@ -24,7 +25,8 @@
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-pdf": "^10.3.0",
-    "react-router-dom": "^7.13.0"
+    "react-router-dom": "^7.13.0",
+    "three": "^0.186.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.2",
@@ -32,6 +34,7 @@
     "@types/node": "^25.2.2",
     "@types/react": "^19.2.13",
     "@types/react-dom": "^19.2.3",
+    "@types/three": "^0.186.0",
     "@vitejs/plugin-react": "^5.1.3",
     "autoprefixer": "^10.4.24",
     "eslint": "^9.39.2",
