@@ -1,12 +1,11 @@
 import { useRef, type RefObject } from "react";
 import { useFrame } from "@react-three/fiber";
 import { MathUtils } from "three";
-import { HEAD_PIVOT_Y, type RigParts } from "./rig";
+import type { RigParts } from "./rig";
 import type { CompanionRuntime } from "./logic/companionRuntime";
 import { petExpression, type PetPhase } from "./logic/petMachine";
+import { advanceSpin } from "./logic/spin";
 
-/** Ears hang this far below horizontal at rest (radians). */
-const EAR_DROOP = 0.3;
 const EAR_STIFFNESS = 70;
 const EAR_DAMPING = 7;
 /** Frame steps longer than this (tab switch, jank) are clamped. */
@@ -32,6 +31,8 @@ type AnimationState = {
   tiltSide: number;
   touchSide: number;
   phase: PetPhase;
+  /** Rest height of the neck pivot, read from the model on the first frame. */
+  headBaseY: number | null;
 };
 
 function initialState(now: number): AnimationState {
@@ -56,6 +57,7 @@ function initialState(now: number): AnimationState {
     tiltSide: 1,
     touchSide: 1,
     phase: "idle",
+    headBaseY: null,
   };
 }
 
@@ -89,6 +91,8 @@ export function useCompanionAnimation(
     const motion = reducedMotion ? 0.35 : 1;
 
     runtime.dispatch({ type: "tick", now });
+    runtime.spin = advanceSpin(runtime.spin, dt);
+    parts.turntable?.quaternion.copy(runtime.spin.orientation);
     const pet = runtime.pet;
     const face = petExpression(pet, now);
 
@@ -155,10 +159,11 @@ export function useCompanionAnimation(
     }
     if (parts.head) {
       parts.head.rotation.set(a.pitch, a.yaw, a.roll);
-      parts.head.position.y = HEAD_PIVOT_Y + 0.012 * breath * motion;
+      a.headBaseY ??= parts.head.position.y;
+      parts.head.position.y = a.headBaseY + 0.012 * breath * motion;
     }
     if (parts.tail) {
-      parts.tail.rotation.z =
+      parts.tail.rotation.y =
         Math.sin(t * (pet.phase === "petting" ? 7 : 1.6)) *
         (pet.phase === "petting" ? 0.22 : 0.08) *
         motion;
@@ -173,7 +178,7 @@ export function useCompanionAnimation(
       const wiggle = Math.sin(t * 9 + index) * 0.07 * a.delight * motion;
       stepSpring(ear, relaxed + sway + wiggle - rollVelocity * 0.04 * side, dt);
       const node = parts.ears[index];
-      if (node) node.rotation.z = side * -(EAR_DROOP + ear.value);
+      if (node) node.rotation.z = side * -ear.value;
     });
 
     const open = (1 - blink) * (1 - a.eyesClosed);
@@ -197,7 +202,7 @@ export function useCompanionAnimation(
       parts.mouthOpen.scale.y = MathUtils.clamp((a.smile - 0.6) * 2.5, 0, 1);
     }
     if (parts.cheekMaterial) {
-      parts.cheekMaterial.opacity = 0.62 + 0.33 * a.delight;
+      parts.cheekMaterial.opacity = 0.75 + 0.25 * a.delight;
     }
   });
 }

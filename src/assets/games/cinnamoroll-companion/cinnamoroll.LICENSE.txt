@@ -1,0 +1,11 @@
+Model Information:
+* title:	Cinnamoroll
+* source:	https://sketchfab.com/3d-models/cinnamoroll-eae98497b99f47b8897c4ffd06521e31
+* author:	fukkacumy (https://sketchfab.com/kraevaya201)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Cinnamoroll" (https://sketchfab.com/3d-models/cinnamoroll-eae98497b99f47b8897c4ffd06521e31) by fukkacumy (https://sketchfab.com/kraevaya201) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

@@ -2,13 +2,21 @@ import { useEffect, type RefObject } from "react";
 import { useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import type { CompanionRuntime } from "./logic/companionRuntime";
-import type { PetEvent } from "./logic/petMachine";
-import { createPointerTracker } from "./logic/pointerTracker";
+import {
+  createPointerTracker,
+  type TrackerEvent,
+} from "./logic/pointerTracker";
+import { releaseSpin, turnSpin } from "./logic/spin";
+
+/** Turn for a drag across the whole canvas width, radians. */
+const TURN_PER_WIDTH = Math.PI * 1.5;
 
 /**
- * Wires canvas pointer events to the petting machine. Hit testing raycasts
- * only the invisible head mesh, which follows the animated head, so ears,
- * body and empty canvas never count as a pet.
+ * Wires canvas pointer events to turning and petting. Every drag turns the
+ * character until petting mode is on; then a drag that starts on the head
+ * pets it, and a drag anywhere else still turns. Hit testing raycasts only
+ * the invisible head mesh, which follows the animated head, so ears, body
+ * and empty canvas never count as a pet.
  */
 export function usePetInteraction(
   runtime: CompanionRuntime,
@@ -27,7 +35,18 @@ export function usePetInteraction(
     const cameraUp = new THREE.Vector3();
     const local = new THREE.Vector3();
 
-    const send = (events: PetEvent[]) => events.forEach(runtime.dispatch);
+    const send = (events: TrackerEvent[]) => {
+      for (const event of events) {
+        if (event.type === "turn") {
+          const perPx = TURN_PER_WIDTH / Math.max(element.getBoundingClientRect().width, 1);
+          runtime.spin = turnSpin(runtime.spin, event.dx * perPx, event.dy * perPx, event.now);
+        } else if (event.type === "turnEnd") {
+          runtime.spin = releaseSpin(runtime.spin, event.now);
+        } else {
+          runtime.dispatch(event);
+        }
+      }
+    };
 
     const toNdc = (event: PointerEvent, rect: DOMRect) =>
       ndc.set(
@@ -46,7 +65,8 @@ export function usePetInteraction(
 
       head.getWorldPosition(center);
       head.getWorldScale(edge);
-      const radius = edge.y;
+      // The head is wide and short; average so strokes feel the same both ways.
+      const radius = (edge.x + edge.y) / 2;
       cameraUp.setFromMatrixColumn(camera.matrixWorld, 1);
       edge.copy(center).addScaledVector(cameraUp, radius).project(camera);
       center.project(camera);
@@ -67,7 +87,8 @@ export function usePetInteraction(
           pointerId: event.pointerId,
           x: event.clientX,
           y: event.clientY,
-          onHead: Boolean(hit),
+          // Outside petting mode the head is just another place to grab.
+          onHead: runtime.petting && Boolean(hit),
           now: performance.now(),
           headRadiusPx,
         },
@@ -88,7 +109,7 @@ export function usePetInteraction(
         } catch {
           // The pointer may already be gone; up/cancel still end the touch.
         }
-        element.style.cursor = "grabbing";
+        element.style.cursor = result.sample.onHead ? "pointer" : "grabbing";
         event.preventDefault();
       }
       send(events);
@@ -103,7 +124,7 @@ export function usePetInteraction(
         runtime.look.y = THREE.MathUtils.clamp(result.lookY, -1, 1);
         runtime.look.active = true;
         if (!element.hasPointerCapture(event.pointerId)) {
-          element.style.cursor = result.sample.onHead ? "grab" : "";
+          element.style.cursor = result.sample.onHead ? "pointer" : "grab";
         }
       }
     };

@@ -1,20 +1,27 @@
 import type * as THREE from "three";
 
-/** Neck pivot height in model space. */
-export const HEAD_PIVOT_Y = 1.0;
-
-/** World-space bounds used for camera framing (ears included). */
-export const MODEL_BOUNDS = { width: 6.3, height: 3.4, centerY: 1.3 };
-
 /** Parts of the model the animation layer moves each frame. */
 export type RigParts = {
-  body: THREE.Group | null;
-  head: THREE.Group | null;
-  ears: [THREE.Group | null, THREE.Group | null];
-  eyesOpen: [THREE.Group | null, THREE.Group | null];
-  eyesClosed: [THREE.Mesh | null, THREE.Mesh | null];
-  mouth: THREE.Group | null;
+  /** Spins the whole character when it is dragged around. */
+  turntable: THREE.Object3D | null;
+  body: THREE.Object3D | null;
+  /** Pivots at the neck. */
+  head: THREE.Object3D | null;
+  /** Pivot at each ear root: [left, right] as seen from the camera. */
+  ears: [THREE.Object3D | null, THREE.Object3D | null];
+  /** Squashed vertically to blink; offset slightly to look around. */
+  eyesOpen: THREE.Object3D[];
+  /** Happy "^" arcs shown while the eyes are closed. */
+  eyesClosed: THREE.Mesh[];
+  mouth: THREE.Object3D | null;
   mouthOpen: THREE.Mesh | null;
-  tail: THREE.Group | null;
+  /** Pivots where the tail meets the body. */
+  tail: THREE.Object3D | null;
   cheekMaterial: THREE.MeshStandardMaterial | null;
 };
+
+/** World-space size of the posed model, used for camera framing. */
+export type ModelBounds = { width: number; height: number; centerY: number };
+
+/** How far the cloud base reaches below the feet, for camera framing. */
+export const CLOUD_DEPTH = 0.45;

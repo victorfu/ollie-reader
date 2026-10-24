@@ -6,7 +6,6 @@ import type { CompanionRuntime } from "./logic/companionRuntime";
 /** At most this many hearts are on screen; extra hearts are skipped. */
 const MAX_HEARTS = 4;
 const LIFE_MS = 1_600;
-const SPAWN = new THREE.Vector3(0, 2.95, 0.5);
 
 type Slot = { born: number; x: number; active: boolean };
 
@@ -24,9 +23,12 @@ function heartShape(): THREE.Shape {
 export function Hearts({
   runtime,
   reducedMotion,
+  spawnY,
 }: {
   runtime: CompanionRuntime;
   reducedMotion: boolean;
+  /** Height just above the head where hearts appear. */
+  spawnY: number;
 }) {
   const meshes = useRef<(THREE.Mesh | null)[]>([]);
   const slots = useRef<Slot[]>(
@@ -91,11 +93,7 @@ export function Hearts({
       const rise = reducedMotion ? 0 : 0.9 * (1 - (1 - life) ** 2);
       const pop = Math.min(1, life * 6);
       mesh.visible = true;
-      mesh.position.set(
-        SPAWN.x + slot.x,
-        SPAWN.y + rise,
-        SPAWN.z,
-      );
+      mesh.position.set(slot.x, spawnY + rise, 0.5);
       mesh.rotation.z = reducedMotion ? 0 : Math.sin(life * Math.PI * 3) * 0.2;
       mesh.scale.setScalar(pop);
       resources.materials[index].opacity = life < 0.6 ? 1 : (1 - life) / 0.4;

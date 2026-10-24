@@ -1,6 +1,6 @@
 import { Suspense, useEffect, useState, type ReactNode } from "react";
 import { useReducedMotion } from "framer-motion";
-import { ArrowLeft, Hand, RotateCcw } from "lucide-react";
+import { ArrowLeft, Hand, Info, Rotate3d, RotateCcw } from "lucide-react";
 import { ErrorBoundary } from "../../common/ErrorBoundary";
 import { lazyWithReload } from "../../../utils/lazyWithReload";
 import { createCompanionRuntime } from "./logic/companionRuntime";
@@ -62,15 +62,30 @@ function Notice({
 
 export default function CompanionPage({ onExit }: { onExit: () => void }) {
   const [webGL] = useState(hasWebGL);
-  const [touched, setTouched] = useState(false);
-  const [runtime] = useState(() =>
-    createCompanionRuntime(performance.now(), () => setTouched(true)),
-  );
+  const [runtime] = useState(() => createCompanionRuntime(performance.now()));
+  const [mode, setMode] = useState<"turn" | "pet">("turn");
+  const [showCredit, setShowCredit] = useState(false);
   const [contextLost, setContextLost] = useState(false);
   const [sceneKey, setSceneKey] = useState(0);
   const [ready, setReady] = useState(false);
   const reducedMotion = Boolean(useReducedMotion());
   const hidden = usePageHidden();
+
+  const chooseTurn = () => {
+    runtime.setPetting(false);
+    setMode("turn");
+  };
+  // Choosing petting gives a pat straight away, so the mode visibly starts;
+  // pressing again pats again, which also serves keyboard users.
+  const choosePet = () => {
+    runtime.setPetting(true);
+    setMode("pet");
+    runtime.dispatch({ type: "pat", now: performance.now() });
+  };
+  const modeButton = (active: boolean) =>
+    `inline-flex min-h-11 items-center gap-1.5 rounded-full px-4 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 active:scale-[0.98] ${
+      active ? "bg-sky-500 text-white shadow-sm" : "text-sky-950 hover:bg-white"
+    }`;
 
   const backButton = (
     <button
@@ -139,29 +154,86 @@ export default function CompanionPage({ onExit }: { onExit: () => void }) {
 
       <header className="pointer-events-none absolute inset-x-0 top-0 flex items-center justify-between gap-3 p-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
         <div className="pointer-events-auto">{backButton}</div>
-        <span className="rounded-full bg-white/60 px-3 py-1 text-xs font-medium text-sky-900 backdrop-blur-md">
-          大耳狗 3D 夥伴
-        </span>
+        <div className="pointer-events-auto relative flex items-center gap-2">
+          <span className="rounded-full bg-white/60 px-3 py-1 text-xs font-medium text-sky-900 backdrop-blur-md">
+            大耳狗 3D 夥伴
+          </span>
+          <button
+            type="button"
+            aria-expanded={showCredit}
+            onClick={() => setShowCredit((open) => !open)}
+            className="inline-flex size-11 items-center justify-center rounded-full border border-white/70 bg-white/80 text-sky-950 shadow-sm backdrop-blur-md transition-colors hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
+          >
+            <Info className="size-4" aria-hidden="true" />
+            <span className="sr-only">模型出處</span>
+          </button>
+          {/* Required attribution for the CC BY 4.0 model, one tap away. */}
+          {showCredit ? (
+            <p className="absolute right-0 top-full mt-2 w-64 rounded-[12px] border border-white/70 bg-white/90 p-3 text-xs leading-5 text-sky-900 shadow-lg backdrop-blur-md">
+              3D 模型：
+              <a
+                href="https://sketchfab.com/3d-models/cinnamoroll-eae98497b99f47b8897c4ffd06521e31"
+                target="_blank"
+                rel="noreferrer"
+                className="underline underline-offset-2 hover:text-sky-950"
+              >
+                “Cinnamoroll”
+              </a>{" "}
+              by{" "}
+              <a
+                href="https://sketchfab.com/kraevaya201"
+                target="_blank"
+                rel="noreferrer"
+                className="underline underline-offset-2 hover:text-sky-950"
+              >
+                fukkacumy
+              </a>
+              ，
+              <a
+                href="http://creativecommons.org/licenses/by/4.0/"
+                target="_blank"
+                rel="noreferrer"
+                className="underline underline-offset-2 hover:text-sky-950"
+              >
+                CC BY 4.0
+              </a>
+            </p>
+          ) : null}
+        </div>
       </header>
 
       {webGL && !contextLost ? (
         <footer className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-col items-center gap-3 p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
           <p
             aria-live="polite"
-            className={`rounded-full bg-white/75 px-4 py-2 text-sm font-medium text-sky-900 shadow-sm backdrop-blur-md transition-opacity duration-500 ${
-              touched ? "opacity-0" : "opacity-100"
-            }`}
+            className="rounded-full bg-white/75 px-4 py-2 text-sm font-medium text-sky-900 shadow-sm backdrop-blur-md"
           >
-            {touched ? "" : "摸摸我的頭吧"}
+            {mode === "turn" ? "拖曳讓我轉一圈" : "在頭上來回滑，摸摸我的頭"}
           </p>
-          <button
-            type="button"
-            onClick={() => runtime.dispatch({ type: "pat", now: performance.now() })}
-            className="pointer-events-auto inline-flex min-h-11 items-center gap-1.5 rounded-full border border-white/70 bg-white/80 px-4 text-sm font-medium text-sky-950 shadow-sm backdrop-blur-md transition-colors hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 active:scale-[0.98]"
+          <div
+            role="group"
+            aria-label="互動方式"
+            className="pointer-events-auto inline-flex gap-1 rounded-full border border-white/70 bg-white/80 p-1 shadow-sm backdrop-blur-md"
           >
-            <Hand className="size-4" aria-hidden="true" />
-            摸摸頭
-          </button>
+            <button
+              type="button"
+              aria-pressed={mode === "turn"}
+              onClick={chooseTurn}
+              className={modeButton(mode === "turn")}
+            >
+              <Rotate3d className="size-4" aria-hidden="true" />
+              轉一轉
+            </button>
+            <button
+              type="button"
+              aria-pressed={mode === "pet"}
+              onClick={choosePet}
+              className={modeButton(mode === "pet")}
+            >
+              <Hand className="size-4" aria-hidden="true" />
+              摸摸頭
+            </button>
+          </div>
         </footer>
       ) : null}
     </div>

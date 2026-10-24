@@ -65,14 +65,57 @@ describe("CompanionPage", () => {
     expect(onExit).toHaveBeenCalledTimes(1);
   });
 
-  it("hides the petting hint after the first pat from the button", async () => {
+  it("turns by default, with petting off until asked for", async () => {
     setWebGL(true);
     await renderPage();
-    expect(container.textContent).toContain("摸摸我的頭吧");
+
+    expect(button("轉一轉").getAttribute("aria-pressed")).toBe("true");
+    expect(button("摸摸頭").getAttribute("aria-pressed")).toBe("false");
+    expect(sceneProps?.runtime.petting).toBe(false);
+    expect(container.textContent).toContain("拖曳");
+  });
+
+  it("switches to petting with a pat, and pats again on each press", async () => {
+    setWebGL(true);
+    await renderPage();
 
     act(() => button("摸摸頭").click());
+    expect(button("摸摸頭").getAttribute("aria-pressed")).toBe("true");
+    expect(sceneProps?.runtime.petting).toBe(true);
+    expect(sceneProps?.runtime.pet.phase).toBe("petting");
 
-    expect(container.textContent).not.toContain("摸摸我的頭吧");
+    const patUntil = sceneProps?.runtime.pet.patUntil ?? 0;
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    act(() => button("摸摸頭").click());
+    expect(sceneProps?.runtime.pet.patUntil ?? 0).toBeGreaterThan(patUntil);
+  });
+
+  it("goes back to turning from petting", async () => {
+    setWebGL(true);
+    await renderPage();
+    act(() => button("摸摸頭").click());
+
+    act(() => button("轉一轉").click());
+
+    expect(button("轉一轉").getAttribute("aria-pressed")).toBe("true");
+    expect(sceneProps?.runtime.petting).toBe(false);
+  });
+
+  it("keeps the model credit off the play screen until asked for", async () => {
+    setWebGL(true);
+    await renderPage();
+    expect(container.textContent).not.toContain("fukkacumy");
+
+    act(() => button("模型出處").click());
+
+    const links = [...container.querySelectorAll("a")];
+    const source = links.find((a) => a.href.includes("sketchfab.com/3d-models/cinnamoroll-eae98497b99f47b8897c4ffd06521e31"));
+    const author = links.find((a) => a.href.includes("sketchfab.com/kraevaya201"));
+    const licence = links.find((a) => a.href.includes("creativecommons.org/licenses/by/4.0"));
+
+    expect(source?.textContent).toContain("Cinnamoroll");
+    expect(author?.textContent).toContain("fukkacumy");
+    expect(licence?.textContent).toContain("CC BY 4.0");
   });
 
   it("keeps the loading message up until the scene has drawn", async () => {

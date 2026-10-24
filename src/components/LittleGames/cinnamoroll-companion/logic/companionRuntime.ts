@@ -4,6 +4,7 @@ import {
   type PetEvent,
   type PetState,
 } from "./petMachine";
+import { createSpin, type Spin } from "./spin";
 
 /**
  * Mutable state shared by the DOM overlay, pointer handlers and the render
@@ -15,7 +16,12 @@ export type CompanionRuntime = {
   look: { x: number; y: number; active: boolean };
   /** Last touch point on the head in head-local units (x right, y up). */
   contact: { x: number; y: number };
+  /** Turntable rotation from dragging. */
+  spin: Spin;
+  /** Petting mode: a drag that starts on the head pets instead of turning. */
+  petting: boolean;
   dispatch(event: PetEvent): void;
+  setPetting(on: boolean): void;
 };
 
 export function createCompanionRuntime(
@@ -27,6 +33,11 @@ export function createCompanionRuntime(
     pet: createPetState(now),
     look: { x: 0, y: 0, active: false },
     contact: { x: 0, y: 1 },
+    spin: createSpin(),
+    petting: false,
+    setPetting(on) {
+      runtime.petting = on;
+    },
     dispatch(event) {
       runtime.pet = reducePet(runtime.pet, event);
       if (!touched && runtime.pet.phase !== "idle") {

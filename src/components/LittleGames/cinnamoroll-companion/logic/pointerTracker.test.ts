@@ -14,14 +14,73 @@ function sample(
 }
 
 describe("pointerTracker", () => {
-  it("ignores a press on the background", () => {
+  it("turns the model when a drag starts off the head", () => {
     const tracker = createPointerTracker();
 
     expect(tracker.down(sample(1, 10, 10, false))).toEqual({
-      capture: false,
+      capture: true,
       events: [],
     });
-    expect(tracker.move(sample(1, 60, 10, true, 16))).toEqual([]);
+    // A wobble under the slop is still a tap, not a turn.
+    expect(tracker.move(sample(1, 13, 11, false, 16))).toEqual([]);
+    // Past the slop the whole distance since the press counts.
+    expect(tracker.move(sample(1, 40, 12, false, 32))).toEqual([
+      { type: "turn", now: 32, dx: 30, dy: 2 },
+    ]);
+    expect(tracker.move(sample(1, 50, 12, false, 48))).toEqual([
+      { type: "turn", now: 48, dx: 10, dy: 0 },
+    ]);
+  });
+
+  it("turns for an up-down drag too", () => {
+    const tracker = createPointerTracker();
+    tracker.down(sample(1, 10, 10, false));
+
+    expect(tracker.move(sample(1, 11, 40, false, 16))).toEqual([
+      { type: "turn", now: 16, dx: 1, dy: 30 },
+    ]);
+  });
+
+  it("keeps turning, never petting, when a turn drag crosses the head", () => {
+    const tracker = createPointerTracker();
+    tracker.down(sample(1, 0, 0, false));
+    tracker.move(sample(1, 20, 0, false, 16));
+
+    expect(tracker.move(sample(1, 40, 0, true, 32))).toEqual([
+      { type: "turn", now: 32, dx: 20, dy: 0 },
+    ]);
+  });
+
+  it("lets go of a turn on release so it can coast", () => {
+    const tracker = createPointerTracker();
+    tracker.down(sample(1, 0, 0, false));
+    tracker.move(sample(1, 30, 0, false, 16));
+
+    expect(tracker.end(1, 40)).toEqual([{ type: "turnEnd", now: 40 }]);
+    expect(tracker.end(1, 50)).toEqual([]);
+  });
+
+  it("does nothing when a press off the head is released without moving", () => {
+    const tracker = createPointerTracker();
+    tracker.down(sample(1, 0, 0, false));
+
+    expect(tracker.end(1, 40)).toEqual([]);
+  });
+
+  it("follows only the first finger while turning", () => {
+    const tracker = createPointerTracker();
+    tracker.down(sample(1, 0, 0, false));
+
+    expect(tracker.down(sample(2, 50, 0, true, 10)).capture).toBe(false);
+    expect(tracker.move(sample(2, 80, 0, true, 16))).toEqual([]);
+  });
+
+  it("ends a turn when the page loses the pointer", () => {
+    const tracker = createPointerTracker();
+    tracker.down(sample(1, 0, 0, false));
+    tracker.move(sample(1, 30, 0, false, 16));
+
+    expect(tracker.reset(40)).toEqual([{ type: "turnEnd", now: 40 }]);
   });
 
   it("starts a touch and captures the pointer on a head press", () => {
