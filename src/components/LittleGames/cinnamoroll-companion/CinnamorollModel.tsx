@@ -9,22 +9,30 @@ import { useCompanionAnimation } from "./useCompanionAnimation";
  * eyes, mouth, tail) so the interaction and animation code can be built and
  * tuned now and keep working when the real model replaces the geometry.
  *
- * Proportions follow the official look: a wide bun-shaped head, very long
- * paddle ears growing sideways from the top of the head, sky-blue oval eyes,
- * a blue "ω" mouth, a small chubby body and a cinnamon-roll tail.
+ * Proportions follow front/back/side/top reference turnarounds: a domed,
+ * flat-bottomed head; thick club-shaped ears that swell into round bulbs;
+ * large blue oval eyes; a wavy blue mouth low on the face; a bell-shaped
+ * body ending in two foot bumps; nub paws; and a curl tail on the back.
  */
 
-/** Head ellipsoid in head-group space. */
+/** Head superellipsoid in head-group space. */
 const HEAD_CENTER_Y = 0.86;
-const HEAD_SEMI_AXES = new THREE.Vector3(1.32, 0.92, 1);
+const HEAD_HALF_WIDTH = 1.32;
+const HEAD_HALF_DEPTH = 0.98;
+const HEAD_TOP = 0.95;
+const HEAD_BOTTOM = 0.8;
 const HEAD_PIVOT = new THREE.Vector3(0, HEAD_PIVOT_Y, 0.05);
 
-const EAR_LENGTH = 2.75;
-/** Half-height at the widest point, and half-thickness. */
-const EAR_HALF_HEIGHT = 0.4;
-const EAR_HALF_THICKNESS = 0.14;
-/** Fraction of the length where the ear is widest; the tip end stays round. */
-const EAR_WIDEST_AT = 0.66;
+const EAR_LENGTH = 2.45;
+/** Radius of the narrow stem by the head and of the bulb at the end. */
+const EAR_STEM = 0.29;
+const EAR_BULB = 0.53;
+/** Cross-section is nearly round; slightly flatter front to back. */
+const EAR_DEPTH = 0.82;
+/** Ear root, sunk into the upper side of the head. */
+const EAR_ROOT = new THREE.Vector3(0.72, HEAD_CENTER_Y + 0.42, -0.22);
+
+const TAIL_RADIUS = 0.13;
 
 function emptyRig(): RigParts {
   return {
@@ -40,17 +48,64 @@ function emptyRig(): RigParts {
   };
 }
 
-/** A point on the face, with the rotation that lays a feature flat on it. */
-function onFace(x: number, yOffset: number, lift = 0) {
-  const { x: ax, y: ay, z: az } = HEAD_SEMI_AXES;
-  const rz = Math.sqrt(Math.max(0, 1 - (x / ax) ** 2 - (yOffset / ay) ** 2));
-  const normal = new THREE.Vector3(
-    x / ax ** 2,
-    yOffset / ay ** 2,
-    (rz * az) / az ** 2,
-  ).normalize();
-  const position = new THREE.Vector3(x, HEAD_CENTER_Y + yOffset, rz * az)
-    .addScaledVector(normal, lift);
+/**
+ * Head surface for a unit direction from the head center. A superellipsoid:
+ * a round dome on top and a boxier, flatter bottom, which gives the bun
+ * silhouette with a nearly straight lower edge seen from the front.
+ */
+function headSurface(dir: THREE.Vector3, target = new THREE.Vector3()) {
+  const lower = THREE.MathUtils.smoothstep(-dir.y, -0.1, 0.6);
+  const n = 2 + 1.5 * lower;
+  const halfHeight = dir.y >= 0 ? HEAD_TOP : HEAD_BOTTOM;
+  const s =
+    (Math.abs(dir.x / HEAD_HALF_WIDTH) ** n +
+      Math.abs(dir.y / halfHeight) ** n +
+      Math.abs(dir.z / HEAD_HALF_DEPTH) ** n) **
+    (-1 / n);
+  return target.copy(dir).multiplyScalar(s);
+}
+
+function reshapeSphere(
+  segments: [number, number],
+  shape: (unit: THREE.Vector3, target: THREE.Vector3) => THREE.Vector3,
+): THREE.BufferGeometry {
+  const geometry = new THREE.SphereGeometry(1, segments[0], segments[1]);
+  const position = geometry.attributes.position;
+  const unit = new THREE.Vector3();
+  const out = new THREE.Vector3();
+  for (let i = 0; i < position.count; i += 1) {
+    unit.fromBufferAttribute(position, i);
+    shape(unit, out);
+    position.setXYZ(i, out.x, out.y, out.z);
+  }
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
+const headDirection = (azimuth: number, elevation: number) =>
+  new THREE.Vector3(
+    Math.sin(azimuth) * Math.cos(elevation),
+    Math.sin(elevation),
+    Math.cos(azimuth) * Math.cos(elevation),
+  );
+
+/**
+ * A point on the face given by angles from the front (azimuth to the side,
+ * elevation up), with the rotation that lays a flat feature onto the surface.
+ */
+function onHead(azimuth: number, elevation: number, lift = 0) {
+  const e = 1e-3;
+  const p = headSurface(headDirection(azimuth, elevation));
+  const alongAzimuth = headSurface(headDirection(azimuth + e, elevation)).sub(
+    headSurface(headDirection(azimuth - e, elevation)),
+  );
+  const alongElevation = headSurface(headDirection(azimuth, elevation + e)).sub(
+    headSurface(headDirection(azimuth, elevation - e)),
+  );
+  const normal = alongAzimuth.cross(alongElevation).normalize();
+  if (normal.dot(p) < 0) normal.negate();
+  const position = p.addScaledVector(normal, lift);
+  position.y += HEAD_CENTER_Y;
   const quaternion = new THREE.Quaternion().setFromUnitVectors(
     new THREE.Vector3(0, 0, 1),
     normal,
@@ -59,77 +114,117 @@ function onFace(x: number, yOffset: number, lift = 0) {
 }
 
 /**
- * A long, flat ear growing along +x from its root at the origin: narrow at
- * the root, widest two-thirds out, a round tip, curving down and slightly
- * back. Built by reshaping a sphere so it stays smooth and well lit.
+ * A thick club-shaped ear growing along +x from its root at the origin: a
+ * narrow stem by the head swelling into a big round bulb, sagging slightly
+ * toward the tip. Built by reshaping a sphere so it stays smooth.
  */
 function createEarGeometry(): THREE.BufferGeometry {
-  const geometry = new THREE.SphereGeometry(1, 72, 36);
-  const position = geometry.attributes.position;
-  const v = new THREE.Vector3();
-  for (let i = 0; i < position.count; i += 1) {
-    v.fromBufferAttribute(position, i);
+  const capStart = 1 - EAR_BULB / EAR_LENGTH;
+  const rootCap = 0.12;
+  return reshapeSphere([72, 40], (v, out) => {
     const u = (v.x + 1) / 2;
     const ring = Math.sqrt(Math.max(0, 1 - v.x * v.x));
-    const span = u < EAR_WIDEST_AT ? EAR_WIDEST_AT : 1 - EAR_WIDEST_AT;
-    const profile = Math.sqrt(
-      Math.max(0, 1 - ((u - EAR_WIDEST_AT) / span) ** 2),
+    let radius = THREE.MathUtils.lerp(
+      EAR_STEM,
+      EAR_BULB,
+      THREE.MathUtils.smoothstep(u, 0.42, capStart - 0.06),
     );
+    if (u > capStart) {
+      radius *= Math.sqrt(Math.max(0, 1 - ((u - capStart) / (1 - capStart)) ** 2));
+    } else if (u < rootCap) {
+      radius *= Math.sqrt(Math.max(0, 1 - ((rootCap - u) / rootCap) ** 2));
+    }
     const dirY = ring > 1e-6 ? v.y / ring : 0;
     const dirZ = ring > 1e-6 ? v.z / ring : 0;
-    position.setXYZ(
-      i,
+    return out.set(
       u * EAR_LENGTH,
-      dirY * profile * EAR_HALF_HEIGHT - 0.36 * u * u,
-      dirZ * profile * EAR_HALF_THICKNESS - 0.3 * u * u,
+      dirY * radius - 0.26 * u * u,
+      dirZ * radius * EAR_DEPTH - 0.1 * u * u,
     );
-  }
-  geometry.computeVertexNormals();
-  return geometry;
+  });
 }
 
-/** "ω": two small dips meeting in a point. */
-class OmegaCurve extends THREE.Curve<THREE.Vector3> {
-  private readonly radius: number;
+/** Marshmallow body: a rounded box with nearly straight sides. */
+function createBodyGeometry(): THREE.BufferGeometry {
+  const n = 3;
+  return reshapeSphere([48, 32], (v, out) => {
+    const s =
+      (Math.abs(v.x / 0.68) ** n + Math.abs(v.y / 0.55) ** n + Math.abs(v.z / 0.56) ** n) **
+      (-1 / n);
+    return out.copy(v).multiplyScalar(s);
+  });
+}
 
-  constructor(radius: number) {
+/** The wavy "〰" mouth: a center peak, two dips and upturned ends. */
+class WaveCurve extends THREE.Curve<THREE.Vector3> {
+  private readonly width: number;
+  private readonly height: number;
+
+  constructor(width: number, height: number) {
     super();
-    this.radius = radius;
+    this.width = width;
+    this.height = height;
   }
 
   getPoint(t: number, target = new THREE.Vector3()) {
-    const r = this.radius;
-    const side = t < 0.5 ? -1 : 1;
-    const local = t < 0.5 ? t * 2 : (t - 0.5) * 2;
-    const angle = Math.PI + local * Math.PI;
-    return target.set(side * r + Math.cos(angle) * r, Math.sin(angle) * r * 0.9, 0);
+    const u = (t - 0.5) * 2.2;
+    return target.set(
+      (u / 2.2) * this.width,
+      (this.height / 2) * Math.cos(Math.PI * 2 * u),
+      0,
+    );
   }
 }
 
-/** Cinnamon-roll curl, wound from the inside out. */
+/** Cinnamon-roll curl, wound from the inside out; the center sticks out. */
 class TailCurve extends THREE.Curve<THREE.Vector3> {
   constructor() {
     super();
   }
 
   getPoint(t: number, target = new THREE.Vector3()) {
-    const angle = t * Math.PI * 2 * 1.55;
-    const radius = 0.05 + 0.27 * t;
-    return target.set(Math.cos(angle) * radius, Math.sin(angle) * radius, 0.08 * t);
+    const angle = t * Math.PI * 2 * 1.5;
+    const radius = 0.07 + 0.17 * t;
+    return target.set(Math.cos(angle) * radius, Math.sin(angle) * radius, 0.24 * t);
   }
+}
+
+/** A plump tail tube that thins toward the middle of the curl. */
+function createTailGeometry(curve: TailCurve): THREE.TubeGeometry {
+  const tubular = 120;
+  const radial = 18;
+  const geometry = new THREE.TubeGeometry(curve, tubular, TAIL_RADIUS, radial, false);
+  const position = geometry.attributes.position;
+  const v = new THREE.Vector3();
+  const center = new THREE.Vector3();
+  for (let ring = 0; ring <= tubular; ring += 1) {
+    const t = ring / tubular;
+    curve.getPointAt(t, center);
+    const taper = 0.5 + 0.5 * t;
+    for (let k = 0; k <= radial; k += 1) {
+      const i = ring * (radial + 1) + k;
+      v.fromBufferAttribute(position, i).sub(center).multiplyScalar(taper).add(center);
+      position.setXYZ(i, v.x, v.y, v.z);
+    }
+  }
+  return geometry;
 }
 
 function useModelResources() {
   const resources = useMemo(() => {
+    const tailCurve = new TailCurve();
     const geometries = {
       sphere: new THREE.SphereGeometry(1, 48, 32),
       smallSphere: new THREE.SphereGeometry(1, 20, 14),
+      head: reshapeSphere([80, 56], (v, out) => headSurface(v, out)),
+      body: createBodyGeometry(),
+      limb: new THREE.CapsuleGeometry(1, 1, 8, 16),
       ear: createEarGeometry(),
-      tail: new THREE.TubeGeometry(new TailCurve(), 96, 0.105, 16, false),
+      tail: createTailGeometry(tailCurve),
       // Upper half ring: the happy "^" of closed eyes.
-      eyeArc: new THREE.TorusGeometry(0.085, 0.019, 8, 24, Math.PI),
-      mouthLine: new THREE.TubeGeometry(new OmegaCurve(0.06), 48, 0.015, 8, false),
-      mouthOpen: new THREE.CircleGeometry(0.085, 24, Math.PI, Math.PI),
+      eyeArc: new THREE.TorusGeometry(0.11, 0.022, 8, 24, Math.PI),
+      mouthLine: new THREE.TubeGeometry(new WaveCurve(0.52, 0.11), 64, 0.019, 8, false),
+      mouthOpen: new THREE.CircleGeometry(0.1, 24, Math.PI, Math.PI),
     };
     const materials = {
       fur: new THREE.MeshStandardMaterial({
@@ -138,16 +233,15 @@ function useModelResources() {
         emissiveIntensity: 0.16,
         roughness: 0.78,
       }),
-      eye: new THREE.MeshStandardMaterial({ color: "#45a6ee", roughness: 0.25 }),
-      eyeShine: new THREE.MeshBasicMaterial({ color: "#ffffff" }),
-      line: new THREE.MeshStandardMaterial({ color: "#3a8fd6", roughness: 0.45 }),
+      eye: new THREE.MeshStandardMaterial({ color: "#3ea7ec", roughness: 0.35 }),
+      line: new THREE.MeshStandardMaterial({ color: "#3a9ee0", roughness: 0.45 }),
       mouthOpen: new THREE.MeshStandardMaterial({
         color: "#f48aa8",
         roughness: 0.6,
         side: THREE.DoubleSide,
       }),
       cheek: new THREE.MeshStandardMaterial({
-        color: "#fbb3cc",
+        color: "#f9adc6",
         roughness: 0.9,
         transparent: true,
         opacity: 0.5,
@@ -160,7 +254,8 @@ function useModelResources() {
         roughness: 1,
       }),
     };
-    return { geometries, materials };
+    const tailTip = tailCurve.getPointAt(0);
+    return { geometries, materials, tailTip };
   }, []);
 
   useEffect(
@@ -176,13 +271,13 @@ function useModelResources() {
 
 const CLOUD_PUFFS: ReadonlyArray<[number, number, number, number, number]> = [
   // x, y, z, radius, vertical squash
-  [0, -0.14, 0, 0.95, 0.36],
-  [-0.85, -0.14, 0.1, 0.48, 0.5],
-  [0.85, -0.14, 0.06, 0.5, 0.5],
-  [-0.42, -0.08, 0.45, 0.42, 0.5],
-  [0.45, -0.07, 0.45, 0.4, 0.5],
-  [-0.4, -0.1, -0.42, 0.46, 0.5],
-  [0.45, -0.1, -0.42, 0.46, 0.5],
+  [0, -0.26, 0, 0.95, 0.36],
+  [-0.85, -0.26, 0.1, 0.48, 0.5],
+  [0.85, -0.26, 0.06, 0.5, 0.5],
+  [-0.42, -0.2, 0.45, 0.42, 0.5],
+  [0.45, -0.19, 0.45, 0.4, 0.5],
+  [-0.4, -0.22, -0.42, 0.46, 0.5],
+  [0.45, -0.22, -0.42, 0.46, 0.5],
 ];
 
 type CinnamorollModelProps = {
@@ -197,7 +292,7 @@ export function CinnamorollModel({
   reducedMotion,
 }: CinnamorollModelProps) {
   const rig = useRef<RigParts>(emptyRig());
-  const { geometries: g, materials: m } = useModelResources();
+  const { geometries: g, materials: m, tailTip } = useModelResources();
   useCompanionAnimation(rig, runtime, reducedMotion);
   useEffect(() => {
     rig.current.cheekMaterial = m.cheek;
@@ -205,9 +300,9 @@ export function CinnamorollModel({
 
   const face = useMemo(
     () => ({
-      eyes: [onFace(-0.5, -0.06, 0.02), onFace(0.5, -0.06, 0.02)],
-      cheeks: [onFace(-0.82, -0.27, 0.005), onFace(0.82, -0.27, 0.005)],
-      mouth: onFace(0, -0.2, 0.012),
+      eyes: [onHead(-0.56, -0.1, 0.01), onHead(0.56, -0.1, 0.01)],
+      cheeks: [onHead(-0.86, -0.5, 0.005), onHead(0.86, -0.5, 0.005)],
+      mouth: onHead(0, -0.46, 0.012),
     }),
     [],
   );
@@ -225,39 +320,39 @@ export function CinnamorollModel({
       ))}
 
       <group ref={(node) => { rig.current.body = node; }}>
-        <mesh geometry={g.sphere} material={m.fur} position={[0, 0.55, 0]} scale={[0.6, 0.6, 0.55]} />
-        {/* Paws held up in front of the chest. */}
-        {[-1, 1].map((side) => (
-          <mesh
-            key={`arm${side}`}
-            geometry={g.smallSphere}
-            material={m.fur}
-            position={[side * 0.34, 0.8, 0.4]}
-            rotation={[0.5, 0, side * -0.55]}
-            scale={[0.14, 0.21, 0.14]}
-          />
-        ))}
+        <mesh geometry={g.body} material={m.fur} position={[0, 0.72, 0]} />
+        {/* Two short legs under the body, with a notch between them. */}
         {[-1, 1].map((side) => (
           <mesh
             key={`foot${side}`}
             geometry={g.smallSphere}
             material={m.fur}
-            position={[side * 0.26, 0.08, 0.24]}
-            scale={[0.17, 0.12, 0.2]}
+            position={[side * 0.31, 0.2, 0.04]}
+            scale={[0.26, 0.22, 0.3]}
+          />
+        ))}
+        {/* Nub paws sloping down and out from the top corners of the body. */}
+        {[-1, 1].map((side) => (
+          <mesh
+            key={`arm${side}`}
+            geometry={g.limb}
+            material={m.fur}
+            position={[side * 0.76, 0.98, 0.04]}
+            rotation={[0, 0, side * 0.8]}
+            scale={[0.12, 0.13, 0.11]}
           />
         ))}
         <group
           ref={(node) => { rig.current.tail = node; }}
-          position={[0.62, 0.42, -0.08]}
-          rotation={[0, -0.3, 0]}
+          position={[0, 0.42, -0.8]}
         >
           <mesh geometry={g.tail} material={m.fur} />
-          {/* Round off the open end in the middle of the curl. */}
+          {/* Round off the thin open end in the middle of the curl. */}
           <mesh
             geometry={g.smallSphere}
             material={m.fur}
-            position={[0.05, 0, 0]}
-            scale={0.105}
+            position={tailTip}
+            scale={TAIL_RADIUS * 0.5}
           />
         </group>
       </group>
@@ -267,17 +362,16 @@ export function CinnamorollModel({
         position={HEAD_PIVOT}
       >
         <mesh
-          geometry={g.sphere}
+          geometry={g.head}
           material={m.fur}
           position={[0, HEAD_CENTER_Y, 0]}
-          scale={HEAD_SEMI_AXES}
         />
         {/* Invisible, slightly padded head target; ears and body stay out. */}
         <mesh
           ref={headHitRef}
           geometry={g.smallSphere}
-          position={[0, HEAD_CENTER_Y, 0]}
-          scale={[1.37, 0.96, 1.04]}
+          position={[0, HEAD_CENTER_Y - 0.06, 0]}
+          scale={[1.42, 0.94, 1.06]}
           visible={false}
         />
 
@@ -285,7 +379,7 @@ export function CinnamorollModel({
           <group
             key={`ear${side}`}
             ref={(node) => { rig.current.ears[index] = node; }}
-            position={[side * 0.52, HEAD_CENTER_Y + 0.78, -0.12]}
+            position={[side * EAR_ROOT.x, EAR_ROOT.y, EAR_ROOT.z]}
           >
             <mesh geometry={g.ear} material={m.fur} scale={[side, 1, 1]} />
           </group>
@@ -294,13 +388,7 @@ export function CinnamorollModel({
         {face.eyes.map(({ position, quaternion }, index) => (
           <group key={`eye${index}`} position={position} quaternion={quaternion}>
             <group ref={(node) => { rig.current.eyesOpen[index] = node; }}>
-              <mesh geometry={g.smallSphere} material={m.eye} scale={[0.11, 0.16, 0.04]} />
-              <mesh
-                geometry={g.smallSphere}
-                material={m.eyeShine}
-                position={[0.025, 0.065, 0.03]}
-                scale={[0.03, 0.036, 0.02]}
-              />
+              <mesh geometry={g.smallSphere} material={m.eye} scale={[0.125, 0.19, 0.025]} />
             </group>
             <mesh
               ref={(node) => { rig.current.eyesClosed[index] = node; }}
@@ -318,7 +406,7 @@ export function CinnamorollModel({
             material={m.cheek}
             position={position}
             quaternion={quaternion}
-            scale={[0.17, 0.1, 0.02]}
+            scale={[0.18, 0.11, 0.02]}
           />
         ))}
 
@@ -329,7 +417,7 @@ export function CinnamorollModel({
               ref={(node) => { rig.current.mouthOpen = node; }}
               geometry={g.mouthOpen}
               material={m.mouthOpen}
-              position={[0, -0.03, -0.004]}
+              position={[0, -0.04, -0.004]}
               scale={[1, 0, 1]}
             />
           </group>

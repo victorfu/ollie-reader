@@ -6,7 +6,7 @@ import type { CompanionRuntime } from "./logic/companionRuntime";
 import { petExpression, type PetPhase } from "./logic/petMachine";
 
 /** Ears hang this far below horizontal at rest (radians). */
-const EAR_DROOP = 0.16;
+const EAR_DROOP = 0.3;
 const EAR_STIFFNESS = 70;
 const EAR_DAMPING = 7;
 /** Frame steps longer than this (tab switch, jank) are clamped. */
@@ -191,13 +191,13 @@ export function useCompanionAnimation(
     });
 
     if (parts.mouth) {
-      parts.mouth.scale.set(0.8 + 0.5 * a.smile, 0.6 + 0.6 * a.smile, 1);
+      parts.mouth.scale.set(0.9 + 0.2 * a.smile, 0.8 + 0.4 * a.smile, 1);
     }
     if (parts.mouthOpen) {
       parts.mouthOpen.scale.y = MathUtils.clamp((a.smile - 0.6) * 2.5, 0, 1);
     }
     if (parts.cheekMaterial) {
-      parts.cheekMaterial.opacity = 0.4 + 0.45 * a.delight;
+      parts.cheekMaterial.opacity = 0.62 + 0.33 * a.delight;
     }
   });
 }
