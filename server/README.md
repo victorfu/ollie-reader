@@ -1,6 +1,6 @@
 # Ollie Reader API
 
-Standalone Next.js 16.3.5 App Router service, running on Node.js 24. It provides version, PDF extraction, URL fetching, OIKID booking records, and Edge speech synthesis. PDF extraction uses Mozilla PDF.js; no Python process is needed. Edge uses a vendored copy of `msedge-tts` in `src/lib/msedge-tts` (2.1.0 plus the upstream Sec-MS-GEC v2 fix); each request owns its connection and completed MP3 audio is collected in memory before the response is sent.
+Standalone Next.js 16.3.5 App Router service, running on Node.js 24. It provides version, URL fetching, OIKID booking records, and Edge speech synthesis. PDF text is extracted in the browser with PDF.js, so the server has no PDF endpoint. Edge uses a vendored copy of `msedge-tts` in `src/lib/msedge-tts` (2.1.0 plus the upstream Sec-MS-GEC v2 fix); each request owns its connection and completed MP3 audio is collected in memory before the response is sent.
 
 ## Development
 
@@ -19,36 +19,17 @@ The server has its own dependencies and lockfile. The root Vite build, tests and
 
 ## General endpoints
 
-All errors return `{ "detail": "..." }`; all responses use `Cache-Control: no-store`. Browser origins use the same allowlist as Edge. GET preflights permit `Authorization`, `Content-Type` and the warm-server caller's `Cache-Control`; PDF POST preflights permit `Content-Type`. Clients can read the download metadata headers across origins.
+All errors return `{ "detail": "..." }`; all responses use `Cache-Control: no-store`. Browser origins use the same allowlist as Edge. GET preflights permit `Authorization`, `Content-Type` and the warm-server caller's `Cache-Control`; POST preflights permit `Content-Type`. Clients can read the download metadata headers across origins.
 
 ### GET /api/version
 
 Returns `{ "version": "1.0.1" }`. Set `API_VERSION` to override it. This is a lightweight liveness/version response for the existing warm-server caller; it does not check OIKID or other upstream services.
 
-### POST /api/pdf/extract
-
-Upload `multipart/form-data` with a `file` field containing a `.pdf` file. Returns:
-
-```json
-{
-  "status": "success",
-  "filename": "sample.pdf",
-  "total_pages": 1,
-  "pages": [{ "page_number": 1, "text": "Hello", "text_length": 5 }]
-}
-```
-
-Page numbers start at one and empty pages remain in the response. `text_length` counts Unicode code points, matching Python's `len`. PDF.js replaces PyMuPDF: the JSON contract is preserved, but text ordering, spacing and line breaks can differ. There is no OCR; image-only pages return empty text.
-
-Limits: 4 MiB per PDF, 64 KiB multipart overhead, 500 pages, approximately 4 MiB serialized output, and a 25-second parsing deadline (30-second function duration). Invalid/empty/encrypted PDFs return `400`, missing `file` returns `422`, size/page limits return `413`, and parsing timeout returns `504`. These explicit errors differ from the old backend's generic `500` for parsing failures. MIME type is not used to reject an otherwise valid PDF filename, matching the previous contract. Uploaded filenames are never used as filesystem paths.
-
-`next.config.ts` traces the PDF worker, fonts, CMaps, WASM and canvas dependencies for deployment. Run the server from this directory, as in the commands above.
-
 ### GET /api/fetch-url
 
-Parameters: required `url`; `follow_redirects=true`; `max_redirects=10` (1–30); `timeout=30` seconds (1–120). Returns raw bytes and `Content-Type`, `Content-Length`, `Content-Disposition`, `X-Final-URL`, `X-Redirect-Count`, `X-File-Extension`. Missing extensions and `.php` paths use common MIME-to-extension mappings (PDF, HTML, text, JSON, JPEG, PNG, GIF, EPUB). An upstream `Content-Disposition` takes precedence.
+Parameters: required `url`; `follow_redirects=true`; `max_redirects=10` (1–30); `timeout=30` seconds (1–120). Streams the raw bytes with `Content-Type`, `Content-Disposition`, `X-Final-URL`, `X-Redirect-Count`, `X-File-Extension`, plus the upstream `Content-Length` when the body was not content-encoded. Missing extensions and `.php` paths use common MIME-to-extension mappings (PDF, HTML, text, JSON, JPEG, PNG, GIF, EPUB). An upstream `Content-Disposition` takes precedence.
 
-Only public HTTP(S) destinations without embedded credentials are accepted; socket DNS resolution and every redirect enforce this boundary. Internal addresses are not supported. The download is buffered and limited to 4 MiB. Timeout covers the entire redirect/download operation and returns `408`; invalid query parameters return `422`; upstream HTTP errors retain their status; excessive redirects and connection failures return `500`. `follow_redirects=false` returns the redirect response body with status `200`, matching the Python route's response wrapper. Downloaded HTML is sandboxed and MIME sniffing is disabled.
+Only public HTTP(S) destinations without embedded credentials are accepted; socket DNS resolution and every redirect enforce this boundary. Internal addresses are not supported. The download is streamed and limited to 50 MiB: a larger declared `Content-Length` returns `413` up front, and an undeclared overflow aborts the stream. Timeout covers the entire redirect/download operation and returns `408`; invalid query parameters return `422`; upstream HTTP errors retain their status; excessive redirects and connection failures return `500`. `follow_redirects=false` returns the redirect response body with status `200`, matching the Python route's response wrapper. Downloaded HTML is sandboxed and MIME sniffing is disabled.
 
 The old Python route passed a shared HTTP client that did not apply all per-request redirect/timeout options. This implementation honors the supplied options. It intentionally does not reproduce that discrepancy or unlimited buffering.
 
@@ -62,7 +43,7 @@ Missing server configuration returns `500`; upstream login/network/JSON failures
 
 ### Deployment limits and frontend routing
 
-Vercel documents a [4.5 MB request/response payload limit](https://vercel.com/docs/functions/limitations). The 4 MiB application limit leaves room for framing; larger PDFs/downloads require a different upload/download architecture or the existing desktop/Python backend. The new server is not an unlimited-size replacement for the old backend.
+Vercel documents a [4.5 MB request/response payload limit](https://vercel.com/docs/functions/limitations). Streamed responses are exempt from it, which is why `fetch-url` streams; buffered responses and request bodies stay within it.
 
 After deploying and configuring the server, set the frontend's `VITE_API_BASE_URL` to its base URL to route the four general cloud endpoints here. `VITE_ETTS_API_BASE_URL` remains an independent speech override. For local development use `http://localhost:3000`. Rebuild the frontend after changing these build-time variables. Frontend development settings point to port 3000; production defaults and the GitHub Actions API variable point to `https://server-one-xi-16.vercel.app`. Deploy the new server routes and configure its server-only environment before rebuilding/deploying Web. Updating these settings does not itself deploy either service.
 

@@ -6,7 +6,7 @@
 
 **An AI-assisted English-learning workspace for reading, listening, speaking, practice, and games.**
 
-Read PDFs and show transcripts, listen to podcasts with AI-generated English transcripts, build a vocabulary and sentence book, practise saved words with generated spelling homework, rehearse speeches, practise school papers, and reinforce vocabulary through browser games. A standalone Next.js API and an optional macOS companion provide PDF extraction, Edge TTS, podcast resolution, and other backend features.
+Read PDFs and show transcripts, listen to podcasts with AI-generated English transcripts, build a vocabulary and sentence book, practise saved words with generated spelling homework, rehearse speeches, practise school papers, and reinforce vocabulary through browser games. A standalone Next.js API and an optional macOS companion provide Edge TTS, URL fetching, podcast resolution, and other backend features; PDF text is extracted in the browser.
 
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white&style=flat-square)](https://react.dev)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?logo=typescript&logoColor=white&style=flat-square)](https://www.typescriptlang.org)
@@ -44,7 +44,7 @@ The UI follows macOS Human Interface Guidelines adapted for the web: a collapsib
 | **Word Adventure & Gacha** | Runs vocabulary quiz stages and boss battles from the learner's word pool, with achievements and cloud-synced tokens used by the Popular Character Gacha collection. |
 | **Little Games** (小遊戲) | The game hub opens each game in its own browser tab: Word Adventure, Popular Character Gacha, Cloud Cottage (大耳狗的雲朵小窩; pet care, in development, cloud save), Sweetheart Defenders (tower defence, in development, cloud save), Mushroom Adventure, Meteor Glider, and Bunny Jumper. |
 | **Settings** (設定) | Theme, speech mode (system voices or Edge TTS), speech rate, compute backend (`auto`/`local`/`cloud`), the gacha empty-capsule rate, a device-only "show all gacha entries" view, and game progress reset. |
-| **Desktop Companion** | Adds a loopback FastAPI service and PySide6 menu-bar app. Piper and Kokoro run offline; PDF extraction is local. Edge TTS, OIKID, and remote URL fetching still need network access. |
+| **Desktop Companion** | Adds a loopback FastAPI service and PySide6 menu-bar app. Piper and Kokoro run offline. Edge TTS, OIKID, and remote URL fetching still need network access. |
 
 ## Tech stack
 
@@ -54,11 +54,11 @@ The UI follows macOS Human Interface Guidelines adapted for the web: a collapsib
 - **Firebase 12** for Google Auth, the `allowedUsers/{email}` access check, Firestore, App Check, and Firebase AI Logic
 - **Gemini 3.5 Flash-Lite** through `firebase/ai` and `GoogleAIBackend` for text features and podcast audio transcription; the frontend does not read a standalone Gemini API key
 - **Supabase 2** for private audio/recording object storage, authenticated with Firebase ID tokens and protected by Storage RLS
-- **react-pdf** for browser PDF rendering and text extraction
+- **react-pdf** for browser PDF rendering and text extraction (the only PDF text source)
 - **Web Speech API**, **MediaRecorder**, IndexedDB, and local storage for browser-native speech, recording, and device-local caches/preferences
 - **Vitest** for Web (jsdom) and server (Node) tests; **Playwright** for the podcast browser smoke test
 - **Server:** Next.js 16 on Node.js 24 (deployed to Vercel), PDF.js, vendored `msedge-tts`, `firebase-admin`, FFmpeg (`ffmpeg-static`), and `music-metadata`
-- **Desktop:** Python, PySide6, FastAPI, PyMuPDF, Piper, Kokoro ONNX, Edge TTS, and PyInstaller
+- **Desktop:** Python, PySide6, FastAPI, Piper, Kokoro ONNX, Edge TTS, and PyInstaller
 
 ## Getting started
 
@@ -70,7 +70,7 @@ The UI follows macOS Human Interface Guidelines adapted for the web: a collapsib
 - A Supabase project with a private `ollie-reader` Storage bucket, Firebase Third-Party Auth, and RLS policies matching the Firebase user ID
 - For backend PDF/TTS/URL/OIKID/Podcast features, the standalone [`server/`](server/README.md) API (or, except for Podcasts, the optional desktop sidecar)
 
-Firestore rules and Supabase policies/schema are deployment infrastructure; the repository does not contain the complete deployed rules. Podcast transcripts need the owner-scoped rules in [`server/podcast-firestore-rules.fragment`](server/podcast-firestore-rules.fragment) merged into the deployed Firestore rules. Word Practice likewise needs [`word-practice-firestore-rules.fragment`](word-practice-firestore-rules.fragment) merged in, which covers `users/{uid}/wordHomeworks/{homeworkId}` and `users/{uid}/wordPractice/state`. The standalone Next.js API in [`server/`](server/README.md) provides Edge TTS, PDF extraction, URL fetching, OIKID bookings, version checks, Podcast resolution, and Podcast audio preparation.
+Firestore rules and Supabase policies/schema are deployment infrastructure; the repository does not contain the complete deployed rules. Podcast transcripts need the owner-scoped rules in [`server/podcast-firestore-rules.fragment`](server/podcast-firestore-rules.fragment) merged into the deployed Firestore rules. Word Practice likewise needs [`word-practice-firestore-rules.fragment`](word-practice-firestore-rules.fragment) merged in, which covers `users/{uid}/wordHomeworks/{homeworkId}` and `users/{uid}/wordPractice/state`. The standalone Next.js API in [`server/`](server/README.md) provides Edge TTS, URL fetching, OIKID bookings, version checks, Podcast resolution, and Podcast audio preparation.
 
 ### Install and run
 
@@ -154,17 +154,16 @@ The root `Makefile` exposes equivalent Web targets (`make install`, `make dev`, 
 
 ## Compute and speech modes
 
-Reader settings separate three concerns:
+PDF text always comes from the browser: `react-pdf` renders each page with its PDF.js text layer, which also supplies the text for page actions. Reader settings separate two concerns:
 
-- **PDF text parsing:** browser-side `react-pdf` extraction or backend extraction.
 - **Speech:** the browser's system voices or backend AI speech.
 - **Compute location:** `auto` uses the desktop sidecar when it is available and otherwise the cloud API; `local` requires the sidecar; `cloud` skips local detection.
 
-Compute location applies to PDF extraction, Edge TTS, URL fetching, and OIKID booking records. Podcasts always use the server API, and Supabase Storage is accessed directly from the browser.
+Compute location applies to Edge TTS, URL fetching, and OIKID booking records. Podcasts always use the server API, and Supabase Storage is accessed directly from the browser.
 
 The Web app supports system speech and Edge TTS. Edge requires network access and works through either the desktop sidecar or the standalone Next.js API. Edge cloud requests use `VITE_ETTS_API_BASE_URL`; other cloud features continue using `VITE_API_BASE_URL`. In `auto` mode, a reachable desktop sidecar is preferred; `local` requires desktop, and `cloud` uses the configured cloud endpoint. Legacy engine preferences are treated as Edge TTS and saved as Edge on the next settings update; the system/API speech mode is preserved. The Web app no longer calls the Piper or Kokoro endpoints, which remain available in the desktop sidecar.
 
-For local server development, run `make server-setup` and `make server-dev` alongside Vite. The development template sets `VITE_API_BASE_URL`, `VITE_ETTS_API_BASE_URL`, and `VITE_PODCAST_API_BASE_URL` to `http://localhost:3000`. Use the deployed HTTPS API base in `.env.production`. The server uses PDF.js instead of the desktop's PyMuPDF, so extracted text formatting can differ; its PDF/file endpoints have a 4 MiB limit. See the [server guide](server/README.md) for API contracts, server-only OIKID/Firebase configuration, validation, and Vercel deployment settings.
+For local server development, run `make server-setup` and `make server-dev` alongside Vite. The development template sets `VITE_API_BASE_URL`, `VITE_ETTS_API_BASE_URL`, and `VITE_PODCAST_API_BASE_URL` to `http://localhost:3000`. Use the deployed HTTPS API base in `.env.production`. `fetch-url` streams downloads up to 50 MiB. See the [server guide](server/README.md) for API contracts, server-only OIKID/Firebase configuration, validation, and Vercel deployment settings.
 
 If an older local environment still points `VITE_API_BASE_URL` at Cloud Run, update `.env.development` to `http://localhost:3000` and `.env.production` to the current Vercel backend (`https://server-one-xi-16.vercel.app`). Restart Vite after changing environment files; production values require a rebuild. A generic endpoint `404 Not Found` means the backend route is missing, not that the requested resource (for example a Podcast) is missing.
 
@@ -209,7 +208,7 @@ The script mounts the actual Podcast page in a Playwright-only HTML harness, cal
 
 ## Desktop companion
 
-[`desktop/`](desktop/) is a separate Python project managed by [uv](https://docs.astral.sh/uv/). It provides a macOS menu-bar shell plus a loopback FastAPI sidecar for local PDF extraction, remote URL proxying, OIKID booking records, and three TTS endpoints:
+[`desktop/`](desktop/) is a separate Python project managed by [uv](https://docs.astral.sh/uv/). It provides a macOS menu-bar shell plus a loopback FastAPI sidecar for remote URL proxying, OIKID booking records, and three TTS endpoints:
 
 - Piper and Kokoro: offline WAV synthesis using bundled/downloaded models
 - Edge TTS: network-only MP3 synthesis without a user API key

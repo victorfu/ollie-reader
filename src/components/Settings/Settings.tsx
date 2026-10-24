@@ -334,7 +334,7 @@ export const Settings = () => {
                   <div>
                     <h3 className="text-lg font-semibold mb-3">運算後端</h3>
                     <p className="text-sm text-muted-foreground mb-4">
-                      選擇 PDF 解析與 AI 語音要走本機桌面 App、自動，或只用雲端
+                      選擇 AI 語音、網址抓檔與課程紀錄要走本機桌面 App、自動，或只用雲端
                     </p>
 
                     <div className="space-y-3">

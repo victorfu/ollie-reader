@@ -3,12 +3,10 @@ import type { ChangeEventHandler, DragEventHandler } from "react";
 
 interface UploadAreaProps {
   selectedFile: File | null;
-  isUploading: boolean;
   speechSupported: boolean;
   onFileChange: ChangeEventHandler<HTMLInputElement>;
   onDrop: DragEventHandler<HTMLDivElement>;
   onDragOver: DragEventHandler<HTMLDivElement>;
-  onCancel: () => void;
   onOpenBookingDrawer?: () => void;
   onClearCache?: () => void;
   isClearingCache?: boolean;
@@ -24,12 +22,10 @@ interface UploadAreaProps {
 export const UploadArea = memo(
   ({
     selectedFile,
-    isUploading,
     speechSupported,
     onFileChange,
     onDrop,
     onDragOver,
-    onCancel,
     onOpenBookingDrawer,
     onClearCache,
     isClearingCache,
@@ -144,19 +140,6 @@ export const UploadArea = memo(
           {fileControl}
           {bookingButton}
           {clearCacheButton}
-          {isUploading && (
-            <span className="flex items-center gap-1.5 text-xs text-base-content/70">
-              <span className="loading loading-spinner loading-xs"></span>
-              解析中
-              <button
-                type="button"
-                onClick={onCancel}
-                className="btn btn-ghost btn-xs text-error hover:bg-error/10"
-              >
-                取消
-              </button>
-            </span>
-          )}
           {/* The banner would cost another row of viewport here, so the same
               warning is carried by an icon with its text in the tooltip. */}
           {!speechSupported && (
@@ -181,26 +164,6 @@ export const UploadArea = memo(
             {bookingButton}
             {clearCacheButton}
           </div>
-
-          {isUploading && (
-            <div className="flex justify-center gap-3 mt-3">
-              <button
-                type="button"
-                disabled
-                className="btn btn-primary btn-sm gap-2"
-              >
-                <span className="loading loading-spinner loading-xs"></span>
-                解析中...
-              </button>
-              <button
-                type="button"
-                onClick={onCancel}
-                className="flex items-center justify-center h-8 px-3 rounded-lg text-sm font-medium border border-error/30 text-error bg-error/10 hover:bg-error/20 active:scale-[0.98] transition-all duration-200"
-              >
-                取消
-              </button>
-            </div>
-          )}
 
           {!speechSupported && (
             <div className="rounded-lg bg-warning/10 border border-warning/20 px-4 py-3 mt-3 flex items-center gap-2">

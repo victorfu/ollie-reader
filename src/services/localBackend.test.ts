@@ -46,11 +46,11 @@ describe("per-request cloud base", () => {
     await fetchWithComputeBase("/api/etts", init, fetcher, ETTS_BASE);
     expect(fetcher.mock.calls.map(([url]) => url)).toEqual([`${LOCAL_BASE_URL}/api/etts`, `${ETTS_BASE}/api/etts`]);
     expect(getComputeStatusSync().resolvedBase).toBe(API_BASE_URL);
-    await fetchWithComputeBase("/api/pdf/extract", init, fetcher);
-    expect(fetcher).toHaveBeenLastCalledWith(`${API_BASE_URL}/api/pdf/extract`, init);
+    await fetchWithComputeBase("/api/fetch-url", init, fetcher);
+    expect(fetcher).toHaveBeenLastCalledWith(`${API_BASE_URL}/api/fetch-url`, init);
   });
 
-  it.each(["/api/pdf/extract", "/api/fetch-url", "/api/oikid/booking-records", "/api/etts"])("preserves the default cloud base for %s", async (path) => {
+  it.each(["/api/fetch-url", "/api/oikid/booking-records", "/api/etts"])("preserves the default cloud base for %s", async (path) => {
     setComputeMode("cloud");
     await fetchWithComputeBase(path, init, fetcher);
     expect(fetcher).toHaveBeenCalledWith(`${API_BASE_URL}${path}`, init);

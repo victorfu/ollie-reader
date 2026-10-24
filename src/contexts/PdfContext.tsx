@@ -7,8 +7,7 @@ import {
   useMemo,
   type ReactNode,
 } from "react";
-import type { ExtractResponse } from "../types/pdf";
-import { FETCH_URL_PATH, PDF_EXTRACT_PATH } from "../constants/api";
+import { FETCH_URL_PATH } from "../constants/api";
 import {
   fetchWithComputeBase,
   getComputeMode,
@@ -22,9 +21,7 @@ import { isSupportedPdfFile } from "../utils/pdfFile";
 
 interface PdfState {
   selectedFile: File | null;
-  isUploading: boolean;
   error: string | null;
-  result: ExtractResponse | null;
   pdfUrl: string | null;
   isLoadingFromUrl: boolean;
   initialScrollPosition: number | null;
@@ -33,7 +30,6 @@ interface PdfState {
 interface PdfContextType extends PdfState {
   handleFileChange: (file: File | null) => void;
   loadPdfFromUrl: (url: string) => Promise<void>;
-  cancelUpload: () => void;
   clearPdfCache: () => Promise<void>;
   saveScrollPosition: (position: number) => void;
 }
@@ -42,12 +38,6 @@ type DocumentRequest = {
   generation: number;
   documentId: string;
   controller: AbortController;
-};
-
-type ExtractDocumentOptions = DocumentRequest & {
-  file: File;
-  blob: Blob;
-  filename: string;
 };
 
 const PdfContext = createContext<PdfContextType | undefined>(undefined);
@@ -69,9 +59,7 @@ export const PdfProvider = ({ children }: PdfProviderProps) => {
   const { user } = useAuth();
   const ownerUid = user?.uid ?? null;
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<ExtractResponse | null>(null);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [isLoadingFromUrl, setIsLoadingFromUrl] = useState(false);
   const [initialScrollPosition, setInitialScrollPosition] = useState<
@@ -109,7 +97,6 @@ export const PdfProvider = ({ children }: PdfProviderProps) => {
   const cacheDocument = useCallback(
     (
       blob: Blob,
-      extraction: ExtractResponse | null,
       filename: string,
       documentId: string,
       migratedScrollPosition?: number,
@@ -119,7 +106,6 @@ export const PdfProvider = ({ children }: PdfProviderProps) => {
         .savePdfToCache(
           ownerUid,
           blob,
-          extraction,
           filename,
           documentId,
           migratedScrollPosition,
@@ -131,65 +117,7 @@ export const PdfProvider = ({ children }: PdfProviderProps) => {
     [ownerUid],
   );
 
-  const extractDocument = useCallback(
-    async ({
-      file,
-      blob,
-      filename,
-      generation,
-      documentId,
-      controller,
-    }: ExtractDocumentOptions) => {
-      try {
-        const form = new FormData();
-        form.append("file", file);
-
-        const response = await fetchWithComputeBase(PDF_EXTRACT_PATH, {
-          method: "POST",
-          body: form,
-          headers: { Accept: "application/json" },
-          signal: controller.signal,
-        });
-
-        if (!response.ok) {
-          const text = await response.text().catch(() => "");
-          throw new Error(text || `文字提取失敗: ${response.status}`);
-        }
-
-        const data = (await response.json()) as ExtractResponse;
-        if (!isCurrentRequest(generation, documentId)) return;
-
-        setResult(data);
-        setError(null);
-        cacheDocument(blob, data, filename, documentId);
-      } catch (extractError: unknown) {
-        if (!isCurrentRequest(generation, documentId)) return;
-        if (isAbortError(extractError)) return;
-
-        const message =
-          extractError instanceof Error
-            ? extractError.message
-            : "發生未知錯誤";
-        const isConnectionError = /Failed to fetch|CORS|NetworkError/i.test(
-          message,
-        );
-        if (getComputeMode() === "local" && isConnectionError) {
-          setError(localUnavailableMessage());
-        } else if (/Failed to fetch|CORS/i.test(message)) {
-          setError("PDF 已載入，但文字解析連線失敗。您仍可繼續閱讀 PDF。");
-        } else {
-          setError(message);
-        }
-      } finally {
-        if (isCurrentRequest(generation, documentId)) {
-          setIsUploading(false);
-        }
-      }
-    },
-    [cacheDocument, isCurrentRequest],
-  );
-
-  // Restore the PDF independently from its optional extracted text.
+  // Restore the cached PDF of the current owner.
   useEffect(() => {
     if (restoredOwnerUidRef.current !== ownerUid) {
       restoredOwnerUidRef.current = ownerUid;
@@ -200,10 +128,8 @@ export const PdfProvider = ({ children }: PdfProviderProps) => {
       documentIdRef.current = null;
       setSelectedFile(null);
       setPdfUrl(null);
-      setResult(null);
       setError(null);
       setInitialScrollPosition(null);
-      setIsUploading(false);
       setIsLoadingFromUrl(false);
     }
 
@@ -243,7 +169,6 @@ export const PdfProvider = ({ children }: PdfProviderProps) => {
           type: "application/pdf",
         });
         setPdfUrl(objectUrl);
-        setResult(cached.result);
         setSelectedFile(restoredFile);
         if (cached.scrollPosition !== undefined) {
           setInitialScrollPosition(cached.scrollPosition);
@@ -252,28 +177,10 @@ export const PdfProvider = ({ children }: PdfProviderProps) => {
         if (!cached.documentId) {
           cacheDocument(
             cached.blob,
-            cached.result,
             cached.filename,
             documentId,
             cached.scrollPosition,
           );
-        }
-
-        // A refresh can happen after the blob is cached but before extraction
-        // finishes. Resume that hydration instead of leaving page actions
-        // permanently disabled for the restored document.
-        if (cached.result === null) {
-          const controller = new AbortController();
-          abortRef.current = controller;
-          setIsUploading(true);
-          void extractDocument({
-            file: restoredFile,
-            blob: cached.blob,
-            filename: cached.filename,
-            generation: restoreGeneration,
-            documentId,
-            controller,
-          });
         }
       } catch (restoreError) {
         logger.warn("Failed to restore PDF from cache:", restoreError);
@@ -284,7 +191,7 @@ export const PdfProvider = ({ children }: PdfProviderProps) => {
     return () => {
       cancelled = true;
     };
-  }, [cacheDocument, extractDocument, ownerUid, revokeCurrentPdfUrl]);
+  }, [cacheDocument, ownerUid, revokeCurrentPdfUrl]);
 
   useEffect(() => {
     return () => {
@@ -298,9 +205,7 @@ export const PdfProvider = ({ children }: PdfProviderProps) => {
       const request = startDocumentRequest();
       setInitialScrollPosition(null);
       setError(null);
-      setResult(null);
       setIsLoadingFromUrl(false);
-      setIsUploading(false);
       revokeCurrentPdfUrl();
       documentIdRef.current = null;
 
@@ -324,18 +229,10 @@ export const PdfProvider = ({ children }: PdfProviderProps) => {
       documentIdRef.current = request.documentId;
       setSelectedFile(file);
       setPdfUrl(objectUrl);
-      setIsUploading(true);
-      cacheDocument(file, null, file.name, request.documentId);
-      void extractDocument({
-        ...request,
-        file,
-        blob: file,
-        filename: file.name,
-      });
+      cacheDocument(file, file.name, request.documentId);
     },
     [
       cacheDocument,
-      extractDocument,
       ownerUid,
       revokeCurrentPdfUrl,
       startDocumentRequest,
@@ -352,10 +249,8 @@ export const PdfProvider = ({ children }: PdfProviderProps) => {
       const request = startDocumentRequest();
       setInitialScrollPosition(null);
       setError(null);
-      setResult(null);
       setSelectedFile(null);
       setPdfUrl(null);
-      setIsUploading(false);
       setIsLoadingFromUrl(true);
       revokeCurrentPdfUrl();
       documentIdRef.current = null;
@@ -419,14 +314,7 @@ export const PdfProvider = ({ children }: PdfProviderProps) => {
         setSelectedFile(file);
         setPdfUrl(objectUrl);
         setIsLoadingFromUrl(false);
-        setIsUploading(true);
-        cacheDocument(blob, null, filename, request.documentId);
-        void extractDocument({
-          ...request,
-          file,
-          blob,
-          filename,
-        });
+        cacheDocument(blob, filename, request.documentId);
       } catch (loadError: unknown) {
         if (!isCurrentRequest(request.generation)) return;
         if (isAbortError(loadError)) return;
@@ -445,8 +333,7 @@ export const PdfProvider = ({ children }: PdfProviderProps) => {
         );
         setSelectedFile(null);
         setPdfUrl(null);
-        setResult(null);
-        throw loadError;
+          throw loadError;
       } finally {
         if (isCurrentRequest(request.generation)) {
           setIsLoadingFromUrl(false);
@@ -455,20 +342,11 @@ export const PdfProvider = ({ children }: PdfProviderProps) => {
     },
     [
       cacheDocument,
-      extractDocument,
       isCurrentRequest,
       revokeCurrentPdfUrl,
       startDocumentRequest,
     ],
   );
-
-  const cancelUpload = useCallback(() => {
-    requestGenerationRef.current += 1;
-    abortRef.current?.abort();
-    abortRef.current = null;
-    setIsUploading(false);
-    setIsLoadingFromUrl(false);
-  }, []);
 
   const clearPdfCache = useCallback(async () => {
     requestGenerationRef.current += 1;
@@ -478,10 +356,8 @@ export const PdfProvider = ({ children }: PdfProviderProps) => {
     documentIdRef.current = null;
     setSelectedFile(null);
     setPdfUrl(null);
-    setResult(null);
     setError(null);
     setInitialScrollPosition(null);
-    setIsUploading(false);
     setIsLoadingFromUrl(false);
     if (ownerUid) await pdfSessionCache.clearPdfCache(ownerUid);
   }, [ownerUid, revokeCurrentPdfUrl]);
@@ -502,9 +378,7 @@ export const PdfProvider = ({ children }: PdfProviderProps) => {
   const value: PdfContextType = useMemo(
     () => ({
       selectedFile: stateBelongsToCurrentOwner ? selectedFile : null,
-      isUploading: stateBelongsToCurrentOwner ? isUploading : false,
       error: stateBelongsToCurrentOwner ? error : null,
-      result: stateBelongsToCurrentOwner ? result : null,
       pdfUrl: stateBelongsToCurrentOwner ? pdfUrl : null,
       isLoadingFromUrl: stateBelongsToCurrentOwner
         ? isLoadingFromUrl
@@ -514,21 +388,17 @@ export const PdfProvider = ({ children }: PdfProviderProps) => {
         : null,
       handleFileChange,
       loadPdfFromUrl,
-      cancelUpload,
       clearPdfCache,
       saveScrollPosition,
     }),
     [
       selectedFile,
-      isUploading,
       error,
-      result,
       pdfUrl,
       isLoadingFromUrl,
       initialScrollPosition,
       handleFileChange,
       loadPdfFromUrl,
-      cancelUpload,
       clearPdfCache,
       saveScrollPosition,
       stateBelongsToCurrentOwner,

@@ -3,7 +3,7 @@
 Ollie Reader Desktop 是 Web App 的選用 macOS 伴隨程式，由兩個部分組成：
 
 - **PySide6 托盤殼**：管理本機服務、開機自啟、OIKID 憑證，以及 TTS 試聽。
-- **FastAPI sidecar**：固定綁定 `127.0.0.1`，提供 PDF 文字擷取、URL 代抓、OIKID 預約記錄與三種 TTS 引擎。
+- **FastAPI sidecar**：固定綁定 `127.0.0.1`，提供 URL 代抓、OIKID 預約記錄與三種 TTS 引擎。
 
 desktop 是獨立的 Python 子專案，以 [uv](https://docs.astral.sh/uv/) 管理；不會由根目錄的 npm 安裝流程建立。runtime 依 `pyproject.toml` 支援 **Python 3.10 以上**；目前的 PyInstaller/release 腳本直接使用標準函式庫 `tomllib`，所以打包與發佈實際需要 **Python 3.11 以上**。目前正式發佈物是 **macOS 12.0+、Apple Silicon（arm64）**，不提供 Intel 或 universal build。
 
@@ -143,7 +143,6 @@ OLLIE_CORS_ORIGINS="https://reader.example.com,http://localhost:4173" \
 | GET | `/api/version` | — | `{"version":"…","engine":"local-sidecar"}`；同時作健康檢查 |
 | GET | `/api/models/status` | — | 背景模型下載的整體與逐檔狀態 |
 | GET | `/api/fetch-url` | `url`、`follow_redirects=true`、`max_redirects=10`、`timeout=30` | 回傳遠端原始 bytes，並帶 `X-Final-URL`、`X-Redirect-Count`、`X-File-Extension` |
-| POST | `/api/pdf/extract` | multipart 欄位 `file` | 每頁文字、字數與總頁數 |
 | POST | `/api/tts` | `SpeechRequest` JSON | Piper WAV |
 | POST | `/api/ktts` | `SpeechRequest` JSON | Kokoro WAV |
 | POST | `/api/etts` | `SpeechRequest` JSON | Edge MP3 |
@@ -155,9 +154,6 @@ OLLIE_CORS_ORIGINS="https://reader.example.com,http://localhost:4173" \
 ```bash
 curl http://127.0.0.1:8765/api/version
 curl http://127.0.0.1:8765/api/models/status
-
-curl -F "file=@sample.pdf" \
-  http://127.0.0.1:8765/api/pdf/extract
 
 curl -H "Content-Type: application/json" \
   -d '{"text":"Hello Ollie","speed":1.0,"voice":"af_heart"}' \
@@ -187,7 +183,7 @@ uv run --directory desktop pytest tests/test_app.py -q
 uv run --directory desktop pytest tests/test_verify_bundle.py -q
 ```
 
-測試涵蓋 API contract、CORS/PNA、PDF/URL/OIKID、三種 TTS、模型下載與 checksum、keychain adapter、single instance、PID/sidecar 管理、托盤 UI、版本同步及 bundle 安全掃描。網路服務、真實 keychain、完整模型與 Apple 公證流程皆以 mock 或獨立 release 步驟處理，不屬於一般單元測試。
+測試涵蓋 API contract、CORS/PNA、URL/OIKID、三種 TTS、模型下載與 checksum、keychain adapter、single instance、PID/sidecar 管理、托盤 UI、版本同步及 bundle 安全掃描。網路服務、真實 keychain、完整模型與 Apple 公證流程皆以 mock 或獨立 release 步驟處理，不屬於一般單元測試。
 
 ## 本機 PyInstaller 打包
 
@@ -280,7 +276,6 @@ make desktop-release
 - Edge 需要網路，且依賴非官方、可能變動的服務端點。
 - OIKID 需要網路與使用者憑證，也依賴第三方網站目前的登入／回應格式。
 - frozen app 不會補下載模型；package/release preflight 會阻止缺少或毀損模型的 bundle。
-- PDF 只做 PyMuPDF 文字層擷取，沒有 OCR；掃描型 PDF 不會自動辨識圖片文字。上傳內容會完整讀入記憶體後再處理。
 - `/api/fetch-url` 沒有回應大小上限或 private-network/SSRF 過濾，且會把遠端內容完整讀入記憶體；它只適合由受信任的本機 UI 呼叫、抓取受信任 URL。
 - sidecar 沒有 API authentication。安全邊界是 loopback 綁定與 CORS allowlist；CORS 不是非瀏覽器客戶端的授權機制，請勿改成對外網卡監聽。
 - release spec 針對英文學習裁剪 Babel 非英文 locale data；非英文 Kokoro 聲音不屬於正式 bundle 的保證範圍。

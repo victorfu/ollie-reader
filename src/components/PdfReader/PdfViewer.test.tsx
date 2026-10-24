@@ -94,7 +94,6 @@ let measuredClientHeight: number;
 let resizeCallbacks: ResizeObserverCallback[];
 
 const defaultProps = {
-  pagesByNumber: new Map(),
   onSpeak: vi.fn(),
   onTextSelection: vi.fn(),
 };
@@ -267,37 +266,6 @@ describe("PdfViewer scroll management", () => {
 });
 
 describe("PdfViewer PDF-only layout", () => {
-  it("renders only the PDF and prefers backend text for page actions", () => {
-    const backendText = "Backend side panel text";
-    const onSpeak = vi.fn();
-    renderViewer("blob:pdf-only", null, vi.fn(), {
-      pagesByNumber: new Map([
-        [
-          1,
-          {
-            page_number: 1,
-            text: backendText,
-            text_length: backendText.length,
-          },
-        ],
-      ]),
-      onSpeak,
-    });
-
-    const speakButton = host.querySelector<HTMLButtonElement>(
-      '[aria-label="朗讀第 1 頁"]',
-    );
-    expect(host.querySelector('[data-testid="pdf-page"]')).not.toBeNull();
-    expect(host.textContent).not.toContain(backendText);
-    expect(speakButton).not.toBeNull();
-    expect(
-      host.querySelector('[aria-label="複製 Page 1 的 AI 學習提示"]'),
-    ).not.toBeNull();
-
-    act(() => speakButton?.click());
-    expect(onSpeak).toHaveBeenCalledWith(backendText);
-  });
-
   it("does not mount a PDF page before a concrete width is measured", () => {
     renderViewer("blob:measured", null);
 
@@ -308,9 +276,9 @@ describe("PdfViewer PDF-only layout", () => {
     ).toBe("760");
   });
 
-  it("falls back to PDF.js text when backend text is unavailable", async () => {
+  it("uses the PDF.js text layer for page actions", async () => {
     const onSpeak = vi.fn();
-    renderViewer("blob:fallback", null, vi.fn(), {
+    renderViewer("blob:pdfjs-text", null, vi.fn(), {
       onSpeak,
     });
 
@@ -318,6 +286,10 @@ describe("PdfViewer PDF-only layout", () => {
     const speakButton = host.querySelector<HTMLButtonElement>(
       '[aria-label="朗讀第 1 頁"]',
     );
+    expect(host.querySelector('[data-testid="pdf-page"]')).not.toBeNull();
+    expect(
+      host.querySelector('[aria-label="複製 Page 1 的 AI 學習提示"]'),
+    ).not.toBeNull();
     expect(speakButton?.disabled).toBe(false);
     act(() => speakButton?.click());
     expect(onSpeak).toHaveBeenCalledWith(pdfMocks.pdfJsText);
@@ -362,81 +334,9 @@ describe("PdfViewer page fitting", () => {
 });
 
 describe("PdfViewer text-layer interaction", () => {
-  it("uses backend word boxes for click hit-testing while retaining the text layer", () => {
+  it("keeps PDF annotation clicks out of word selection", () => {
     const onTextSelection = vi.fn();
-    const caretPositionFromPoint = vi.fn();
-    renderViewer("blob:native-words", null, vi.fn(), {
-      onTextSelection,
-      pagesByNumber: new Map([
-        [
-          1,
-          {
-            page_number: 1,
-            text: "Once upon a time",
-            text_length: 16,
-            width: 500,
-            height: 300,
-            words: [
-              { text: "Once", x0: 20, y0: 20, x1: 70, y1: 40 },
-              { text: "upon", x0: 80, y0: 20, x1: 130, y1: 40 },
-            ],
-          },
-        ],
-      ]),
-    });
-    const overlay = host.querySelector<HTMLElement>(
-      "[data-native-word-overlay]",
-    );
-    if (!overlay) throw new Error("native overlay was not rendered");
-    overlay.getBoundingClientRect = () =>
-      ({
-        left: 100,
-        top: 200,
-        right: 1_100,
-        bottom: 800,
-        width: 1_000,
-        height: 600,
-        x: 100,
-        y: 200,
-        toJSON: () => ({}),
-      }) as DOMRect;
-    Object.defineProperty(document, "caretPositionFromPoint", {
-      configurable: true,
-      value: caretPositionFromPoint,
-    });
-
-    act(() => {
-      dispatchPointer(overlay, "pointerdown", 190, 260);
-      dispatchPointer(overlay, "pointerup", 190, 260);
-    });
-
-    const payload = onTextSelection.mock.calls
-      .map(([value]) => value as { text?: string } | undefined)
-      .find((value) => value?.text);
-    expect(payload?.text).toBe("Once");
-    expect(caretPositionFromPoint).not.toHaveBeenCalled();
-    expect(host.querySelector(".textLayer")).not.toBeNull();
-    expect(pdfMocks.renderTextLayerValues).toContain(true);
-  });
-
-  it("keeps PDF annotations outside native word selection", () => {
-    const onTextSelection = vi.fn();
-    renderViewer("blob:native-annotation", null, vi.fn(), {
-      onTextSelection,
-      pagesByNumber: new Map([
-        [
-          1,
-          {
-            page_number: 1,
-            text: "Link",
-            text_length: 4,
-            width: 500,
-            height: 300,
-            words: [{ text: "Link", x0: 20, y0: 20, x1: 70, y1: 40 }],
-          },
-        ],
-      ]),
-    });
+    renderViewer("blob:annotation", null, vi.fn(), { onTextSelection });
     const annotation = host.querySelector('[data-testid="pdf-annotation-link"]');
     if (!annotation) throw new Error("annotation was not rendered");
 
@@ -446,44 +346,6 @@ describe("PdfViewer text-layer interaction", () => {
     });
 
     expect(onTextSelection).not.toHaveBeenCalled();
-  });
-
-  it("falls back to the PDF.js caret path when optional word geometry is invalid", () => {
-    const onTextSelection = vi.fn();
-    renderViewer("blob:invalid-native-words", null, vi.fn(), {
-      onTextSelection,
-      pagesByNumber: new Map([
-        [
-          1,
-          {
-            page_number: 1,
-            text: "Backend text",
-            text_length: 12,
-            width: 0,
-            height: 300,
-            words: [{ text: "bad", x0: 0, y0: 0, x1: 10, y1: 10 }],
-          },
-        ],
-      ]),
-    });
-    expect(host.querySelector("[data-native-word-overlay]")).toBeNull();
-    const surface = host.querySelector('[data-pdf-page-surface="true"]');
-    const textNode = host.querySelector(".textLayer span")?.firstChild;
-    if (!surface || !(textNode instanceof Text)) {
-      throw new Error("mock PDF text layer was not rendered");
-    }
-    Object.defineProperty(document, "caretPositionFromPoint", {
-      configurable: true,
-      value: vi.fn(() => ({ offsetNode: textNode, offset: 10 })),
-    });
-
-    act(() => {
-      dispatchPointer(surface, "pointerdown", 20, 30);
-      dispatchPointer(surface, "pointerup", 20, 30);
-    });
-
-    expect(window.getSelection()?.toString()).toBe("proportional");
-    expect(onTextSelection).toHaveBeenCalledTimes(1);
   });
 
   it("turns a short click into a real single-word selection", () => {

@@ -58,18 +58,6 @@ function deferred<T>(): Deferred<T> {
   return { promise, resolve, reject };
 }
 
-function extractResponse(filename: string, text: string): Response {
-  return new Response(
-    JSON.stringify({
-      status: "success",
-      filename,
-      total_pages: 1,
-      pages: [{ page_number: 1, text, text_length: text.length }],
-    }),
-    { status: 200, headers: { "Content-Type": "application/json" } },
-  );
-}
-
 async function flushAsyncWork(): Promise<void> {
   await act(async () => {
     await new Promise((resolve) => window.setTimeout(resolve, 0));
@@ -163,17 +151,21 @@ afterEach(() => {
   }
 });
 
+function pdfResponse(): Response {
+  return new Response("%PDF", {
+    status: 200,
+    headers: { "Content-Type": "application/pdf" },
+  });
+}
+
 describe("PdfProvider document lifecycle", () => {
-  it("restores a cached PDF even when extracted text is unavailable", async () => {
+  it("restores a cached PDF without contacting the server", async () => {
     act(() => root.unmount());
     host.remove();
     currentState = null;
     const cachedBlob = new Blob(["cached"], { type: "application/pdf" });
-    const resumedExtraction = deferred<Response>();
-    mocks.fetchWithComputeBase.mockReturnValueOnce(resumedExtraction.promise);
     mocks.loadPdfFromCache.mockResolvedValueOnce({
       blob: cachedBlob,
-      result: null,
       filename: "cached-scan.pdf",
       scrollPosition: 125,
     });
@@ -182,25 +174,16 @@ describe("PdfProvider document lifecycle", () => {
 
     expect(state().pdfUrl).toBe("blob:remote.pdf");
     expect(state().selectedFile?.name).toBe("cached-scan.pdf");
-    expect(state().result).toBeNull();
     expect(state().initialScrollPosition).toBe(125);
-    expect(state().isUploading).toBe(true);
-    expect(mocks.fetchWithComputeBase).toHaveBeenCalledTimes(1);
+    expect(mocks.fetchWithComputeBase).not.toHaveBeenCalled();
+    // A legacy entry without a document id is re-saved with one.
     expect(mocks.savePdfToCache).toHaveBeenCalledWith(
       "user-1",
       cachedBlob,
-      null,
       "cached-scan.pdf",
       expect.any(String),
       125,
     );
-
-    resumedExtraction.resolve(
-      extractResponse("cached-scan.pdf", "Recovered cached text"),
-    );
-    await flushAsyncWork();
-    expect(state().result?.filename).toBe("cached-scan.pdf");
-    expect(state().isUploading).toBe(false);
   });
 
   it("does not retain the previous account PDF while a new account restores", async () => {
@@ -210,7 +193,6 @@ describe("PdfProvider document lifecycle", () => {
     currentState = null;
     mocks.loadPdfFromCache.mockResolvedValueOnce({
       blob: cachedBlob,
-      result: null,
       filename: "alice.pdf",
       documentId: "alice-document",
     });
@@ -247,7 +229,6 @@ describe("PdfProvider document lifecycle", () => {
     currentState = null;
     const cachedPdf = deferred<{
       blob: Blob;
-      result: null;
       filename: string;
       documentId: string;
     } | null>();
@@ -263,8 +244,6 @@ describe("PdfProvider document lifecycle", () => {
         </PdfProvider>,
       );
     });
-    const extraction = deferred<Response>();
-    mocks.fetchWithComputeBase.mockReturnValueOnce(extraction.promise);
     const selected = new File(["new"], "selected.pdf", {
       type: "application/pdf",
     });
@@ -272,7 +251,6 @@ describe("PdfProvider document lifecycle", () => {
 
     cachedPdf.resolve({
       blob: new Blob(["old"], { type: "application/pdf" }),
-      result: null,
       filename: "cached.pdf",
       documentId: "cached-document",
     });
@@ -280,41 +258,33 @@ describe("PdfProvider document lifecycle", () => {
 
     expect(state().selectedFile?.name).toBe("selected.pdf");
     expect(state().pdfUrl).toBe("blob:selected.pdf");
-    extraction.resolve(extractResponse("selected.pdf", "Selected text"));
-    await flushAsyncWork();
   });
 
-  it("shows a new local PDF immediately and clears the previous extraction", async () => {
-    mocks.fetchWithComputeBase.mockResolvedValueOnce(
-      extractResponse("first.pdf", "First document text"),
-    );
+  it("shows a local PDF immediately and caches it without uploading", async () => {
     const firstFile = new File(["first"], "first.pdf", {
       type: "application/pdf",
     });
     act(() => state().handleFileChange(firstFile));
-    await flushAsyncWork();
-    expect(state().result?.filename).toBe("first.pdf");
-
-    const secondExtraction = deferred<Response>();
-    mocks.fetchWithComputeBase.mockReturnValueOnce(secondExtraction.promise);
     const secondFile = new File(["second"], "second.pdf", {
       type: "application/pdf",
     });
     act(() => state().handleFileChange(secondFile));
+    await flushAsyncWork();
 
     expect(state().selectedFile?.name).toBe("second.pdf");
     expect(state().pdfUrl).toBe("blob:second.pdf");
-    expect(state().result).toBeNull();
-    expect(state().isUploading).toBe(true);
-
-    secondExtraction.resolve(extractResponse("second.pdf", "Second text"));
-    await flushAsyncWork();
+    expect(mocks.revokeObjectURL).toHaveBeenCalledWith("blob:first.pdf");
+    expect(mocks.savePdfToCache).toHaveBeenLastCalledWith(
+      "user-1",
+      secondFile,
+      "second.pdf",
+      expect.any(String),
+      undefined,
+    );
+    expect(mocks.fetchWithComputeBase).not.toHaveBeenCalled();
   });
 
   it("accepts a PDF extension when the browser leaves MIME empty", async () => {
-    mocks.fetchWithComputeBase.mockResolvedValueOnce(
-      extractResponse("mime-less.pdf", "PDF text"),
-    );
     const file = new File(["%PDF-1.7"], "mime-less.pdf", { type: "" });
 
     act(() => state().handleFileChange(file));
@@ -322,146 +292,46 @@ describe("PdfProvider document lifecycle", () => {
 
     expect(state().selectedFile?.name).toBe("mime-less.pdf");
     expect(state().error).toBeNull();
-    expect(mocks.fetchWithComputeBase).toHaveBeenCalledTimes(1);
   });
 
-  it("keeps a local PDF visible when background extraction fails", async () => {
-    mocks.fetchWithComputeBase.mockResolvedValueOnce(
-      new Response("文字提取失敗", { status: 500 }),
-    );
-    const file = new File(["scanned"], "scan.pdf", {
-      type: "application/pdf",
-    });
-
-    act(() => state().handleFileChange(file));
-    await flushAsyncWork();
-
-    expect(state().pdfUrl).toBe("blob:scan.pdf");
-    expect(state().selectedFile?.name).toBe("scan.pdf");
-    expect(state().result).toBeNull();
-    expect(state().error).toContain("文字提取失敗");
-  });
-
-  it("publishes a URL-fetched PDF before its extraction finishes", async () => {
-    const extraction = deferred<Response>();
-    mocks.fetchWithComputeBase
-      .mockResolvedValueOnce(
-        new Response("%PDF", {
-          status: 200,
-          headers: { "Content-Type": "application/pdf" },
-        }),
-      )
-      .mockReturnValueOnce(extraction.promise);
-
-    act(() => {
-      void state().loadPdfFromUrl("https://example.com/lesson.pdf");
-    });
-    await flushAsyncWork();
-
-    expect(mocks.fetchWithComputeBase).toHaveBeenCalledTimes(2);
-    expect(state().pdfUrl).toBe("blob:remote.pdf");
-    expect(state().selectedFile?.type).toBe("application/pdf");
-    expect(state().result).toBeNull();
-    expect(state().isUploading).toBe(true);
-
-    extraction.resolve(extractResponse("downloaded.pdf", "Remote text"));
-    await flushAsyncWork();
-  });
-
-  it("keeps a URL-fetched PDF visible when background extraction fails", async () => {
-    mocks.fetchWithComputeBase
-      .mockResolvedValueOnce(
-        new Response("%PDF", {
-          status: 200,
-          headers: { "Content-Type": "application/pdf" },
-        }),
-      )
-      .mockResolvedValueOnce(
-        new Response("圖片頁沒有可解析文字", { status: 500 }),
-      );
+  it("publishes and caches a URL-fetched PDF with a single request", async () => {
+    mocks.fetchWithComputeBase.mockResolvedValueOnce(pdfResponse());
 
     await act(async () => {
-      await state().loadPdfFromUrl("https://example.com/scanned.pdf");
+      await state().loadPdfFromUrl("https://example.com/lesson.pdf");
     });
     await flushAsyncWork();
 
+    expect(mocks.fetchWithComputeBase).toHaveBeenCalledTimes(1);
     expect(state().pdfUrl).toBe("blob:remote.pdf");
-    expect(state().selectedFile).not.toBeNull();
-    expect(state().result).toBeNull();
-    expect(state().error).toContain("圖片頁沒有可解析文字");
+    expect(state().selectedFile?.type).toBe("application/pdf");
+    expect(state().isLoadingFromUrl).toBe(false);
+    expect(mocks.savePdfToCache).toHaveBeenCalledTimes(1);
   });
 
-  it("ignores an older extraction response after a newer file is selected", async () => {
-    const firstExtraction = deferred<Response>();
-    const secondExtraction = deferred<Response>();
-    mocks.fetchWithComputeBase
-      .mockReturnValueOnce(firstExtraction.promise)
-      .mockReturnValueOnce(secondExtraction.promise);
+  it("does not let an in-flight URL download repopulate cleared state", async () => {
+    const download = deferred<Response>();
+    mocks.fetchWithComputeBase.mockReturnValueOnce(download.promise);
 
-    const firstFile = new File(["first"], "first.pdf", {
-      type: "application/pdf",
+    let loadPromise!: Promise<void>;
+    act(() => {
+      loadPromise = state().loadPdfFromUrl("https://example.com/clear-me.pdf");
     });
-    const secondFile = new File(["second"], "second.pdf", {
-      type: "application/pdf",
-    });
-    act(() => state().handleFileChange(firstFile));
-    act(() => state().handleFileChange(secondFile));
-
-    firstExtraction.resolve(extractResponse("first.pdf", "Stale text"));
-    await flushAsyncWork();
-    expect(state().selectedFile?.name).toBe("second.pdf");
-    expect(state().result).toBeNull();
-    expect(state().isUploading).toBe(true);
-
-    secondExtraction.resolve(extractResponse("second.pdf", "Current text"));
-    await flushAsyncWork();
-    expect(state().result?.filename).toBe("second.pdf");
-    expect(state().isUploading).toBe(false);
-  });
-
-  it("does not let an in-flight extraction repopulate cleared state", async () => {
-    const extraction = deferred<Response>();
-    mocks.fetchWithComputeBase.mockReturnValueOnce(extraction.promise);
-    const file = new File(["pdf"], "clear-me.pdf", {
-      type: "application/pdf",
-    });
-    act(() => state().handleFileChange(file));
-
     await act(async () => {
       await state().clearPdfCache();
     });
-    extraction.resolve(extractResponse("clear-me.pdf", "Late text"));
+    download.resolve(pdfResponse());
+    await act(async () => loadPromise.catch(() => {}));
     await flushAsyncWork();
 
     expect(state().selectedFile).toBeNull();
     expect(state().pdfUrl).toBeNull();
-    expect(state().result).toBeNull();
-    expect(state().isUploading).toBe(false);
-  });
-
-  it("keeps the PDF visible and ignores late extraction after cancel", async () => {
-    const extraction = deferred<Response>();
-    mocks.fetchWithComputeBase.mockReturnValueOnce(extraction.promise);
-    const file = new File(["pdf"], "cancelled.pdf", {
-      type: "application/pdf",
-    });
-    act(() => state().handleFileChange(file));
-
-    act(() => state().cancelUpload());
-    expect(state().pdfUrl).toBe("blob:cancelled.pdf");
-    expect(state().selectedFile?.name).toBe("cancelled.pdf");
-    expect(state().isUploading).toBe(false);
-
-    extraction.resolve(extractResponse("cancelled.pdf", "Late text"));
-    await flushAsyncWork();
-    expect(state().result).toBeNull();
+    expect(state().isLoadingFromUrl).toBe(false);
   });
 
   it("ignores a stale URL download after a local PDF is selected", async () => {
     const remoteDownload = deferred<Response>();
-    mocks.fetchWithComputeBase
-      .mockReturnValueOnce(remoteDownload.promise)
-      .mockResolvedValueOnce(extractResponse("local.pdf", "Local text"));
+    mocks.fetchWithComputeBase.mockReturnValueOnce(remoteDownload.promise);
 
     let remotePromise!: Promise<void>;
     act(() => {
@@ -474,17 +344,11 @@ describe("PdfProvider document lifecycle", () => {
     });
     act(() => state().handleFileChange(localFile));
 
-    remoteDownload.resolve(
-      new Response("%PDF", {
-        status: 200,
-        headers: { "Content-Type": "application/pdf" },
-      }),
-    );
+    remoteDownload.resolve(pdfResponse());
     await act(async () => remotePromise);
     await flushAsyncWork();
 
     expect(state().selectedFile?.name).toBe("local.pdf");
     expect(state().pdfUrl).toBe("blob:local.pdf");
-    expect(state().result?.filename).toBe("local.pdf");
   });
 });

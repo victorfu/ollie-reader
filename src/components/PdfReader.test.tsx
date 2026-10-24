@@ -170,14 +170,11 @@ beforeEach(() => {
   mocks.vocabularyPanelMode.current = "docked";
   mocks.usePdfState.mockReturnValue({
     selectedFile: new File(["pdf"], "lesson.pdf", { type: "application/pdf" }),
-    isUploading: true,
     error: null,
-    result: null,
     pdfUrl: "blob:lesson.pdf",
     initialScrollPosition: null,
     handleFileChange: vi.fn(),
     loadPdfFromUrl: vi.fn(),
-    cancelUpload: vi.fn(),
     clearPdfCache: vi.fn(),
     saveScrollPosition: vi.fn(),
   });
@@ -192,7 +189,7 @@ afterEach(() => {
 });
 
 describe("PdfReader PDF-only state", () => {
-  it("keeps the viewer and text actions available while extraction is pending", () => {
+  it("shows the viewer and text actions as soon as the PDF is loaded", () => {
     act(() => root.render(<PdfReader />));
 
     expect(host.querySelector('[data-testid="pdf-viewer"]')).not.toBeNull();

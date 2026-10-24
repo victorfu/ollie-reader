@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { logger } from "../utils/logger";
 import { usePdfState } from "../hooks/usePdfState";
 import { useSpeechState } from "../hooks/useSpeechState";
@@ -28,14 +28,11 @@ function PdfReader() {
   // Use PDF state from context instead of local hook
   const {
     selectedFile,
-    isUploading,
     error,
-    result,
     pdfUrl,
     initialScrollPosition,
     handleFileChange,
     loadPdfFromUrl,
-    cancelUpload,
     clearPdfCache,
     saveScrollPosition,
   } = usePdfState();
@@ -184,14 +181,6 @@ function PdfReader() {
     dismissAll,
   } = useLookupQueue(lookupOrAddWord, formatDefinitionsForDisplay);
 
-  const pagesByNumber = useMemo(() => {
-    const map = new Map();
-    if (result) {
-      for (const p of result.pages) map.set(p.page_number, p);
-    }
-    return map;
-  }, [result]);
-
   // Handlers for child components
   const onInputChange: React.ChangeEventHandler<HTMLInputElement> = (e) => {
     const file = e.target.files?.[0] ?? null;
@@ -287,12 +276,10 @@ function PdfReader() {
 
   const uploadAreaProps = {
     selectedFile,
-    isUploading,
     speechSupported,
     onFileChange: onInputChange,
     onDrop,
     onDragOver,
-    onCancel: cancelUpload,
     onOpenBookingDrawer: () => setDrawerOpen(true),
     onClearCache: pdfUrl ? handleClearCache : undefined,
     isClearingCache,
@@ -363,13 +350,12 @@ function PdfReader() {
         />
       )}
 
-      {/* PDF is published as soon as its blob is available. Text hydrates later. */}
+      {/* PDF is published as soon as its blob is available. */}
       {pdfUrl && (
         <div className="flex min-h-0 flex-1 flex-col gap-4 lg:flex-row lg:items-stretch">
           <div className="min-h-0 min-w-0 flex-1 overflow-hidden rounded-xl border border-border-hairline bg-base-100 shadow-elevated">
             <PdfViewer
               url={pdfUrl}
-              pagesByNumber={pagesByNumber}
               onSpeak={speak}
               onTextSelection={handleTextSelection}
               isLoadingAudio={isLoadingAudio}

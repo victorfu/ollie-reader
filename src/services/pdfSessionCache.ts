@@ -1,10 +1,9 @@
 /**
  * PDF Session Cache Service
- * Provides IndexedDB caching for PDF blob and extracted text data.
+ * Provides IndexedDB caching for the PDF blob and its reading position.
  * Cache is only valid for the current browser session (tab).
  */
 
-import type { ExtractResponse } from "../types/pdf";
 import {
   choosePdfSessionId,
   claimPdfSessionId,
@@ -234,7 +233,6 @@ interface CachedPdfData {
   key: string;
   ownerUid: string;
   blob: Blob;
-  result: ExtractResponse | null;
   filename: string;
   documentId?: string;
   timestamp: number;
@@ -274,13 +272,12 @@ class PdfSessionCacheService {
   }
 
   /**
-   * Save PDF blob and extracted result to IndexedDB cache.
+   * Save the PDF blob to IndexedDB cache.
    * Automatically overwrites any existing cached PDF.
    */
   async savePdfToCache(
     ownerUid: string,
     blob: Blob,
-    result: ExtractResponse | null,
     filename: string,
     documentId: string,
     migratedScrollPosition?: number,
@@ -303,8 +300,6 @@ class PdfSessionCacheService {
           key: cacheKey,
           ownerUid,
           blob,
-          result:
-            result ?? (isSameDocument ? (existing?.result ?? null) : null),
           filename,
           documentId,
           timestamp: isSameDocument
@@ -328,7 +323,6 @@ class PdfSessionCacheService {
    */
   async loadPdfFromCache(ownerUid: string): Promise<{
     blob: Blob;
-    result: ExtractResponse | null;
     filename: string;
     documentId?: string;
     scrollPosition?: number;
@@ -349,7 +343,6 @@ class PdfSessionCacheService {
         if (data?.ownerUid === ownerUid) {
           resolve({
             blob: data.blob,
-            result: data.result ?? null,
             filename: data.filename,
             documentId: data.documentId,
             scrollPosition: data.scrollPosition,

@@ -1,30 +1,3 @@
-export type ExtractedPage = {
-  page_number: number;
-  text: string;
-  text_length: number;
-  /** Width of the rendered, rotated CropBox viewport in PDF points. */
-  width?: number;
-  /** Height of the rendered, rotated CropBox viewport in PDF points. */
-  height?: number;
-  /** Optional PyMuPDF-native word boxes. Older backends and caches omit this. */
-  words?: PdfWord[];
-};
-
-export type PdfWord = {
-  text: string;
-  x0: number;
-  y0: number;
-  x1: number;
-  y1: number;
-};
-
-export type ExtractResponse = {
-  status: string;
-  filename: string;
-  total_pages: number;
-  pages: ExtractedPage[];
-};
-
 export type ReadingMode = "word" | "selection";
 
 export type TTSMode = "browser" | "api";

@@ -11,8 +11,6 @@ import {
 } from "react";
 import { Volume2 } from "lucide-react";
 import { Document, Page } from "react-pdf";
-import type { TextSelectionPayload } from "../../hooks/useTextSelection";
-import type { ExtractedPage } from "../../types/pdf";
 import { pdfDocumentOptions } from "../../utils/pdfConfig";
 import {
   computeRestoredScrollTop,
@@ -23,19 +21,16 @@ import {
   computeFitPageWidth,
 } from "../../utils/pdfPageFit";
 import { selectWordAtPoint } from "../../utils/pdfTextSelection";
-import { hasPdfWordGeometry } from "../../utils/pdfWordSelection";
 import { Tooltip } from "../common/Tooltip";
 import { CopyPagePromptButton } from "./CopyPagePromptButton";
-import { WordOverlay } from "./WordOverlay";
 
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
 
 interface PdfViewerProps {
   url: string;
-  pagesByNumber: Map<number, ExtractedPage>;
   onSpeak: (text: string) => void;
-  onTextSelection: (selection?: TextSelectionPayload) => void;
+  onTextSelection: () => void;
   isLoadingAudio?: boolean;
   isSpeaking?: boolean;
   initialScrollPosition?: number | null;
@@ -75,7 +70,6 @@ function isInteractiveAnnotationTarget(target: EventTarget | null): boolean {
 export const PdfViewer = memo(
   ({
     url,
-    pagesByNumber,
     onSpeak,
     onTextSelection,
     isLoadingAudio,
@@ -245,13 +239,8 @@ export const PdfViewer = memo(
     );
 
     const getPageText = useCallback(
-      (pageNumber: number): string => {
-        const backendText = pagesByNumber.get(pageNumber)?.text || "";
-        return backendText.trim()
-          ? backendText
-          : pdfJsPages.get(pageNumber) || "";
-      },
-      [pagesByNumber, pdfJsPages],
+      (pageNumber: number): string => pdfJsPages.get(pageNumber) || "",
+      [pdfJsPages],
     );
 
     const handleScroll = useCallback(() => {
@@ -431,10 +420,8 @@ export const PdfViewer = memo(
               >
                 {Array.from({ length: numPages }, (_, index) => index + 1).map(
                   (pageNumber) => {
-                    const extractedPage = pagesByNumber.get(pageNumber);
                     const pageText = getPageText(pageNumber);
                     const textAvailable = pageText.trim().length > 0;
-                    const nativeWordGeometry = hasPdfWordGeometry(extractedPage);
                     return (
                       <section
                         key={`page-${pageNumber}`}
@@ -518,14 +505,6 @@ export const PdfViewer = memo(
                                 <div className="skeleton h-150 w-full rounded-lg" />
                               }
                             >
-                              {nativeWordGeometry && (
-                                <WordOverlay
-                                  pageWidth={extractedPage.width}
-                                  pageHeight={extractedPage.height}
-                                  words={extractedPage.words}
-                                  onTextSelection={onTextSelection}
-                                />
-                              )}
                             </Page>
                           ) : (
                             <div className="skeleton h-150 w-full rounded-lg" />

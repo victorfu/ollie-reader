@@ -1,11 +1,11 @@
-"""ollie-reader 本機 sidecar：pdf/tts/ktts + version，REST，合約與雲端一致。"""
+"""ollie-reader 本機 sidecar：tts/ktts + version，REST，合約與雲端一致。"""
 
 import io
 import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, File, HTTPException, Query, UploadFile
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, StreamingResponse
@@ -22,7 +22,6 @@ from server import model_download
 from server.fetch_url import FetchError, fetch_url_content_async
 from server.oikid import OikidError, search_booking_records
 from server.models import SpeechRequest
-from server.pdf_extract import PDFError, extract_text_from_pdf
 from server.tts_edge import EdgeTTSError, edge_synthesize_speech, list_edge_voices
 from server.tts_kokoro import (
     KokoroTTSError,
@@ -123,43 +122,6 @@ def create_app() -> FastAPI:
             headers=headers,
             media_type=result.content_type,
         )
-
-    @app.post("/api/pdf/extract", tags=["pdf"])
-    async def extract_pdf(file: UploadFile = File(...)):
-        try:
-            filename = file.filename or "unknown.pdf"
-            content = await file.read()
-            result = await run_in_threadpool(extract_text_from_pdf, content, filename)
-        except PDFError as e:
-            raise HTTPException(status_code=e.status_code, detail=e.message) from e
-        except Exception as e:
-            logger.exception("未預期的 PDF 處理失敗")
-            raise HTTPException(status_code=500, detail="PDF 處理失敗") from e
-        return {
-            "status": "success",
-            "filename": result.filename,
-            "total_pages": result.total_pages,
-            "pages": [
-                {
-                    "page_number": p.page_number,
-                    "text": p.text,
-                    "text_length": p.text_length,
-                    "width": p.width,
-                    "height": p.height,
-                    "words": [
-                        {
-                            "text": word.text,
-                            "x0": word.x0,
-                            "y0": word.y0,
-                            "x1": word.x1,
-                            "y1": word.y1,
-                        }
-                        for word in p.words
-                    ],
-                }
-                for p in result.pages
-            ],
-        }
 
     @app.post("/api/tts", tags=["tts"])
     async def tts(request: SpeechRequest):
