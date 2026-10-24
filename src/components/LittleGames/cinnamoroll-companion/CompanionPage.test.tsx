@@ -1,8 +1,10 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { Vector3 } from "three";
 import type { CompanionSceneProps } from "./CompanionScene";
 import CompanionPage from "./CompanionPage";
+import { advanceSpin, releaseSpin, turnSpin } from "./logic/spin";
 
 // jsdom has no WebGL; the 3D scene is replaced by a plain element that
 // exposes the props the page hands it.
@@ -99,6 +101,19 @@ describe("CompanionPage", () => {
 
     expect(button("轉一轉").getAttribute("aria-pressed")).toBe("true");
     expect(sceneProps?.runtime.petting).toBe(false);
+  });
+
+  it("puts the model back upright and facing front with 回正", async () => {
+    setWebGL(true);
+    await renderPage();
+    const runtime = sceneProps!.runtime;
+    runtime.spin = releaseSpin(turnSpin(runtime.spin, 1.2, 0.8, 0), 500);
+
+    act(() => button("回正").click());
+    for (let i = 0; i < 120; i += 1) runtime.spin = advanceSpin(runtime.spin, 1 / 60);
+
+    const front = new Vector3(0, 0, 1).applyQuaternion(runtime.spin.orientation);
+    expect(front.z).toBeCloseTo(1, 5);
   });
 
   it("keeps the model credit off the play screen until asked for", async () => {

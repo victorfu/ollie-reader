@@ -210,28 +210,38 @@ export default function CompanionPage({ onExit }: { onExit: () => void }) {
           >
             {mode === "turn" ? "拖曳讓我轉一圈" : "在頭上來回滑，摸摸我的頭"}
           </p>
-          <div
-            role="group"
-            aria-label="互動方式"
-            className="pointer-events-auto inline-flex gap-1 rounded-full border border-white/70 bg-white/80 p-1 shadow-sm backdrop-blur-md"
-          >
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            <div
+              role="group"
+              aria-label="互動方式"
+              className="pointer-events-auto inline-flex gap-1 rounded-full border border-white/70 bg-white/80 p-1 shadow-sm backdrop-blur-md"
+            >
+              <button
+                type="button"
+                aria-pressed={mode === "turn"}
+                onClick={chooseTurn}
+                className={modeButton(mode === "turn")}
+              >
+                <Rotate3d className="size-4" aria-hidden="true" />
+                轉一轉
+              </button>
+              <button
+                type="button"
+                aria-pressed={mode === "pet"}
+                onClick={choosePet}
+                className={modeButton(mode === "pet")}
+              >
+                <Hand className="size-4" aria-hidden="true" />
+                摸摸頭
+              </button>
+            </div>
             <button
               type="button"
-              aria-pressed={mode === "turn"}
-              onClick={chooseTurn}
-              className={modeButton(mode === "turn")}
+              onClick={() => runtime.resetView()}
+              className="pointer-events-auto inline-flex min-h-11 items-center gap-1.5 rounded-full border border-white/70 bg-white/80 px-4 text-sm font-medium text-sky-950 shadow-sm backdrop-blur-md transition-colors hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 active:scale-[0.98]"
             >
-              <Rotate3d className="size-4" aria-hidden="true" />
-              轉一轉
-            </button>
-            <button
-              type="button"
-              aria-pressed={mode === "pet"}
-              onClick={choosePet}
-              className={modeButton(mode === "pet")}
-            >
-              <Hand className="size-4" aria-hidden="true" />
-              摸摸頭
+              <RotateCcw className="size-4" aria-hidden="true" />
+              回正
             </button>
           </div>
         </footer>

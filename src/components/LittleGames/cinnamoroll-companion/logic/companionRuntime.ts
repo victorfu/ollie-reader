@@ -4,7 +4,7 @@ import {
   type PetEvent,
   type PetState,
 } from "./petMachine";
-import { createSpin, type Spin } from "./spin";
+import { createSpin, resetSpin, type Spin } from "./spin";
 
 /**
  * Mutable state shared by the DOM overlay, pointer handlers and the render
@@ -22,6 +22,8 @@ export type CompanionRuntime = {
   petting: boolean;
   dispatch(event: PetEvent): void;
   setPetting(on: boolean): void;
+  /** Eases the model back to upright and facing front. */
+  resetView(): void;
 };
 
 export function createCompanionRuntime(
@@ -37,6 +39,9 @@ export function createCompanionRuntime(
     petting: false,
     setPetting(on) {
       runtime.petting = on;
+    },
+    resetView() {
+      runtime.spin = resetSpin(runtime.spin);
     },
     dispatch(event) {
       runtime.pet = reducePet(runtime.pet, event);
