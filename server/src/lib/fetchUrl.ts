@@ -3,9 +3,10 @@ import { isIP } from "node:net";
 import { basename, extname } from "node:path";
 import ipaddr from "ipaddr.js";
 import { Agent, fetch as undiciFetch } from "undici";
-import { ApiError, readLimited } from "./api";
+import { ApiError } from "./api";
 
-const MAX_BYTES = 4 * 1024 * 1024;
+// Streamed responses are exempt from Vercel's 4.5 MB body limit, so this only bounds the transfer.
+export const MAX_BYTES = 50 * 1024 * 1024;
 const EXTENSIONS: Record<string, string> = {
   "application/pdf": ".pdf", "text/html": ".html", "text/plain": ".txt",
   "application/json": ".json", "image/jpeg": ".jpg", "image/png": ".png",
@@ -60,6 +61,7 @@ export async function fetchUrl(request: Request, headers: Headers): Promise<Resp
   const signal = AbortSignal.any([request.signal, deadline]);
   let url = options.url;
   let count = 0;
+  let streaming = false;
   try {
     while (true) {
       const upstream = await undiciFetch(url, { dispatcher: agent, redirect: "manual", signal });
@@ -75,7 +77,12 @@ export async function fetchUrl(request: Request, headers: Headers): Promise<Resp
         await upstream.body?.cancel();
         throw new ApiError(upstream.status === 404 ? "找不到指定的資源" : upstream.status === 429 ? "請求過於頻繁，請稍後再試" : `HTTP 錯誤: ${upstream.status}`, upstream.status);
       }
-      const content = await readLimited(upstream as unknown as Response, MAX_BYTES);
+      // fetch decodes Content-Encoding, so only an unencoded length describes the bytes we send.
+      const length = upstream.headers.get("content-encoding") ? null : upstream.headers.get("content-length");
+      if (length && Number(length) > MAX_BYTES) {
+        await upstream.body?.cancel();
+        throw new ApiError("檔案超過大小限制", 413);
+      }
       const type = upstream.headers.get("content-type") || "application/octet-stream";
       let filename = basename(decodeURIComponent(url.pathname)) || "downloaded_file";
       if (!filename.includes(".") || filename.endsWith(".php")) {
@@ -83,7 +90,7 @@ export async function fetchUrl(request: Request, headers: Headers): Promise<Resp
         if (extension) filename = filename.replace(/\.php$/, "") + extension;
       }
       headers.set("Content-Type", type);
-      headers.set("Content-Length", String(content.length));
+      if (length) headers.set("Content-Length", length);
       headers.set("X-Final-URL", url.href);
       headers.set("X-Redirect-Count", String(count));
       headers.set("X-File-Extension", extname(filename).replace(/[^\x20-\x7e]/g, ""));
@@ -91,13 +98,52 @@ export async function fetchUrl(request: Request, headers: Headers): Promise<Resp
       headers.set("Content-Disposition", upstream.headers.get("content-disposition") || `inline; filename="${safeName}"; filename*=UTF-8''${encodeURIComponent(filename)}`);
       headers.set("X-Content-Type-Options", "nosniff");
       headers.set("Content-Security-Policy", "sandbox; default-src 'none'");
-      return new Response(content, { headers });
+      if (!upstream.body) return new Response(null, { headers });
+      // The body still reads through the agent, so it closes the agent itself.
+      const body = limitedBody(upstream.body as unknown as ReadableStream<Uint8Array>, MAX_BYTES, () => agent.destroy());
+      streaming = true;
+      return new Response(body, { headers });
     }
   } catch (error) {
     if (error instanceof ApiError) throw error;
     if (deadline.aborted) throw new ApiError("請求超時", 408);
     throw new ApiError("無法抓取目標伺服器的資源", 500);
   } finally {
-    await agent.destroy();
+    if (!streaming) await agent.destroy();
   }
+}
+
+// Headers are already sent while streaming, so an oversized or failed transfer can only abort the body.
+function limitedBody(source: ReadableStream<Uint8Array>, maxBytes: number, onClose: () => Promise<void>): ReadableStream<Uint8Array> {
+  const reader = source.getReader();
+  let size = 0;
+  let closed = false;
+  const close = () => {
+    if (closed) return;
+    closed = true;
+    onClose().catch(() => {});
+  };
+  return new ReadableStream({
+    async pull(controller) {
+      try {
+        const { done, value } = await reader.read();
+        if (done) {
+          controller.close();
+          close();
+          return;
+        }
+        size += value.byteLength;
+        if (size > maxBytes) throw new ApiError("檔案超過大小限制", 413);
+        controller.enqueue(value);
+      } catch (error) {
+        await reader.cancel().catch(() => {});
+        controller.error(error);
+        close();
+      }
+    },
+    async cancel(reason) {
+      await reader.cancel(reason).catch(() => {});
+      close();
+    },
+  });
 }
