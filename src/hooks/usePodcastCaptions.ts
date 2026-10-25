@@ -2,25 +2,44 @@ import { useEffect, useRef, useState } from "react";
 import type { RefObject } from "react";
 import { resamplePodcastPcm, toPodcastWords, type PodcastCaptionWord } from "../utils/podcastCaptions";
 
-type CaptionState = "off" | "loading" | "listening" | "error";
-type SpeechSession = Awaited<ReturnType<typeof import("cactus-needle/browser").createWhistle>>;
+type Status = "off" | "loading" | "listening" | "error";
+type WhistleSession = Awaited<ReturnType<typeof import("cactus-needle/browser").createWhistle>>;
+
+// createMediaElementSource() may be called only once per media element.
+// Keep its routing alive even when the STT model is turned off.
+type Capture = { context: AudioContext; capture: AudioWorkletNode };
+const captures = new WeakMap<HTMLAudioElement, Capture>();
+
+async function getCapture(audio: HTMLAudioElement): Promise<Capture> {
+  const existing = captures.get(audio);
+  if (existing) return existing;
+  const context = new AudioContext();
+  try {
+    await context.audioWorklet.addModule("/podcast-caption-capture.js");
+    const source = context.createMediaElementSource(audio);
+    const capture = new AudioWorkletNode(context, "podcast-caption-capture", { numberOfOutputs: 0 });
+    source.connect(context.destination);
+    source.connect(capture);
+    const result = { context, capture };
+    captures.set(audio, result);
+    return result;
+  } catch (error) {
+    await context.close();
+    throw error;
+  }
+}
 
 export function usePodcastCaptions(audioRef: RefObject<HTMLAudioElement | null>, identity: string) {
   const [enabled, setEnabled] = useState(false);
-  const [state, setState] = useState<CaptionState>("off");
+  const [state, setState] = useState<Status>("off");
   const [error, setError] = useState("");
   const [words, setWords] = useState<PodcastCaptionWord[]>([]);
   const [pending, setPending] = useState("");
   const generation = useRef(0);
-  const cleanup = useRef<() => void>(() => {});
-  const enable = () => setEnabled(true);
-  const disable = () => setEnabled(false);
 
   useEffect(() => {
     if (!enabled) {
-      cleanup.current();
       setState("off");
-      setWords([]);
       setPending("");
       return;
     }
@@ -28,107 +47,120 @@ export function usePodcastCaptions(audioRef: RefObject<HTMLAudioElement | null>,
     if (!audio) return;
     const run = ++generation.current;
     let disposed = false;
-    let context: AudioContext | undefined;
-    let processor: AudioWorkletNode | undefined;
-    let source: MediaElementAudioSourceNode | undefined;
-    let speech: SpeechSession | undefined;
-    const queued: Float32Array[] = [];
-    let notify: (() => void) | undefined;
-    let streamOffset = audio.currentTime;
-    let received = 0;
-    let rate = audio.playbackRate;
     let active = true;
+    let speech: WhistleSession | undefined;
+    let capture: Capture | undefined;
+    let wake: (() => void) | undefined;
+    const samples: Float32Array[] = [];
+    let buffered = 0;
+    let streamStart = audio.currentTime;
+    const speed = audio.playbackRate;
     const valid = () => !disposed && generation.current === run;
-    const reset = () => {
-      streamOffset = audio.currentTime;
-      received = 0;
-      rate = audio.playbackRate;
-      queued.length = 0;
-      setWords([]);
-      setPending("");
-    };
-    const stop = () => {
+    const finish = () => {
       disposed = true;
       active = false;
-      generation.current++;
-      queued.length = 0;
-      notify?.();
-      processor?.disconnect();
-      if (processor) processor.port.onmessage = null;
-      // Never disconnect the media source from the destination during teardown:
-      // the HTML audio element must remain audible after captions are disabled.
+      samples.length = 0;
+      buffered = 0;
+      wake?.();
+      if (capture) capture.capture.port.onmessage = null;
       void speech?.close();
-      void context?.close();
     };
-    cleanup.current = stop;
+
+    const resetOnSeek = () => {
+      // A live stream cannot be seeked. Stop captions rather than display
+      // inaccurate timestamps. The user may switch them on at the new time.
+      if (valid()) setEnabled(false);
+    };
+    const resume = () => { if (capture && !audio.paused) void capture.context.resume(); };
+    audio.addEventListener("seeking", resetOnSeek);
+    audio.addEventListener("ratechange", resetOnSeek);
+    audio.addEventListener("playing", resume);
+    setWords([]);
+    setPending("");
+    setError("");
+    setState("loading");
+
     const start = async () => {
-      setState("loading");
-      setError("");
       try {
-        if (!window.AudioContext || !window.AudioWorkletNode) throw new Error("此瀏覽器不支援 AudioWorklet 字幕辨識。");
+        if (!window.AudioContext || !window.AudioWorkletNode) throw new Error("瀏覽器不支援 AudioWorklet。");
         const { createWhistle } = await import("cactus-needle/browser");
-        if (!valid()) return;
         speech = await createWhistle();
         if (!valid()) { await speech.close(); return; }
-        context = new AudioContext();
-        await context.audioWorklet.addModule("/podcast-caption-capture.js");
+        capture = await getCapture(audio);
         if (!valid()) return;
-        source = context.createMediaElementSource(audio);
-        source.connect(context.destination);
-        processor = new AudioWorkletNode(context, "podcast-caption-capture", { numberOfOutputs: 0 });
-        source.connect(processor);
-        processor.port.onmessage = (event: MessageEvent<{ samples: Float32Array }>) => {
-          if (!valid() || !active || audio.paused) return;
-          // Streaming needs 16 kHz mono. Drop backlogged chunks rather than
-          // growing memory without bounds on slow devices.
-          if (queued.length > 32) { queued.shift(); }
-          queued.push(resamplePodcastPcm(event.data.samples, context!.sampleRate));
-          notify?.();
-          notify = undefined;
+        // Assign the clock anchor immediately before streaming begins.
+        streamStart = audio.currentTime;
+        capture.capture.port.onmessage = (event: MessageEvent<{ samples: Float32Array }>) => {
+          if (!valid() || audio.paused) return;
+          const pcm = resamplePodcastPcm(event.data.samples, capture!.context.sampleRate);
+          samples.push(pcm);
+          buffered += pcm.length;
+          // Stop instead of silently dropping samples (which would corrupt timestamps).
+          if (buffered > 16_000 * 12) {
+            setError("裝置辨識速度不足，字幕已停止，音訊仍可正常播放。");
+            setState("error");
+            setEnabled(false);
+            return;
+          }
+          wake?.();
+          wake = undefined;
         };
-        const chunks = async function* () {
+        if (!audio.paused) await capture.context.resume();
+        setState("listening");
+        async function* chunks() {
+          let partial: Float32Array[] = [];
+          let size = 0;
           while (active) {
-            if (!queued.length) await new Promise<void>((resolve) => { notify = resolve; });
-            while (queued.length) {
-              const chunk = queued.shift()!;
-              received += chunk.length / 16_000;
-              yield chunk;
+            if (!samples.length) await new Promise<void>((resolve) => { wake = resolve; });
+            while (samples.length && active) {
+              const chunk = samples.shift()!;
+              buffered -= chunk.length;
+              partial.push(chunk);
+              size += chunk.length;
+              if (size < 16_000) continue;
+              const block = new Float32Array(size);
+              let position = 0;
+              for (const part of partial) { block.set(part, position); position += part.length; }
+              partial = []; size = 0;
+              yield block;
             }
           }
-        };
-        if (!audio.paused) await context.resume();
-        setState("listening");
-        // The SDK produces committed words and an unconfirmed trailing phrase.
+        }
         for await (const part of speech.stream(chunks(), { language: "en" })) {
           if (!valid()) break;
-          const mapped = toPodcastWords(part.words, streamOffset, rate);
+          const mapped = toPodcastWords(part.words, streamStart, speed);
           setWords((previous) => [...previous, ...mapped].slice(-400));
           setPending(part.pending);
         }
       } catch (cause) {
         if (!valid()) return;
-        setError(cause instanceof Error ? cause.message : "無法啟用字幕辨識");
+        setError(cause instanceof Error ? cause.message : "無法產生字幕");
         setState("error");
-        // Keep ordinary HTMLAudioElement playback enabled.
       }
     };
-    const seek = () => {
-      // The streaming model cannot be repositioned. Rebuild the session when
-      // seeking or changing rate to avoid assigning incorrect word timestamps.
-      if (valid()) { stop(); setEnabled(false); }
-    };
-    const resume = () => { if (!disposed) void context?.resume(); };
-    audio.addEventListener("seeking", seek);
-    audio.addEventListener("ratechange", seek);
-    audio.addEventListener("playing", resume);
     void start();
     return () => {
-      stop();
-      audio.removeEventListener("seeking", seek);
-      audio.removeEventListener("ratechange", seek);
+      finish();
+      audio.removeEventListener("seeking", resetOnSeek);
+      audio.removeEventListener("ratechange", resetOnSeek);
       audio.removeEventListener("playing", resume);
     };
   }, [enabled, identity, audioRef]);
 
-  return { enabled, enable, disable, state, error, words, pending };
+  // The player owns audioRef. A distinct effect releases audio resources
+  // only on final unmount, never on a caption toggle.
+  useEffect(() => {
+    const audio = audioRef.current;
+    return () => {
+      if (!audio) return;
+      const current = captures.get(audio);
+      if (current) {
+        current.capture.port.onmessage = null;
+        void current.context.close();
+        captures.delete(audio);
+      }
+    };
+  }, [audioRef, identity]);
+
+  return { enabled, enable: () => setEnabled(true), disable: () => setEnabled(false), state, error, words, pending };
 }
