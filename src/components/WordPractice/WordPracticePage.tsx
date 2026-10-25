@@ -36,7 +36,7 @@ function LegacyResult({ homework, onBack }: { homework: LegacyHomework; onBack: 
       </ul>
       <div className="flex justify-center">
         <button type="button" onClick={onBack} className="btn btn-primary min-h-11 active:scale-[0.98]">
-          回首頁
+          回到首頁
         </button>
       </div>
     </div>
@@ -105,6 +105,7 @@ export default function WordPracticePage() {
         homework={viewing.homework}
         onBack={goHome}
         onAgain={viewing.justFinished ? () => void start() : undefined}
+        celebrate={viewing.justFinished}
       />
     ) : (
       <LegacyResult homework={viewing.homework} onBack={goHome} />

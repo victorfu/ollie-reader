@@ -368,7 +368,7 @@ describe("homework book", () => {
     await click("繼續寫功課");
     await click("交作業");
 
-    await click("再來一份");
+    await click("再寫一份");
     expect(hook.current.start).toHaveBeenCalledTimes(1);
   });
 
@@ -396,7 +396,7 @@ describe("history", () => {
     expect(text()).toContain("2026/9/2");
     expect(text()).toContain("答對 7 / 10");
     expect(text()).toContain("apple");
-    await click("回首頁");
+    await click("回到首頁");
     expect(text()).toContain("今天的功課");
   });
 

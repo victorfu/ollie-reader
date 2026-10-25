@@ -14,6 +14,7 @@ const speech = vi.hoisted(() => ({
 vi.mock("../../hooks/useSpeechState", () => ({ useSpeechState: () => speech }));
 vi.mock("canvas-confetti", () => ({ default: vi.fn() }));
 
+import confetti from "canvas-confetti";
 import { DictationStep } from "./DictationStep";
 import { CorrectionStep } from "./CorrectionStep";
 import { FinishedView } from "./FinishedView";
@@ -189,12 +190,48 @@ describe("FinishedView", () => {
     expect(text()).not.toContain("聽寫 0 / 0");
   });
 
+  it("lists the corrected words with the right spelling and what was typed", () => {
+    render(<FinishedView homework={finished} onBack={noop} />);
+    expect(text()).toContain("寫錯、已訂正的字");
+    expect(text()).toContain("moon");
+    expect(text()).toContain("mon");
+    expect(text()).toContain("已訂正");
+  });
+
+  it("includes wrong review words, and omits the section when nothing was wrong", () => {
+    const hw = makeHomework(
+      [item("river", "river"), { key: "moon", source: "review", answer: "mun", skipped: false }],
+      { status: "completed", newWords: [RIVER], reviewWords: [MOON] },
+    );
+    render(<FinishedView homework={hw} onBack={noop} />);
+    expect(text()).toContain("寫錯、已訂正的字");
+    expect(text()).toContain("mun");
+    const clean = makeHomework([item("river", "river")], { status: "completed", newWords: [RIVER], reviewWords: [] });
+    render(<FinishedView homework={clean} onBack={noop} />);
+    expect(text()).not.toContain("寫錯、已訂正的字");
+  });
+
+  describe("confetti", () => {
+    const perfect = makeHomework([item("river", "river"), item("moon", "moon")], { status: "completed" });
+    beforeEach(() => vi.mocked(confetti).mockClear());
+
+    it("fires for a perfect score right after submitting, honouring reduced motion", () => {
+      render(<FinishedView homework={perfect} onBack={noop} celebrate />);
+      expect(confetti).toHaveBeenCalledWith(expect.objectContaining({ disableForReducedMotion: true }));
+    });
+
+    it("stays quiet when the homework is opened from the history", () => {
+      render(<FinishedView homework={perfect} onBack={noop} />);
+      expect(confetti).not.toHaveBeenCalled();
+    });
+  });
+
   it("calls onBack and onAgain", async () => {
     const again = vi.fn();
     const back = vi.fn();
     render(<FinishedView homework={finished} onBack={back} onAgain={again} />);
-    await click("回首頁");
-    await click("再來一份");
+    await click("回到首頁");
+    await click("再寫一份");
     expect(back).toHaveBeenCalled();
     expect(again).toHaveBeenCalled();
   });
