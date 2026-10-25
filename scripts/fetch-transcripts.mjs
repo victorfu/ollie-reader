@@ -1,5 +1,3 @@
-#!/usr/bin/env node
-
 /**
  * Fetch all Gabby's Dollhouse transcripts from subslikescript.com
  * and save them as static JSON files in public/transcripts/
