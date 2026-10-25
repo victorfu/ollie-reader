@@ -1,7 +1,8 @@
-import { Vector3 } from "three";
+import { Object3D, Vector3, type Quaternion } from "three";
 import { describe, expect, it } from "vitest";
 import {
   advanceSpin,
+  applySpin,
   createSpin,
   releaseSpin,
   resetSpin,
@@ -16,9 +17,16 @@ function coast(spin: Spin, seconds: number): Spin {
   return current;
 }
 
+/** The model's rotation after the spin, as the scene applies it. */
+function orientation(spin: Spin): Quaternion {
+  const stage = new Object3D();
+  applySpin(stage, spin);
+  return stage.quaternion;
+}
+
 /** Where the model's front (+z) points after the spin. */
-const front = (spin: Spin) => new Vector3(0, 0, 1).applyQuaternion(spin.orientation);
-const top = (spin: Spin) => new Vector3(0, 1, 0).applyQuaternion(spin.orientation);
+const front = (spin: Spin) => new Vector3(0, 0, 1).applyQuaternion(orientation(spin));
+const top = (spin: Spin) => new Vector3(0, 1, 0).applyQuaternion(orientation(spin));
 
 function expectVector(actual: Vector3, x: number, y: number, z: number) {
   expect(actual.x).toBeCloseTo(x, 6);
@@ -112,11 +120,11 @@ describe("spin", () => {
   it("moves the side facing the viewer with the finger even upside down", () => {
     const flipped = turnSpin(createSpin(), 0, Math.PI, 0);
     // The model point that currently faces the camera.
-    const facing = new Vector3(0, 0, 1).applyQuaternion(flipped.orientation.clone().invert());
+    const facing = new Vector3(0, 0, 1).applyQuaternion(orientation(flipped).invert());
 
     const turned = turnSpin(flipped, 0.2, 0, 16);
 
-    expect(facing.clone().applyQuaternion(turned.orientation).x).toBeGreaterThan(0.1);
+    expect(facing.clone().applyQuaternion(orientation(turned)).x).toBeGreaterThan(0.1);
   });
 
   describe("resetSpin", () => {

@@ -1,10 +1,10 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { Vector3 } from "three";
+import { Object3D, Vector3 } from "three";
 import type { CompanionSceneProps } from "./CompanionScene";
 import CompanionPage from "./CompanionPage";
-import { advanceSpin, releaseSpin, turnSpin } from "./logic/spin";
+import { advanceSpin, applySpin, releaseSpin, turnSpin } from "./logic/spin";
 
 // jsdom has no WebGL; the 3D scene is replaced by a plain element that
 // exposes the props the page hands it.
@@ -112,7 +112,9 @@ describe("CompanionPage", () => {
     act(() => button("回正").click());
     for (let i = 0; i < 120; i += 1) runtime.spin = advanceSpin(runtime.spin, 1 / 60);
 
-    const front = new Vector3(0, 0, 1).applyQuaternion(runtime.spin.orientation);
+    const stage = new Object3D();
+    applySpin(stage, runtime.spin);
+    const front = new Vector3(0, 0, 1).applyQuaternion(stage.quaternion);
     expect(front.z).toBeCloseTo(1, 5);
   });
 

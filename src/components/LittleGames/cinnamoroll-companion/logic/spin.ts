@@ -1,4 +1,5 @@
-import { Quaternion, Vector3 } from "three";
+// Type-only: the page creates the spin before it loads three.js.
+import type { Object3D } from "three";
 
 /**
  * Turntable rotation for the model: a sideways drag turns it about its own
@@ -13,8 +14,6 @@ export type Spin = {
   yaw: number;
   /** Tip toward (positive) or away from the viewer, radians. */
   pitch: number;
-  /** Rotation for the scene, derived from yaw and pitch. */
-  orientation: Quaternion;
   /** Radians per second about the vertical (x) and horizontal (y) axes. */
   velocity: { x: number; y: number };
   dragging: boolean;
@@ -32,27 +31,27 @@ const MIN_VELOCITY = 0.05;
 /** How quickly a reset eases home, per second. */
 const HOMING_RATE = 8;
 
-const VERTICAL = new Vector3(0, 1, 0);
-const HORIZONTAL = new Vector3(1, 0, 0);
-
-/** Tip about the screen's horizontal axis after turning about the model's own vertical. */
-function orientationFor(yaw: number, pitch: number): Quaternion {
-  return new Quaternion()
-    .setFromAxisAngle(HORIZONTAL, pitch)
-    .multiply(new Quaternion().setFromAxisAngle(VERTICAL, yaw));
+/**
+ * Points the stage the way the spin says: tip about the screen's horizontal
+ * axis after turning about the model's own vertical. Euler order XYZ composes
+ * as Rx(pitch)·Ry(yaw), which is exactly that.
+ */
+export function applySpin(stage: Object3D, spin: Spin): void {
+  stage.rotation.set(spin.pitch, spin.yaw, 0, "XYZ");
 }
 
 function rotate(
   spin: Spin,
   aboutVertical: number,
   aboutHorizontal: number,
-): Pick<Spin, "yaw" | "pitch" | "orientation"> {
+): Pick<Spin, "yaw" | "pitch"> {
   // Upside down the model's own vertical points down, so turn the other way
   // to keep the side facing the viewer moving with the finger.
   const facing = Math.cos(spin.pitch) < 0 ? -1 : 1;
-  const yaw = spin.yaw + aboutVertical * facing;
-  const pitch = spin.pitch + aboutHorizontal;
-  return { yaw, pitch, orientation: orientationFor(yaw, pitch) };
+  return {
+    yaw: spin.yaw + aboutVertical * facing,
+    pitch: spin.pitch + aboutHorizontal,
+  };
 }
 
 const clampVelocity = (v: number) => Math.max(-MAX_VELOCITY, Math.min(MAX_VELOCITY, v));
@@ -61,7 +60,6 @@ export function createSpin(): Spin {
   return {
     yaw: 0,
     pitch: 0,
-    orientation: new Quaternion(),
     velocity: { x: 0, y: 0 },
     dragging: false,
     lastTurnAt: 0,
@@ -126,7 +124,7 @@ function home(spin: Spin, seconds: number): Spin {
     yaw = 0;
     pitch = 0;
   }
-  return { ...spin, yaw, pitch, orientation: orientationFor(yaw, pitch), homing: !arrived };
+  return { ...spin, yaw, pitch, homing: !arrived };
 }
 
 export function advanceSpin(spin: Spin, seconds: number): Spin {

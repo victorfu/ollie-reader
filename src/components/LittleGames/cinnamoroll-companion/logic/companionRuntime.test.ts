@@ -23,4 +23,19 @@ describe("companionRuntime", () => {
 
     expect(onFirstTouch).toHaveBeenCalledTimes(1);
   });
+
+  // The page creates the runtime before it knows WebGL works, so pulling
+  // three.js in here would download it on devices that cannot use it.
+  it("loads without three.js", async () => {
+    vi.resetModules();
+    vi.doMock("three", () => {
+      throw new Error("three.js belongs in the scene chunk");
+    });
+    try {
+      const { createCompanionRuntime: create } = await import("./companionRuntime");
+      expect(create(0).spin).toMatchObject({ yaw: 0, pitch: 0 });
+    } finally {
+      vi.doUnmock("three");
+    }
+  });
 });

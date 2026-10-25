@@ -4,7 +4,7 @@ import { MathUtils } from "three";
 import type { RigParts } from "./rig";
 import type { CompanionRuntime } from "./logic/companionRuntime";
 import { petExpression, type PetPhase } from "./logic/petMachine";
-import { advanceSpin } from "./logic/spin";
+import { advanceSpin, applySpin } from "./logic/spin";
 
 const EAR_STIFFNESS = 70;
 const EAR_DAMPING = 7;
@@ -92,7 +92,7 @@ export function useCompanionAnimation(
 
     runtime.dispatch({ type: "tick", now });
     runtime.spin = advanceSpin(runtime.spin, dt);
-    parts.turntable?.quaternion.copy(runtime.spin.orientation);
+    if (parts.turntable) applySpin(parts.turntable, runtime.spin);
     const pet = runtime.pet;
     const face = petExpression(pet, now);
 
