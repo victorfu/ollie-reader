@@ -63,6 +63,7 @@ export function createCompanionRuntime(
       runtime.spin = resetSpin(runtime.spin);
     },
     dispatch(event) {
+      if (event.type === "pat") runtime.gestureVersion += 1;
       if (event.type === "tick" && runtime.performance && event.now - runtime.performance.since >= ACTION_MS) {
         runtime.performance = null;
       }

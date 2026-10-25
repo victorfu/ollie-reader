@@ -14,11 +14,8 @@ import type { CompanionAction } from "../../../types/companion";
 const TURN_PER_WIDTH = Math.PI * 1.5;
 
 /**
- * Wires canvas pointer events to turning and petting. Every drag turns the
- * character until petting mode is on; then a drag that starts on the head
- * pets it, and ear strokes use their own targets. Other drags still turn.
- * The nearest head/body/ear/hand hit determines the gesture; blank canvas
- * never triggers an action. Only a completed tap performs a body reaction.
+ * Canvas taps trigger the nearest head/body/ear/hand reaction. Drags rotate
+ * from any target; blank canvas taps never trigger an action.
  */
 export function usePetInteraction(
   runtime: CompanionRuntime,
@@ -100,8 +97,7 @@ export function usePetInteraction(
           pointerId: event.pointerId,
           x: event.clientX,
           y: event.clientY,
-          // Outside petting mode the head is just another place to grab.
-          onHead: runtime.petting && Boolean(hit),
+          onHead: Boolean(hit),
           now: performance.now(),
           headRadiusPx,
           part,
