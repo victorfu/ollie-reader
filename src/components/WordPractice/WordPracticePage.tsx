@@ -13,6 +13,7 @@ const CEFR_J_CREDIT =
   "The CEFR-J Wordlist Version 1.5. Compiled by Yukio Tono, Tokyo University of Foreign Studies.";
 const OCTANOVE_CREDIT = "Octanove Vocabulary Profile (CC BY-SA 4.0)";
 const NO_WORDS_NOTICE = "生詞本裡沒有可以練習的新單字";
+const REVIEW_ONLY_NOTICE = "生詞本裡沒有可以練習的新單字，這次只有聽寫";
 
 /** An old homework only has its date, its score and its words to show. */
 function LegacyResult({ homework, onBack }: { homework: LegacyHomework; onBack: () => void }) {
@@ -52,6 +53,8 @@ export default function WordPracticePage() {
     null,
   );
   const [noWords, setNoWords] = useState(false);
+  /** Set when a homework was just created here, so that only a fresh review-only homework gets its notice. */
+  const [justStarted, setJustStarted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   const goHome = () => {
@@ -62,9 +65,11 @@ export default function WordPracticePage() {
   const start = async (): Promise<void> => {
     if (starting || submitting) return;
     setNoWords(false);
+    setJustStarted(false);
     const outcome = await wordPractice.start();
     setNoWords(outcome === "empty");
     if (outcome === "created") {
+      setJustStarted(true);
       setViewing(null);
       setInBook(true);
     } else if (outcome === "empty") {
@@ -153,7 +158,9 @@ export default function WordPracticePage() {
 
   const busyMessage =
     status === "loading" ? "載入中…" : starting ? "正在準備功課…" : null;
-  const statusMessage = busyMessage ?? (noWords ? NO_WORDS_NOTICE : null);
+  const reviewOnly = justStarted && inBook && active !== null && active.newWords.length === 0;
+  const statusMessage =
+    busyMessage ?? (noWords ? NO_WORDS_NOTICE : reviewOnly ? REVIEW_ONLY_NOTICE : null);
   const saveMessage = status === "ready" ? saveError : null;
 
   return (

@@ -189,6 +189,12 @@ describe("WordPage", () => {
     show(RIVER, page("phrase", { copies: 3 }));
     expect(text()).toContain("✓ 抄寫 3 遍");
     expect(text()).toContain("✓ 默寫");
-    expect(text()).toContain("造詞：用 river 寫一個短短的詞，例如 a curious cat");
+    expect(text()).toContain("造詞：用 river 寫一個短短的詞（2–5 個英文字）");
+    expect(text()).not.toContain("a curious cat");
+  });
+
+  it("shows the example phrase only for the word curious", () => {
+    show({ ...RIVER, key: "curious", word: "curious" }, page("phrase", { copies: 3 }));
+    expect(text()).toContain("例如 a curious cat");
   });
 });

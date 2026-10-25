@@ -254,7 +254,11 @@ export function WordPage({ word, progress, index, total, onChange }: WordPagePro
 
       {progress.section === "phrase" && (
         <WriteSection
-          title={`造詞：用 ${word.word} 寫一個短短的詞，例如 a curious cat`}
+          title={
+            word.word === "curious"
+              ? "造詞：用 curious 寫一個短短的詞，例如 a curious cat"
+              : `造詞：用 ${word.word} 寫一個短短的詞（2–5 個英文字）`
+          }
           label="你的詞"
           check={(text) => phraseHint(checkPhrase(text, word.word), word.word)}
           onAccept={(text) => advance({ phrase: text })}

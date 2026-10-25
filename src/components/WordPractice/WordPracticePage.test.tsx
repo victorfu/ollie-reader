@@ -250,6 +250,24 @@ describe("home", () => {
     expect(text()).not.toContain("生詞本裡沒有可以練習的新單字");
   });
 
+  it("tells the child a review-only homework has only dictation", async () => {
+    hook.current = makeHook();
+    render();
+    await click("開始寫功課");
+    const reviewOnly = { ...makeHomework(), newWords: [], pages: [] };
+    hook.current = makeHook({ active: reviewOnly });
+    render();
+
+    expect(text()).toContain("生詞本裡沒有可以練習的新單字，這次只有聽寫");
+  });
+
+  it("does not show the review-only notice for a homework that is merely continued", () => {
+    hook.current = makeHook({ active: { ...makeHomework(), newWords: [], pages: [] } });
+    render();
+
+    expect(text()).not.toContain("這次只有聽寫");
+  });
+
   it("disables the start button and announces the wait while starting", () => {
     hook.current = makeHook({ starting: true });
     render();
