@@ -1,48 +1,61 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "./useAuth";
-import type { Homework, HomeworkOptions, HomeworkWordProgress } from "../types/wordPractice";
-import { fillMissingSentences, generateHomework } from "../services/wordPracticeService";
+import type {
+  HistoryHomework,
+  Homework,
+  HomeworkProgress,
+  PracticeSettings,
+  WordPracticeState,
+} from "../types/wordPractice";
+import { generateHomework } from "../services/wordPracticeService";
 import {
   abandonHomework,
   completeHomework,
   getActiveHomework,
   listCompletedHomeworks,
+  loadPracticeState,
   saveHomeworkProgress,
+  saveSettings as saveSettingsToStorage,
 } from "../services/wordPracticeStorage";
-import { isAbortError } from "../utils/errorUtils";
+import { updateReviewStats } from "../services/vocabularyService";
+import { dueReviewKeys, DEFAULT_SETTINGS } from "../utils/reviewSchedule";
 import { logger } from "../utils/logger";
 
 export interface UseWordPractice {
   status: "loading" | "ready" | "error";
-  /** Message for the page: a failed load (with `status` "error") or a failed generate, abandon or finish. */
+  /** Message for the page: a failed load (with `status` "error") or a failed start, abandon, submit or settings save. */
   error: string | null;
   active: Homework | null;
-  history: Homework[];
-  generating: boolean;
+  history: HistoryHomework[];
+  settings: PracticeSettings;
+  /** Reviews due now, capped by `settings.reviewLimit`. */
+  reviewDueCount: number;
+  starting: boolean;
   /** Set while the latest progress is not on the server; the next `updateProgress` retries. */
   saveError: string | null;
-  generate(options: HomeworkOptions): Promise<"created" | "empty" | "failed">;
-  abandon(): Promise<void>;
+  start(): Promise<"created" | "empty" | "failed">;
   /**
-   * Replaces the active homework's progress with the full, latest array and
-   * saves it. Ignored while `finishTest` or `abandon` is running, so the last
-   * answer must be recorded before `finishTest` is called.
+   * Replaces the active homework's progress with the full, latest value and
+   * saves it. Ignored while `submit` or `abandon` is running, so the last
+   * answer must be recorded before `submit` is called.
    */
-  updateProgress(next: HomeworkWordProgress[]): void;
-  ensureSentences(): Promise<void>;
-  finishTest(): Promise<Homework | null>;
+  updateProgress(next: HomeworkProgress): void;
+  submit(): Promise<Homework | null>;
+  abandon(): Promise<void>;
+  saveSettings(next: PracticeSettings): Promise<void>;
   /**
-   * Sets `status` back to "loading" and replaces `active` and `history` with
-   * the server's copy. Meant for retrying after a failed load; calling it from
-   * "ready" drops the page back to the loading state.
+   * Sets `status` back to "loading" and replaces the state, `active` and
+   * `history` with the server's copy. Meant for retrying after a failed load;
+   * calling it from "ready" drops the page back to the loading state.
    */
   reload(): Promise<void>;
 }
 
 const LOAD_ERROR = "載入單字練習失敗，請稍後再試";
-const GENERATE_ERROR = "產生功課失敗，請稍後再試";
+const GENERATE_ERROR = "準備功課失敗，請稍後再試";
 const ABANDON_ERROR = "放棄功課失敗，請稍後再試";
 const FINISH_ERROR = "無法完成功課，請稍後再試";
+const SETTINGS_ERROR = "儲存設定失敗，請稍後再試";
 const SAVE_ERROR = "進度尚未儲存，下一次作答時會再試一次";
 
 /**
@@ -53,7 +66,7 @@ const SAVE_ERROR = "進度尚未儲存，下一次作答時會再試一次";
  * homework became active or the page unmounted.
  *
  * - `open`: answers are accepted and saved.
- * - `finishing`: the test is being completed. Answers are ignored, but the
+ * - `finishing`: the homework is being submitted. Answers are ignored, but the
  *   last save may still run.
  * - `abandoning`: the homework is being given up. Answers are ignored and no
  *   further save is made.
@@ -62,7 +75,7 @@ interface ProgressTracker {
   uid: string;
   id: string;
   /** The latest progress, which is what the next save sends. */
-  progress: HomeworkWordProgress[];
+  progress: HomeworkProgress;
   /** Counts `updateProgress` calls; `savedVersion` is the last count known to be on the server. */
   version: number;
   savedVersion: number;
@@ -76,8 +89,10 @@ export function useWordPractice(): UseWordPractice {
   const [status, setStatus] = useState<UseWordPractice["status"]>("loading");
   const [error, setError] = useState<string | null>(null);
   const [active, setActive] = useState<Homework | null>(null);
-  const [history, setHistory] = useState<Homework[]>([]);
-  const [generating, setGenerating] = useState(false);
+  const [history, setHistory] = useState<HistoryHomework[]>([]);
+  const [settings, setSettings] = useState<PracticeSettings>(DEFAULT_SETTINGS);
+  const [reviewDueCount, setReviewDueCount] = useState(0);
+  const [starting, setStarting] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
   // Refs hold what the async operations need to read at the moment they run.
@@ -88,10 +103,17 @@ export function useWordPractice(): UseWordPractice {
   const trackerRef = useRef<ProgressTracker | null>(null);
   const saveChainRef = useRef<Promise<unknown>>(Promise.resolve());
   const loadTicketRef = useRef(0);
-  const generatingRef = useRef(false);
-  const finishRef = useRef<Promise<Homework | null> | null>(null);
-  const sentenceAttemptsRef = useRef(new Set<string>());
-  const abortControllersRef = useRef(new Set<AbortController>());
+  const startingRef = useRef(false);
+  const submitRef = useRef<Promise<Homework | null> | null>(null);
+  /** The stored word states, kept to recompute the due count when the limit changes. */
+  const reviewWordsRef = useRef<WordPracticeState["words"]>({});
+
+  const applyPracticeState = useCallback((state: WordPracticeState, now: number) => {
+    reviewWordsRef.current = state.words;
+    setSettings(state.settings);
+    // Upper bound: it only sees the state document, so due words deleted from the vocabulary book still count.
+    setReviewDueCount(dueReviewKeys(state.words, now, state.settings.reviewLimit).length);
+  }, []);
 
   const installActive = useCallback((next: Homework | null, ownerUid?: string) => {
     trackerRef.current =
@@ -99,7 +121,7 @@ export function useWordPractice(): UseWordPractice {
         ? {
             uid: ownerUid,
             id: next.id,
-            progress: next.progress,
+            progress: { pages: next.pages, dictation: next.dictation, corrections: next.corrections },
             version: 0,
             savedVersion: 0,
             phase: "open",
@@ -151,11 +173,17 @@ export function useWordPractice(): UseWordPractice {
     try {
       // Re-reading must not overwrite progress that is still on its way to the server.
       await saveChainRef.current;
-      const [activeHomework, completed] = await Promise.all([
-        getActiveHomework(ownerUid),
+      const now = Date.now();
+      // The state document is read once and handed to getActiveHomework.
+      const [{ state, activeHomework }, completed] = await Promise.all([
+        loadPracticeState(ownerUid, now).then(async (loaded) => ({
+          state: loaded,
+          activeHomework: await getActiveHomework(ownerUid, loaded),
+        })),
         listCompletedHomeworks(ownerUid),
       ]);
       if (isStale()) return;
+      applyPracticeState(state, now);
       installActive(activeHomework, ownerUid);
       setHistory(completed);
       setStatus("ready");
@@ -165,42 +193,49 @@ export function useWordPractice(): UseWordPractice {
       setError(LOAD_ERROR);
       setStatus("error");
     }
-  }, [installActive]);
+  }, [applyPracticeState, installActive]);
 
-  const generate = useCallback(
-    async (options: HomeworkOptions): Promise<"created" | "empty" | "failed"> => {
-      const ownerUid = uidRef.current;
-      if (!ownerUid || generatingRef.current) return "failed";
-      const session = sessionRef.current;
-      const controller = new AbortController();
-      abortControllersRef.current.add(controller);
-      const isCancelled = () => controller.signal.aborted || sessionRef.current !== session;
+  const start = useCallback(async (): Promise<"created" | "empty" | "failed"> => {
+    const ownerUid = uidRef.current;
+    if (!ownerUid || startingRef.current) return "failed";
+    const session = sessionRef.current;
+    const isCancelled = () => sessionRef.current !== session;
 
-      generatingRef.current = true;
-      setGenerating(true);
-      setError(null);
-      try {
-        const result = await generateHomework(ownerUid, options, controller.signal);
-        if (isCancelled()) return "failed";
-        if (result.status === "empty") return "empty";
-        // The service has already abandoned the previous homework on the server.
-        installActive(result.homework, ownerUid);
-        return "created";
-      } catch (err) {
-        if (isAbortError(err) || isCancelled()) return "failed";
-        logger.error("Could not generate word practice homework:", err);
-        setError(GENERATE_ERROR);
-        return "failed";
-      } finally {
-        abortControllersRef.current.delete(controller);
-        if (sessionRef.current === session) {
-          generatingRef.current = false;
-          setGenerating(false);
-        }
+    startingRef.current = true;
+    setStarting(true);
+    setError(null);
+    // Generating abandons the previous homework on the server, and saving
+    // progress has no status guard there. So stop saving for it from now on
+    // (a homework being submitted keeps its tracker: its last save must run),
+    // and reopen it below if no new homework replaces it.
+    const previous = trackerRef.current;
+    const suspended = previous?.phase === "open" ? previous : null;
+    if (suspended) suspended.phase = "abandoning";
+    const reopen = () => {
+      if (suspended?.phase === "abandoning") suspended.phase = "open";
+    };
+    try {
+      const result = await generateHomework(ownerUid);
+      if (isCancelled()) return "failed";
+      if (result.status === "empty") {
+        reopen();
+        return "empty";
       }
-    },
-    [installActive],
-  );
+      installActive(result.homework, ownerUid);
+      return "created";
+    } catch (err) {
+      reopen();
+      if (isCancelled()) return "failed";
+      logger.error("Could not start word practice homework:", err);
+      setError(GENERATE_ERROR);
+      return "failed";
+    } finally {
+      if (sessionRef.current === session) {
+        startingRef.current = false;
+        setStarting(false);
+      }
+    }
+  }, [installActive]);
 
   const abandon = useCallback(async (): Promise<void> => {
     const ownerUid = uidRef.current;
@@ -225,12 +260,12 @@ export function useWordPractice(): UseWordPractice {
   }, [installActive]);
 
   const updateProgress = useCallback(
-    (next: HomeworkWordProgress[]): void => {
+    (next: HomeworkProgress): void => {
       const homework = activeRef.current;
       const tracker = trackerRef.current;
       if (!homework || !tracker || tracker.phase !== "open") return;
 
-      const updated: Homework = { ...homework, progress: next };
+      const updated: Homework = { ...homework, ...next };
       activeRef.current = updated;
       setActive(updated);
       tracker.progress = next;
@@ -240,37 +275,8 @@ export function useWordPractice(): UseWordPractice {
     [queueSave],
   );
 
-  const ensureSentences = useCallback(async (): Promise<void> => {
-    const ownerUid = uidRef.current;
-    const homework = activeRef.current;
-    if (!ownerUid || !homework || sentenceAttemptsRef.current.has(homework.id)) return;
-    // One attempt per homework, even a failed one: the steps work without the sentences.
-    sentenceAttemptsRef.current.add(homework.id);
-
-    const session = sessionRef.current;
-    const controller = new AbortController();
-    abortControllersRef.current.add(controller);
-    try {
-      const filled = await fillMissingSentences(ownerUid, homework, controller.signal);
-      if (sessionRef.current !== session || filled === homework) return;
-
-      const current = activeRef.current;
-      if (current?.id !== homework.id) return;
-      // Answers may have been entered while the sentences were being fetched.
-      const next: Homework =
-        current.progress === homework.progress ? filled : { ...current, words: filled.words };
-      activeRef.current = next;
-      setActive(next);
-    } catch (err) {
-      if (isAbortError(err) || controller.signal.aborted) return;
-      logger.error("Could not fill in missing example sentences:", err);
-    } finally {
-      abortControllersRef.current.delete(controller);
-    }
-  }, []);
-
-  const finishTest = useCallback((): Promise<Homework | null> => {
-    if (finishRef.current) return finishRef.current;
+  const submit = useCallback((): Promise<Homework | null> => {
+    if (submitRef.current) return submitRef.current;
     const ownerUid = uidRef.current;
     const homework = activeRef.current;
     const tracker = trackerRef.current;
@@ -282,33 +288,74 @@ export function useWordPractice(): UseWordPractice {
     tracker.phase = "finishing";
     setError(null);
     const complete = async (): Promise<Homework | null> => {
+      let completed: Homework;
+      let reviewUpdates: { vocabularyId: string; remembered: boolean }[];
       try {
-        // Completing reads the server's copy of the test answers, so the last
-        // one has to be there first.
+        // Completing reads the server's copy of the answers, so the last one
+        // has to be there first.
         if (!(await queueSave(tracker))) throw new Error("The latest progress could not be saved");
-        const completed = await completeHomework(ownerUid, homework.id, Date.now());
-        if (sessionRef.current === session) {
-          if (trackerRef.current === tracker) installActive(null);
-          setHistory((previous) => [
-            completed,
-            ...previous.filter((item) => item.id !== completed.id),
-          ]);
-        }
-        return completed;
+        ({ homework: completed, reviewUpdates } = await completeHomework(
+          ownerUid,
+          homework.id,
+          Date.now(),
+        ));
       } catch (err) {
         tracker.phase = "open";
         if (sessionRef.current !== session) return null;
-        logger.error("Could not finish word practice test:", err);
+        logger.error("Could not submit word practice homework:", err);
         setError(FINISH_ERROR);
         return null;
       }
+
+      if (sessionRef.current === session) {
+        if (trackerRef.current === tracker) installActive(null);
+        setHistory((previous) => [
+          completed,
+          ...previous.filter((item) => item.id !== completed.id),
+        ]);
+      }
+
+      // The homework is done; the vocabulary review stats are best effort.
+      const outcomes = await Promise.allSettled(
+        reviewUpdates.map((update) => updateReviewStats(update.vocabularyId, update.remembered)),
+      );
+      for (const outcome of outcomes) {
+        if (outcome.status === "rejected") {
+          logger.error("Could not update vocabulary review stats:", outcome.reason);
+        }
+      }
+      try {
+        const now = Date.now();
+        const state = await loadPracticeState(ownerUid, now);
+        if (sessionRef.current === session) applyPracticeState(state, now);
+      } catch (err) {
+        logger.error("Could not refresh the word practice review count:", err);
+      }
+      return completed;
     };
     const run: Promise<Homework | null> = complete().finally(() => {
-      if (finishRef.current === run) finishRef.current = null;
+      if (submitRef.current === run) submitRef.current = null;
     });
-    finishRef.current = run;
+    submitRef.current = run;
     return run;
-  }, [installActive, queueSave]);
+  }, [applyPracticeState, installActive, queueSave]);
+
+  const saveSettings = useCallback(async (next: PracticeSettings): Promise<void> => {
+    const ownerUid = uidRef.current;
+    if (!ownerUid) return;
+    const session = sessionRef.current;
+    setError(null);
+    try {
+      await saveSettingsToStorage(ownerUid, next);
+      if (sessionRef.current !== session) return;
+      setSettings(next);
+      setReviewDueCount(dueReviewKeys(reviewWordsRef.current, Date.now(), next.reviewLimit).length);
+    } catch (err) {
+      if (sessionRef.current !== session) return;
+      logger.error("Could not save word practice settings:", err);
+      setError(SETTINGS_ERROR);
+    }
+  }, []);
 
   useEffect(() => {
     uidRef.current = uid;
@@ -321,18 +368,18 @@ export function useWordPractice(): UseWordPractice {
     setSaveError(null);
     setActive(null);
     setHistory([]);
-    setGenerating(false);
+    setStarting(false);
+    setSettings(DEFAULT_SETTINGS);
+    setReviewDueCount(0);
+    reviewWordsRef.current = {};
     if (!uid) return undefined;
 
-    const abortControllers = abortControllersRef.current;
     void load();
     return () => {
       sessionRef.current += 1;
       uidRef.current = undefined;
-      for (const controller of abortControllers) controller.abort();
-      abortControllers.clear();
-      generatingRef.current = false;
-      finishRef.current = null;
+      startingRef.current = false;
+      submitRef.current = null;
     };
   }, [uid, load]);
 
@@ -341,13 +388,15 @@ export function useWordPractice(): UseWordPractice {
     error,
     active,
     history,
-    generating,
+    settings,
+    reviewDueCount,
+    starting,
     saveError,
-    generate,
-    abandon,
+    start,
     updateProgress,
-    ensureSentences,
-    finishTest,
+    submit,
+    abandon,
+    saveSettings,
     reload: load,
   };
 }

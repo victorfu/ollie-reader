@@ -25,10 +25,12 @@ const NO_TABLE: CefrTable = new Map();
 const NO_ESTIMATES: Record<string, CefrLevel> = {};
 
 /**
- * CEFR levels for the vocabulary book. It only reads: the bundled word list
- * and the AI estimates that Word Practice already stored. It never asks Gemini
- * for a level, because that would compete with lookups and translations for
- * the shared request quota. A word that is in neither source has no level.
+ * CEFR levels for the vocabulary book: the bundled word list and the AI
+ * estimates stored earlier. It never writes and never asks Gemini for a
+ * level, because that would compete with lookups and translations for the
+ * shared request quota. Reading the practice state converts an old
+ * (pre-homework-book) state document once, on its first read
+ * (`loadPracticeState`). A word that is in neither source has no level.
  *
  * A failed load is logged and never thrown into render: without the word list
  * `ready` stays false and only stored estimates are used; without the stored

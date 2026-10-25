@@ -1,89 +1,95 @@
 import { useState } from "react";
 import { SpellCheck } from "lucide-react";
 import { useWordPractice } from "../../hooks/useWordPractice";
-import type { HomeworkOptions } from "../../types/wordPractice";
-import type { StepId } from "../../utils/homeworkProgress";
-import { GenerateHomeworkPanel } from "./GenerateHomeworkPanel";
+import type { HistoryHomework, LegacyHomework } from "../../types/wordPractice";
+import { FinishedView } from "./FinishedView";
+import { HomeworkBook } from "./HomeworkBook";
 import { HomeworkHistory } from "./HomeworkHistory";
-import { HomeworkOverview } from "./HomeworkOverview";
-import { HomeworkResultView } from "./HomeworkResult";
-import type { StepProps } from "./stepTypes";
-import { DefinitionStep } from "./steps/DefinitionStep";
-import { FillBlankStep } from "./steps/FillBlankStep";
-import { LearnStep } from "./steps/LearnStep";
-import { SentenceStep } from "./steps/SentenceStep";
-import { SpellStep } from "./steps/SpellStep";
-import { SpellingTestStep } from "./steps/SpellingTestStep";
-
-type Screen =
-  | { view: "home" }
-  | { view: "step"; step: StepId }
-  | { view: "result"; homeworkId: string };
+import { ParentSettings } from "./ParentSettings";
+import { TodayCard } from "./TodayCard";
+import { formatHomeworkDate, formatHomeworkScore, isHomeworkBook } from "./homeworkFormat";
 
 const CEFR_J_CREDIT =
   "The CEFR-J Wordlist Version 1.5. Compiled by Yukio Tono, Tokyo University of Foreign Studies.";
 const OCTANOVE_CREDIT = "Octanove Vocabulary Profile (CC BY-SA 4.0)";
 const NO_WORDS_NOTICE = "生詞本裡沒有可以練習的新單字";
+const REVIEW_ONLY_NOTICE = "生詞本裡沒有可以練習的新單字，這次只有聽寫";
 
-function PracticeStep({
-  step,
-  onFinish,
-  ...props
-}: StepProps & { step: StepId; onFinish: () => Promise<void> }) {
-  switch (step) {
-    case "learn":
-      return <LearnStep {...props} />;
-    case "spell":
-      return <SpellStep {...props} />;
-    case "fill":
-      return <FillBlankStep {...props} />;
-    case "define":
-      return <DefinitionStep {...props} />;
-    case "sentence":
-      return <SentenceStep {...props} />;
-    case "test":
-      return <SpellingTestStep {...props} onFinish={onFinish} />;
-  }
+/** An old homework only has its date, its score and its words to show. */
+function LegacyResult({ homework, onBack }: { homework: LegacyHomework; onBack: () => void }) {
+  return (
+    <div className="space-y-4">
+      <div className="space-y-1 text-center">
+        <h2 className="text-2xl font-semibold">{formatHomeworkDate(homework)}</h2>
+        {homework.result && (
+          <p className="text-lg">答對 {formatHomeworkScore(homework)}</p>
+        )}
+      </div>
+      <ul className="flex flex-wrap gap-2">
+        {homework.words.map((word) => (
+          <li
+            key={word.key}
+            className="rounded-[10px] border border-border-hairline px-3 py-1 text-sm"
+          >
+            {word.word}
+          </li>
+        ))}
+      </ul>
+      <div className="flex justify-center">
+        <button type="button" onClick={onBack} className="btn btn-primary min-h-11 active:scale-[0.98]">
+          回到首頁
+        </button>
+      </div>
+    </div>
+  );
 }
 
 export default function WordPracticePage() {
   const wordPractice = useWordPractice();
-  const [screen, setScreen] = useState<Screen>({ view: "home" });
+  const { status, error, saveError, active, history, settings, starting } = wordPractice;
+  const [inBook, setInBook] = useState(false);
+  // The finished screen: the homework just handed in (can start another) or one opened from the history.
+  const [viewing, setViewing] = useState<{ homework: HistoryHomework; justFinished: boolean } | null>(
+    null,
+  );
   const [noWords, setNoWords] = useState(false);
-  const { status, error, saveError, active, history } = wordPractice;
+  /** Set when a homework was just created here, so that only a fresh review-only homework gets its notice. */
+  const [justStarted, setJustStarted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
-  // A different homework taking over (a replacement was generated) must not
-  // leave the page on a step of the old one. A homework ending (`active`
-  // becoming null) is not reset here: the screen that finished it chooses
-  // where to go next.
-  const activeId = active?.id ?? null;
-  const [seenActiveId, setSeenActiveId] = useState(activeId);
-  if (activeId !== seenActiveId) {
-    setSeenActiveId(activeId);
-    if (activeId !== null) setScreen({ view: "home" });
-  }
+  const goHome = () => {
+    setInBook(false);
+    setViewing(null);
+  };
 
-  const goHome = () => setScreen({ view: "home" });
-  const openStep = (step: StepId) => {
-    // The cloze exercise and the spelling test need the example sentences. The hook tries once per homework.
-    if (step === "fill" || step === "test") void wordPractice.ensureSentences();
-    setScreen({ view: "step", step });
-  };
-  const finishTest = async (): Promise<void> => {
-    // When the homework could not be completed the hook has set its error, which
-    // the page shows, and the learner stays on the test.
-    const completed = await wordPractice.finishTest();
-    if (completed) setScreen({ view: "result", homeworkId: completed.id });
-  };
-  const generate = async (options: HomeworkOptions): Promise<void> => {
+  const start = async (): Promise<void> => {
+    if (starting || submitting) return;
     setNoWords(false);
-    const result = await wordPractice.generate(options);
-    setNoWords(result === "empty");
+    setJustStarted(false);
+    const outcome = await wordPractice.start();
+    setNoWords(outcome === "empty");
+    if (outcome === "created") {
+      setJustStarted(true);
+      setViewing(null);
+      setInBook(true);
+    } else if (outcome === "empty") {
+      setViewing(null);
+    }
   };
-  const resultHomework =
-    screen.view === "result"
-      ? history.find((homework) => homework.id === screen.homeworkId)
-      : undefined;
+
+  const submit = async (): Promise<void> => {
+    if (submitting) return;
+    setSubmitting(true);
+    try {
+      const completed = await wordPractice.submit();
+      if (completed) {
+        setInBook(false);
+        setViewing({ homework: completed, justFinished: true });
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   let content;
   if (status === "loading") {
@@ -98,45 +104,63 @@ export default function WordPracticePage() {
         重新載入
       </button>
     );
-  } else if (screen.view === "step" && active) {
+  } else if (viewing) {
+    content = isHomeworkBook(viewing.homework) ? (
+      <FinishedView
+        homework={viewing.homework}
+        onBack={goHome}
+        onAgain={viewing.justFinished ? () => void start() : undefined}
+        celebrate={viewing.justFinished}
+      />
+    ) : (
+      <LegacyResult homework={viewing.homework} onBack={goHome} />
+    );
+  } else if (inBook && active) {
     content = (
-      <PracticeStep
-        step={screen.step}
+      <HomeworkBook
         homework={active}
         onProgress={wordPractice.updateProgress}
-        onExit={goHome}
-        onFinish={finishTest}
+        onRest={goHome}
+        onSubmit={() => void submit()}
+        submitting={submitting}
+        locked={starting}
       />
     );
-  } else if (resultHomework) {
-    content = <HomeworkResultView homework={resultHomework} onBack={goHome} />;
   } else {
     content = (
       <>
-        {active && (
-          <HomeworkOverview
-            homework={active}
-            generating={wordPractice.generating}
-            onOpenStep={openStep}
-            onAbandon={wordPractice.abandon}
-          />
-        )}
-        <GenerateHomeworkPanel
-          hasActive={active !== null}
-          generating={wordPractice.generating}
-          onGenerate={generate}
+        <TodayCard
+          settings={settings}
+          reviewDueCount={wordPractice.reviewDueCount}
+          active={active}
+          starting={starting || submitting}
+          onStart={() => void start()}
+          onContinue={() => setInBook(true)}
         />
         <HomeworkHistory
           history={history}
-          onOpen={(homeworkId) => setScreen({ view: "result", homeworkId })}
+          onOpen={(homeworkId) => {
+            const homework = history.find((candidate) => candidate.id === homeworkId);
+            if (homework) setViewing({ homework, justFinished: false });
+          }}
+        />
+        <ParentSettings
+          key={`${settings.newWordCount}/${settings.reviewLimit}/${settings.startLevel}`}
+          settings={settings}
+          hasActive={active !== null}
+          busy={starting || submitting}
+          onSave={wordPractice.saveSettings}
+          onAbandon={wordPractice.abandon}
         />
       </>
     );
   }
 
   const busyMessage =
-    status === "loading" ? "載入中…" : wordPractice.generating ? "正在產生功課…" : null;
-  const statusMessage = busyMessage ?? (noWords ? NO_WORDS_NOTICE : null);
+    status === "loading" ? "載入中…" : starting ? "正在準備功課…" : null;
+  const reviewOnly = justStarted && inBook && active !== null && active.newWords.length === 0;
+  const statusMessage =
+    busyMessage ?? (noWords ? NO_WORDS_NOTICE : reviewOnly ? REVIEW_ONLY_NOTICE : null);
   const saveMessage = status === "ready" ? saveError : null;
 
   return (
@@ -148,7 +172,7 @@ export default function WordPracticePage() {
             單字練習
           </h1>
           <p className="text-muted-foreground">
-            從生詞本挑出單字，認識、拼寫、填空、造句，最後來一場拼字考試。
+            照作業簿一步一步寫：抄寫、默寫、造詞、造句，最後聽寫。
           </p>
         </div>
         {/* The live regions stay mounted so that a change in their text is announced. */}

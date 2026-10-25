@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { CefrLevel, Homework, HomeworkWord, HomeworkWordProgress, WordPracticeState } from "../types/wordPractice";
+import type { CefrLevel, DictationItem, Homework, HomeworkWord, LegacyHomework } from "../types/wordPractice";
 
 type Data = Record<string, unknown>;
 interface Constraint {
@@ -100,8 +100,8 @@ vi.mock("firebase/firestore", () => {
   };
 });
 
+
 import {
-  EMPTY_PRACTICE_STATE,
   abandonHomework,
   completeHomework,
   createHomework,
@@ -109,50 +109,63 @@ import {
   listCompletedHomeworks,
   loadPracticeState,
   newHomeworkId,
-  saveCefrEstimates,
+  normalizeSettings,
   saveHomeworkProgress,
-  saveHomeworkWords,
+  saveSettings,
 } from "./wordPracticeStorage";
 
-const UID = "u1";
-const stateOf = (uid = UID): WordPracticeState => m.docs.get(`users/${uid}/wordPractice/state`) as unknown as WordPracticeState;
-const homeworkDoc = (id: string, uid = UID): Data | undefined => m.docs.get(`users/${uid}/wordHomeworks/${id}`);
-const seedState = (state: unknown, uid = UID) => m.docs.set(`users/${uid}/wordPractice/state`, state as Data);
-const seedHomework = (hw: Homework, uid = UID) => m.docs.set(`users/${uid}/wordHomeworks/${hw.id}`, structuredClone(hw) as unknown as Data);
+const NOW = 1_700_000_000_000;
+/** Start of the local day `days` after NOW: review dates snap to local days. */
+const dayStart = (days: number) => {
+  const d = new Date(NOW);
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() + days);
+  return d.getTime();
+};
+const seed = (path: string, data: unknown) => m.docs.set(path, data as Data);
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const stored = (path: string): any => m.docs.get(path);
+const STATE = "users/u/wordPractice/state";
+const hwPath = (id: string) => `users/u/wordHomeworks/${id}`;
 
-const word = (text: string, key = text): HomeworkWord => ({
-  key,
-  vocabularyId: `v-${key}`,
+const word = (text: string, extra: Partial<HomeworkWord> = {}): HomeworkWord => ({
+  key: text,
+  vocabularyId: `v-${text}`,
   word: text,
   definitions: [{ partOfSpeech: "noun", definition: `meaning of ${text}` }],
   sentence: null,
-  cloze: null,
   cefr: { level: "A1", source: "list" },
+  ...extra,
 });
+const apple = word("apple", { sentence: "I ate an apple." });
+const river = word("river", { sentence: "The river is wide." });
+const cat = word("cat");
 
-const progressFor = (testAnswer: string | null): HomeworkWordProgress => ({
-  learned: true,
-  spellCorrect: 3,
-  fill: { attempts: 1, correct: true, done: true },
-  define: { attempts: 1, correct: true, done: true },
-  sentence: { text: "A sentence.", feedback: null },
-  testAnswer,
-});
+const answered = (key: string, answer: string, source: "new" | "review" = "new"): DictationItem => ({ key, source, answer, skipped: false });
+const skipped = (key: string, source: "new" | "review" = "new"): DictationItem => ({ key, source, answer: null, skipped: true });
+const unanswered = (key: string): DictationItem => ({ key, source: "new", answer: null, skipped: false });
 
-/** An active homework whose test answers are `answers`, one per word (null = unanswered). */
-const homework = (id: string, words: HomeworkWord[], answers: (string | null)[], extra: Partial<Homework> = {}): Homework => ({
+const hw = (id: string, newWords: HomeworkWord[], dictation: DictationItem[], extra: Partial<Homework> = {}): Homework => ({
+  version: 2,
   id,
   status: "active",
   createdAt: 1_000,
-  options: { wordCount: words.length, startLevel: "A1" },
-  words,
-  progress: answers.map(progressFor),
+  newWords,
+  reviewWords: [],
+  pages: newWords.map(() => ({ section: "done", copies: 3, phrase: "a phrase here", sentence: "A full sentence here." })),
+  dictation,
+  corrections: {},
   ...extra,
 });
-
-const apple = word("apple");
-const book = word("book");
-const cat = word("cat");
+const seedHw = (h: Homework) => seed(hwPath(h.id), h);
+const v2State = (extra: Record<string, unknown> = {}) => ({
+  schemaVersion: 2,
+  activeHomeworkId: null,
+  words: {},
+  cefrEstimates: {},
+  settings: { newWordCount: 5, reviewLimit: 10, startLevel: "A1" },
+  ...extra,
+});
 
 beforeEach(() => {
   m.docs.clear();
@@ -161,416 +174,364 @@ beforeEach(() => {
 });
 
 describe("loadPracticeState", () => {
-  it("returns the empty state when there is no state document", async () => {
-    expect(await loadPracticeState(UID)).toEqual(EMPTY_PRACTICE_STATE);
-    expect(EMPTY_PRACTICE_STATE).toEqual({ activeHomeworkId: null, words: {}, cefrEstimates: {} });
+  it("converts a legacy state once and marks it schemaVersion 2", async () => {
+    seed("users/u/wordPractice/state", { words: { apple: { learnedAt: 5, missCount: 0 }, rivr: { missCount: 1 } }, cefrEstimates: { "look up": "A2" } });
+    const state = await loadPracticeState("u", NOW);
+    expect(state.words.apple).toMatchObject({ stage: 1, dueAt: NOW });
+    expect(state.words.rivr).toMatchObject({ stage: 0, needsPractice: true });
+    expect(state.cefrEstimates).toEqual({ "look up": "A2" });
+    expect(stored("users/u/wordPractice/state")).toMatchObject({ schemaVersion: 2 });
+    await loadPracticeState("u", NOW + 1000);
+    expect(stored("users/u/wordPractice/state").words.apple.dueAt).toBe(NOW); // not converted twice
   });
 
-  it("does not hand out the shared empty state, so callers cannot mutate it", async () => {
-    const first = await loadPracticeState(UID);
-    first.words.apple = { missCount: 1 };
-    expect(await loadPracticeState(UID)).toEqual({ activeHomeworkId: null, words: {}, cefrEstimates: {} });
-    expect(EMPTY_PRACTICE_STATE.words).toEqual({});
+  it("abandons an active legacy homework while converting", async () => {
+    seed("users/u/wordPractice/state", { activeHomeworkId: "old", words: {} });
+    seed("users/u/wordHomeworks/old", { status: "active", createdAt: 1, words: [], progress: [] });
+    const state = await loadPracticeState("u", NOW);
+    expect(state.activeHomeworkId).toBeNull();
+    expect(stored("users/u/wordHomeworks/old").status).toBe("abandoned");
   });
 
-  it("returns a well-formed stored state as it is", async () => {
-    const stored: WordPracticeState = {
-      activeHomeworkId: "hw1",
-      words: { apple: { missCount: 2, learnedAt: 10, lastMissedAt: 20 }, book: { missCount: 0 } },
-      cefrEstimates: { zebra: "B2", yak: "C1" },
-    };
-    seedState(stored);
-    expect(await loadPracticeState(UID)).toEqual(stored);
+  it("keeps an active v2 homework pointer when converting", async () => {
+    seed("users/u/wordPractice/state", { activeHomeworkId: "new", words: {} });
+    seed("users/u/wordHomeworks/new", { version: 2, status: "active", createdAt: 1 });
+    const state = await loadPracticeState("u", NOW);
+    expect(state.activeHomeworkId).toBe("new");
+    expect(stored("users/u/wordHomeworks/new").status).toBe("active");
   });
 
-  it("defaults every field of a malformed state document", async () => {
-    seedState({ activeHomeworkId: 42, words: "oops", cefrEstimates: ["A1"] });
-    expect(await loadPracticeState(UID)).toEqual(EMPTY_PRACTICE_STATE);
-    seedState({ words: null });
-    expect(await loadPracticeState(UID)).toEqual(EMPTY_PRACTICE_STATE);
-    seedState({ activeHomeworkId: "", words: [], cefrEstimates: null });
-    expect(await loadPracticeState(UID)).toEqual(EMPTY_PRACTICE_STATE);
-  });
-
-  it("drops cefrEstimates whose value is not a CEFR level", async () => {
-    seedState({ activeHomeworkId: null, words: {}, cefrEstimates: { a: "A1", b: "D9", c: 3, d: "a1", e: null, f: "C2" } });
-    expect((await loadPracticeState(UID)).cefrEstimates).toEqual({ a: "A1", f: "C2" });
-  });
-
-  it("drops words entries that are not objects and repairs the others", async () => {
-    seedState({
+  it("creates a v2 state when no document exists", async () => {
+    expect(await loadPracticeState("u", NOW)).toEqual({
+      schemaVersion: 2,
       activeHomeworkId: null,
-      words: {
-        good: { missCount: 2, learnedAt: 5, lastMissedAt: 6 },
-        text: "learned",
-        nothing: null,
-        list: [1, 2],
-        noMissCount: { learnedAt: 7 },
-        badNumbers: { missCount: "3", learnedAt: "yesterday", lastMissedAt: null },
-      },
+      words: {},
       cefrEstimates: {},
+      settings: { newWordCount: 5, reviewLimit: 10, startLevel: "A1" },
     });
-    expect((await loadPracticeState(UID)).words).toEqual({
-      good: { missCount: 2, learnedAt: 5, lastMissedAt: 6 },
-      noMissCount: { missCount: 0, learnedAt: 7 },
-      badNumbers: { missCount: 0 },
+  });
+
+  it("uses default settings when none are stored", async () => {
+    expect((await loadPracticeState("u", NOW)).settings).toEqual({ newWordCount: 5, reviewLimit: 10, startLevel: "A1" });
+  });
+
+  it("reads a v2 state as it is, repairing malformed parts", async () => {
+    seed("users/u/wordPractice/state", {
+      schemaVersion: 2,
+      activeHomeworkId: 42,
+      words: {
+        good: { stage: 3, dueAt: 9, missCount: 1, lastResult: "correct", sentence: "A good day." },
+        badStage: { stage: 9, missCount: 0 },
+        fractional: { stage: 2.5, missCount: 0 },
+        junk: "x",
+      },
+      cefrEstimates: { a: "A1", b: "Z9" },
+      settings: { newWordCount: 4, reviewLimit: 99, startLevel: "B1" },
+    });
+    const state = await loadPracticeState("u", NOW);
+    expect(state.activeHomeworkId).toBeNull();
+    expect(state.words.good).toEqual({ stage: 3, dueAt: 9, missCount: 1, lastResult: "correct", sentence: "A good day." });
+    expect(state.words.badStage.stage).toBe(0);
+    expect(state.words.fractional.stage).toBe(0);
+    expect(state.words).not.toHaveProperty("junk");
+    expect(state.cefrEstimates).toEqual({ a: "A1" });
+    expect(state.settings).toEqual({ newWordCount: 4, reviewLimit: 20, startLevel: "B1" });
+  });
+});
+
+describe("normalizeSettings", () => {
+  it("clamps settings into their ranges", () => {
+    expect(normalizeSettings({ newWordCount: 50, reviewLimit: -3, startLevel: "Z9" }))
+      .toEqual({ newWordCount: 10, reviewLimit: 0, startLevel: "A1" });
+    expect(normalizeSettings({ newWordCount: 1, reviewLimit: 7.6, startLevel: "C2" }))
+      .toEqual({ newWordCount: 3, reviewLimit: 8, startLevel: "C2" });
+  });
+
+  it("uses defaults for non-objects and non-numbers", () => {
+    expect(normalizeSettings(null)).toEqual({ newWordCount: 5, reviewLimit: 10, startLevel: "A1" });
+    expect(normalizeSettings({ newWordCount: "x", reviewLimit: NaN })).toEqual({ newWordCount: 5, reviewLimit: 10, startLevel: "A1" });
+  });
+});
+
+describe("saveSettings", () => {
+  it("saves settings without touching the words", async () => {
+    seed("users/u/wordPractice/state", { schemaVersion: 2, words: { apple: { stage: 2, dueAt: 5, missCount: 0 } } });
+    await saveSettings("u", { newWordCount: 3, reviewLimit: 20, startLevel: "B1" });
+    expect(stored("users/u/wordPractice/state").settings).toEqual({ newWordCount: 3, reviewLimit: 20, startLevel: "B1" });
+    expect(stored("users/u/wordPractice/state").words.apple).toEqual({ stage: 2, dueAt: 5, missCount: 0 });
+  });
+
+  it("creates the state when none exists and clamps the values", async () => {
+    await saveSettings("u", { newWordCount: 99, reviewLimit: 5, startLevel: "Q" as CefrLevel });
+    expect(stored("users/u/wordPractice/state")).toMatchObject({
+      schemaVersion: 2,
+      settings: { newWordCount: 10, reviewLimit: 5, startLevel: "A1" },
     });
   });
 });
+
 
 describe("newHomeworkId", () => {
   it("returns a fresh non-empty id on every call", () => {
-    const a = newHomeworkId(UID);
-    const b = newHomeworkId(UID);
+    const a = newHomeworkId("u");
     expect(a).toBeTruthy();
-    expect(a).not.toBe(b);
-  });
-});
-
-describe("saveCefrEstimates", () => {
-  it("merges with existing estimates and keeps words and activeHomeworkId", async () => {
-    seedState({ activeHomeworkId: "hw1", words: { apple: { missCount: 1, learnedAt: 3 } }, cefrEstimates: { zebra: "B2", yak: "C1" } });
-    await saveCefrEstimates(UID, { yak: "C2", quokka: "B1" });
-    expect(stateOf()).toEqual({
-      activeHomeworkId: "hw1",
-      words: { apple: { missCount: 1, learnedAt: 3 } },
-      cefrEstimates: { zebra: "B2", yak: "C2", quokka: "B1" },
-    });
-  });
-
-  it("creates the state document when none exists", async () => {
-    await saveCefrEstimates(UID, { zebra: "B2" });
-    expect(stateOf()).toEqual({ activeHomeworkId: null, words: {}, cefrEstimates: { zebra: "B2" } });
-  });
-
-  it("never stores a value that is not a CEFR level", async () => {
-    await saveCefrEstimates(UID, { zebra: "B2", yak: "Z9" as CefrLevel });
-    expect(stateOf().cefrEstimates).toEqual({ zebra: "B2" });
-  });
-
-  it("repairs a malformed state document while saving", async () => {
-    seedState({ activeHomeworkId: 7, words: null, cefrEstimates: { a: "nope", b: "A2" } });
-    await saveCefrEstimates(UID, { c: "C1" });
-    expect(stateOf()).toEqual({ activeHomeworkId: null, words: {}, cefrEstimates: { b: "A2", c: "C1" } });
+    expect(a).not.toBe(newHomeworkId("u"));
   });
 });
 
 describe("createHomework and getActiveHomework", () => {
   it("stores the homework as active and points the state at it", async () => {
-    const hw = homework("hw1", [apple], [null]);
-    await createHomework(UID, hw);
-    expect(homeworkDoc("hw1")).toEqual(hw);
-    expect(stateOf().activeHomeworkId).toBe("hw1");
-    expect(await getActiveHomework(UID)).toEqual(hw);
+    const h = hw("h1", [apple], [unanswered("apple")]);
+    await createHomework("u", h);
+    expect(stored(hwPath("h1"))).toEqual(h);
+    expect(stored(STATE).activeHomeworkId).toBe("h1");
+    expect(await getActiveHomework("u")).toEqual(h);
   });
 
-  it("abandons the previous active homework and makes the new one active", async () => {
-    const first = homework("hw1", [apple], [null]);
-    const second = homework("hw2", [book], [null]);
-    await createHomework(UID, first);
-    await createHomework(UID, second);
-    expect(homeworkDoc("hw1")).toMatchObject({ id: "hw1", status: "abandoned" });
-    expect(stateOf().activeHomeworkId).toBe("hw2");
-    expect(await getActiveHomework(UID)).toEqual(second);
+  it("abandons the previous active homework and keeps the word state", async () => {
+    seed(STATE, v2State({ words: { apple: { stage: 2, dueAt: 5, missCount: 0 } } }));
+    await createHomework("u", hw("h1", [apple], []));
+    await createHomework("u", hw("h2", [river], []));
+    expect(stored(hwPath("h1")).status).toBe("abandoned");
+    expect(stored(STATE)).toMatchObject({ activeHomeworkId: "h2", words: { apple: { stage: 2, dueAt: 5, missCount: 0 } } });
+    expect((await getActiveHomework("u"))?.id).toBe("h2");
   });
 
-  it("keeps the learned state of words when it replaces a homework", async () => {
-    seedState({ activeHomeworkId: null, words: { apple: { missCount: 1, learnedAt: 3 } }, cefrEstimates: { zebra: "B2" } });
-    await createHomework(UID, homework("hw1", [apple], [null]));
-    await createHomework(UID, homework("hw2", [book], [null]));
-    expect(stateOf()).toEqual({ activeHomeworkId: "hw2", words: { apple: { missCount: 1, learnedAt: 3 } }, cefrEstimates: { zebra: "B2" } });
-  });
-
-  it("leaves a previous homework alone when it is no longer active", async () => {
-    const done = homework("old", [apple], ["apple"], { status: "completed", completedAt: 5 });
-    seedHomework(done);
-    seedState({ activeHomeworkId: "old", words: {}, cefrEstimates: {} });
-    await createHomework(UID, homework("hw2", [book], [null]));
-    expect(homeworkDoc("old")).toEqual(done);
-    expect(stateOf().activeHomeworkId).toBe("hw2");
-  });
-
-  it("repairs a malformed state document while creating", async () => {
-    seedState({ activeHomeworkId: 7, words: "x", cefrEstimates: { a: "bad" } });
-    await createHomework(UID, homework("hw1", [apple], [null]));
-    expect(stateOf()).toEqual({ activeHomeworkId: "hw1", words: {}, cefrEstimates: {} });
+  it("leaves a finished previous homework alone", async () => {
+    const done = hw("old", [apple], [], { status: "completed", completedAt: 5 });
+    seedHw(done);
+    seed(STATE, v2State({ activeHomeworkId: "old" }));
+    await createHomework("u", hw("h2", [river], []));
+    expect(stored(hwPath("old"))).toEqual(done);
   });
 
   it("keeps exactly one active homework when two are created at once", async () => {
-    await Promise.all([createHomework(UID, homework("hwA", [apple], [null])), createHomework(UID, homework("hwB", [book], [null]))]);
-    const statuses = [homeworkDoc("hwA")?.status, homeworkDoc("hwB")?.status];
-    expect(statuses.filter((s) => s === "active")).toHaveLength(1);
-    expect(statuses.filter((s) => s === "abandoned")).toHaveLength(1);
-    expect((await getActiveHomework(UID))?.id).toBe(stateOf().activeHomeworkId);
-  });
-
-  it("returns null when there is no state, a dangling pointer, or a pointer to a finished homework", async () => {
-    expect(await getActiveHomework(UID)).toBeNull();
-    seedState({ activeHomeworkId: null, words: {}, cefrEstimates: {} });
-    expect(await getActiveHomework(UID)).toBeNull();
-    seedState({ activeHomeworkId: "ghost", words: {}, cefrEstimates: {} });
-    expect(await getActiveHomework(UID)).toBeNull();
-    seedHomework(homework("hw1", [apple], ["apple"], { status: "completed", completedAt: 5 }));
-    seedState({ activeHomeworkId: "hw1", words: {}, cefrEstimates: {} });
-    expect(await getActiveHomework(UID)).toBeNull();
-    seedHomework(homework("hw2", [apple], [null], { status: "abandoned" }));
-    seedState({ activeHomeworkId: "hw2", words: {}, cefrEstimates: {} });
-    expect(await getActiveHomework(UID)).toBeNull();
+    await Promise.all([createHomework("u", hw("a", [apple], [])), createHomework("u", hw("b", [river], []))]);
+    const statuses = [stored(hwPath("a")).status, stored(hwPath("b")).status].sort();
+    expect(statuses).toEqual(["abandoned", "active"]);
+    expect((await getActiveHomework("u"))?.id).toBe(stored(STATE).activeHomeworkId);
   });
 
   it("writes no undefined values for absent optional fields", async () => {
-    const hw = homework("hw1", [{ ...apple, emoji: undefined }], [null]);
-    hw.progress[0].sentence = { text: "An apple.", feedback: { usedCorrectly: true, feedback: "Good.", suggestion: undefined } };
-    await expect(createHomework(UID, hw)).resolves.toBeUndefined();
-    const stored = homeworkDoc("hw1") as unknown as Homework;
-    expect(stored.words[0]).not.toHaveProperty("emoji");
-    expect(stored.progress[0].sentence?.feedback).not.toHaveProperty("suggestion");
-    expect(stored).not.toHaveProperty("completedAt");
-    expect(stored).not.toHaveProperty("result");
+    await expect(createHomework("u", hw("h1", [{ ...apple, emoji: undefined }], [], { completedAt: undefined }))).resolves.toBeUndefined();
+    expect(stored(hwPath("h1")).newWords[0]).not.toHaveProperty("emoji");
+    expect(stored(hwPath("h1"))).not.toHaveProperty("completedAt");
+  });
+
+  it("returns null when there is no state, a dangling pointer, or a finished homework", async () => {
+    expect(await getActiveHomework("u")).toBeNull();
+    seed(STATE, v2State({ activeHomeworkId: "ghost" }));
+    expect(await getActiveHomework("u")).toBeNull();
+    seedHw(hw("done", [apple], [], { status: "completed", completedAt: 5 }));
+    seed(STATE, v2State({ activeHomeworkId: "done" }));
+    expect(await getActiveHomework("u")).toBeNull();
+  });
+
+  it("ignores an active legacy homework when looking for the active one", async () => {
+    seed(STATE, v2State({ activeHomeworkId: "legacy" }));
+    seed(hwPath("legacy"), { status: "active", createdAt: 1, words: [], progress: [] });
+    expect(await getActiveHomework("u")).toBeNull();
   });
 });
 
-describe("saveHomeworkProgress and saveHomeworkWords", () => {
-  it("replaces only the progress field", async () => {
-    const hw = homework("hw1", [apple, book], [null, null]);
-    seedHomework(hw);
-    const progress = [progressFor("apple"), progressFor(null)];
-    await saveHomeworkProgress(UID, "hw1", progress);
-    expect(homeworkDoc("hw1")).toEqual({ ...hw, progress });
-  });
-
-  it("replaces only the words field", async () => {
-    const hw = homework("hw1", [apple, book], [null, null]);
-    seedHomework(hw);
-    const words = [{ ...apple, sentence: "I ate an apple." }, book];
-    await saveHomeworkWords(UID, "hw1", words);
-    expect(homeworkDoc("hw1")).toEqual({ ...hw, words });
+describe("saveHomeworkProgress", () => {
+  it("replaces pages, dictation and corrections and nothing else", async () => {
+    const h = hw("h1", [apple, river], [unanswered("apple")]);
+    seedHw(h);
+    const progress = {
+      pages: [{ section: "copy" as const, copies: 1, phrase: null, sentence: null }, h.pages[1]],
+      dictation: [answered("apple", "aple"), skipped("river")],
+      corrections: { "look up": 2 },
+    };
+    await saveHomeworkProgress("u", "h1", progress);
+    expect(stored(hwPath("h1"))).toEqual({ ...h, ...progress });
   });
 
   it("writes no undefined values", async () => {
-    seedHomework(homework("hw1", [apple], [null]));
-    const progress = [{ ...progressFor(null), sentence: { text: "x", feedback: { usedCorrectly: false, feedback: "No.", suggestion: undefined } } }];
-    await expect(saveHomeworkProgress(UID, "hw1", progress)).resolves.toBeUndefined();
-    await expect(saveHomeworkWords(UID, "hw1", [{ ...apple, emoji: undefined }])).resolves.toBeUndefined();
-    const stored = homeworkDoc("hw1") as unknown as Homework;
-    expect(stored.progress[0].sentence?.feedback).not.toHaveProperty("suggestion");
-    expect(stored.words[0]).not.toHaveProperty("emoji");
+    seedHw(hw("h1", [apple], []));
+    const pages = [{ section: "look" as const, copies: 0, phrase: undefined, sentence: null }] as unknown as Homework["pages"];
+    await expect(saveHomeworkProgress("u", "h1", { pages, dictation: [], corrections: {} })).resolves.toBeUndefined();
+    expect(stored(hwPath("h1")).pages[0]).not.toHaveProperty("phrase");
+  });
+
+  it.each(["completed", "abandoned"] as const)("leaves a %s homework untouched", async (status) => {
+    const h = hw("h1", [apple], [answered("apple", "apple")], { status, completedAt: 5 });
+    seedHw(h);
+    await expect(
+      saveHomeworkProgress("u", "h1", { pages: h.pages, dictation: [answered("apple", "aple")], corrections: { apple: 1 } }),
+    ).resolves.toBeUndefined();
+    expect(stored(hwPath("h1"))).toEqual(h);
   });
 
   it("does not create a homework that does not exist", async () => {
-    await expect(saveHomeworkProgress(UID, "ghost", [progressFor(null)])).rejects.toThrow();
-    expect(homeworkDoc("ghost")).toBeUndefined();
+    await expect(saveHomeworkProgress("u", "ghost", { pages: [], dictation: [], corrections: {} })).rejects.toThrow();
+    expect(stored(hwPath("ghost"))).toBeUndefined();
   });
 });
 
 describe("completeHomework", () => {
-  it("grades the test, completes the homework and updates the state in one go", async () => {
-    seedState({
-      activeHomeworkId: null,
-      words: { book: { missCount: 2, lastMissedAt: 50 }, cat: { missCount: 1, learnedAt: 40, lastMissedAt: 45 } },
-      cefrEstimates: { zebra: "B2" },
-    });
-    await createHomework(UID, homework("hw1", [apple, book, cat], ["apple", "bok", "CAT"]));
+  const seedRun = (h: Homework, state: Record<string, unknown> = {}) => {
+    seedHw(h);
+    seed(STATE, v2State({ activeHomeworkId: h.id, ...state }));
+  };
+  const wrongRiver = hw("h1", [apple, river], [answered("apple", "Apple"), answered("river", "rivr")], { corrections: { river: 3 } });
 
-    const completed = await completeHomework(UID, "hw1", 9_000);
-
-    const result = { correctKeys: ["apple", "cat"], missedKeys: ["book"], correctCount: 2, total: 3 };
-    expect(completed).toMatchObject({ id: "hw1", status: "completed", completedAt: 9_000, result });
-    expect(homeworkDoc("hw1")).toMatchObject({ id: "hw1", status: "completed", completedAt: 9_000, result });
-    expect(stateOf()).toEqual({
-      activeHomeworkId: null,
-      words: {
-        apple: { missCount: 0, learnedAt: 9_000 },
-        book: { missCount: 3, lastMissedAt: 9_000 },
-        cat: { missCount: 1, learnedAt: 9_000, lastMissedAt: 45 },
-      },
-      cefrEstimates: { zebra: "B2" },
-    });
-    expect(await getActiveHomework(UID)).toBeNull();
+  it("completes a homework and schedules every dictated word in one transaction", async () => {
+    seedRun(wrongRiver);
+    const { homework, reviewUpdates } = await completeHomework("u", "h1", NOW);
+    expect(homework).toMatchObject({ status: "completed", completedAt: NOW, result: { correctKeys: ["apple"], wrongKeys: ["river"] } });
+    expect(stored(hwPath("h1"))).toEqual(homework);
+    expect(stored(STATE).words.apple).toMatchObject({ stage: 1, dueAt: dayStart(1), sentence: "I ate an apple." });
+    expect(stored(STATE).words.river).toMatchObject({ stage: 0, needsPractice: true });
+    expect(stored(STATE).words.river).not.toHaveProperty("sentence");
+    expect(stored(STATE).activeHomeworkId).toBeNull();
+    expect(reviewUpdates).toEqual([{ vocabularyId: "v-apple", remembered: true }, { vocabularyId: "v-river", remembered: false }]);
   });
 
-  it("returns the stored homework document", async () => {
-    await createHomework(UID, homework("hw1", [apple], ["apple"]));
-    expect(await completeHomework(UID, "hw1", 9_000)).toEqual(homeworkDoc("hw1"));
+  it("orders review updates like the dictation and covers review words", async () => {
+    const h = hw("h1", [apple], [answered("apple", "apple"), answered("river", "river", "review")], { reviewWords: [river] });
+    seedRun(h, { words: { river: { stage: 2, dueAt: 1, missCount: 0 } } });
+    const { reviewUpdates } = await completeHomework("u", "h1", NOW);
+    expect(reviewUpdates.map((u) => u.vocabularyId)).toEqual(["v-apple", "v-river"]);
+    expect(stored(STATE).words.river).toMatchObject({ stage: 3, dueAt: dayStart(7) });
   });
 
-  it("is idempotent: a second call counts the misses once and returns the first result", async () => {
-    await createHomework(UID, homework("hw1", [apple, book], ["apple", "wrong"]));
-    const first = await completeHomework(UID, "hw1", 9_000);
-    const stateAfterFirst = structuredClone(stateOf());
-    const second = await completeHomework(UID, "hw1", 99_000);
-    expect(second).toEqual(first);
-    expect(second.completedAt).toBe(9_000);
-    expect(stateOf()).toEqual(stateAfterFirst);
-    expect(stateOf().words.book.missCount).toBe(1);
+  it("changes no schedule and returns no updates when every item was skipped", async () => {
+    const wordsBefore = { apple: { stage: 2, dueAt: 5, missCount: 0 } };
+    seedRun(hw("h1", [apple, river], [skipped("apple"), skipped("river")]), { words: wordsBefore });
+    const { homework, reviewUpdates } = await completeHomework("u", "h1", NOW);
+    expect(reviewUpdates).toEqual([]);
+    expect(homework.status).toBe("completed");
+    expect(stored(STATE).words).toEqual(wordsBefore);
   });
 
-  it("counts the misses once when two calls race", async () => {
-    await createHomework(UID, homework("hw1", [book], ["wrong"]));
-    const [a, b] = await Promise.all([completeHomework(UID, "hw1", 9_000), completeHomework(UID, "hw1", 9_500)]);
-    expect(b).toEqual(a);
-    expect(stateOf().words.book).toEqual({ missCount: 1, lastMissedAt: 9_000 });
+  it("leaves skipped items out of the updates", async () => {
+    seedRun(hw("h1", [apple, river], [answered("apple", "apple"), skipped("river")]));
+    const { reviewUpdates } = await completeHomework("u", "h1", NOW);
+    expect(reviewUpdates).toEqual([{ vocabularyId: "v-apple", remembered: true }]);
+    expect(stored(STATE).words).not.toHaveProperty("river");
   });
 
-  it("leaves activeHomeworkId alone when it points at a different homework", async () => {
-    seedHomework(homework("old", [apple], ["apple"]));
-    seedState({ activeHomeworkId: "newer", words: {}, cefrEstimates: {} });
-    await completeHomework(UID, "old", 9_000);
-    expect(stateOf().activeHomeworkId).toBe("newer");
-    expect(stateOf().words.apple).toEqual({ missCount: 0, learnedAt: 9_000 });
+  it("returns an already completed homework unchanged, with no updates, when completed twice", async () => {
+    seedRun(wrongRiver);
+    const first = await completeHomework("u", "h1", NOW);
+    const stateAfter = structuredClone(stored(STATE));
+    const second = await completeHomework("u", "h1", NOW + 99);
+    expect(second.homework).toEqual(first.homework);
+    expect(second.reviewUpdates).toEqual([]);
+    expect(stored(STATE)).toEqual(stateAfter);
   });
 
-  it("rejects an abandoned homework and changes nothing", async () => {
-    await createHomework(UID, homework("hw1", [apple], ["apple"]));
-    await abandonHomework(UID, "hw1");
+  it("counts a word once when two calls race", async () => {
+    seedRun(hw("h1", [river], [answered("river", "rivr")], { corrections: { river: 3 } }));
+    const [a, b] = await Promise.all([completeHomework("u", "h1", NOW), completeHomework("u", "h1", NOW + 1)]);
+    expect([a.reviewUpdates.length, b.reviewUpdates.length].sort()).toEqual([0, 1]);
+    expect(stored(STATE).words.river.missCount).toBe(1);
+  });
+
+  it("refuses to complete a homework that still has unanswered or uncorrected items", async () => {
+    seedRun(hw("unfinished", [apple, river], [answered("apple", "apple"), unanswered("river")]));
+    seedHw(hw("uncorrected", [river], [answered("river", "rivr")], { corrections: { river: 1 } }));
     const before = structuredClone([...m.docs.entries()]);
-    await expect(completeHomework(UID, "hw1", 9_000)).rejects.toThrow();
+    await expect(completeHomework("u", "unfinished", NOW)).rejects.toThrow();
+    await expect(completeHomework("u", "uncorrected", NOW)).rejects.toThrow();
     expect([...m.docs.entries()]).toEqual(before);
   });
 
-  it("rejects a homework that does not exist", async () => {
-    await expect(completeHomework(UID, "ghost", 9_000)).rejects.toThrow();
+  it("rejects an abandoned, a missing and a legacy homework", async () => {
+    seedHw(hw("gone", [apple], [answered("apple", "apple")], { status: "abandoned" }));
+    seed(hwPath("legacy"), { status: "active", createdAt: 1, words: [], progress: [] });
+    await expect(completeHomework("u", "gone", NOW)).rejects.toThrow();
+    await expect(completeHomework("u", "ghost", NOW)).rejects.toThrow();
+    await expect(completeHomework("u", "legacy", NOW)).rejects.toThrow();
   });
 
-  it("rejects a test with unanswered words and writes nothing", async () => {
-    await createHomework(UID, homework("hw1", [apple, book], ["apple", null]));
-    const before = structuredClone([...m.docs.entries()]);
-    await expect(completeHomework(UID, "hw1", 9_000)).rejects.toThrow();
-    expect([...m.docs.entries()]).toEqual(before);
-    expect((await getActiveHomework(UID))?.status).toBe("active");
+  it("leaves activeHomeworkId alone when it points at another homework", async () => {
+    seedHw(hw("old", [apple], [answered("apple", "apple")]));
+    seed(STATE, v2State({ activeHomeworkId: "newer" }));
+    await completeHomework("u", "old", NOW);
+    expect(stored(STATE).activeHomeworkId).toBe("newer");
   });
 
-  it("repairs malformed word entries it reads from the state", async () => {
-    seedHomework(homework("hw1", [apple, book, cat], ["x", "x", "cat"]));
-    seedState({ activeHomeworkId: "hw1", words: { apple: "learned", book: { learnedAt: 4 }, cat: null }, cefrEstimates: {} });
-    await completeHomework(UID, "hw1", 9_000);
-    expect(stateOf().words).toEqual({
-      apple: { missCount: 1, lastMissedAt: 9_000 },
-      book: { missCount: 1, learnedAt: 4, lastMissedAt: 9_000 },
-      cat: { missCount: 0, learnedAt: 9_000 },
-    });
+  it("converts a legacy state while completing", async () => {
+    seedHw(hw("h1", [apple], [answered("apple", "apple")]));
+    seed(STATE, { activeHomeworkId: "h1", words: { cat: { learnedAt: 5, missCount: 0 } }, cefrEstimates: { x: "A2" } });
+    await completeHomework("u", "h1", NOW);
+    expect(stored(STATE)).toMatchObject({ schemaVersion: 2, activeHomeworkId: null, cefrEstimates: { x: "A2" } });
+    expect(stored(STATE).words.cat).toMatchObject({ stage: 1 });
+    expect(stored(STATE).words.apple).toMatchObject({ stage: 1 });
+  });
+
+  it("handles keys with dots and object prototype names", async () => {
+    const h = hw("h1", [word("a.m."), word("constructor"), cat], [answered("a.m.", "a.m."), answered("constructor", "x"), answered("cat", "cat")], { corrections: { constructor: 3 } });
+    seedRun(h);
+    await completeHomework("u", "h1", NOW);
+    expect(Object.keys(stored(STATE).words).sort()).toEqual(["a.m.", "cat", "constructor"]);
+    expect(stored(STATE).words.constructor).toMatchObject({ stage: 0, missCount: 1 });
+    expect(stored(STATE).words["a.m."]).toMatchObject({ stage: 1 });
+  });
+
+  it("keeps each user's data separate", async () => {
+    seed("users/a/wordPractice/state", v2State({ activeHomeworkId: "h1" }));
+    seed("users/a/wordHomeworks/h1", hw("h1", [apple], [answered("apple", "apple")]));
+    seed("users/b/wordPractice/state", v2State({ activeHomeworkId: "h1" }));
+    seed("users/b/wordHomeworks/h1", hw("h1", [apple], [answered("apple", "apple")]));
+    await completeHomework("a", "h1", NOW);
+    expect((await getActiveHomework("b"))?.status).toBe("active");
+    expect(stored("users/b/wordPractice/state").words).toEqual({});
   });
 });
 
 describe("abandonHomework", () => {
-  it("marks the homework abandoned and clears the active pointer", async () => {
-    await createHomework(UID, homework("hw1", [apple], [null]));
-    await abandonHomework(UID, "hw1");
-    expect(homeworkDoc("hw1")).toMatchObject({ id: "hw1", status: "abandoned" });
-    expect(stateOf().activeHomeworkId).toBeNull();
-    expect(await getActiveHomework(UID)).toBeNull();
+  it("marks the homework abandoned and clears the pointer, keeping words", async () => {
+    seed(STATE, v2State({ words: { apple: { stage: 1, dueAt: 5, missCount: 0 } } }));
+    await createHomework("u", hw("h1", [apple], []));
+    await abandonHomework("u", "h1");
+    expect(stored(hwPath("h1")).status).toBe("abandoned");
+    expect(stored(STATE)).toMatchObject({ activeHomeworkId: null, words: { apple: { stage: 1, dueAt: 5, missCount: 0 } } });
   });
 
-  it("does not touch the learned state of any word", async () => {
-    seedState({ activeHomeworkId: null, words: { apple: { missCount: 1, learnedAt: 3 } }, cefrEstimates: { zebra: "B2" } });
-    await createHomework(UID, homework("hw1", [apple], [null]));
-    await abandonHomework(UID, "hw1");
-    expect(stateOf()).toEqual({ activeHomeworkId: null, words: { apple: { missCount: 1, learnedAt: 3 } }, cefrEstimates: { zebra: "B2" } });
-  });
-
-  it("leaves a newer active homework in place when an older one is abandoned", async () => {
-    seedHomework(homework("old", [apple], [null]));
-    seedState({ activeHomeworkId: "newer", words: {}, cefrEstimates: {} });
-    await abandonHomework(UID, "old");
-    expect(homeworkDoc("old")).toMatchObject({ status: "abandoned" });
-    expect(stateOf().activeHomeworkId).toBe("newer");
+  it("leaves a newer active pointer in place", async () => {
+    seedHw(hw("old", [apple], []));
+    seed(STATE, v2State({ activeHomeworkId: "newer" }));
+    await abandonHomework("u", "old");
+    expect(stored(hwPath("old")).status).toBe("abandoned");
+    expect(stored(STATE).activeHomeworkId).toBe("newer");
   });
 
   it("is a no-op for a homework that is not active", async () => {
-    await createHomework(UID, homework("hw1", [apple], ["apple"]));
-    await completeHomework(UID, "hw1", 9_000);
-    seedState({ ...stateOf(), activeHomeworkId: "other" });
+    seedHw(hw("h1", [apple], [], { status: "completed", completedAt: 1 }));
+    seed(STATE, v2State({ activeHomeworkId: "other" }));
     const before = structuredClone([...m.docs.entries()]);
-    await abandonHomework(UID, "hw1");
-    await abandonHomework(UID, "ghost");
+    await abandonHomework("u", "h1");
+    await abandonHomework("u", "ghost");
     expect([...m.docs.entries()]).toEqual(before);
   });
 });
 
 describe("listCompletedHomeworks", () => {
-  const finished = (id: string, completedAt: number) => homework(id, [apple], ["apple"], { status: "completed", completedAt });
+  const finished = (id: string, completedAt: number) => hw(id, [apple], [], { status: "completed", completedAt });
 
-  it("lists only completed homeworks, newest first", async () => {
-    seedHomework(finished("a", 100));
-    seedHomework(finished("c", 300));
-    seedHomework(finished("b", 200));
-    seedHomework(homework("active", [apple], [null]));
-    seedHomework(homework("dropped", [apple], [null], { status: "abandoned" }));
-    expect((await listCompletedHomeworks(UID)).map((h) => h.id)).toEqual(["c", "b", "a"]);
-  });
-
-  it("returns the stored documents", async () => {
-    seedHomework(finished("a", 100));
-    expect(await listCompletedHomeworks(UID)).toEqual([finished("a", 100)]);
+  it("lists completed homeworks of both versions, newest first", async () => {
+    const legacy: Omit<LegacyHomework, "id"> = { status: "completed", createdAt: 1, completedAt: 100, words: [{ key: "a", word: "a" }], result: { correctCount: 1, total: 1 } };
+    seed(hwPath("legacy"), legacy);
+    seedHw(finished("v2", 200));
+    seedHw(hw("active", [apple], []));
+    seedHw(hw("dropped", [apple], [], { status: "abandoned" }));
+    const list = await listCompletedHomeworks("u");
+    expect(list.map((h) => h.id)).toEqual(["v2", "legacy"]);
+    expect(list[1]).toEqual({ ...legacy, id: "legacy" });
   });
 
   it("returns 20 by default and honours max", async () => {
-    for (let i = 1; i <= 25; i++) seedHomework(finished(`hw${i}`, i));
-    const defaults = await listCompletedHomeworks(UID);
+    for (let i = 1; i <= 25; i++) seedHw(finished(`hw${i}`, i));
+    const defaults = await listCompletedHomeworks("u");
     expect(defaults).toHaveLength(20);
     expect(defaults[0].id).toBe("hw25");
-    expect((await listCompletedHomeworks(UID, 3)).map((h) => h.id)).toEqual(["hw25", "hw24", "hw23"]);
+    expect((await listCompletedHomeworks("u", 3)).map((h) => h.id)).toEqual(["hw25", "hw24", "hw23"]);
   });
 
   it("returns an empty list when there is nothing", async () => {
-    expect(await listCompletedHomeworks(UID)).toEqual([]);
-  });
-});
-
-describe("isolation between users", () => {
-  it("keeps each user's state and homeworks separate", async () => {
-    await createHomework("alice", homework("hw1", [apple], ["apple"]));
-    await createHomework("bob", homework("hw1", [apple], ["nope"]));
-    await completeHomework("alice", "hw1", 9_000);
-
-    expect(await getActiveHomework("alice")).toBeNull();
-    expect((await getActiveHomework("bob"))?.status).toBe("active");
-    expect(stateOf("alice").words.apple).toEqual({ missCount: 0, learnedAt: 9_000 });
-    expect(stateOf("bob").words).toEqual({});
-    expect(await listCompletedHomeworks("bob")).toEqual([]);
-    expect(await loadPracticeState("carol")).toEqual(EMPTY_PRACTICE_STATE);
-  });
-});
-
-describe("word keys with special characters", () => {
-  const keys = ["a.m.", "don't", "look forward to"];
-  const words = keys.map((key) => word(key));
-
-  it("stores and reads them back as plain map keys", async () => {
-    await createHomework(UID, homework("hw1", words, ["a.m.", "wrong", "look forward to"]));
-    await completeHomework(UID, "hw1", 9_000);
-    expect(Object.keys(stateOf().words).sort()).toEqual([...keys].sort());
-    expect(await loadPracticeState(UID)).toMatchObject({
-      words: {
-        "a.m.": { missCount: 0, learnedAt: 9_000 },
-        "don't": { missCount: 1, lastMissedAt: 9_000 },
-        "look forward to": { missCount: 0, learnedAt: 9_000 },
-      },
-    });
-  });
-
-  it("updates an existing entry under such a key", async () => {
-    await createHomework(UID, homework("hw1", words, ["x", "x", "x"]));
-    await completeHomework(UID, "hw1", 1_000);
-    await createHomework(UID, homework("hw2", words, ["a.m.", "x", "x"]));
-    await completeHomework(UID, "hw2", 2_000);
-    expect(stateOf().words).toEqual({
-      "a.m.": { missCount: 1, lastMissedAt: 1_000, learnedAt: 2_000 },
-      "don't": { missCount: 2, lastMissedAt: 2_000 },
-      "look forward to": { missCount: 2, lastMissedAt: 2_000 },
-    });
-  });
-
-  it("merges estimates under such keys without turning dots into paths", async () => {
-    await saveCefrEstimates(UID, { "a.m.": "A1" });
-    await saveCefrEstimates(UID, { "don't": "A2" });
-    expect(stateOf().cefrEstimates).toEqual({ "a.m.": "A1", "don't": "A2" });
-  });
-
-  it("does not mistake object prototype names for existing entries", async () => {
-    const ctor = word("constructor");
-    await createHomework(UID, homework("hw1", [ctor], ["wrong"]));
-    await completeHomework(UID, "hw1", 9_000);
-    expect(Object.entries(stateOf().words)).toEqual([["constructor", { missCount: 1, lastMissedAt: 9_000 }]]);
+    expect(await listCompletedHomeworks("u")).toEqual([]);
   });
 });

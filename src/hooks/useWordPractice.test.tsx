@@ -3,24 +3,29 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type {
   Homework,
-  HomeworkOptions,
-  HomeworkWordProgress,
+  HomeworkProgress,
+  PracticeSettings,
+  WordPracticeState,
 } from "../types/wordPractice";
 
 const mocks = vi.hoisted(() => ({
   useAuth: vi.fn(),
+  loadPracticeState: vi.fn(),
+  saveSettings: vi.fn(),
   getActiveHomework: vi.fn(),
   listCompletedHomeworks: vi.fn(),
   saveHomeworkProgress: vi.fn(),
   abandonHomework: vi.fn(),
   completeHomework: vi.fn(),
   generateHomework: vi.fn(),
-  fillMissingSentences: vi.fn(),
+  updateReviewStats: vi.fn(),
   loggerError: vi.fn(),
 }));
 
 vi.mock("./useAuth", () => ({ useAuth: mocks.useAuth }));
 vi.mock("../services/wordPracticeStorage", () => ({
+  loadPracticeState: mocks.loadPracticeState,
+  saveSettings: mocks.saveSettings,
   getActiveHomework: mocks.getActiveHomework,
   listCompletedHomeworks: mocks.listCompletedHomeworks,
   saveHomeworkProgress: mocks.saveHomeworkProgress,
@@ -29,7 +34,9 @@ vi.mock("../services/wordPracticeStorage", () => ({
 }));
 vi.mock("../services/wordPracticeService", () => ({
   generateHomework: mocks.generateHomework,
-  fillMissingSentences: mocks.fillMissingSentences,
+}));
+vi.mock("../services/vocabularyService", () => ({
+  updateReviewStats: mocks.updateReviewStats,
 }));
 vi.mock("../utils/logger", () => ({
   logger: {
@@ -42,54 +49,89 @@ vi.mock("../utils/logger", () => ({
 
 import { useWordPractice, type UseWordPractice } from "./useWordPractice";
 
-const OPTIONS: HomeworkOptions = { wordCount: 2, startLevel: "A1" };
+const SETTINGS: PracticeSettings = { newWordCount: 2, reviewLimit: 10, startLevel: "A1" };
 
-function blankProgress(count: number): HomeworkWordProgress[] {
-  return Array.from({ length: count }, () => ({
-    learned: false,
-    spellCorrect: 0,
-    fill: { attempts: 0, correct: false, done: false },
-    define: { attempts: 0, correct: false, done: false },
-    sentence: null,
-    testAnswer: null,
-  }));
+type CompleteResult = {
+  homework: Homework;
+  reviewUpdates: { vocabularyId: string; remembered: boolean }[];
+};
+
+function practiceState(dueCount = 0, settings: PracticeSettings = SETTINGS): WordPracticeState {
+  const words: WordPracticeState["words"] = {};
+  for (let index = 0; index < dueCount; index += 1) {
+    words[`due-${index}`] = { stage: 1, dueAt: 1, missCount: 0 };
+  }
+  return {
+    schemaVersion: 2,
+    activeHomeworkId: null,
+    words,
+    cefrEstimates: {},
+    settings,
+  };
+}
+
+function blankProgress(count: number): HomeworkProgress {
+  return {
+    pages: Array.from({ length: count }, () => ({
+      section: "look" as const,
+      copies: 0,
+      phrase: null,
+      sentence: null,
+    })),
+    dictation: [],
+    corrections: {},
+  };
 }
 
 function homework(id: string, overrides: Partial<Homework> = {}): Homework {
-  const words = ["apple", "river"].map((word) => ({
+  const newWords = ["apple", "river"].map((word) => ({
     key: word,
     vocabularyId: `vocab-${word}`,
     word,
     definitions: [{ partOfSpeech: "noun", definition: `a ${word}` }],
     sentence: null,
-    cloze: null,
     cefr: null,
   }));
   return {
+    version: 2,
     id,
     status: "active",
     createdAt: 1_000,
-    options: OPTIONS,
-    words,
-    progress: blankProgress(words.length),
+    newWords,
+    reviewWords: [],
+    ...blankProgress(newWords.length),
     ...overrides,
   };
 }
 
-/** Progress where the first word has been learned, so it differs from `blankProgress`. */
-function progressWithLearned(count: number, learnedCount: number): HomeworkWordProgress[] {
-  return blankProgress(count).map((entry, index) => ({
-    ...entry,
-    learned: index < learnedCount,
-  }));
+/** Progress where the first pages have been copied, so it differs from `blankProgress`. */
+function progressWithCopies(count: number, copiedCount: number): HomeworkProgress {
+  const blank = blankProgress(count);
+  return {
+    ...blank,
+    pages: blank.pages.map((page, index) => ({
+      ...page,
+      copies: index < copiedCount ? 3 : 0,
+    })),
+  };
 }
 
 function completedHomework(id: string): Homework {
   return homework(id, {
     status: "completed",
     completedAt: 2_000,
-    result: { correctKeys: ["apple"], missedKeys: ["river"], correctCount: 1, total: 2 },
+    result: {
+      correctKeys: ["apple"],
+      wrongKeys: ["river"],
+      skippedKeys: [],
+      correctCount: 1,
+      total: 2,
+    },
   });
+}
+
+function completion(id: string, reviewUpdates: CompleteResult["reviewUpdates"] = []): CompleteResult {
+  return { homework: completedHomework(id), reviewUpdates };
 }
 
 function deferred<T>() {
@@ -100,12 +142,6 @@ function deferred<T>() {
     reject = promiseReject;
   });
   return { promise, resolve, reject };
-}
-
-function abortError(): Error {
-  const error = new Error("Aborted");
-  error.name = "AbortError";
-  return error;
 }
 
 let root: Root | null;
@@ -149,15 +185,15 @@ beforeEach(() => {
   currentHook = null;
 
   mocks.useAuth.mockReturnValue({ user: { uid: "user-1" } });
+  mocks.loadPracticeState.mockResolvedValue(practiceState());
+  mocks.saveSettings.mockResolvedValue(undefined);
+  mocks.updateReviewStats.mockResolvedValue(undefined);
   mocks.getActiveHomework.mockResolvedValue(homework("hw-1"));
   mocks.listCompletedHomeworks.mockResolvedValue([completedHomework("old-1")]);
   mocks.saveHomeworkProgress.mockResolvedValue(undefined);
   mocks.abandonHomework.mockResolvedValue(undefined);
   mocks.completeHomework.mockImplementation(async (_uid: string, id: string) =>
-    completedHomework(id),
-  );
-  mocks.fillMissingSentences.mockImplementation(
-    async (_uid: string, current: Homework) => current,
+    completion(id),
   );
 });
 
@@ -167,7 +203,7 @@ afterEach(() => {
 });
 
 describe("useWordPractice loading", () => {
-  it("reads the active homework and the history, then becomes ready", async () => {
+  it("reads state, the active homework and the history, then becomes ready", async () => {
     const reading = deferred<Homework | null>();
     mocks.getActiveHomework.mockReturnValueOnce(reading.promise);
     root = createRoot(host as HTMLDivElement);
@@ -183,12 +219,19 @@ describe("useWordPractice loading", () => {
     });
     await flushAsyncWork();
 
-    expect(mocks.getActiveHomework).toHaveBeenCalledWith("user-1");
+    expect(mocks.loadPracticeState).toHaveBeenCalledWith("user-1", expect.any(Number));
+    expect(mocks.getActiveHomework).toHaveBeenCalledWith(
+      "user-1",
+      expect.objectContaining({ settings: SETTINGS }),
+    );
+    // The state document is read once per load and handed on to getActiveHomework.
+    expect(mocks.loadPracticeState).toHaveBeenCalledTimes(1);
     expect(mocks.listCompletedHomeworks).toHaveBeenCalledWith("user-1");
     expect(hook().status).toBe("ready");
     expect(hook().error).toBeNull();
     expect(hook().active?.id).toBe("hw-1");
     expect(hook().history.map((item) => item.id)).toEqual(["old-1"]);
+    expect(hook().settings).toEqual(SETTINGS);
   });
 
   it("stays loading and calls nothing without a signed-in user", async () => {
@@ -197,6 +240,7 @@ describe("useWordPractice loading", () => {
     await renderProbe();
 
     expect(hook().status).toBe("loading");
+    expect(mocks.loadPracticeState).not.toHaveBeenCalled();
     expect(mocks.getActiveHomework).not.toHaveBeenCalled();
     expect(mocks.listCompletedHomeworks).not.toHaveBeenCalled();
   });
@@ -219,7 +263,7 @@ describe("useWordPractice loading", () => {
     expect(hook().active?.id).toBe("hw-1");
   });
 
-  it("reload re-reads both the active homework and the history", async () => {
+  it("reload re-reads the active homework and the history", async () => {
     await renderProbe();
     mocks.getActiveHomework.mockResolvedValueOnce(null);
     mocks.listCompletedHomeworks.mockResolvedValueOnce([
@@ -234,6 +278,22 @@ describe("useWordPractice loading", () => {
     expect(hook().active).toBeNull();
     expect(hook().history.map((item) => item.id)).toEqual(["old-2", "old-1"]);
   });
+
+  it("shows the due review count capped by the review limit", async () => {
+    mocks.loadPracticeState.mockResolvedValue(practiceState(12));
+
+    await renderProbe();
+
+    expect(hook().reviewDueCount).toBe(10);
+  });
+
+  it("shows the real due count when it is under the review limit", async () => {
+    mocks.loadPracticeState.mockResolvedValue(practiceState(3));
+
+    await renderProbe();
+
+    expect(hook().reviewDueCount).toBe(3);
+  });
 });
 
 describe("useWordPractice reload and account changes", () => {
@@ -241,7 +301,7 @@ describe("useWordPractice reload and account changes", () => {
     await renderProbe();
     const save = deferred<void>();
     mocks.saveHomeworkProgress.mockReturnValueOnce(save.promise);
-    act(() => hook().updateProgress(progressWithLearned(2, 1)));
+    act(() => hook().updateProgress(progressWithCopies(2, 1)));
     await flushAsyncWork();
     mocks.getActiveHomework.mockClear();
 
@@ -273,7 +333,7 @@ describe("useWordPractice reload and account changes", () => {
       root?.render(<Probe />);
     });
     await flushAsyncWork();
-    expect(mocks.getActiveHomework).toHaveBeenLastCalledWith("user-2");
+    expect(mocks.getActiveHomework).toHaveBeenLastCalledWith("user-2", expect.anything());
     expect(hook().active?.id).toBe("hw-user-2");
 
     await act(async () => {
@@ -290,11 +350,11 @@ describe("useWordPractice reload and account changes", () => {
 describe("useWordPractice progress saving", () => {
   it("updates the progress at once and saves it", async () => {
     await renderProbe();
-    const next = progressWithLearned(2, 1);
+    const next = progressWithCopies(2, 1);
 
     act(() => hook().updateProgress(next));
 
-    expect(hook().active?.progress).toBe(next);
+    expect(hook().active?.pages).toBe(next.pages);
     await flushAsyncWork();
     expect(mocks.saveHomeworkProgress).toHaveBeenCalledTimes(1);
     expect(mocks.saveHomeworkProgress).toHaveBeenCalledWith("user-1", "hw-1", next);
@@ -303,15 +363,15 @@ describe("useWordPractice progress saving", () => {
 
   it("reports a failed save, then resends the full latest progress and clears the error", async () => {
     await renderProbe();
-    const first = progressWithLearned(2, 1);
-    const second = progressWithLearned(2, 2);
+    const first = progressWithCopies(2, 1);
+    const second = progressWithCopies(2, 2);
     mocks.saveHomeworkProgress.mockRejectedValueOnce(new Error("offline"));
 
     act(() => hook().updateProgress(first));
     await flushAsyncWork();
 
     expect(hook().saveError).toMatch(/[一-鿿]/);
-    expect(hook().active?.progress).toBe(first);
+    expect(hook().active?.pages).toBe(first.pages);
 
     act(() => hook().updateProgress(second));
     await flushAsyncWork();
@@ -325,9 +385,9 @@ describe("useWordPractice progress saving", () => {
     await renderProbe();
     const firstSave = deferred<void>();
     mocks.saveHomeworkProgress.mockReturnValueOnce(firstSave.promise);
-    const first = progressWithLearned(2, 1);
-    const second = progressWithLearned(2, 2);
-    const third = blankProgress(2).map((entry) => ({ ...entry, spellCorrect: 3 }));
+    const first = progressWithCopies(2, 1);
+    const second = progressWithCopies(2, 2);
+    const third: HomeworkProgress = { ...blankProgress(2), corrections: { apple: 3 } };
 
     act(() => hook().updateProgress(first));
     await flushAsyncWork();
@@ -337,7 +397,7 @@ describe("useWordPractice progress saving", () => {
 
     expect(mocks.saveHomeworkProgress).toHaveBeenCalledTimes(1);
     expect(mocks.saveHomeworkProgress).toHaveBeenLastCalledWith("user-1", "hw-1", first);
-    expect(hook().active?.progress).toBe(third);
+    expect(hook().active?.corrections).toBe(third.corrections);
 
     await act(async () => {
       firstSave.resolve();
@@ -355,8 +415,8 @@ describe("useWordPractice saves across unmount", () => {
     await renderProbe();
     const firstSave = deferred<void>();
     mocks.saveHomeworkProgress.mockReturnValueOnce(firstSave.promise);
-    const first = progressWithLearned(2, 1);
-    const second = progressWithLearned(2, 2);
+    const first = progressWithCopies(2, 1);
+    const second = progressWithCopies(2, 2);
 
     act(() => hook().updateProgress(first));
     await flushAsyncWork();
@@ -377,8 +437,8 @@ describe("useWordPractice saves across unmount", () => {
     await renderProbe();
     const firstSave = deferred<void>();
     mocks.saveHomeworkProgress.mockReturnValueOnce(firstSave.promise);
-    const first = progressWithLearned(2, 1);
-    const second = progressWithLearned(2, 2);
+    const first = progressWithCopies(2, 1);
+    const second = progressWithCopies(2, 2);
 
     act(() => hook().updateProgress(first));
     await flushAsyncWork();
@@ -401,113 +461,14 @@ describe("useWordPractice saves across unmount", () => {
   });
 });
 
-describe("useWordPractice sentence retry", () => {
-  it("asks for missing sentences only once per homework", async () => {
-    await renderProbe();
-
-    await act(async () => {
-      await hook().ensureSentences();
-    });
-    await act(async () => {
-      await hook().ensureSentences();
-    });
-
-    expect(mocks.fillMissingSentences).toHaveBeenCalledTimes(1);
-    expect(mocks.fillMissingSentences).toHaveBeenCalledWith(
-      "user-1",
-      expect.objectContaining({ id: "hw-1" }),
-      expect.any(AbortSignal),
-    );
-  });
-
-  it("does not repeat a failed attempt and keeps the page error clear", async () => {
-    await renderProbe();
-    mocks.fillMissingSentences.mockRejectedValueOnce(new Error("quota used up"));
-
-    await act(async () => {
-      await hook().ensureSentences();
-    });
-    await act(async () => {
-      await hook().ensureSentences();
-    });
-
-    expect(mocks.fillMissingSentences).toHaveBeenCalledTimes(1);
-    expect(hook().error).toBeNull();
-    expect(mocks.loggerError).toHaveBeenCalled();
-    expect(hook().active?.id).toBe("hw-1");
-  });
-
-  it("replaces the active homework with the one that has sentences", async () => {
-    await renderProbe();
-    const withSentences = homework("hw-1");
-    withSentences.words = withSentences.words.map((word) => ({
-      ...word,
-      sentence: `I like the ${word.word}.`,
-    }));
-    mocks.fillMissingSentences.mockResolvedValueOnce(withSentences);
-
-    await act(async () => {
-      await hook().ensureSentences();
-    });
-
-    expect(hook().active).toBe(withSentences);
-  });
-
-  it("keeps answers entered while the sentences were being fetched", async () => {
-    await renderProbe();
-    const fetching = deferred<Homework>();
-    mocks.fillMissingSentences.mockReturnValueOnce(fetching.promise);
-    const answered = progressWithLearned(2, 1);
-
-    let ensured!: Promise<void>;
-    act(() => {
-      ensured = hook().ensureSentences();
-    });
-    act(() => hook().updateProgress(answered));
-
-    const withSentences = homework("hw-1");
-    withSentences.words = withSentences.words.map((word) => ({
-      ...word,
-      sentence: `I like the ${word.word}.`,
-    }));
-    await act(async () => {
-      fetching.resolve(withSentences);
-      await ensured;
-    });
-
-    expect(hook().active?.words).toBe(withSentences.words);
-    expect(hook().active?.progress).toBe(answered);
-  });
-
-  it("ignores sentences that arrive after the homework was abandoned", async () => {
-    await renderProbe();
-    const fetching = deferred<Homework>();
-    mocks.fillMissingSentences.mockReturnValueOnce(fetching.promise);
-
-    let ensured!: Promise<void>;
-    act(() => {
-      ensured = hook().ensureSentences();
-    });
-    await act(async () => {
-      await hook().abandon();
-    });
-    await act(async () => {
-      fetching.resolve(homework("hw-1"));
-      await ensured;
-    });
-
-    expect(hook().active).toBeNull();
-  });
-});
-
-describe("useWordPractice finishing the test", () => {
+describe("useWordPractice submitting", () => {
   it("completes the homework, clears active and puts it first in the history", async () => {
     await renderProbe();
     const finishedAt = vi.spyOn(Date, "now").mockReturnValue(5_000);
 
     let result: Homework | null = null;
     await act(async () => {
-      result = await hook().finishTest();
+      result = await hook().submit();
     });
     finishedAt.mockRestore();
 
@@ -518,16 +479,95 @@ describe("useWordPractice finishing the test", () => {
     expect(hook().error).toBeNull();
   });
 
+  it("updates review stats for each graded word after submitting, without failing on errors", async () => {
+    await renderProbe();
+    const completed = completedHomework("hw-1");
+    mocks.completeHomework.mockResolvedValue({
+      homework: completed,
+      reviewUpdates: [
+        { vocabularyId: "a", remembered: true },
+        { vocabularyId: "b", remembered: false },
+      ],
+    });
+    mocks.updateReviewStats.mockRejectedValueOnce(new Error("quota"));
+
+    await act(() => hook().submit());
+
+    expect(mocks.updateReviewStats.mock.calls).toEqual([
+      ["a", true],
+      ["b", false],
+    ]);
+    expect(hook().error).toBeNull();
+    expect(hook().history[0].id).toBe(completed.id);
+    expect(mocks.loggerError).toHaveBeenCalled();
+  });
+
+  it("starts every review stat update at once and waits for all of them", async () => {
+    await renderProbe();
+    const first = deferred<void>();
+    const second = deferred<void>();
+    mocks.completeHomework.mockResolvedValue({
+      homework: completedHomework("hw-1"),
+      reviewUpdates: [
+        { vocabularyId: "a", remembered: true },
+        { vocabularyId: "b", remembered: false },
+      ],
+    });
+    mocks.updateReviewStats.mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise);
+
+    let finished = false;
+    let submitting!: Promise<unknown>;
+    await act(async () => {
+      submitting = hook().submit().then(() => { finished = true; });
+      await flushAsyncWork();
+    });
+    expect(mocks.updateReviewStats).toHaveBeenCalledTimes(2);
+    expect(finished).toBe(false);
+
+    await act(async () => {
+      first.resolve();
+      second.resolve();
+      await submitting;
+    });
+    expect(finished).toBe(true);
+  });
+
+  it("recomputes the due count from the stored state after submitting", async () => {
+    mocks.loadPracticeState.mockResolvedValueOnce(practiceState(3));
+    await renderProbe();
+    expect(hook().reviewDueCount).toBe(3);
+    mocks.loadPracticeState.mockResolvedValueOnce(practiceState(5));
+
+    await act(() => hook().submit());
+
+    expect(hook().reviewDueCount).toBe(5);
+    expect(hook().error).toBeNull();
+  });
+
+  it("still succeeds when re-reading the state after submitting fails", async () => {
+    await renderProbe();
+    mocks.loadPracticeState.mockRejectedValueOnce(new Error("offline"));
+
+    let result: Homework | null = null;
+    await act(async () => {
+      result = await hook().submit();
+    });
+
+    expect(result).toMatchObject({ id: "hw-1" });
+    expect(hook().error).toBeNull();
+    expect(hook().active).toBeNull();
+  });
+
   it("waits for the in-flight progress save before completing", async () => {
     await renderProbe();
     const save = deferred<void>();
     mocks.saveHomeworkProgress.mockReturnValueOnce(save.promise);
-    const answered = progressWithLearned(2, 2);
+    const answered = progressWithCopies(2, 2);
 
     act(() => hook().updateProgress(answered));
     let finishing!: Promise<Homework | null>;
     act(() => {
-      finishing = hook().finishTest();
+      finishing = hook().submit();
     });
     await flushAsyncWork();
 
@@ -548,14 +588,14 @@ describe("useWordPractice finishing the test", () => {
 
   it("saves progress whose earlier save failed before completing", async () => {
     await renderProbe();
-    const answered = progressWithLearned(2, 2);
+    const answered = progressWithCopies(2, 2);
     mocks.saveHomeworkProgress.mockRejectedValueOnce(new Error("offline"));
     act(() => hook().updateProgress(answered));
     await flushAsyncWork();
     expect(hook().saveError).not.toBeNull();
 
     await act(async () => {
-      await hook().finishTest();
+      await hook().submit();
     });
 
     expect(mocks.saveHomeworkProgress).toHaveBeenCalledTimes(2);
@@ -567,13 +607,13 @@ describe("useWordPractice finishing the test", () => {
 
   it("does not complete when the last answers cannot be saved", async () => {
     await renderProbe();
-    const answered = progressWithLearned(2, 2);
+    const answered = progressWithCopies(2, 2);
     mocks.saveHomeworkProgress.mockRejectedValue(new Error("offline"));
     act(() => hook().updateProgress(answered));
 
     let result: Homework | null | undefined;
     await act(async () => {
-      result = await hook().finishTest();
+      result = await hook().submit();
     });
 
     expect(result).toBeNull();
@@ -584,18 +624,18 @@ describe("useWordPractice finishing the test", () => {
 
   it("shares one completion between concurrent calls", async () => {
     await renderProbe();
-    const completion = deferred<Homework>();
-    mocks.completeHomework.mockReturnValueOnce(completion.promise);
+    const pending = deferred<CompleteResult>();
+    mocks.completeHomework.mockReturnValueOnce(pending.promise);
 
     let first!: Promise<Homework | null>;
     let second!: Promise<Homework | null>;
     act(() => {
-      first = hook().finishTest();
-      second = hook().finishTest();
+      first = hook().submit();
+      second = hook().submit();
     });
     await flushAsyncWork();
     await act(async () => {
-      completion.resolve(completedHomework("hw-1"));
+      pending.resolve(completion("hw-1"));
       await Promise.all([first, second]);
     });
 
@@ -611,7 +651,7 @@ describe("useWordPractice finishing the test", () => {
 
     let result: Homework | null | undefined;
     await act(async () => {
-      result = await hook().finishTest();
+      result = await hook().submit();
     });
 
     expect(result).toBeNull();
@@ -620,7 +660,7 @@ describe("useWordPractice finishing the test", () => {
     expect(hook().history.map((item) => item.id)).toEqual(["old-1"]);
 
     await act(async () => {
-      result = await hook().finishTest();
+      result = await hook().submit();
     });
 
     expect(result).toMatchObject({ id: "hw-1" });
@@ -629,32 +669,32 @@ describe("useWordPractice finishing the test", () => {
     expect(mocks.completeHomework).toHaveBeenCalledTimes(2);
   });
 
-  it("saves nothing more for a homework that has been finished", async () => {
+  it("saves nothing more for a homework that has been submitted", async () => {
     await renderProbe();
 
     await act(async () => {
-      await hook().finishTest();
+      await hook().submit();
     });
-    act(() => hook().updateProgress(progressWithLearned(2, 1)));
+    act(() => hook().updateProgress(progressWithCopies(2, 1)));
     await flushAsyncWork();
 
     expect(mocks.saveHomeworkProgress).not.toHaveBeenCalled();
     expect(hook().active).toBeNull();
   });
 
-  it("ignores answers entered while the test is being completed", async () => {
+  it("ignores answers entered while the homework is being completed", async () => {
     await renderProbe();
-    const completion = deferred<Homework>();
-    mocks.completeHomework.mockReturnValueOnce(completion.promise);
+    const pending = deferred<CompleteResult>();
+    mocks.completeHomework.mockReturnValueOnce(pending.promise);
 
     let finishing!: Promise<Homework | null>;
     act(() => {
-      finishing = hook().finishTest();
+      finishing = hook().submit();
     });
     await flushAsyncWork();
-    act(() => hook().updateProgress(progressWithLearned(2, 1)));
+    act(() => hook().updateProgress(progressWithCopies(2, 1)));
     await act(async () => {
-      completion.resolve(completedHomework("hw-1"));
+      pending.resolve(completion("hw-1"));
       await finishing;
     });
     await flushAsyncWork();
@@ -664,10 +704,10 @@ describe("useWordPractice finishing the test", () => {
 });
 
 describe("useWordPractice overlapping operations", () => {
-  it("keeps a homework generated while the old one was being completed", async () => {
+  it("keeps a homework started while the old one was being completed", async () => {
     await renderProbe();
-    const completion = deferred<Homework>();
-    mocks.completeHomework.mockReturnValueOnce(completion.promise);
+    const pending = deferred<CompleteResult>();
+    mocks.completeHomework.mockReturnValueOnce(pending.promise);
     mocks.generateHomework.mockResolvedValueOnce({
       status: "created",
       homework: homework("hw-2"),
@@ -675,16 +715,16 @@ describe("useWordPractice overlapping operations", () => {
 
     let finishing!: Promise<Homework | null>;
     act(() => {
-      finishing = hook().finishTest();
+      finishing = hook().submit();
     });
     await flushAsyncWork();
     await act(async () => {
-      await hook().generate(OPTIONS);
+      await hook().start();
     });
     expect(hook().active?.id).toBe("hw-2");
 
     await act(async () => {
-      completion.resolve(completedHomework("hw-1"));
+      pending.resolve(completion("hw-1"));
       await finishing;
     });
 
@@ -692,7 +732,7 @@ describe("useWordPractice overlapping operations", () => {
     expect(hook().history.map((item) => item.id)).toEqual(["hw-1", "old-1"]);
   });
 
-  it("saves the finishing homework's last answers even if another homework became active meanwhile", async () => {
+  it("saves the submitting homework's last answers even if another homework became active meanwhile", async () => {
     await renderProbe();
     const firstSave = deferred<void>();
     mocks.saveHomeworkProgress.mockReturnValueOnce(firstSave.promise);
@@ -700,18 +740,18 @@ describe("useWordPractice overlapping operations", () => {
       status: "created",
       homework: homework("hw-2"),
     });
-    const first = progressWithLearned(2, 1);
-    const last = progressWithLearned(2, 2);
+    const first = progressWithCopies(2, 1);
+    const last = progressWithCopies(2, 2);
 
     act(() => hook().updateProgress(first));
     await flushAsyncWork();
     act(() => hook().updateProgress(last));
     let finishing!: Promise<Homework | null>;
     act(() => {
-      finishing = hook().finishTest();
+      finishing = hook().submit();
     });
     await act(async () => {
-      await hook().generate(OPTIONS);
+      await hook().start();
     });
     expect(hook().active?.id).toBe("hw-2");
 
@@ -750,7 +790,7 @@ describe("useWordPractice abandoning", () => {
     await act(async () => {
       await hook().abandon();
     });
-    act(() => hook().updateProgress(progressWithLearned(2, 1)));
+    act(() => hook().updateProgress(progressWithCopies(2, 1)));
     await flushAsyncWork();
 
     expect(mocks.saveHomeworkProgress).not.toHaveBeenCalled();
@@ -761,9 +801,9 @@ describe("useWordPractice abandoning", () => {
     const save = deferred<void>();
     mocks.saveHomeworkProgress.mockReturnValueOnce(save.promise);
 
-    act(() => hook().updateProgress(progressWithLearned(2, 1)));
+    act(() => hook().updateProgress(progressWithCopies(2, 1)));
     await flushAsyncWork();
-    act(() => hook().updateProgress(progressWithLearned(2, 2)));
+    act(() => hook().updateProgress(progressWithCopies(2, 2)));
     await act(async () => {
       await hook().abandon();
     });
@@ -786,13 +826,13 @@ describe("useWordPractice abandoning", () => {
     expect(hook().active?.id).toBe("hw-1");
     expect(hook().error).toMatch(/[一-鿿]/);
 
-    act(() => hook().updateProgress(progressWithLearned(2, 1)));
+    act(() => hook().updateProgress(progressWithCopies(2, 1)));
     await flushAsyncWork();
     expect(mocks.saveHomeworkProgress).toHaveBeenCalledTimes(1);
   });
 });
 
-describe("useWordPractice generate", () => {
+describe("useWordPractice start", () => {
   it("makes the new homework active and reports it as created", async () => {
     await renderProbe();
     mocks.generateHomework.mockResolvedValueOnce({
@@ -802,17 +842,13 @@ describe("useWordPractice generate", () => {
 
     let outcome: string | undefined;
     await act(async () => {
-      outcome = await hook().generate(OPTIONS);
+      outcome = await hook().start();
     });
 
     expect(outcome).toBe("created");
-    expect(mocks.generateHomework).toHaveBeenCalledWith(
-      "user-1",
-      OPTIONS,
-      expect.any(AbortSignal),
-    );
+    expect(mocks.generateHomework).toHaveBeenCalledWith("user-1");
     expect(hook().active?.id).toBe("hw-2");
-    expect(hook().generating).toBe(false);
+    expect(hook().starting).toBe(false);
   });
 
   it("saves progress to the new homework after it replaces the old one", async () => {
@@ -822,14 +858,77 @@ describe("useWordPractice generate", () => {
       homework: homework("hw-2"),
     });
     await act(async () => {
-      await hook().generate(OPTIONS);
+      await hook().start();
     });
-    const next = progressWithLearned(2, 1);
+    const next = progressWithCopies(2, 1);
 
     act(() => hook().updateProgress(next));
     await flushAsyncWork();
 
     expect(mocks.saveHomeworkProgress).toHaveBeenCalledWith("user-1", "hw-2", next);
+  });
+
+  it("stops saving progress for the old homework once start replaced it", async () => {
+    await renderProbe();
+    const save = deferred<void>();
+    mocks.saveHomeworkProgress.mockReturnValueOnce(save.promise);
+    mocks.generateHomework.mockResolvedValueOnce({
+      status: "created",
+      homework: homework("hw-2"),
+    });
+    act(() => hook().updateProgress(progressWithCopies(2, 1)));
+    await flushAsyncWork();
+    act(() => hook().updateProgress(progressWithCopies(2, 2)));
+    await act(async () => {
+      await hook().start();
+    });
+    await act(async () => {
+      save.resolve();
+    });
+    await flushAsyncWork();
+
+    expect(mocks.saveHomeworkProgress).toHaveBeenCalledTimes(1);
+  });
+
+  it("sends no save for the old homework while a new one is being generated", async () => {
+    await renderProbe();
+    const generation = deferred<{ status: "created"; homework: Homework }>();
+    mocks.generateHomework.mockReturnValueOnce(generation.promise);
+
+    let pending!: ReturnType<UseWordPractice["start"]>;
+    act(() => {
+      pending = hook().start();
+    });
+    act(() => hook().updateProgress(progressWithCopies(2, 1)));
+    await flushAsyncWork();
+    expect(mocks.saveHomeworkProgress).not.toHaveBeenCalled();
+
+    await act(async () => {
+      generation.resolve({ status: "created", homework: homework("hw-2") });
+      await pending;
+    });
+    await flushAsyncWork();
+
+    expect(mocks.saveHomeworkProgress).not.toHaveBeenCalled();
+    expect(hook().active?.id).toBe("hw-2");
+  });
+
+  it("keeps saving the old homework when starting fails or finds nothing", async () => {
+    await renderProbe();
+    mocks.generateHomework.mockRejectedValueOnce(new Error("offline"));
+    await act(async () => {
+      await hook().start();
+    });
+    mocks.generateHomework.mockResolvedValueOnce({ status: "empty" });
+    await act(async () => {
+      await hook().start();
+    });
+    const next = progressWithCopies(2, 1);
+
+    act(() => hook().updateProgress(next));
+    await flushAsyncWork();
+
+    expect(mocks.saveHomeworkProgress).toHaveBeenCalledWith("user-1", "hw-1", next);
   });
 
   it("leaves the active homework alone when there is nothing to practise", async () => {
@@ -838,44 +937,44 @@ describe("useWordPractice generate", () => {
 
     let outcome: string | undefined;
     await act(async () => {
-      outcome = await hook().generate(OPTIONS);
+      outcome = await hook().start();
     });
 
     expect(outcome).toBe("empty");
     expect(hook().active?.id).toBe("hw-1");
-    expect(hook().generating).toBe(false);
+    expect(hook().starting).toBe(false);
     expect(hook().error).toBeNull();
   });
 
-  it("reports failure with a Chinese error and clears generating", async () => {
+  it("reports failure with a Chinese error and clears starting", async () => {
     await renderProbe();
-    mocks.generateHomework.mockRejectedValueOnce(new Error("Gemini down"));
+    mocks.generateHomework.mockRejectedValueOnce(new Error("offline"));
 
     let outcome: string | undefined;
     await act(async () => {
-      outcome = await hook().generate(OPTIONS);
+      outcome = await hook().start();
     });
 
     expect(outcome).toBe("failed");
-    expect(hook().error).toMatch(/[一-鿿]/);
-    expect(hook().generating).toBe(false);
+    expect(hook().error).toBe("準備功課失敗，請稍後再試");
+    expect(hook().starting).toBe(false);
     expect(hook().active?.id).toBe("hw-1");
   });
 
-  it("refuses a second generate while one is running", async () => {
+  it("refuses a second start while one is running", async () => {
     await renderProbe();
     const generation = deferred<{ status: "created"; homework: Homework }>();
     mocks.generateHomework.mockReturnValueOnce(generation.promise);
 
-    let first!: ReturnType<UseWordPractice["generate"]>;
+    let first!: ReturnType<UseWordPractice["start"]>;
     act(() => {
-      first = hook().generate(OPTIONS);
+      first = hook().start();
     });
-    expect(hook().generating).toBe(true);
+    expect(hook().starting).toBe(true);
 
     let second: string | undefined;
     await act(async () => {
-      second = await hook().generate(OPTIONS);
+      second = await hook().start();
     });
 
     expect(second).toBe("failed");
@@ -887,44 +986,46 @@ describe("useWordPractice generate", () => {
     });
 
     expect(await first).toBe("created");
-    expect(hook().generating).toBe(false);
+    expect(hook().starting).toBe(false);
   });
 
-  it("treats an abort as cancellation without an error", async () => {
-    await renderProbe();
-    mocks.generateHomework.mockRejectedValueOnce(abortError());
-
-    let outcome: string | undefined;
-    await act(async () => {
-      outcome = await hook().generate(OPTIONS);
-    });
-
-    expect(outcome).toBe("failed");
-    expect(hook().error).toBeNull();
-    expect(hook().generating).toBe(false);
-    expect(mocks.loggerError).not.toHaveBeenCalled();
-  });
-
-  it("aborts a running generation when the page unmounts", async () => {
+  it("ignores a result that arrives after the page unmounted", async () => {
     await renderProbe();
     const generation = deferred<{ status: "created"; homework: Homework }>();
     mocks.generateHomework.mockReturnValueOnce(generation.promise);
 
-    let pending!: ReturnType<UseWordPractice["generate"]>;
+    let pending!: ReturnType<UseWordPractice["start"]>;
     act(() => {
-      pending = hook().generate(OPTIONS);
+      pending = hook().start();
     });
-    const signal = mocks.generateHomework.mock.calls[0][2] as AbortSignal;
-    expect(signal.aborted).toBe(false);
-
     act(() => root?.unmount());
     root = null;
 
-    expect(signal.aborted).toBe(true);
-    expect(signal.reason).toMatchObject({ name: "AbortError" });
-
-    generation.reject(abortError());
+    generation.resolve({ status: "created", homework: homework("hw-2") });
     expect(await pending).toBe("failed");
-    expect(mocks.loggerError).not.toHaveBeenCalled();
+  });
+});
+
+describe("useWordPractice settings", () => {
+  it("saves settings and uses them for the home card", async () => {
+    mocks.loadPracticeState.mockResolvedValue(practiceState(12));
+    await renderProbe();
+    const next: PracticeSettings = { newWordCount: 8, reviewLimit: 4, startLevel: "B1" };
+
+    await act(() => hook().saveSettings(next));
+
+    expect(mocks.saveSettings).toHaveBeenCalledWith("user-1", next);
+    expect(hook().settings).toEqual(next);
+    expect(hook().reviewDueCount).toBe(4);
+  });
+
+  it("keeps the old settings and reports an error when saving fails", async () => {
+    await renderProbe();
+    mocks.saveSettings.mockRejectedValueOnce(new Error("offline"));
+
+    await act(() => hook().saveSettings({ ...SETTINGS, newWordCount: 9 }));
+
+    expect(hook().settings).toEqual(SETTINGS);
+    expect(hook().error).toMatch(/[一-鿿]/);
   });
 });
