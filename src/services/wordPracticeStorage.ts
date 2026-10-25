@@ -33,6 +33,13 @@ import type {
   WordPracticeWordState,
 } from "../types/wordPractice";
 import { CEFR_LEVELS } from "../utils/cefr";
+import {
+  computeHomeworkReward,
+  nextHomeworkStreak,
+  todayLocal,
+  type HomeworkStreak,
+} from "./economyService";
+import { getOrCreateProgress, prepareCoinAward } from "./gameProgressService";
 import { db } from "../utils/firebaseUtil";
 import { currentPosition, gradeDictation, wordForKey } from "../utils/homeworkFlow";
 import {
@@ -111,14 +118,26 @@ function normalizeActiveId(raw: unknown): string | null {
 }
 
 /** Turns a stored v2 state document into a valid state; unusable parts get defaults. */
+const LOCAL_DAY = /^\d{4}-\d{2}-\d{2}$/;
+
+function normalizeHomeworkStreak(raw: unknown): HomeworkStreak | undefined {
+  if (!isRecord(raw) || typeof raw.lastDay !== "string" || !LOCAL_DAY.test(raw.lastDay)) return undefined;
+  const days = raw.days;
+  return typeof days === "number" && Number.isSafeInteger(days) && days >= 1
+    ? { lastDay: raw.lastDay, days }
+    : undefined;
+}
+
 function normalizeState(raw: unknown): WordPracticeState {
   const data = isRecord(raw) ? raw : {};
+  const homeworkStreak = normalizeHomeworkStreak(data.homeworkStreak);
   return {
     schemaVersion: 2,
     activeHomeworkId: normalizeActiveId(data.activeHomeworkId),
     words: normalizeWords(data.words),
     cefrEstimates: normalizeCefrEstimates(data.cefrEstimates),
     settings: normalizeSettings(data.settings),
+    ...(homeworkStreak && { homeworkStreak }),
   };
 }
 
@@ -322,11 +341,14 @@ export async function completeHomework(
   id: string,
   now: number,
 ): Promise<{ homework: Homework; reviewUpdates: ReviewUpdate[] }> {
+  // The coins go to the wallet the adventure and the gacha share; it is made on first use.
+  await getOrCreateProgress(uid);
   return runTransaction(db, async (tx) => {
     const [homeworkSnapshot, stateSnapshot] = await Promise.all([
       tx.get(homeworkRef(uid, id)),
       tx.get(stateRef(uid)),
     ]);
+    const awardCoins = await prepareCoinAward(tx, uid);
     const homework = toHomework(homeworkSnapshot);
     if (!homework || homework.version !== 2) throw new Error(`No v2 homework to complete: ${id}`);
     if (homework.status === "completed") return { homework, reviewUpdates: [] };
@@ -349,13 +371,24 @@ export async function completeHomework(
       if (word.vocabularyId) reviewUpdates.push({ vocabularyId: word.vocabularyId, remembered });
     }
 
-    const completed: Homework = { ...homework, status: "completed", completedAt: now, result };
-    tx.update(homeworkRef(uid, id), { status: "completed", completedAt: now, result });
+    const today = todayLocal(new Date(now));
+    const streak = nextHomeworkStreak(state.homeworkStreak, today);
+    const reward = computeHomeworkReward({
+      correctCount: result.correctCount,
+      total: result.total,
+      firstToday: streak.firstToday,
+      streakDays: streak.days,
+    });
+
+    const completed: Homework = { ...homework, status: "completed", completedAt: now, result, reward };
+    tx.update(homeworkRef(uid, id), { status: "completed", completedAt: now, result, reward });
     tx.set(stateRef(uid), {
       ...state,
       words,
       activeHomeworkId: state.activeHomeworkId === id ? null : state.activeHomeworkId,
+      homeworkStreak: { lastDay: today, days: streak.days },
     });
+    awardCoins(reward.coins);
     return { homework: completed, reviewUpdates };
   });
 }

@@ -1,3 +1,5 @@
+import type { HomeworkReward, HomeworkStreak } from "../services/economyService";
+
 export type CefrLevel = "A1" | "A2" | "B1" | "B2" | "C1" | "C2";
 export interface CefrInfo {
   level: CefrLevel;
@@ -32,6 +34,8 @@ export interface WordPracticeState {
   words: Record<string, WordPracticeWordState>; // key = practiceKey(word)
   cefrEstimates: Record<string, CefrLevel>; // key = practiceKey(word)
   settings: PracticeSettings;
+  /** The day of the last handed-in homework and the run of days in a row. */
+  homeworkStreak?: HomeworkStreak;
 }
 
 export interface Cloze {
@@ -120,6 +124,8 @@ export interface Homework extends HomeworkProgress {
   result?: DictationResult;
   /** Gemini's review of the sentences, added after the homework is handed in. */
   review?: HomeworkReview;
+  /** The coins paid when the homework was handed in. */
+  reward?: HomeworkReward;
 }
 
 /** Old completed homework, kept only to show its date and score in the history. */

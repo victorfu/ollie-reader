@@ -138,6 +138,7 @@ export default function WordPracticePage() {
           reviewDueCount={wordPractice.reviewDueCount}
           active={active}
           starting={starting || submitting}
+          homeworkStreak={wordPractice.homeworkStreak}
           onStart={() => void start()}
           onContinue={() => setInBook(true)}
         />

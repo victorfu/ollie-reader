@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import confetti from "canvas-confetti";
-import { PartyPopper } from "lucide-react";
+import { Coins, PartyPopper } from "lucide-react";
+import type { HomeworkReward, HomeworkRewardItem } from "../../services/economyService";
 import type { Homework, SentenceReview } from "../../types/wordPractice";
 import { gradeDictation, sentencesToReview } from "../../utils/homeworkFlow";
 
@@ -14,6 +15,40 @@ interface FinishedViewProps {
   reviewState?: "reviewing" | "failed";
   /** Asks Gemini to review the sentences (again). Without it no review button is shown. */
   onReview?: () => void;
+}
+
+function rewardLabel(item: HomeworkRewardItem): string {
+  switch (item.kind) {
+    case "handIn":
+      return "交作業";
+    case "dictation":
+      return `聽寫寫對 ${item.count ?? 0} 題`;
+    case "perfect":
+      return "聽寫全對";
+    case "firstToday":
+      return "今天第一份功課";
+    case "streak":
+      return `連續寫功課 ${item.count ?? 0} 天`;
+  }
+}
+
+function RewardBox({ reward }: { reward: HomeworkReward }) {
+  return (
+    <section className="mx-auto w-full max-w-sm space-y-3 rounded-xl border border-warning/30 bg-warning/10 px-4 py-3">
+      <p className="flex items-center justify-center gap-2 text-lg font-semibold">
+        <Coins className="size-5 text-warning" strokeWidth={1.75} aria-hidden="true" />
+        獲得 {reward.coins} 代幣！
+      </p>
+      <ul className="space-y-1 text-sm">
+        {reward.items.map((item) => (
+          <li key={item.kind} className="flex justify-between gap-3">
+            <span>{rewardLabel(item)}</span>
+            <span className="font-medium tabular-nums">+{item.coins}</span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
 }
 
 function ReviewNote({ review }: { review: SentenceReview }) {
@@ -66,6 +101,8 @@ export function FinishedView({
         <h2 className="text-2xl font-semibold">寫完了！</h2>
         <p className="text-lg">{score}</p>
       </div>
+
+      {homework.reward && <RewardBox reward={homework.reward} />}
 
       {homework.newWords.length > 0 && (
         <section className="space-y-3">

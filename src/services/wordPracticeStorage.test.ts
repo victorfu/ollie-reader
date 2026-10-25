@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { CefrLevel, DictationItem, Homework, HomeworkWord, LegacyHomework } from "../types/wordPractice";
+import { todayLocal } from "./economyService";
 
 type Data = Record<string, unknown>;
 interface Constraint {
@@ -16,6 +17,28 @@ interface Ref {
 
 const m = vi.hoisted(() => ({ docs: new Map<string, Record<string, unknown>>(), tail: Promise.resolve() as Promise<unknown>, autoId: 0 }));
 vi.mock("../utils/firebaseUtil", () => ({ db: {} }));
+// The coin wallet lives in the game progress document; read and update it
+// through the same in-memory store, inside the caller's transaction.
+vi.mock("./gameProgressService", async () => {
+  const firestore = await import("firebase/firestore");
+  return {
+    getOrCreateProgress: async (uid: string) => {
+      const path = `gameProgress/${uid}`;
+      if (!m.docs.has(path)) m.docs.set(path, { coins: 0 });
+    },
+    prepareCoinAward: async (
+      tx: { get: (r: unknown) => Promise<{ data: () => Record<string, unknown> | undefined }>; update: (r: unknown, d: Record<string, unknown>) => void },
+      uid: string,
+    ) => {
+      const ref = firestore.doc({} as never, "gameProgress", uid);
+      const current = ((await tx.get(ref)).data()?.coins as number | undefined) ?? 0;
+      return (amount: number) => {
+        tx.update(ref, { coins: current + amount });
+        return current + amount;
+      };
+    },
+  };
+});
 // In-memory Firestore. It mimics the behaviours the storage layer depends on:
 // writes are applied only when a transaction commits, reads after writes are
 // rejected, `undefined` field values are rejected, `update` reads dots in a key
@@ -407,6 +430,52 @@ describe("completeHomework", () => {
     expect(reviewUpdates).toEqual([{ vocabularyId: "v-apple", remembered: true }, { vocabularyId: "v-river", remembered: false }]);
   });
 
+  it("adds the homework coins to the wallet and records the reward on the homework", async () => {
+    seedRun(wrongRiver);
+    seed("gameProgress/u", { coins: 100, level: 3 });
+    const { homework } = await completeHomework("u", "h1", NOW);
+    expect(homework.reward).toEqual({
+      coins: 20 + 3 + 10,
+      items: [
+        { kind: "handIn", coins: 20 },
+        { kind: "dictation", coins: 3, count: 1 },
+        { kind: "firstToday", coins: 10 },
+      ],
+    });
+    expect(stored(hwPath("h1")).reward).toEqual(homework.reward);
+    expect(stored("gameProgress/u")).toEqual({ coins: 133, level: 3 });
+    expect(stored(STATE).homeworkStreak).toEqual({ lastDay: todayLocal(new Date(NOW)), days: 1 });
+  });
+
+  it("creates the wallet for a player who has never played the adventure", async () => {
+    seedRun(wrongRiver);
+    await completeHomework("u", "h1", NOW);
+    expect(stored("gameProgress/u").coins).toBe(33);
+  });
+
+  it("pays the coins only once when a homework is handed in twice", async () => {
+    seedRun(wrongRiver);
+    seed("gameProgress/u", { coins: 0 });
+    await completeHomework("u", "h1", NOW);
+    await completeHomework("u", "h1", NOW + 1000);
+    expect(stored("gameProgress/u").coins).toBe(33);
+  });
+
+  it("continues the streak from yesterday and gives a later homework today no daily bonus", async () => {
+    const today = todayLocal(new Date(NOW));
+    const yesterday = todayLocal(new Date(dayStart(-1)));
+    seedRun(wrongRiver, { homeworkStreak: { lastDay: yesterday, days: 2 } });
+    const first = await completeHomework("u", "h1", NOW);
+    expect(first.homework.reward?.items).toContainEqual({ kind: "streak", coins: 10, count: 3 });
+    expect(stored(STATE).homeworkStreak).toEqual({ lastDay: today, days: 3 });
+
+    seedHw(hw("h2", [cat], [answered("cat", "cat")]));
+    seed(STATE, { ...stored(STATE), activeHomeworkId: "h2" });
+    const second = await completeHomework("u", "h2", NOW + 60_000);
+    expect(second.homework.reward?.items.map((item) => item.kind)).toEqual(["handIn", "dictation", "perfect"]);
+    expect(stored(STATE).homeworkStreak).toEqual({ lastDay: today, days: 3 });
+  });
+
   it("orders review updates like the dictation and covers review words", async () => {
     const h = hw("h1", [apple], [answered("apple", "apple"), answered("river", "river", "review")], { reviewWords: [river] });
     seedRun(h, { words: { river: { stage: 2, dueAt: 1, missCount: 0 } } });
@@ -451,6 +520,7 @@ describe("completeHomework", () => {
   it("refuses to complete a homework that still has unanswered or uncorrected items", async () => {
     seedRun(hw("unfinished", [apple, river], [answered("apple", "apple"), unanswered("river")]));
     seedHw(hw("uncorrected", [river], [answered("river", "rivr")], { corrections: { river: 1 } }));
+    seed("gameProgress/u", { coins: 7 });
     const before = structuredClone([...m.docs.entries()]);
     await expect(completeHomework("u", "unfinished", NOW)).rejects.toThrow();
     await expect(completeHomework("u", "uncorrected", NOW)).rejects.toThrow();

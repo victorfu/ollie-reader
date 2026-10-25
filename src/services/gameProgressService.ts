@@ -7,6 +7,7 @@ import {
   deleteField,
   serverTimestamp,
   Timestamp,
+  type Transaction,
 } from "firebase/firestore";
 import { db } from "../utils/firebaseUtil";
 import type { PlayerProgress, Stage } from "../types/game";
@@ -993,19 +994,35 @@ export async function awardGameCoins(
   // 沒玩過單字大冒險的人還沒有進度文件，先建一份再加值。
   await getOrCreateProgress(uid);
 
-  const docRef = doc(db, GAME_PROGRESS_PATH, uid);
   return runTransaction(db, async (transaction) => {
-    const snapshot = await transaction.get(docRef);
-    const current = snapshot.exists()
-      ? parseStoredTokenBalance(snapshot.data().coins)
-      : 0;
+    const award = await prepareCoinAward(transaction, uid);
+    return award(amount);
+  });
+}
 
+/**
+ * 在呼叫端的 transaction 裡加扭蛋代幣（例如交單字練習功課時，和功課狀態一起寫入）。
+ *
+ * Firestore transaction 必須先讀後寫，所以這支先讀餘額、回傳一個之後才寫入的函式；
+ * 請在任何寫入之前呼叫。進度文件必須已經存在（先呼叫 `getOrCreateProgress`）。
+ */
+export async function prepareCoinAward(
+  transaction: Transaction,
+  uid: string,
+): Promise<(amount: number) => number> {
+  const docRef = doc(db, GAME_PROGRESS_PATH, uid);
+  const snapshot = await transaction.get(docRef);
+  const current = snapshot.exists() ? parseStoredTokenBalance(snapshot.data().coins) : 0;
+
+  return (amount: number) => {
+    if (!Number.isSafeInteger(amount) || amount < 0) {
+      throw new RangeError("Coin reward must be a non-negative safe integer.");
+    }
     if (current > Number.MAX_SAFE_INTEGER - amount) {
       throw new RangeError("Token balance exceeds the safe integer limit.");
     }
-
     const balance = current + amount;
     transaction.update(docRef, { coins: balance, updatedAt: serverTimestamp() });
     return balance;
-  });
+  };
 }
