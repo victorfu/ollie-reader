@@ -2,6 +2,23 @@ import { describe, expect, it, vi } from "vitest";
 import { createCompanionRuntime } from "./companionRuntime";
 
 describe("companionRuntime", () => {
+  it("resets progress on a mode change and cancels performances on reselection", () => {
+    const runtime = createCompanionRuntime(0);
+    runtime.setPetting(true);
+    runtime.dispatch({ type: "pat", now: 0 });
+    runtime.dispatch({ type: "pat", now: 500 });
+    expect(runtime.pet.strokeTime).toBe(500);
+
+    runtime.setPetting(false);
+    expect(runtime.pet.phase).toBe("idle");
+    expect(runtime.pet.strokeTime).toBe(0);
+    runtime.setPetting(true);
+    runtime.perform("wave", 600);
+    runtime.setPetting(true);
+    expect(runtime.performance).toBeNull();
+    runtime.dispatch({ type: "pat", now: 700 });
+    expect(runtime.pet.phase).toBe("petting");
+  });
   it("advances the pet state as events arrive", () => {
     const runtime = createCompanionRuntime(0);
 

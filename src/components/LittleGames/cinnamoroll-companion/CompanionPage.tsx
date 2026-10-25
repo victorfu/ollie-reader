@@ -4,6 +4,9 @@ import { ArrowLeft, Hand, Info, Rotate3d, RotateCcw } from "lucide-react";
 import { ErrorBoundary } from "../../common/ErrorBoundary";
 import { lazyWithReload } from "../../../utils/lazyWithReload";
 import { createCompanionRuntime } from "./logic/companionRuntime";
+import type { CompanionOutfit } from "../../../types/companion";
+import { previewAccessory } from "./logic/outfit";
+import { CompanionPanel } from "./CompanionPanel";
 
 // three.js only downloads once the device is known to support WebGL.
 const CompanionScene = lazyWithReload(() => import("./CompanionScene"));
@@ -68,6 +71,13 @@ export default function CompanionPage({ onExit }: { onExit: () => void }) {
   const [contextLost, setContextLost] = useState(false);
   const [sceneKey, setSceneKey] = useState(0);
   const [ready, setReady] = useState(false);
+  const [panel, setPanel] = useState<"actions" | "outfit" | null>(null);
+  const [outfit, setOutfit] = useState<CompanionOutfit>({});
+  const openPanel = (next: "actions" | "outfit") => {
+    runtime.setPetting(false);
+    setMode("turn");
+    setPanel(next);
+  };
   const reducedMotion = Boolean(useReducedMotion());
   const hidden = usePageHidden();
 
@@ -101,7 +111,7 @@ export default function CompanionPage({ onExit }: { onExit: () => void }) {
   return (
     <div className="relative h-dvh w-full select-none overflow-hidden bg-gradient-to-b from-sky-200 via-sky-100 to-amber-50">
       {webGL && !contextLost ? (
-        <div className="absolute inset-0">
+        <div className={panel ? "absolute inset-x-0 top-0 bottom-[45dvh]" : "absolute inset-0"}>
           <ErrorBoundary
             fallback={
               <Notice title="大耳狗暫時出不來" action={backButton}>
@@ -113,6 +123,7 @@ export default function CompanionPage({ onExit }: { onExit: () => void }) {
               <CompanionScene
                 key={sceneKey}
                 runtime={runtime}
+                outfit={outfit}
                 reducedMotion={reducedMotion}
                 paused={hidden}
                 onReady={() => setReady(true)}
@@ -208,9 +219,11 @@ export default function CompanionPage({ onExit }: { onExit: () => void }) {
             aria-live="polite"
             className="rounded-full bg-white/75 px-4 py-2 text-sm font-medium text-sky-900 shadow-sm backdrop-blur-md"
           >
-            {mode === "turn" ? "拖曳讓我轉一圈" : "在頭上來回滑，摸摸我的頭"}
+            {mode === "turn" ? "拖曳轉一圈，點耳朵、肚子或手一起玩" : "在頭或耳朵上來回滑，摸摸我"}
           </p>
           <div className="flex flex-wrap items-center justify-center gap-2">
+            <button type="button" className="btn min-h-11 pointer-events-auto rounded-full" onClick={() => openPanel("actions")}>動作</button>
+            <button type="button" className="btn min-h-11 pointer-events-auto rounded-full" onClick={() => openPanel("outfit")}>換裝</button>
             <div
               role="group"
               aria-label="互動方式"
@@ -246,6 +259,11 @@ export default function CompanionPage({ onExit }: { onExit: () => void }) {
           </div>
         </footer>
       ) : null}
+      {panel && webGL && !contextLost ? <CompanionPanel panel={panel} outfit={outfit}
+        onClose={() => setPanel(null)}
+        onAction={(action) => { runtime.perform(action, performance.now()); setPanel(null); }}
+        onPreview={(id) => setOutfit((current) => previewAccessory(current, id))}
+        onClear={() => setOutfit({})} /> : null}
     </div>
   );
 }

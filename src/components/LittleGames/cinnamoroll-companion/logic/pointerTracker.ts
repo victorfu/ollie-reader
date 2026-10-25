@@ -1,4 +1,5 @@
 import type { PetEvent } from "./petMachine";
+import type { CompanionAction } from "../../../../types/companion";
 
 export type PointerSample = {
   pointerId: number;
@@ -10,6 +11,8 @@ export type PointerSample = {
   now: number;
   /** Head radius on screen in px, so strokes are measured in head radii. */
   headRadiusPx: number;
+  part?: CompanionAction;
+  petting?: boolean;
 };
 
 /** Drag to turn the model, in client px. */
@@ -17,12 +20,12 @@ export type TurnEvent =
   | { type: "turn"; now: number; dx: number; dy: number }
   | { type: "turnEnd"; now: number };
 
-export type TrackerEvent = PetEvent | TurnEvent;
+export type TrackerEvent = PetEvent | TurnEvent | { type: "perform"; action: CompanionAction; now: number };
 
 export type PointerTracker = {
   down(sample: PointerSample): { capture: boolean; events: TrackerEvent[] };
   move(sample: PointerSample): TrackerEvent[];
-  end(pointerId: number, now: number): TrackerEvent[];
+  end(pointerId: number, now: number, cancelled?: boolean): TrackerEvent[];
   reset(now: number): TrackerEvent[];
 };
 
@@ -40,7 +43,11 @@ const TURN_SLOP_PX = 6;
  */
 export function createPointerTracker(): PointerTracker {
   let active: number | null = null;
-  let mode: "pet" | "turn" = "pet";
+  let mode: "pet" | "turn" | "ear" = "pet";
+  let part: CompanionAction | undefined;
+  let lastReaction = -Infinity;
+  let stroked = false;
+  let moved = false;
   let onHead = false;
   let turning = false;
   let startX = 0;
@@ -48,13 +55,15 @@ export function createPointerTracker(): PointerTracker {
   let lastX = 0;
   let lastY = 0;
 
-  const release = (now: number): TrackerEvent[] => {
+  const release = (now: number, cancelled = false): TrackerEvent[] => {
     const events: TrackerEvent[] = [];
     if (mode === "pet" && onHead) events.push({ type: "touchEnd", now });
     if (mode === "turn" && turning) events.push({ type: "turnEnd", now });
+    if (!cancelled && part && !turning && !stroked && !moved) events.push({ type: "perform", action: part, now });
     active = null;
     onHead = false;
     turning = false;
+    part = undefined;
     return events;
   };
 
@@ -93,6 +102,14 @@ export function createPointerTracker(): PointerTracker {
       active = sample.pointerId;
       startX = lastX = sample.x;
       startY = lastY = sample.y;
+      part = sample.part;
+      stroked = false;
+      moved = false;
+      lastReaction = -Infinity;
+      if (sample.petting && (part === "leftEar" || part === "rightEar")) {
+        mode = "ear";
+        return { capture: true, events: [] };
+      }
       if (!sample.onHead) {
         mode = "turn";
         turning = false;
@@ -105,15 +122,26 @@ export function createPointerTracker(): PointerTracker {
 
     move(sample) {
       if (sample.pointerId !== active) return [];
+      if (Math.hypot(sample.x - startX, sample.y - startY) >= TURN_SLOP_PX) moved = true;
+      if (mode === "ear") {
+        if (sample.part === part && Math.hypot(sample.x - lastX, sample.y - lastY) >= TURN_SLOP_PX && sample.now - lastReaction >= 500) {
+          lastX = sample.x;
+          lastY = sample.y;
+          lastReaction = sample.now;
+          stroked = true;
+          return [{ type: "perform", action: part!, now: sample.now }];
+        }
+        return [];
+      }
       return mode === "turn" ? moveTurn(sample) : movePet(sample);
     },
 
-    end(pointerId, now) {
-      return pointerId === active ? release(now) : [];
+    end(pointerId, now, cancelled = false) {
+      return pointerId === active ? release(now, cancelled) : [];
     },
 
     reset(now) {
-      return active === null ? [] : release(now);
+      return active === null ? [] : release(now, true);
     },
   };
 }

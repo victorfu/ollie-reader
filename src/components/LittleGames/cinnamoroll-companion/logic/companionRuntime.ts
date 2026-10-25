@@ -5,6 +5,8 @@ import {
   type PetState,
 } from "./petMachine";
 import { createSpin, resetSpin, type Spin } from "./spin";
+import type { CompanionAction } from "../../../../types/companion";
+import { ACTION_MS, type PerformanceState } from "./actions";
 
 /**
  * Mutable state shared by the DOM overlay, pointer handlers and the render
@@ -20,6 +22,10 @@ export type CompanionRuntime = {
   spin: Spin;
   /** Petting mode: a drag that starts on the head pets instead of turning. */
   petting: boolean;
+  performance: PerformanceState;
+  /** Invalidates a captured gesture when an overlay changes interaction mode. */
+  gestureVersion: number;
+  perform(action: CompanionAction, now: number): void;
   dispatch(event: PetEvent): void;
   setPetting(on: boolean): void;
   /** Eases the model back to upright and facing front. */
@@ -37,13 +43,30 @@ export function createCompanionRuntime(
     contact: { x: 0, y: 1 },
     spin: createSpin(),
     petting: false,
+    performance: null,
+    gestureVersion: 0,
+    perform(action, now) {
+      runtime.gestureVersion += 1;
+      runtime.pet = { ...createPetState(now), hearts: runtime.pet.hearts };
+      runtime.performance = { action, since: now };
+    },
     setPetting(on) {
+      runtime.gestureVersion += 1;
+      runtime.performance = null;
+      // Repeated keyboard pats reselect this mode; keep their accumulated credit.
+      if (!on || runtime.petting !== on) {
+        runtime.pet = { ...createPetState(runtime.pet.since), hearts: runtime.pet.hearts };
+      }
       runtime.petting = on;
     },
     resetView() {
       runtime.spin = resetSpin(runtime.spin);
     },
     dispatch(event) {
+      if (event.type === "tick" && runtime.performance && event.now - runtime.performance.since >= ACTION_MS) {
+        runtime.performance = null;
+      }
+      if (event.type === "pat" || event.type === "touchStart") runtime.performance = null;
       runtime.pet = reducePet(runtime.pet, event);
       if (!touched && runtime.pet.phase !== "idle") {
         touched = true;

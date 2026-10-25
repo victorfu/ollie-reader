@@ -56,6 +56,28 @@ afterEach(() => {
 });
 
 describe("CompanionPage", () => {
+  it("previews six accessories, replaces headwear, removes items and performs actions", async () => {
+    setWebGL(true);
+    HTMLDialogElement.prototype.showModal = function () { this.open = true; };
+    HTMLDialogElement.prototype.close = function () { this.open = false; };
+    await renderPage();
+    act(() => button("換裝").click());
+    expect(container.textContent).toContain("不代表擁有");
+    act(() => button("藍蝴蝶結").click());
+    expect(sceneProps?.outfit).toEqual({ head: "bow" });
+    act(() => button("皇冠").click());
+    act(() => button("圍巾").click());
+    expect(sceneProps?.outfit).toEqual({ head: "crown", neck: "scarf" });
+    act(() => button("皇冠").click());
+    expect(sceneProps?.outfit).toEqual({ neck: "scarf" });
+    act(() => button("全部卸除").click());
+    expect(sceneProps?.outfit).toEqual({});
+    act(() => (container.querySelector('[aria-label="關閉"]') as HTMLButtonElement).click());
+    act(() => button("動作").click());
+    act(() => button("跳一跳").click());
+    expect(sceneProps?.runtime.performance?.action).toBe("jump");
+    expect(container.querySelector("dialog")).toBeNull();
+  });
   it("explains and offers a way back when the device has no WebGL", async () => {
     setWebGL(false);
     const onExit = await renderPage();
@@ -90,6 +112,20 @@ describe("CompanionPage", () => {
     await new Promise((resolve) => setTimeout(resolve, 5));
     act(() => button("摸摸頭").click());
     expect(sceneProps?.runtime.pet.patUntil ?? 0).toBeGreaterThan(patUntil);
+  });
+
+  it("accumulates a heart across repeated pet-button activations", async () => {
+    setWebGL(true);
+    let now = 0;
+    vi.spyOn(performance, "now").mockImplementation(() => now);
+    await renderPage();
+
+    for (now = 0; now <= 1500; now += 500) {
+      act(() => button("摸摸頭").click());
+    }
+
+    expect(sceneProps?.runtime.pet.strokeTime).toBe(1500);
+    expect(sceneProps?.runtime.pet.hearts).toBe(1);
   });
 
   it("goes back to turning from petting", async () => {

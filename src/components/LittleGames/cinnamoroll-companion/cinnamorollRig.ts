@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import type { ModelBounds, RigParts } from "./rig";
+import type { CompanionSlot } from "../../../types/companion";
 
 /**
  * Turns the bundled Cinnamoroll glTF (separate meshes, no skeleton) into the
@@ -24,6 +25,8 @@ export type BuiltRig = {
   parts: RigParts;
   /** Invisible target that follows the head; raycast for petting. */
   headHit: THREE.Mesh;
+  hits: { leftEar: THREE.Mesh; rightEar: THREE.Mesh; belly: THREE.Mesh; wave: THREE.Mesh };
+  anchors: Record<CompanionSlot, THREE.Group>;
   bounds: ModelBounds;
   /** Frees the geometry and materials the rig created or cloned. */
   dispose: () => void;
@@ -177,6 +180,10 @@ export function buildCinnamorollRig(scene: THREE.Object3D): BuiltRig {
   const bodyGroup = pivotAt(root, new THREE.Vector3());
   bodyGroup.attach(body.mesh);
   paws.forEach((paw) => bodyGroup.attach(paw.mesh));
+  // The highest lateral paw is the hand; the lower paws remain on the ground.
+  const handPart = found([...paws].sort((a, b) => b.center.y - a.center.y)[0], "hand");
+  const handPivot = pivotAt(bodyGroup, meanOfLowest(worldVertices(handPart.mesh), (p) => Math.abs(p.x)));
+  handPivot.attach(handPart.mesh);
   const tailVertices = worldVertices(tail.mesh);
   const tailRoot = meanOfLowest(tailVertices, (p) => Math.hypot(p.x, p.z));
   const tailPivot = pivotAt(bodyGroup, tailRoot);
@@ -271,6 +278,16 @@ export function buildCinnamorollRig(scene: THREE.Object3D): BuiltRig {
   hitAnchor.add(headHit);
   headHit.scale.set(headSize.x * 0.55, headSize.y * 0.6, headSize.z * 0.55);
 
+  // Actual meshes make narrow ears and hands independently hittable, without
+  // oversized invisible targets swallowing the face or belly.
+  const hits = { leftEar: leftEar.mesh, rightEar: rightEar.mesh, belly: body.mesh, wave: handPart.mesh };
+  const anchors = {
+    head: pivotAt(headPivot, new THREE.Vector3(0, head.box.max.y + 0.03, 0)),
+    face: pivotAt(headPivot, new THREE.Vector3(eyesCenter.x, eyesCenter.y, head.box.max.z + 0.08)),
+    neck: pivotAt(headPivot, new THREE.Vector3(0, head.box.min.y + 0.02, 0)),
+    hand: pivotAt(handPivot, handPart.center.clone().add(new THREE.Vector3(0, 0, 0.25))),
+  };
+
   root.updateMatrixWorld(true);
   const visible = new THREE.Box3();
   root.traverseVisible((object) => {
@@ -291,6 +308,8 @@ export function buildCinnamorollRig(scene: THREE.Object3D): BuiltRig {
     parts: {
       turntable: stage,
       body: bodyGroup,
+      character: root,
+      hand: handPivot,
       head: headPivot,
       ears: [earPivots[0], earPivots[1]],
       eyesOpen: [eyesOpen],
@@ -301,6 +320,8 @@ export function buildCinnamorollRig(scene: THREE.Object3D): BuiltRig {
       cheekMaterial,
     },
     headHit,
+    hits,
+    anchors,
     bounds: { width: size.x, height: size.y, centerY },
     dispose: () => {
       createdGeometries.forEach((g) => g.dispose());

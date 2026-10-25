@@ -61,6 +61,21 @@ beforeAll(async () => {
 });
 
 describe("buildCinnamorollRig", () => {
+  it("attaches accessories and hit targets to the moving parts", () => {
+    expect(built.anchors.head.parent).toBe(built.parts.head);
+    expect(built.anchors.face.parent).toBe(built.parts.head);
+    expect(built.anchors.neck.parent).toBe(built.parts.head);
+    expect(built.anchors.hand.parent).toBe(built.parts.hand);
+    expect(built.hits.wave.parent).toBe(built.parts.hand);
+    expect(built.hits.leftEar.parent).toBe(built.parts.ears[0]);
+    expect(built.hits.rightEar.parent).toBe(built.parts.ears[1]);
+    const before = worldPosition(built.anchors.hand);
+    built.parts.hand.rotation.z = 0.7;
+    built.root.updateMatrixWorld(true);
+    expect(worldPosition(built.anchors.hand).distanceTo(before)).toBeGreaterThan(0.01);
+    built.parts.hand.rotation.z = 0;
+    built.root.updateMatrixWorld(true);
+  });
   it("turns the model to face the camera with the ears spread sideways", () => {
     const [eyes] = meshesUsing(built.root, "eyescin");
     const head = worldPosition(built.parts.head!);

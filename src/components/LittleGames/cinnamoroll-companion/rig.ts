@@ -5,6 +5,8 @@ export type RigParts = {
   /** Spins the whole character when it is dragged around. */
   turntable: THREE.Object3D | null;
   body: THREE.Object3D | null;
+  character: THREE.Object3D;
+  hand: THREE.Object3D;
   /** Pivots at the neck. */
   head: THREE.Object3D | null;
   /** Pivot at each ear root: [left, right] as seen from the camera. */
