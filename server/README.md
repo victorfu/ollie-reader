@@ -15,7 +15,7 @@ The API listens at `http://localhost:3000`. For production locally, use `npm run
 
 After building, run `npm run test:runtime` to check the production booking route with Node's `require(esm)` support disabled. This starts a loopback server on port 3012 (`SMOKE_PORT` can override it), checks booking/version preflights and missing/invalid Firebase tokens, then stops the server. No OIKID request is made. `next.config.ts` bundles `firebase-admin`, `jwks-rsa` and `jose` together because jwks-rsa's CommonJS import of ESM-only jose otherwise fails in deployment runtimes that disable `require(esm)`.
 
-The server has its own dependencies and lockfile. The root Vite build, tests and lint remain independent. OIKID and Podcast transcription require Firebase ID tokens and server configuration. No desktop app is needed.
+The server has its own dependencies and lockfile. The root Vite build, tests and lint remain independent. OIKID requires Firebase ID tokens and server configuration. No desktop app is needed.
 
 ## General endpoints
 
@@ -124,7 +124,3 @@ Errors use `{ "detail": "..." }`: `400` invalid input, `404` requested GUID abse
 
 
 For a show URL without `i`, the same endpoint returns `{ kind: "show", podcastTitle, sourceUrl, episodes, unavailableCount }`. Show metadata must match the requested `adamId` exactly (related-show recommendations are ignored). The public RSS supplies the episode choices; no episode is selected automatically. Every choice includes its exact GUID and validated enclosure. Its `episodeId` is `null` because Apple numeric IDs cannot be inferred from RSS GUIDs. Items with missing/duplicate GUIDs or unsupported/unsafe enclosures are excluded and counted in `unavailableCount`. No subscription or background synchronization is added.
-
-## English Podcast transcription
-
-The existing Podcasts page uses the existing Firebase AI Logic configuration, App Check, Gemini queue and gemini-3.5-flash-lite. No separate Gemini API key or Firestore Admin credential is needed. See [setup, architecture and tests](PODCAST-TRANSCRIPTION.md).

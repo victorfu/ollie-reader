@@ -48,13 +48,13 @@ describe("GeminiRequestQueue", () => {
   it("keeps unrelated same-model work queued after a no-retry short 429", async () => {
     const storage = new MemoryStorage();
     const queue = new GeminiRequestQueue({ getMinimumStartIntervalMs: () => 0, baseBackoffMs: 10, storage });
-    const podcast = vi.fn().mockRejectedValue(quotaError("GenerateRequestsPerMinutePerProjectPerModel", "1s"));
+    const review = vi.fn().mockRejectedValue(quotaError("GenerateRequestsPerMinutePerProjectPerModel", "1s"));
     const translation = vi.fn().mockResolvedValue("translated");
-    const failed = expect(queue.run(podcast, { ...options, action: "podcast_transcript", retry: false })).rejects.toBeInstanceOf(GeminiRateLimitError);
+    const failed = expect(queue.run(review, { ...options, action: "sentence_review", retry: false })).rejects.toBeInstanceOf(GeminiRateLimitError);
     const queued = queue.run(translation, { ...options, action: "translation" });
     await vi.advanceTimersByTimeAsync(0);
     await failed;
-    expect(podcast).toHaveBeenCalledOnce();
+    expect(review).toHaveBeenCalledOnce();
     expect(translation).not.toHaveBeenCalled();
     // A second tab using persisted quota state must wait for the same short
     // cooldown, not fail behind a newly-created unknown breaker.
@@ -67,12 +67,12 @@ describe("GeminiRequestQueue", () => {
     await vi.advanceTimersByTimeAsync(1);
     await expect(queued).resolves.toBe("translated");
     await expect(fromOtherTab).resolves.toBe("definition");
-    expect(podcast).toHaveBeenCalledOnce();
+    expect(review).toHaveBeenCalledOnce();
   });
   it("does not retry expensive audio jobs but preserves quota handling", async () => {
     const queue = new GeminiRequestQueue({ getMinimumStartIntervalMs: () => 0, storage: null });
     const operation = vi.fn().mockRejectedValue(quotaError("GenerateRequestsPerMinutePerProjectPerModel-FreeTier", "1s"));
-    const result = queue.run(operation, { ...options, action: "podcast_transcript", retry: false });
+    const result = queue.run(operation, { ...options, action: "sentence_review", retry: false });
     const assertion = expect(result).rejects.toBeInstanceOf(GeminiRateLimitError);
     await vi.advanceTimersByTimeAsync(10_000);
     await assertion;

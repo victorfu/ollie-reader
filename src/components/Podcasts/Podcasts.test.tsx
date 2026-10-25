@@ -3,7 +3,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 const resolver = vi.hoisted(() => vi.fn());
 vi.mock("../../services/podcastService", () => ({ resolvePodcast: resolver }));
-vi.mock("./PodcastTranscriptionPlayer", () => ({ PodcastTranscriptionPlayer: () => <div>Audio controls</div> }));
+vi.mock("./PodcastPlayer", () => ({ PodcastPlayer: () => <div>Audio controls</div> }));
 import Podcasts from "./Podcasts";
 let host: HTMLDivElement, root: Root;
 beforeEach(() => {
