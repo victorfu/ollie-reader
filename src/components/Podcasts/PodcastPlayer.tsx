@@ -1,21 +1,35 @@
 import { useEffect, useRef, useState } from "react";
-import { Pause, Play, RotateCcw, RotateCw } from "lucide-react";
+import { Captions, Pause, Play, RotateCcw, RotateCw } from "lucide-react";
 import type { PodcastEpisode } from "../../types/podcast";
 
-import { formatPodcastTime } from "../../utils/podcastTime";
 import { usePodcastCaptions } from "../../hooks/usePodcastCaptions";
+import { heardTime, visibleCaptionWords } from "../../utils/podcastCaptions";
+import { formatPodcastTime } from "../../utils/podcastTime";
+import { PodcastTranscript } from "./PodcastTranscript";
 
 export function PodcastPlayer({ episode }: { episode: PodcastEpisode }) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [playing, setPlaying] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [time, setTime] = useState(0);
+  const [mediaTime, setMediaTime] = useState(0);
+  // When media ends, the delay line still plays its tail; this is when it began.
+  const [endedAt, setEndedAt] = useState<number | null>(null);
+  const [now, setNow] = useState(0);
   const [duration, setDuration] = useState(0);
   const [seekable, setSeekable] = useState(false);
   const [speed, setSpeed] = useState(1);
   const [error, setError] = useState("");
-  const captions = usePodcastCaptions(audioRef, episode.audioUrl);
-  const displayed = captions.words.filter((w) => w.end >= time - 8 && w.start <= time + 1);
+  const captions = usePodcastCaptions(audioRef, episode);
+  // With captions on, the speakers trail the decoded media; show what is heard.
+  const tail = endedAt === null ? 0 : Math.max(0, (now - endedAt) / 1000) * speed;
+  const time = Math.min(mediaTime, heardTime(mediaTime, captions.delay) + tail);
+  const draining = endedAt !== null && time < mediaTime;
+  useEffect(() => {
+    if (!draining) return;
+    const timer = window.setInterval(() => setNow(performance.now()), 250);
+    return () => window.clearInterval(timer);
+  }, [draining]);
+  const captionWords = visibleCaptionWords(captions.words, time);
   useEffect(() => {
     const audio = audioRef.current;
     if (audio) {
@@ -33,7 +47,8 @@ export function PodcastPlayer({ episode }: { episode: PodcastEpisode }) {
   const sync = () => {
     const audio = audioRef.current;
     if (!audio) return;
-    setTime(audio.currentTime);
+    setMediaTime(audio.currentTime);
+    if (!audio.ended) setEndedAt(null);
     setDuration(Number.isFinite(audio.duration) ? audio.duration : 0);
     setSeekable(audio.seekable.length > 0);
   };
@@ -44,7 +59,8 @@ export function PodcastPlayer({ episode }: { episode: PodcastEpisode }) {
     for (let i = 0; i < audio.seekable.length; i++) {
       if (target <= audio.seekable.end(i) || i === audio.seekable.length - 1) {
         audio.currentTime = Math.max(audio.seekable.start(i), Math.min(target, audio.seekable.end(i)));
-        setTime(audio.currentTime);
+        setMediaTime(audio.currentTime);
+        setEndedAt(null);
         break;
       }
     }
@@ -66,7 +82,7 @@ export function PodcastPlayer({ episode }: { episode: PodcastEpisode }) {
         onLoadedMetadata={() => { setLoading(false); sync(); }} onDurationChange={sync} onTimeUpdate={sync} onProgress={sync}
         onCanPlay={() => { setLoading(false); sync(); }} onWaiting={() => setLoading(true)}
         onPlaying={() => { setPlaying(true); setLoading(false); }} onPause={() => setPlaying(false)}
-        onEnded={() => { setPlaying(false); sync(); }}
+        onEnded={() => { const at = performance.now(); setPlaying(false); setEndedAt(at); setNow(at); sync(); }}
         onError={() => { setPlaying(false); setLoading(false); setError("音訊無法載入：來源可能已失效、網路中斷或格式不受支援。請重新載入單集。"); }} />
       <label className="block text-sm" htmlFor="podcast-progress">播放進度</label>
       <input id="podcast-progress" type="range" min={0} max={duration || 1} step={0.1} value={Math.min(time, duration || 1)} disabled={!seekable || !!error}
@@ -83,20 +99,28 @@ export function PodcastPlayer({ episode }: { episode: PodcastEpisode }) {
           }}>{[0.75, 1, 1.25, 1.5].map((value) => <option key={value} value={value}>{value}x</option>)}</select>
         </label>
       </div>
-      <section aria-label="英文即時字幕" className="space-y-3 rounded-xl border border-border-hairline bg-background/60 p-4">
-        <div className="flex items-center justify-between gap-3">
-          <h3 className="text-base font-medium">英文即時字幕</h3>
-          <button type="button" className="btn btn-ghost min-h-11" aria-label={captions.enabled ? "關閉即時字幕" : "開啟即時字幕"} onClick={() => captions.enabled ? captions.disable() : captions.enable()}>
-            {captions.enabled ? "關閉字幕" : "開啟字幕"}
-          </button>
-        </div>
-        {captions.state === "loading" && <p role="status" className="text-sm text-muted-foreground">正在載入本機語音模型…</p>}
-        {captions.state === "listening" && <p role="status" className="text-xs text-muted-foreground">Whistle · 瀏覽器本機辨識，不上傳音訊</p>}
-        {captions.state === "error" && <p role="alert" className="text-sm text-destructive">{captions.error}</p>}
-        {captions.state === "off" && <p className="text-sm text-muted-foreground">字幕為選用功能，第一次開啟需要下載語音模型。部分 Podcast 來源可能因跨網域限制無法辨識。</p>}
-        <p aria-live="polite" className="min-h-14 rounded-lg bg-base-200/50 p-3 text-center text-lg leading-relaxed">
-          {displayed.length ? displayed.map((word, index) => <span key={index} className={word.start <= time && word.end >= time ? "font-bold text-accent" : "text-foreground"}>{word.word}{" "}</span>) : captions.pending || (captions.enabled ? "正在聆聽…" : "開啟字幕後顯示英文")}
+      <section aria-label="英文即時字幕" className="space-y-3 rounded-[10px] border border-border-hairline bg-background/60 p-4">
+        <label className="flex min-h-11 cursor-pointer items-center justify-between gap-3">
+          <span className="flex items-center gap-2 text-base font-medium"><Captions size={20} aria-hidden="true" />英文即時字幕</span>
+          <input type="checkbox" role="switch" className="toggle toggle-accent shrink-0" checked={captions.enabled} aria-describedby="podcast-caption-status"
+            onChange={(event) => event.target.checked ? captions.enable() : captions.disable()} />
+        </label>
+        <p id="podcast-caption-status" role={captions.state === "error" ? "alert" : "status"} className={`text-sm ${captions.state === "error" ? "text-destructive" : "text-muted-foreground"}`}>
+          {captions.state === "off" && "在瀏覽器本機辨識英文，不上傳音訊。第一次開啟需下載約 17 MB 的語音模型。"}
+          {captions.state === "loading" && (captions.progress !== null && captions.progress < 100 ? `正在下載語音模型… ${Math.floor(captions.progress)}%` : "正在準備語音模型與音訊…")}
+          {captions.state === "listening" && (playing
+            ? `聲音延後約 ${captions.delay?.seconds ?? 0} 秒播放，讓字幕先辨識好、與聲音同步；開啟或跳轉後會先緩衝一下。`
+            : "按下播放後開始顯示字幕。")}
+          {captions.state === "error" && captions.error}
         </p>
+        {((captions.enabled && captions.state !== "error") || captions.words.length > 0) && (
+          <p lang="en" className="min-h-20 rounded-lg bg-base-200/50 p-3 text-lg leading-relaxed break-words">
+            {captionWords.map((word, index) => (
+              <span key={`${word.start}-${index}`} className={word.start <= time && time < word.end ? "rounded bg-accent/15 text-accent" : undefined}>{word.word} </span>
+            ))}
+          </p>
+        )}
+        <PodcastTranscript words={captions.words} time={time} onSeek={seek} />
       </section>
       {loading && <p role="status" className="text-sm text-muted-foreground">正在載入音訊…</p>}
       {!loading && !seekable && !error && <p className="text-sm text-muted-foreground">來源尚未提供可跳轉的音訊範圍。</p>}

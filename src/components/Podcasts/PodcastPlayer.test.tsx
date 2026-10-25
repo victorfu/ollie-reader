@@ -64,3 +64,13 @@ it("restores the source under StrictMode and releases media on unmount", () => {
   expect(audio.hasAttribute("src")).toBe(false);
   expect(pause).toHaveBeenCalled(); expect(load).toHaveBeenCalled();
 });
+it("keeps captions off by default and explains unsupported browsers without touching playback", () => {
+  act(() => root.render(<PodcastPlayer episode={episode} />));
+  const toggle = host.querySelector<HTMLInputElement>('input[role="switch"]')!;
+  expect(toggle.checked).toBe(false);
+  expect(host.querySelector('[lang="en"]')).toBeNull();
+  act(() => toggle.click());
+  expect(host.querySelector('[role="alert"]')?.textContent).toContain("不支援即時字幕");
+  expect(host.querySelector("audio")!.getAttribute("src")).toBe(episode.audioUrl);
+  expect(play).not.toHaveBeenCalled();
+});
