@@ -29,22 +29,19 @@ export type PointerTracker = {
   reset(now: number): TrackerEvent[];
 };
 
-/** Movement a press off the head needs before it starts turning. */
+/** Movement a tap needs before it becomes a turn. */
 const TURN_SLOP_PX = 6;
 
 /**
- * Turns raw pointer events into petting and turning. Where a press starts
- * decides what the whole drag does: on the head it pets, anywhere else it
- * turns the model, and crossing the head or sliding off it never switches.
- *
- * Follows one pointer at a time: a second finger is ignored until the first
- * one lifts, and a petting pointer that slides off the head stops counting
- * until it slides back on.
+ * Taps on the head pat; drags turn regardless of their starting target.
+ * Explicit petting samples also support head/ear strokes for legacy callers.
+ * Tracks one pointer at a time and never turns a drag back into a tap.
  */
 export function createPointerTracker(): PointerTracker {
   let active: number | null = null;
   let mode: "pet" | "turn" | "ear" = "pet";
   let part: CompanionAction | undefined;
+  let headTap = false;
   let lastReaction = -Infinity;
   let stroked = false;
   let moved = false;
@@ -60,6 +57,8 @@ export function createPointerTracker(): PointerTracker {
     if (mode === "pet" && onHead) events.push({ type: "touchEnd", now });
     if (mode === "turn" && turning) events.push({ type: "turnEnd", now });
     if (!cancelled && part && !turning && !stroked && !moved) events.push({ type: "perform", action: part, now });
+    if (!cancelled && headTap && !turning && !moved) events.push({ type: "pat", now });
+    headTap = false;
     active = null;
     onHead = false;
     turning = false;
@@ -103,6 +102,7 @@ export function createPointerTracker(): PointerTracker {
       startX = lastX = sample.x;
       startY = lastY = sample.y;
       part = sample.part;
+      headTap = sample.onHead && !sample.petting;
       stroked = false;
       moved = false;
       lastReaction = -Infinity;
@@ -110,7 +110,7 @@ export function createPointerTracker(): PointerTracker {
         mode = "ear";
         return { capture: true, events: [] };
       }
-      if (!sample.onHead) {
+      if (!sample.onHead || !sample.petting) {
         mode = "turn";
         turning = false;
         return { capture: true, events: [] };

@@ -10,7 +10,7 @@ function sample(
   onHead: boolean,
   now = 0,
 ) {
-  return { pointerId, x, y, onHead, now, headRadiusPx: HEAD_RADIUS_PX };
+  return { pointerId, x, y, onHead, now, headRadiusPx: HEAD_RADIUS_PX, petting: true };
 }
 
 describe("pointerTracker", () => {
@@ -175,5 +175,32 @@ describe("pointerTracker", () => {
     const tracker = createPointerTracker();
 
     expect(tracker.move(sample(1, 30, 0, true, 16))).toEqual([]);
+  });
+});
+
+
+describe("head taps without a petting mode", () => {
+  const head = (x = 0) => ({ ...sample(1, x, 0, true), petting: false });
+  it("waits for release before patting and supports repeated taps", () => {
+    const tracker = createPointerTracker();
+    for (const now of [100, 200]) {
+      expect(tracker.down(head()).events).toEqual([]);
+      expect(tracker.end(1, now)).toEqual([{ type: "pat", now }]);
+    }
+  });
+  it("rotates when dragging the head, even if the pointer returns to its start", () => {
+    const tracker = createPointerTracker();
+    tracker.down(head());
+    expect(tracker.move(head(20))).toEqual([{ type: "turn", now: 0, dx: 20, dy: 0 }]);
+    tracker.move(head());
+    expect(tracker.end(1, 100)).toEqual([{ type: "turnEnd", now: 100 }]);
+  });
+  it("does not pat on cancellation or a second finger release", () => {
+    const tracker = createPointerTracker();
+    tracker.down(head());
+    expect(tracker.end(2, 10)).toEqual([]);
+    expect(tracker.end(1, 20, true)).toEqual([]);
+    tracker.down(head());
+    expect(tracker.reset(30)).toEqual([]);
   });
 });

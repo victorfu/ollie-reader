@@ -124,3 +124,16 @@ Follow-up prompt: 請繼續實作（完成 `f0fee4a7e2016fb740ef2dfbe565ad9b6e2d
 ## Follow-up TODO
 
 - None.
+
+
+## Issue #32: tap to pat
+
+- Original prompt: https://github.com/victorfu/ollie-reader/issues/32 — make head pats a click action without a separate rotation mode.
+- VALID: current page selects mutually exclusive pet/turn modes. Original labels: none; added and verified `in progress`. No comments or open competing PRs.
+- Base: 1e5c4f8b995763794947f1356388d778cb7ef2e6 (origin/master). Branch: codex/issue-32-pat-action.
+- Worktree: C:/Users/Victor/.codex/worktrees/issue-32-pat-action/ollie-reader.
+- Six regression tests failed before implementation. Removed mode selector; button and head taps pat while drags continue rotating.
+- Validation: full suite 164 files, 2084 passed / 1 skipped; final affected suite 8 files / 90 passed. ESLint: 0 errors, 5 existing warnings outside companion. TypeScript and production build checked.
+- Playwright: desktop 1280x720 and mobile 375x667 verified repeated button/head taps, head dragging, reset, action interruption and keyboard Space activation; screenshots inspected. No page exceptions. Preview has unrelated version API CORS and external-resource console failures.
+- Review: inspected complete source/test diff and call sites, tap/drag threshold, cancellation, repeated taps, gesture invalidation, and existing body reactions. No unresolved issue-specific findings.
+- Remaining: commit/push and create PR; retain in progress pending merge.

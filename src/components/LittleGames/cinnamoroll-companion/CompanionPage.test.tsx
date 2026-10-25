@@ -89,23 +89,23 @@ describe("CompanionPage", () => {
     expect(onExit).toHaveBeenCalledTimes(1);
   });
 
-  it("turns by default, with petting off until asked for", async () => {
+  it("offers a pat action without a rotation mode switch", async () => {
     setWebGL(true);
     await renderPage();
 
-    expect(button("轉一轉").getAttribute("aria-pressed")).toBe("true");
-    expect(button("摸摸頭").getAttribute("aria-pressed")).toBe("false");
+    expect(container.textContent).not.toContain("轉一轉");
+    expect(button("摸摸頭").hasAttribute("aria-pressed")).toBe(false);
     expect(sceneProps?.runtime.petting).toBe(false);
     expect(container.textContent).toContain("拖曳");
   });
 
-  it("switches to petting with a pat, and pats again on each press", async () => {
+  it("pats on every press while leaving canvas drags available for turning", async () => {
     setWebGL(true);
     await renderPage();
 
     act(() => button("摸摸頭").click());
-    expect(button("摸摸頭").getAttribute("aria-pressed")).toBe("true");
-    expect(sceneProps?.runtime.petting).toBe(true);
+    expect(button("摸摸頭").hasAttribute("aria-pressed")).toBe(false);
+    expect(sceneProps?.runtime.petting).toBe(false);
     expect(sceneProps?.runtime.pet.phase).toBe("petting");
 
     const patUntil = sceneProps?.runtime.pet.patUntil ?? 0;
@@ -128,14 +128,17 @@ describe("CompanionPage", () => {
     expect(sceneProps?.runtime.pet.hearts).toBe(1);
   });
 
-  it("goes back to turning from petting", async () => {
+  it("interrupts another action with a pat without changing drag behavior", async () => {
     setWebGL(true);
     await renderPage();
     act(() => button("摸摸頭").click());
 
-    act(() => button("轉一轉").click());
+    act(() => sceneProps!.runtime.perform("jump", performance.now()));
+    act(() => button("摸摸頭").click());
+    expect(sceneProps?.runtime.performance).toBeNull();
+    expect(sceneProps?.runtime.pet.phase).toBe("petting");
 
-    expect(button("轉一轉").getAttribute("aria-pressed")).toBe("true");
+    expect(container.textContent).not.toContain("轉一轉");
     expect(sceneProps?.runtime.petting).toBe(false);
   });
 
