@@ -24,8 +24,8 @@ import {
 import type {
   CefrLevel,
   Homework,
+  HistoryHomework,
   HomeworkProgress,
-  HomeworkWord,
   PracticeSettings,
   ReviewStage,
   WordPracticeState,
@@ -33,7 +33,12 @@ import type {
 } from "../types/wordPractice";
 import { CEFR_LEVELS } from "../utils/cefr";
 import { db } from "../utils/firebaseUtil";
-import { DEFAULT_SETTINGS, migrateWordState } from "../utils/reviewSchedule";
+import { currentPosition, gradeDictation, wordForKey } from "../utils/homeworkFlow";
+import {
+  applyDictationOutcome,
+  DEFAULT_SETTINGS,
+  migrateWordState,
+} from "../utils/reviewSchedule";
 
 const DEFAULT_COMPLETED_LIMIT = 20;
 
@@ -213,11 +218,12 @@ export async function saveSettings(uid: string, settings: PracticeSettings): Pro
   });
 }
 
+/** The active homework, or null. A pointer to a legacy or finished homework counts as none. */
 export async function getActiveHomework(uid: string): Promise<Homework | null> {
   const { activeHomeworkId } = await loadPracticeState(uid);
   if (!activeHomeworkId) return null;
   const homework = toHomework(await getDoc(homeworkRef(uid, activeHomeworkId)));
-  return homework?.status === "active" ? homework : null;
+  return homework?.version === 2 && homework.status === "active" ? homework : null;
 }
 
 /**
@@ -241,20 +247,20 @@ export async function createHomework(uid: string, homework: Homework): Promise<v
   });
 }
 
+/** Replaces the three progress fields of a homework; fails when it does not exist. */
 export async function saveHomeworkProgress(
   uid: string,
   id: string,
-  progress: HomeworkProgress["pages"],
+  progress: HomeworkProgress,
 ): Promise<void> {
-  await updateDoc(homeworkRef(uid, id), { progress: withoutUndefined(progress) });
-}
-
-export async function saveHomeworkWords(
-  uid: string,
-  id: string,
-  words: HomeworkWord[],
-): Promise<void> {
-  await updateDoc(homeworkRef(uid, id), { words: withoutUndefined(words) });
+  await updateDoc(
+    homeworkRef(uid, id),
+    withoutUndefined({
+      pages: progress.pages,
+      dictation: progress.dictation,
+      corrections: progress.corrections,
+    }),
+  );
 }
 
 /**
@@ -278,27 +284,75 @@ export async function abandonHomework(uid: string, id: string): Promise<void> {
   });
 }
 
-/**
- * Grades the finished test and, in one transaction, completes the homework and
- * updates the practice state: correct words are learned at `now`, missed words
- * get one more miss. Completing an already completed homework changes nothing
- * and returns it as it is stored, so a retry never counts a miss twice.
- */
-export async function completeHomework(_uid: string, _id: string, _now: number): Promise<Homework> {
-  // Rewritten in Task 5 (dictation grading and review schedule).
-  throw new Error("completeHomework is rewritten in Task 5");
+export interface ReviewUpdate {
+  vocabularyId: string;
+  remembered: boolean;
 }
 
 /**
- * Completed homeworks, newest first. Only completed homeworks have a
- * `completedAt`, so ordering by it needs no filter and no composite index.
+ * Grades the finished dictation and, in one transaction, completes the homework
+ * and schedules every dictated word. Skipped items change nothing. Only a
+ * homework whose position is "submit" can be completed. Completing an already
+ * completed homework returns it as stored, with no review updates, so a retry
+ * never counts a word twice.
+ */
+export async function completeHomework(
+  uid: string,
+  id: string,
+  now: number,
+): Promise<{ homework: Homework; reviewUpdates: ReviewUpdate[] }> {
+  return runTransaction(db, async (tx) => {
+    const [homeworkSnapshot, stateSnapshot] = await Promise.all([
+      tx.get(homeworkRef(uid, id)),
+      tx.get(stateRef(uid)),
+    ]);
+    const homework = toHomework(homeworkSnapshot);
+    if (!homework || homework.version !== 2) throw new Error(`No v2 homework to complete: ${id}`);
+    if (homework.status === "completed") return { homework, reviewUpdates: [] };
+    if (homework.status !== "active") throw new Error(`Homework is not active: ${id}`);
+    if (currentPosition(homework).phase !== "submit") {
+      throw new Error(`Homework still has unfinished work: ${id}`);
+    }
+
+    const result = gradeDictation(homework);
+    const state = toV2State(stateSnapshot.data(), now);
+    const words = { ...state.words };
+    const reviewUpdates: ReviewUpdate[] = [];
+    for (const item of homework.dictation) {
+      if (item.skipped) continue;
+      const word = wordForKey(homework, item.key);
+      const remembered = result.correctKeys.includes(item.key);
+      const previous = Object.hasOwn(words, item.key) ? words[item.key] : undefined;
+      const next = applyDictationOutcome(previous, remembered ? "correct" : "wrong", now);
+      words[item.key] = remembered && word.sentence ? { ...next, sentence: word.sentence } : next;
+      if (word.vocabularyId) reviewUpdates.push({ vocabularyId: word.vocabularyId, remembered });
+    }
+
+    const completed: Homework = { ...homework, status: "completed", completedAt: now, result };
+    tx.update(homeworkRef(uid, id), { status: "completed", completedAt: now, result });
+    tx.set(stateRef(uid), {
+      ...state,
+      words,
+      activeHomeworkId: state.activeHomeworkId === id ? null : state.activeHomeworkId,
+    });
+    return { homework: completed, reviewUpdates };
+  });
+}
+
+/**
+ * Completed homeworks of either version, newest first. Only completed
+ * homeworks have a `completedAt`, so ordering by it needs no filter and no
+ * composite index.
  */
 export async function listCompletedHomeworks(
   uid: string,
   max: number = DEFAULT_COMPLETED_LIMIT,
-): Promise<Homework[]> {
+): Promise<HistoryHomework[]> {
   const snapshot = await getDocs(
     query(homeworksCollection(uid), orderBy("completedAt", "desc"), limit(max)),
   );
-  return snapshot.docs.flatMap((document) => toHomework(document) ?? []);
+  return snapshot.docs.flatMap((document) => {
+    const data = document.data();
+    return data ? [{ ...data, id: document.id } as HistoryHomework] : [];
+  });
 }
