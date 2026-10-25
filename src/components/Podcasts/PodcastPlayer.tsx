@@ -24,6 +24,8 @@ export function PodcastPlayer({ episode }: { episode: PodcastEpisode }) {
   const tail = endedAt === null ? 0 : Math.max(0, (now - endedAt) / 1000) * speed;
   const time = Math.min(mediaTime, heardTime(mediaTime, captions.delay) + tail);
   const draining = endedAt !== null && time < mediaTime;
+  // Right after enabling or seeking, the delay line is still filling.
+  const buffering = playing && !!captions.delay && mediaTime - captions.delay.seconds < captions.delay.anchor;
   useEffect(() => {
     if (!draining) return;
     const timer = window.setInterval(() => setNow(performance.now()), 250);
@@ -108,9 +110,8 @@ export function PodcastPlayer({ episode }: { episode: PodcastEpisode }) {
         <p id="podcast-caption-status" role={captions.state === "error" ? "alert" : "status"} className={`text-sm ${captions.state === "error" ? "text-destructive" : "text-muted-foreground"}`}>
           {captions.state === "off" && "在瀏覽器本機辨識英文，不上傳音訊。第一次開啟需下載約 17 MB 的語音模型。"}
           {captions.state === "loading" && (captions.progress !== null && captions.progress < 100 ? `正在下載語音模型… ${Math.floor(captions.progress)}%` : "正在準備語音模型與音訊…")}
-          {captions.state === "listening" && (playing
-            ? `聲音延後約 ${captions.delay?.seconds ?? 0} 秒播放，讓字幕先辨識好、與聲音同步；開啟或跳轉後會先緩衝一下。`
-            : "按下播放後開始顯示字幕。")}
+          {captions.state === "listening" && buffering && <span className="loading loading-spinner loading-sm" aria-label="字幕緩衝中" />}
+          {captions.state === "listening" && !playing && "按下播放後開始顯示字幕。"}
           {captions.state === "error" && captions.error}
         </p>
         {((captions.enabled && captions.state !== "error") || captions.words.length > 0) && (
