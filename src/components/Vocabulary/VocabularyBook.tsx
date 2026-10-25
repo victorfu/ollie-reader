@@ -121,7 +121,8 @@ export const VocabularyBook = () => {
     updateReview,
     loadWordsForReview,
     searchWords,
-    getTags,
+    availableTags,
+    loadAllTags,
     getWordCount,
   } = useVocabulary();
   const {
@@ -165,7 +166,6 @@ export const VocabularyBook = () => {
   const [isLoadingReview, setIsLoadingReview] = useState(false);
   const [showReviewSettings, setShowReviewSettings] = useState(false);
   const [totalWordCount, setTotalWordCount] = useState(0);
-  const [availableTags, setAvailableTags] = useState<string[]>([]);
 
   const smartQueryFieldId = "smart-query-input";
   const smartQueryInputRef = useRef<HTMLInputElement>(null);
@@ -173,11 +173,6 @@ export const VocabularyBook = () => {
   const loadMoreRef = useRef<HTMLDivElement>(null);
   const searchRequestIdRef = useRef(0);
   const queryAbortRef = useRef<AbortController | null>(null);
-
-  const refreshTags = useCallback(async () => {
-    const tags = await getTags();
-    setAvailableTags(tags);
-  }, [getTags]);
 
   // Load both streams when the component mounts (or the user changes)
   useEffect(() => {
@@ -187,10 +182,6 @@ export const VocabularyBook = () => {
   useEffect(() => {
     void loadSentences();
   }, [loadSentences]);
-
-  useEffect(() => {
-    void refreshTags();
-  }, [refreshTags]);
 
   // Abort an in-flight smart query when leaving the page
   useEffect(() => {
@@ -301,17 +292,6 @@ export const VocabularyBook = () => {
     void performSearch();
   }, [searchText, words, sentences, searchWords, searchSentences]);
 
-  const handleUpdateWord = useCallback(
-    async (wordId: string, updates: Partial<VocabularyWord>) => {
-      const result = await updateWord(wordId, updates);
-      if (result.success) {
-        void refreshTags();
-      }
-      return result;
-    },
-    [updateWord, refreshTags],
-  );
-
   const fetchTotalWordCount = useCallback(async () => {
     const count = await getWordCount();
     setTotalWordCount(count);
@@ -320,9 +300,9 @@ export const VocabularyBook = () => {
 
   // Handle opening review settings modal
   const handleOpenReviewSettings = useCallback(async () => {
-    await fetchTotalWordCount();
+    await Promise.all([fetchTotalWordCount(), loadAllTags()]);
     setShowReviewSettings(true);
-  }, [fetchTotalWordCount]);
+  }, [fetchTotalWordCount, loadAllTags]);
 
   // Handle starting review with settings
   const handleStartReview = useCallback(
@@ -392,7 +372,6 @@ export const VocabularyBook = () => {
             });
             setQuery("");
             await loadVocabulary(FEED_FILTERS);
-            void refreshTags();
           } else {
             setToastMessage({
               message: `「${res.existingWord.word}」已經在生詞本裡了`,
@@ -452,7 +431,6 @@ export const VocabularyBook = () => {
             });
             setQuery("");
             await loadVocabulary(FEED_FILTERS);
-            void refreshTags();
           }
         } else {
           setToastMessage({
@@ -519,7 +497,6 @@ export const VocabularyBook = () => {
           type: "success",
         });
         void loadVocabulary(FEED_FILTERS);
-        void refreshTags();
         return { success: true };
       }
       if (response.message === "Word already in vocabulary") {
@@ -535,7 +512,7 @@ export const VocabularyBook = () => {
       });
       return { success: false, message: response.message };
     },
-    [addWord, loadVocabulary, refreshTags],
+    [addWord, loadVocabulary],
   );
 
   const confirmDelete = async () => {
@@ -548,7 +525,6 @@ export const VocabularyBook = () => {
         if (!result.success) {
           throw new Error(result.message || "Failed to delete word");
         }
-        await refreshTags();
       } else {
         const result = await deleteSentence(pendingDelete.id);
         if (!result.success) {
@@ -874,9 +850,10 @@ export const VocabularyBook = () => {
             <WordDetailPanel
               key={selected.word.id}
               word={selected.word}
-              onUpdateWord={handleUpdateWord}
+              onUpdateWord={updateWord}
               onRegenerateWordDetails={regenerateWordDetails}
               availableTags={availableTags}
+              onTagEditorOpen={loadAllTags}
               cefr={levelOf(selected.word.word)}
             />
           ) : selected?.kind === "sentence" ? (
@@ -899,9 +876,10 @@ export const VocabularyBook = () => {
         <WordDetail
           word={selected.word}
           onClose={() => setSelected(null)}
-          onUpdateWord={handleUpdateWord}
+          onUpdateWord={updateWord}
           onRegenerateWordDetails={regenerateWordDetails}
           availableTags={availableTags}
+          onTagEditorOpen={loadAllTags}
           cefr={levelOf(selected.word.word)}
         />
       )}

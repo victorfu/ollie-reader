@@ -23,6 +23,8 @@ export interface WordDetailPanelProps {
     updatedWord?: Partial<VocabularyWord>;
   }>;
   availableTags?: string[];
+  /** Called when the tag editor opens, so suggestions can load lazily. */
+  onTagEditorOpen?: () => void;
   /** CEFR level of the word; no badge when null or omitted. */
   cefr?: CefrInfo | null;
   /** Optional trailing header control, kept in flow to avoid title overlap. */
@@ -34,6 +36,7 @@ export const WordDetailPanel = ({
   onUpdateWord,
   onRegenerateWordDetails,
   availableTags = [],
+  onTagEditorOpen,
   cefr,
   headerAction,
 }: WordDetailPanelProps) => {
@@ -281,7 +284,10 @@ export const WordDetailPanel = ({
             ))}
             <button
               type="button"
-              onClick={() => setIsEditing(true)}
+              onClick={() => {
+                setIsEditing(true);
+                onTagEditorOpen?.();
+              }}
               className="btn btn-ghost btn-xs"
             >
               編輯標籤

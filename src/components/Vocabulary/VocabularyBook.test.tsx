@@ -47,7 +47,8 @@ const mocks = vi.hoisted(() => {
       updateReview: resolved(undefined),
       loadWordsForReview: resolved([]),
       searchWords: resolved([]),
-      getTags: resolved([]),
+      availableTags: [] as string[],
+      loadAllTags: resolved(undefined),
       getWordCount: resolved(0),
     },
     sentences: {
@@ -146,6 +147,8 @@ beforeEach(() => {
   mocks.sentences.sentences = [SENTENCE];
   mocks.vocabulary.lookupOrAddWord.mockReset();
   mocks.vocabulary.searchWords.mockClear();
+  mocks.vocabulary.availableTags = [];
+  mocks.vocabulary.loadAllTags.mockClear();
   root = null;
   host = document.createElement("div");
   document.body.appendChild(host);
@@ -224,5 +227,73 @@ describe("VocabularyBook search-or-add field", () => {
     await typeInto(field, "");
 
     expect(container.textContent).toContain("banana");
+  });
+});
+
+function getButton(
+  container: HTMLElement,
+  matches: (text: string) => boolean,
+): HTMLButtonElement {
+  const button = Array.from(
+    container.querySelectorAll<HTMLButtonElement>("button"),
+  ).find((candidate) => matches(candidate.textContent ?? ""));
+  if (!button) throw new Error("button not found");
+  return button;
+}
+
+async function click(button: HTMLButtonElement) {
+  await act(async () => {
+    button.click();
+  });
+}
+
+async function openTagEditor(container: HTMLElement, word: string) {
+  await click(getButton(container, (text) => text.includes(`meaning of ${word}`)));
+  await click(getButton(container, (text) => text === "編輯標籤"));
+}
+
+describe("VocabularyBook tag suggestions", () => {
+  it("does not read every tag when the book opens or a word is added", async () => {
+    mocks.vocabulary.lookupOrAddWord.mockResolvedValue({
+      success: true,
+      existingWord: makeWord("w-3", "river"),
+      isNew: true,
+    });
+    const container = await renderBook();
+    const field = getField(container);
+
+    await typeInto(field, "river");
+    await act(async () => {
+      field.form?.requestSubmit();
+    });
+
+    expect(mocks.vocabulary.lookupOrAddWord).toHaveBeenCalledTimes(1);
+    expect(mocks.vocabulary.loadAllTags).not.toHaveBeenCalled();
+  });
+
+  it("loads every tag when the tag editor opens", async () => {
+    const container = await renderBook();
+
+    await openTagEditor(container, "apple");
+
+    expect(mocks.vocabulary.loadAllTags).toHaveBeenCalledTimes(1);
+  });
+
+  it("suggests the book's tags in the tag editor", async () => {
+    mocks.vocabulary.availableTags = ["fruit", "verbs"];
+    const container = await renderBook();
+
+    await openTagEditor(container, "apple");
+
+    expect(container.textContent).toContain("+ fruit");
+    expect(container.textContent).toContain("+ verbs");
+  });
+
+  it("loads every tag before opening the review settings", async () => {
+    const container = await renderBook();
+
+    await click(getButton(container, (text) => text === "複習"));
+
+    expect(mocks.vocabulary.loadAllTags).toHaveBeenCalledTimes(1);
   });
 });

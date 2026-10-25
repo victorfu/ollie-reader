@@ -6,6 +6,7 @@ import {
   query,
   where,
   getDocs,
+  getDocsFromServer,
   getDoc,
   Timestamp,
   orderBy,
@@ -16,6 +17,7 @@ import {
   increment,
   getCountFromServer,
   runTransaction,
+  writeBatch,
   type DocumentData,
   type QueryDocumentSnapshot,
 } from "firebase/firestore";
@@ -36,6 +38,21 @@ import {
 } from "../utils/firestoreIdentity";
 
 const COLLECTION_NAME = "vocabulary";
+// Firestore rejects a write batch with more operations than this.
+const MAX_BATCH_WRITES = 500;
+const NORMALIZED_ACCOUNT_STORAGE_PREFIX =
+  "ollie-reader:vocabulary-normalized-v1:";
+
+type StoredVocabularyWord = VocabularyWord & { id: string };
+
+interface LegacyScan {
+  documents: QueryDocumentSnapshot<DocumentData>[];
+  backfilled: boolean;
+}
+
+// Accounts known to be backfilled while the browser refuses storage.
+const normalizedAccountsWithoutStorage = new Set<string>();
+const legacyScans = new Map<string, Promise<LegacyScan>>();
 
 function isMissingDocumentError(error: unknown): boolean {
   return (
@@ -65,7 +82,7 @@ const removeUndefinedFields = <T extends Record<string, unknown>>(
 const convertToVocabularyWord = (
   id: string,
   data: DocumentData,
-): VocabularyWord => {
+): StoredVocabularyWord => {
   return {
     id,
     word: data.word,
@@ -89,10 +106,34 @@ const convertToVocabularyWord = (
   };
 };
 
+const normalizeStoredWord = (data: DocumentData): string =>
+  normalizeUniqueText(String(data.word ?? ""));
+
+function isAccountNormalized(userId: string): boolean {
+  if (normalizedAccountsWithoutStorage.has(userId)) return true;
+  try {
+    return (
+      window.localStorage.getItem(NORMALIZED_ACCOUNT_STORAGE_PREFIX + userId) ===
+      "1"
+    );
+  } catch {
+    return false;
+  }
+}
+
+function markAccountNormalized(userId: string): void {
+  try {
+    window.localStorage.setItem(NORMALIZED_ACCOUNT_STORAGE_PREFIX + userId, "1");
+  } catch {
+    // Storage is blocked or full: skip the scan for the rest of this page load.
+    normalizedAccountsWithoutStorage.add(userId);
+  }
+}
+
 async function reuseLegacyVocabularyDocument(
   document: QueryDocumentSnapshot<DocumentData>,
   normalizedWord: string,
-): Promise<VocabularyWord | null> {
+): Promise<StoredVocabularyWord | null> {
   try {
     await updateDoc(document.ref, { normalizedWord });
   } catch (error) {
@@ -105,24 +146,90 @@ async function reuseLegacyVocabularyDocument(
   return convertToVocabularyWord(document.id, document.data());
 }
 
+// Records from releases before normalizedWord have random ids and lack the
+// field. The first add in each browser reads the account once, straight from
+// the server so an offline cache cannot pass for the whole book, and writes
+// normalizedWord (and nothing else) on every record missing it. Once that
+// succeeds the account is remembered and later adds skip the scan.
+// Concurrent adds share one scan.
+function scanLegacyVocabulary(userId: string): Promise<LegacyScan> {
+  const pending = legacyScans.get(userId);
+  if (pending) return pending;
+
+  const scan = (async (): Promise<LegacyScan> => {
+    const snapshot = await getDocsFromServer(
+      query(
+        collection(db, COLLECTION_NAME),
+        where("userId", "==", userId),
+      ),
+    );
+    const backfills = snapshot.docs.flatMap((document) => {
+      const data = document.data();
+      const normalizedWord = normalizeStoredWord(data);
+      return normalizedWord && data.normalizedWord !== normalizedWord
+        ? [{ document, normalizedWord }]
+        : [];
+    });
+
+    try {
+      for (let start = 0; start < backfills.length; start += MAX_BATCH_WRITES) {
+        const batch = writeBatch(db);
+        for (const { document, normalizedWord } of backfills.slice(
+          start,
+          start + MAX_BATCH_WRITES,
+        )) {
+          batch.update(document.ref, { normalizedWord });
+        }
+        await batch.commit();
+      }
+    } catch (error) {
+      // Committed batches keep their field; the next add scans again.
+      console.warn("Vocabulary normalizedWord backfill failed:", error);
+      return { documents: snapshot.docs, backfilled: false };
+    }
+
+    markAccountNormalized(userId);
+    return { documents: snapshot.docs, backfilled: true };
+  })().finally(() => {
+    legacyScans.delete(userId);
+  });
+
+  legacyScans.set(userId, scan);
+  return scan;
+}
+
 async function findLegacyVocabularyWordForAdd(
   userId: string,
   normalizedWord: string,
-): Promise<QueryDocumentSnapshot<DocumentData> | null> {
+): Promise<StoredVocabularyWord | null> {
+  const scan = await scanLegacyVocabulary(userId);
+  const legacyDocument = scan.documents.find(
+    (document) => normalizeStoredWord(document.data()) === normalizedWord,
+  );
+  if (!legacyDocument) return null;
+  if (scan.backfilled) {
+    return convertToVocabularyWord(legacyDocument.id, legacyDocument.data());
+  }
+  return reuseLegacyVocabularyDocument(legacyDocument, normalizedWord);
+}
+
+// New records and backfilled legacy records carry normalizedWord, so one
+// bounded query finds an equivalent saved word.
+async function findNormalizedVocabularyWord(
+  userId: string,
+  normalizedWord: string,
+): Promise<StoredVocabularyWord | null> {
   const snapshot = await getDocs(
     query(
       collection(db, COLLECTION_NAME),
       where("userId", "==", userId),
+      where("normalizedWord", "==", normalizedWord),
+      limit(1),
     ),
   );
-
-  return (
-    snapshot.docs.find(
-      (document: QueryDocumentSnapshot<DocumentData>) =>
-        normalizeUniqueText(String(document.data().word ?? "")) ===
-        normalizedWord,
-    ) ?? null
-  );
+  if (snapshot.empty) return null;
+  const document = snapshot.docs[0];
+  return convertToVocabularyWord(document.id, document.data());
 }
 
 // Add a new word to vocabulary
@@ -130,10 +237,11 @@ export const addVocabularyWord = async (
   word: Omit<VocabularyWord, "id" | "createdAt" | "updatedAt" | "reviewCount">,
 ): Promise<{ id: string; created: boolean; word?: VocabularyWord }> => {
   const now = Timestamp.now();
+  const normalizedWord = normalizeUniqueText(word.word);
 
   const docData = removeUndefinedFields({
     ...word,
-    normalizedWord: normalizeUniqueText(word.word),
+    normalizedWord,
     createdAt: now,
     updatedAt: now,
     reviewCount: 0,
@@ -146,26 +254,13 @@ export const addVocabularyWord = async (
   );
   const docRef = doc(db, COLLECTION_NAME, documentId);
 
-  // Existing releases used random document ids and did not store a normalized
-  // value. Scan only on the actual add path, then reuse/backfill an equivalent
-  // legacy record instead of creating a second deterministic document.
-  const normalizedWord = normalizeUniqueText(word.word);
-  const legacyDocument = await findLegacyVocabularyWordForAdd(
-    word.userId,
-    normalizedWord,
-  );
-  if (legacyDocument) {
-    const legacyWord = await reuseLegacyVocabularyDocument(
-      legacyDocument,
-      normalizedWord,
-    );
-    if (legacyWord) {
-      return {
-        id: legacyDocument.id,
-        created: false,
-        word: legacyWord,
-      };
-    }
+  // Reuse an equivalent saved record, including a legacy auto-id one, instead
+  // of creating a second deterministic document.
+  const existingWord = isAccountNormalized(word.userId)
+    ? await findNormalizedVocabularyWord(word.userId, normalizedWord)
+    : await findLegacyVocabularyWordForAdd(word.userId, normalizedWord);
+  if (existingWord) {
+    return { id: existingWord.id, created: false, word: existingWord };
   }
 
   return runTransaction(db, async (transaction) => {
@@ -459,20 +554,14 @@ export const checkWordExists = async (
 
   // Migrated auto-id records are found by their normalized field without an
   // account-wide scan.
-  const normalizedQuery = query(
-    collection(db, COLLECTION_NAME),
-    where("userId", "==", userId),
-    where("normalizedWord", "==", normalizedWord),
-    limit(1),
+  const normalizedMatch = await findNormalizedVocabularyWord(
+    userId,
+    normalizedWord,
   );
-  const normalizedSnapshot = await getDocs(normalizedQuery);
-  if (!normalizedSnapshot.empty) {
-    const document = normalizedSnapshot.docs[0];
-    return convertToVocabularyWord(document.id, document.data());
-  }
+  if (normalizedMatch) return normalizedMatch;
 
-  // Preserve the cheap exact lookup for unmigrated legacy records. The full
-  // normalized legacy scan is intentionally reserved for addVocabularyWord.
+  // Preserve the cheap exact lookup for unmigrated legacy records. The
+  // one-time account scan is intentionally reserved for addVocabularyWord.
   const exactQuery = query(
     collection(db, COLLECTION_NAME),
     where("userId", "==", userId),
@@ -489,29 +578,24 @@ export const checkWordExists = async (
   return null;
 };
 
-// Get all unique tags for a user (optimized: only fetches tags field)
-export const getUserTags = async (userId: string): Promise<string[]> => {
-  try {
-    const q = query(
-      collection(db, COLLECTION_NAME),
-      where("userId", "==", userId),
-    );
+// Get the tags of every word, keyed by word id. This reads the whole book, so
+// load it once and only when the complete tag list is needed.
+export const getUserWordTags = async (
+  userId: string,
+): Promise<Map<string, string[]>> => {
+  const q = query(
+    collection(db, COLLECTION_NAME),
+    where("userId", "==", userId),
+  );
 
-    const querySnapshot = await getDocs(q);
-    const tagsSet = new Set<string>();
+  const querySnapshot = await getDocs(q);
 
-    querySnapshot.docs.forEach((doc) => {
+  return new Map(
+    querySnapshot.docs.map((doc): [string, string[]] => {
       const tags = doc.data().tags;
-      if (Array.isArray(tags)) {
-        tags.forEach((tag: string) => tagsSet.add(tag));
-      }
-    });
-
-    return Array.from(tagsSet).sort();
-  } catch (error) {
-    console.error("Error getting user tags:", error);
-    return [];
-  }
+      return [doc.id, Array.isArray(tags) ? tags : []];
+    }),
+  );
 };
 
 // Get total vocabulary count for a user
