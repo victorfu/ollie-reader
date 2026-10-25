@@ -196,12 +196,24 @@ describe("useTowerRoster pending gacha reveal", () => {
     let resolveStaleCloud:
       | ((value: ReturnType<typeof snapshot>) => void)
       | undefined;
-    firestoreMocks.getDocFromServer.mockReturnValueOnce(
-      new Promise<ReturnType<typeof snapshot>>((resolve) => {
+    let markStaleRequested!: () => void;
+    const staleRequested = new Promise<void>((resolve) => {
+      markStaleRequested = resolve;
+    });
+    firestoreMocks.getDocFromServer.mockImplementationOnce(() => {
+      markStaleRequested();
+      return new Promise<ReturnType<typeof snapshot>>((resolve) => {
         resolveStaleCloud = resolve;
-      }),
-    );
-    act(() => window.dispatchEvent(new Event("focus")));
+      });
+    });
+    // Park the focus refresh on its server read before the storage event
+    // starts another one. Vitest can bypass a vi.mock when the same mocked
+    // module is dynamically imported twice at once, loading the real Firebase
+    // SDK, which is slow enough to time this test out in a busy full run.
+    await act(async () => {
+      window.dispatchEvent(new Event("focus"));
+      await staleRequested;
+    });
 
     const acknowledgedDocument = { ...serverDocument };
     delete acknowledgedDocument.pendingReveal;
