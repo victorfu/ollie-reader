@@ -128,7 +128,7 @@ export function ShowSubtitlesPage() {
         <div className="surface-card p-4 sm:p-5 md:p-6">
           <h2 className="text-lg font-semibold mb-3">選擇季數</h2>
           <SeasonSelector
-            seasonCount={seasons.length}
+            seasonNumbers={seasons.map((s) => s.number)}
             selectedSeason={selectedSeason}
             onSelectSeason={selectSeason}
           />

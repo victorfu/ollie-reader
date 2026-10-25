@@ -1,17 +1,17 @@
 interface SeasonSelectorProps {
-  seasonCount: number;
+  seasonNumbers: number[];
   selectedSeason: number;
   onSelectSeason: (season: number) => void;
 }
 
 export function SeasonSelector({
-  seasonCount,
+  seasonNumbers,
   selectedSeason,
   onSelectSeason,
 }: SeasonSelectorProps) {
   return (
     <div className="flex flex-wrap gap-2">
-      {Array.from({ length: seasonCount }, (_, i) => i + 1).map((season) => (
+      {seasonNumbers.map((season) => (
         <button
           key={season}
           type="button"

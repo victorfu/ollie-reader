@@ -127,6 +127,25 @@ const SEASONS = [
       { number: 6, title: "Carlita's Ameowzing Race", slug: "episode-6-Carlitas_Ameowzing_Race" },
     ],
   },
+  {
+    number: 10,
+    episodes: [
+      { number: 1, title: "Gabby's Special Birthday Surprise", slug: "episode-1-Gabbys_Special_Birthday_Surprise" },
+      { number: 2, title: "Marty the Party Cat", slug: "episode-2-Marty_the_Party_Cat" },
+      { number: 3, title: "You Wish", slug: "episode-3-You_Wish" },
+      { number: 4, title: "CatRat's Birthday Surprise", slug: "episode-4-CatRats_Birthday_Surprise" },
+    ],
+  },
+  {
+    number: 12,
+    episodes: [
+      { number: 1, title: "The Wizard of Meow", slug: "episode-1-The_Wizard_of_Meow" },
+      { number: 2, title: "Cakey's Cabinet Cafe", slug: "episode-2-Cakeys_Cabinet_Cafe" },
+      { number: 3, title: "How to Train Your Kitty-Dragon", slug: "episode-3-How_to_Train_Your_Kitty-Dragon" },
+      { number: 4, title: "The Magic Bananas", slug: "episode-4-The_Magic_Bananas" },
+      { number: 5, title: "Good to be a Gabby Cat Game Show!", slug: "episode-5-Good_to_be_a_Gabby_Cat_Game_Show" },
+    ],
+  },
 ];
 
 export function parseTranscriptHtml(html) {
