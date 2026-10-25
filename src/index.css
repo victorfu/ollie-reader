@@ -3,7 +3,9 @@
    over our Liquid Glass `.glass` component below — over dark modal overlays it
    renders as a transparent dark slab in light theme. */
 @plugin "daisyui" {
-  exclude: glass;
+  /* rootscrollgutter: daisyUI only reserves the gutter while a modal is open;
+     :root below reserves it always. */
+  exclude: glass, rootscrollgutter;
 }
 
 /* Drive Tailwind's `dark:` variant from the `.dark` class (set by ThemeContext)
@@ -216,6 +218,10 @@
       "Segoe UI", system-ui, sans-serif;
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
+
+    /* Always reserve the scrollbar's width, so switching between pages that
+       scroll and pages that don't doesn't shift the layout sideways. */
+    scrollbar-gutter: stable;
 
     /* Reader layout — the reader fills exactly one viewport so the
        document never scrolls; the PDF scrolls inside its own box and the
