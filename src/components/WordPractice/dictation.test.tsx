@@ -167,13 +167,24 @@ describe("FinishedView", () => {
     },
   });
 
-  it("lists each word's phrase and sentence for the parent", () => {
+  it("lists each word's sentence for the parent, and the phrase of an old homework", () => {
     render(<FinishedView homework={finished} onBack={noop} />);
     expect(text()).toContain("寫完了！");
-    expect(text()).toContain("造詞和造句（給家長看）");
+    expect(text()).toContain("造句（給家長看）");
     expect(text()).toContain("a long river");
     expect(text()).toContain("The river is very long.");
     expect(text()).toContain("聽寫 1 / 2");
+  });
+
+  it("shows no phrase line for a homework written without the phrase step", () => {
+    const noPhrase = {
+      ...finished,
+      pages: finished.pages.map((page) => ({ ...page, phrase: null })),
+    };
+    render(<FinishedView homework={noPhrase} onBack={noop} />);
+    expect(text()).toContain("The river is very long.");
+    expect(text()).not.toContain("a long river");
+    expect(text()).not.toContain("造詞");
   });
 
   it("works with no new words and with every item skipped", () => {

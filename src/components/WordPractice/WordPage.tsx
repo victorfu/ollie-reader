@@ -1,8 +1,15 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useSpeechState } from "../../hooks/useSpeechState";
-import type { HomeworkWord, WordPageProgress } from "../../types/wordPractice";
+import type { Cloze, HomeworkWord, WordPageProgress } from "../../types/wordPractice";
 import { isAnswerCorrect } from "../../utils/answerMatch";
-import { checkPhrase, checkSentence, COPY_TARGET, nextSection } from "../../utils/homeworkFlow";
+import {
+  checkSentence,
+  clozeFor,
+  COPY_TARGET,
+  isClozeAnswer,
+  nextSection,
+  pageSection,
+} from "../../utils/homeworkFlow";
 import { redactWordForms } from "../../utils/wordForms";
 import { SpeakButton } from "../common/SpeakButton";
 import { AnswerInput } from "./AnswerInput";
@@ -17,14 +24,7 @@ interface WordPageProps {
   onChange: (next: WordPageProgress) => void;
 }
 
-const SECTION_RANK = { look: 0, copy: 1, recall: 2, phrase: 3, sentence: 4, done: 5 } as const;
-
-function phraseHint(result: ReturnType<typeof checkPhrase>, word: string): string {
-  if (result === "missingWord") return `要用到「${word}」喔`;
-  if (result === "tooShort") return "至少要 2 個英文字";
-  if (result === "tooLong") return "造詞最多 5 個英文字，長的可以留到造句";
-  return "";
-}
+const SECTION_RANK = { look: 0, copy: 1, recall: 2, cloze: 3, sentence: 4, done: 5 } as const;
 
 function sentenceHint(result: ReturnType<typeof checkSentence>, word: string): string {
   if (result === "missingWord") return `要用到「${word}」喔`;
@@ -139,6 +139,49 @@ function RecallSection({ word, onDone }: { word: HomeworkWord; onDone: () => voi
   );
 }
 
+function ClozeSection({ cloze, onDone }: { cloze: Cloze; onDone: () => void }) {
+  const [typed, setTyped] = useState("");
+  const [missed, setMissed] = useState<string | null>(null);
+  const [attempts, setAttempts] = useState(0);
+
+  const check = () => {
+    if (isClozeAnswer(typed, cloze)) {
+      onDone();
+      return;
+    }
+    setMissed(typed.trim());
+    setAttempts(attempts + 1);
+    setTyped("");
+  };
+
+  return (
+    <section className="space-y-4">
+      <Heading>例句填空：把空格裡的字打出來</Heading>
+      <p className="rounded-[10px] border border-border-hairline bg-background px-4 py-3 text-lg">
+        {cloze.text}
+      </p>
+      <AnswerInput
+        key={attempts}
+        value={typed}
+        onChange={setTyped}
+        onSubmit={check}
+        label="空格裡的字"
+      />
+      {missed !== null && (
+        <div
+          role="status"
+          className="space-y-2 rounded-[10px] border border-border-hairline bg-background px-4 py-3"
+        >
+          <p className="text-sm text-muted-foreground">
+            正確答案是 <strong className="text-foreground">{cloze.answer}</strong>，再打一次：
+          </p>
+          <SpellingDiff input={missed} expected={cloze.answer} />
+        </div>
+      )}
+    </section>
+  );
+}
+
 function WriteSection({
   title,
   label,
@@ -193,9 +236,13 @@ function WriteSection({
  * page while it is being recalled.
  */
 export function WordPage({ word, progress, index, total, onChange }: WordPageProps) {
-  const rank = SECTION_RANK[progress.section];
+  const cloze = clozeFor(word);
+  const stored = pageSection(progress);
+  // A word without a usable example has no cloze; a page saved there goes on to the sentence.
+  const section = stored === "cloze" && !cloze ? "sentence" : stored;
+  const rank = SECTION_RANK[section];
   const advance = (extra: Partial<WordPageProgress> = {}) =>
-    onChange({ ...progress, ...extra, section: nextSection(progress.section) });
+    onChange({ ...progress, ...extra, section: nextSection(section, cloze !== null) });
 
   return (
     <article className="space-y-5">
@@ -203,7 +250,7 @@ export function WordPage({ word, progress, index, total, onChange }: WordPagePro
         <p className="text-sm tabular-nums text-muted-foreground">
           第 {index + 1} / {total} 個字
         </p>
-        {progress.section === "recall" ? (
+        {section === "recall" ? (
           <h2 className="text-3xl font-semibold tracking-tight">?</h2>
         ) : (
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -223,18 +270,16 @@ export function WordPage({ word, progress, index, total, onChange }: WordPagePro
           <Summary>✓ 看字</Summary>
           {rank > SECTION_RANK.copy && <Summary>✓ 抄寫 {COPY_TARGET} 遍</Summary>}
           {rank > SECTION_RANK.recall && <Summary>✓ 默寫</Summary>}
-          {rank > SECTION_RANK.phrase && progress.phrase && (
-            <Summary>✓ 造詞：{progress.phrase}</Summary>
-          )}
+          {rank > SECTION_RANK.cloze && cloze && <Summary>✓ 例句填空</Summary>}
           {rank > SECTION_RANK.sentence && progress.sentence && (
             <Summary>✓ 造句：{progress.sentence}</Summary>
           )}
         </ul>
       )}
 
-      {progress.section === "look" && <LookSection word={word} onDone={() => advance()} />}
+      {section === "look" && <LookSection word={word} onDone={() => advance()} />}
 
-      {progress.section === "copy" && (
+      {section === "copy" && (
         <section className="space-y-3">
           <Heading>照著打 {COPY_TARGET} 遍</Heading>
           <CopyBoxes
@@ -250,22 +295,11 @@ export function WordPage({ word, progress, index, total, onChange }: WordPagePro
         </section>
       )}
 
-      {progress.section === "recall" && <RecallSection word={word} onDone={() => advance()} />}
+      {section === "recall" && <RecallSection word={word} onDone={() => advance()} />}
 
-      {progress.section === "phrase" && (
-        <WriteSection
-          title={
-            word.word === "curious"
-              ? "造詞：用 curious 寫一個短短的詞，例如 a curious cat"
-              : `造詞：用 ${word.word} 寫一個短短的詞（2–5 個英文字）`
-          }
-          label="你的詞"
-          check={(text) => phraseHint(checkPhrase(text, word.word), word.word)}
-          onAccept={(text) => advance({ phrase: text })}
-        />
-      )}
+      {section === "cloze" && cloze && <ClozeSection cloze={cloze} onDone={() => advance()} />}
 
-      {progress.section === "sentence" && (
+      {section === "sentence" && (
         <WriteSection
           title={`造句：用 ${word.word} 寫一個完整的句子`}
           label="你的句子"

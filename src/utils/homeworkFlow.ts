@@ -1,8 +1,10 @@
 /**
- * Flow rules for the English homework book: where the learner is, whether a
- * phrase or sentence is acceptable, and how the dictation scores.
+ * Flow rules for the English homework book: where the learner is, the cloze
+ * of a word's example, whether a sentence is acceptable, and how the
+ * dictation scores.
  */
 import type {
+  Cloze,
   DictationItem,
   DictationResult,
   Homework,
@@ -11,7 +13,7 @@ import type {
   WordPageProgress,
 } from "../types/wordPractice";
 import { isAnswerCorrect } from "./answerMatch";
-import { sentenceUsesWord } from "./wordForms";
+import { makeCloze, sentenceUsesWord } from "./wordForms";
 
 /** Times a learner copies a new word on its page. */
 export const COPY_TARGET = 3;
@@ -19,8 +21,6 @@ export const COPY_TARGET = 3;
 /** Times a learner copies a wrongly spelled dictation word. */
 export const CORRECTION_TARGET = 3;
 
-const PHRASE_MIN_WORDS = 2;
-const PHRASE_MAX_WORDS = 5;
 const SENTENCE_MIN_WORDS = 4;
 
 export type HomeworkPosition =
@@ -29,15 +29,36 @@ export type HomeworkPosition =
   | { phase: "correction"; key: string }
   | { phase: "submit" };
 
-const SECTION_ORDER: readonly PageSection[] = ["look", "copy", "recall", "phrase", "sentence", "done"];
+const SECTION_ORDER: readonly PageSection[] = ["look", "copy", "recall", "cloze", "sentence", "done"];
 
 export function emptyPage(): WordPageProgress {
-  return { section: "look", copies: 0, phrase: null, sentence: null };
+  return { section: "look", copies: 0, sentence: null };
 }
 
-export function nextSection(section: PageSection): PageSection {
+/**
+ * The section a stored page is at. Homework saved before the phrase step was
+ * replaced by the cloze can still say "phrase"; it continues at the cloze.
+ */
+export function pageSection(page: Pick<WordPageProgress, "section">): PageSection {
+  const section: string = page.section;
+  return section === "phrase" ? "cloze" : page.section;
+}
+
+/** The section after `section`; the cloze is skipped for a word that has none. */
+export function nextSection(section: PageSection, hasCloze = true): PageSection {
   const index = SECTION_ORDER.indexOf(section);
-  return SECTION_ORDER[Math.min(index + 1, SECTION_ORDER.length - 1)];
+  const next = SECTION_ORDER[Math.min(index + 1, SECTION_ORDER.length - 1)];
+  return next === "cloze" && !hasCloze ? nextSection(next) : next;
+}
+
+/** The word's example sentence with every form of the word blanked, or null when it has none. */
+export function clozeFor(word: Pick<HomeworkWord, "word" | "sentence">): Cloze | null {
+  return word.sentence ? makeCloze(word.sentence, word.word) : null;
+}
+
+/** Whether `typed` is one of the forms blanked in the cloze. */
+export function isClozeAnswer(typed: string, cloze: Cloze): boolean {
+  return (cloze.answers ?? [cloze.answer]).some((answer) => isAnswerCorrect(typed, answer));
 }
 
 export function wordForKey(
@@ -59,7 +80,7 @@ export function currentPosition(
 ): HomeworkPosition {
   const wordIndex = hw.pages.findIndex((p) => p.section !== "done");
   if (wordIndex !== -1) {
-    const section = hw.pages[wordIndex].section as Exclude<PageSection, "done">;
+    const section = pageSection(hw.pages[wordIndex]) as Exclude<PageSection, "done">;
     return { phase: "page", wordIndex, section };
   }
 
@@ -78,14 +99,6 @@ const ENGLISH_WORD = /[A-Za-z]+(?:['’][A-Za-z]+)*/g;
 
 export function countEnglishWords(text: string): number {
   return text.match(ENGLISH_WORD)?.length ?? 0;
-}
-
-export function checkPhrase(text: string, word: string): "ok" | "missingWord" | "tooShort" | "tooLong" {
-  if (!sentenceUsesWord(text, word)) return "missingWord";
-  const count = countEnglishWords(text);
-  if (count < PHRASE_MIN_WORDS) return "tooShort";
-  if (count > PHRASE_MAX_WORDS) return "tooLong";
-  return "ok";
 }
 
 export function checkSentence(text: string, word: string): "ok" | "missingWord" | "tooShort" {

@@ -12,7 +12,7 @@ interface FinishedViewProps {
   celebrate?: boolean;
 }
 
-/** The finished screen: the dictation score, and every new word's phrase and sentence for the parent. */
+/** The finished screen: the dictation score, and every new word's sentence for the parent. */
 export function FinishedView({ homework, onBack, onAgain, celebrate = false }: FinishedViewProps) {
   const result = homework.result ?? gradeDictation(homework);
   const firedRef = useRef(false);
@@ -43,14 +43,15 @@ export function FinishedView({ homework, onBack, onAgain, celebrate = false }: F
 
       {homework.newWords.length > 0 && (
         <section className="space-y-3">
-          <h3 className="text-base font-semibold">造詞和造句（給家長看）</h3>
+          <h3 className="text-base font-semibold">造句（給家長看）</h3>
           <ul className="space-y-2">
             {homework.newWords.map((word, i) => {
               const page = homework.pages[i];
               return (
                 <li key={word.key} className="rounded-[10px] border border-border-hairline px-4 py-3">
                   <p className="font-semibold">{word.word}</p>
-                  <p className="text-sm">{page?.phrase ?? "（沒有寫）"}</p>
+                  {/* Only homework written before the phrase step was dropped has one. */}
+                  {page?.phrase && <p className="text-sm">{page.phrase}</p>}
                   <p className="text-sm">{page?.sentence ?? "（沒有寫）"}</p>
                 </li>
               );
