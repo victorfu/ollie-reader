@@ -1,19 +1,20 @@
 import { describe, expect, it } from "vitest";
 import type { DictationItem, Homework, HomeworkWord, WordPageProgress } from "../types/wordPractice";
 import {
-  checkPhrase,
   checkSentence,
+  clozeFor,
   countEnglishWords,
   currentPosition,
   emptyPage,
   gradeDictation,
+  isClozeAnswer,
   nextSection,
   wordForKey,
 } from "./homeworkFlow";
 
 const SKIP = Symbol("skip");
 
-const done = (): WordPageProgress => ({ section: "done", copies: 3, phrase: "a b", sentence: "a b c d" });
+const done = (): WordPageProgress => ({ section: "done", copies: 3, sentence: "a b c d" });
 const unanswered = (key: string): DictationItem => ({ key, source: "new", answer: null, skipped: false });
 const answered = (key: string, answer = key): DictationItem => ({ key, source: "new", answer, skipped: false });
 const skipped = (key: string): DictationItem => ({ key, source: "new", answer: null, skipped: true });
@@ -80,17 +81,42 @@ describe("currentPosition", () => {
       currentPosition(withWords({ pages: [], dictation: [answered("run")], corrections: {} }, ["run"])),
     ).toEqual({ phase: "submit" });
   });
+  it("resumes a page saved at the old phrase step at the cloze step", () => {
+    const legacy = { ...emptyPage(), section: "phrase" } as unknown as WordPageProgress;
+    expect(currentPosition(noWords({ pages: [legacy], dictation: [], corrections: {} }))).toEqual({
+      phase: "page",
+      wordIndex: 0,
+      section: "cloze",
+    });
+  });
 });
 
 describe("page helpers", () => {
   it("creates an empty page and walks the sections in order", () => {
-    expect(emptyPage()).toEqual({ section: "look", copies: 0, phrase: null, sentence: null });
+    expect(emptyPage()).toEqual({ section: "look", copies: 0, sentence: null });
     expect(nextSection("look")).toBe("copy");
     expect(nextSection("copy")).toBe("recall");
-    expect(nextSection("recall")).toBe("phrase");
-    expect(nextSection("phrase")).toBe("sentence");
+    expect(nextSection("recall")).toBe("cloze");
+    expect(nextSection("cloze")).toBe("sentence");
     expect(nextSection("sentence")).toBe("done");
     expect(nextSection("done")).toBe("done");
+  });
+  it("skips the cloze step for a word without a usable example", () => {
+    expect(nextSection("recall", false)).toBe("sentence");
+  });
+  it("blanks the word in its example sentence, in the form it is written", () => {
+    expect(clozeFor({ word: "run", sentence: "Yesterday I ran to school." })).toEqual({
+      text: "Yesterday I _____ to school.",
+      answer: "ran",
+    });
+    expect(clozeFor({ word: "run", sentence: null })).toBeNull();
+    expect(clozeFor({ word: "run", sentence: "I like to swim." })).toBeNull();
+  });
+  it("accepts any blanked form, ignoring case and spaces", () => {
+    const cloze = { text: "Dogs love to _____, and my dog _____ fast.", answer: "run", answers: ["run", "runs"] };
+    expect(isClozeAnswer(" Run ", cloze)).toBe(true);
+    expect(isClozeAnswer("runs", cloze)).toBe(true);
+    expect(isClozeAnswer("ran", cloze)).toBe(false);
   });
   it("finds a word among new and review words", () => {
     const hw = { newWords: [word("run")], reviewWords: [word("jump")] };
@@ -100,13 +126,6 @@ describe("page helpers", () => {
 });
 
 describe("text checks", () => {
-  it("checks a phrase: the word, and 2 to 5 English words", () => {
-    expect(checkPhrase("a curious cat", "curious")).toBe("ok");
-    expect(checkPhrase("curious", "curious")).toBe("tooShort");
-    expect(checkPhrase("a very very very curious cat", "curious")).toBe("tooLong");
-    expect(checkPhrase("a funny cat", "curious")).toBe("missingWord");
-    expect(checkPhrase("looking forward to it", "look forward to")).toBe("ok");
-  });
   it("checks a sentence: the word, and at least 4 English words", () => {
     expect(checkSentence("The cat is curious.", "curious")).toBe("ok");
     expect(checkSentence("Curious cat.", "curious")).toBe("tooShort");

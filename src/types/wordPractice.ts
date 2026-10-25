@@ -63,14 +63,15 @@ export type PageSection =
   | "look"
   | "copy"
   | "recall"
-  | "phrase"
+  | "cloze"
   | "sentence"
   | "done";
 
 export interface WordPageProgress {
   section: PageSection;
   copies: number;
-  phrase: string | null;
+  /** Only in homework written before the phrase step was replaced by the cloze. */
+  phrase?: string | null;
   sentence: string | null;
 }
 

@@ -220,7 +220,7 @@ describe("wordPracticeService", () => {
       });
       expect(homework.newWords).toHaveLength(2);
       expect(homework.pages).toEqual(
-        homework.newWords.map(() => ({ section: "look", copies: 0, phrase: null, sentence: null })),
+        homework.newWords.map(() => ({ section: "look", copies: 0, sentence: null })),
       );
       expect(homework.dictation.map((i) => i.key).sort()).toEqual(["cat", "river"]);
       expect(homework.dictation.every((i) => i.source === "new" && i.answer === null && !i.skipped)).toBe(true);

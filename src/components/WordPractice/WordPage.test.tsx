@@ -38,12 +38,21 @@ const LOOK_FORWARD_TO: HomeworkWord = {
   cefr: { level: "A2", source: "list" },
 };
 
+const RAN: HomeworkWord = {
+  key: "run",
+  vocabularyId: "v-run",
+  word: "run",
+  definitions: [{ partOfSpeech: "verb", definition: "To move fast on your feet.", definitionChinese: "跑" }],
+  sentence: "Yesterday I ran to school.",
+  cefr: { level: "A1", source: "list" },
+};
+
 let host: HTMLDivElement;
 let root: Root;
 let spy: Mock<(next: WordPageProgress) => void>;
 
 function page(section: PageSection, extra: Partial<WordPageProgress> = {}): WordPageProgress {
-  return { section, copies: 0, phrase: null, sentence: null, ...extra };
+  return { section, copies: 0, sentence: null, ...extra };
 }
 
 function render(node: React.ReactElement) {
@@ -145,37 +154,40 @@ describe("WordPage", () => {
     expect(diffShown()).toBe(true);
     expect(input().value).toBe("");
     await type("river");
-    expect(spy).toHaveBeenCalledWith(expect.objectContaining({ section: "phrase" }));
+    expect(spy).toHaveBeenCalledWith({ ...page("cloze"), copies: 3 });
   });
 
-  it("accepts a phrase recall typed with extra spaces", async () => {
+  it("goes straight from recall to the sentence for a word without an example", async () => {
     show(LOOK_FORWARD_TO, page("recall", { copies: 3 }));
     await type("Look  forward to");
-    expect(spy).toHaveBeenCalledWith(expect.objectContaining({ section: "phrase" }));
+    expect(spy).toHaveBeenCalledWith({ ...page("sentence"), copies: 3 });
   });
 
-  it("explains in Chinese why a phrase is not accepted, without saving it", async () => {
-    show(RIVER, page("phrase", { copies: 3 }));
-    await type("river");
-    expect(text()).toContain("至少要 2 個英文字");
-    expect(spy).not.toHaveBeenCalled();
-    await type("a nice cat");
-    expect(text()).toContain("要用到「river」喔");
-    await type("a very very long river today");
-    expect(text()).toContain("造詞最多 5 個英文字，長的可以留到造句");
-    expect(spy).not.toHaveBeenCalled();
+  it("shows the example with the word blanked out", () => {
+    show(RAN, page("cloze", { copies: 3 }));
+    expect(text()).toContain("例句填空");
+    expect(text()).toContain("Yesterday I _____ to school.");
+    expect(host.innerHTML).not.toMatch(/\bran\b/i);
   });
 
-  it("saves the phrase and opens the sentence section", async () => {
-    show(RIVER, page("phrase", { copies: 3 }));
-    await type("a long river");
-    expect(spy).toHaveBeenCalledWith(
-      expect.objectContaining({ section: "sentence", phrase: "a long river" }),
-    );
+  it("asks for the form written in the sentence, showing it after a wrong answer", async () => {
+    show(RAN, page("cloze", { copies: 3 }));
+    await type("run");
+    expect(spy).not.toHaveBeenCalled();
+    expect(text()).toContain("正確答案是 ran");
+    expect(diffShown()).toBe(true);
+    expect(input().value).toBe("");
+    await type("Ran");
+    expect(spy).toHaveBeenCalledWith({ ...page("sentence"), copies: 3 });
+  });
+
+  it("continues an old page saved at the phrase step with the cloze", () => {
+    show(RIVER, { ...page("look", { copies: 3 }), section: "phrase" } as unknown as WordPageProgress);
+    expect(text()).toContain("The _____ is long.");
   });
 
   it("saves the sentence and finishes the page", async () => {
-    show(RIVER, page("sentence", { copies: 3, phrase: "a long river" }));
+    show(RIVER, page("sentence", { copies: 3 }));
     await type("river");
     expect(text()).toContain("句子至少要 4 個英文字");
     expect(spy).not.toHaveBeenCalled();
@@ -186,15 +198,10 @@ describe("WordPage", () => {
   });
 
   it("shows finished sections as one-line summaries", () => {
-    show(RIVER, page("phrase", { copies: 3 }));
+    show(RIVER, page("sentence", { copies: 3 }));
     expect(text()).toContain("✓ 抄寫 3 遍");
     expect(text()).toContain("✓ 默寫");
-    expect(text()).toContain("造詞：用 river 寫一個短短的詞（2–5 個英文字）");
-    expect(text()).not.toContain("a curious cat");
-  });
-
-  it("shows the example phrase only for the word curious", () => {
-    show({ ...RIVER, key: "curious", word: "curious" }, page("phrase", { copies: 3 }));
-    expect(text()).toContain("例如 a curious cat");
+    expect(text()).toContain("✓ 例句填空");
+    expect(text()).not.toContain("造詞");
   });
 });
