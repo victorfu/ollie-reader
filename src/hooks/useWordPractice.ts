@@ -174,9 +174,12 @@ export function useWordPractice(): UseWordPractice {
       // Re-reading must not overwrite progress that is still on its way to the server.
       await saveChainRef.current;
       const now = Date.now();
-      const [state, activeHomework, completed] = await Promise.all([
-        loadPracticeState(ownerUid, now),
-        getActiveHomework(ownerUid),
+      // The state document is read once and handed to getActiveHomework.
+      const [{ state, activeHomework }, completed] = await Promise.all([
+        loadPracticeState(ownerUid, now).then(async (loaded) => ({
+          state: loaded,
+          activeHomework: await getActiveHomework(ownerUid, loaded),
+        })),
         listCompletedHomeworks(ownerUid),
       ]);
       if (isStale()) return;
@@ -313,11 +316,12 @@ export function useWordPractice(): UseWordPractice {
       }
 
       // The homework is done; the vocabulary review stats are best effort.
-      for (const update of reviewUpdates) {
-        try {
-          await updateReviewStats(update.vocabularyId, update.remembered);
-        } catch (err) {
-          logger.error("Could not update vocabulary review stats:", err);
+      const outcomes = await Promise.allSettled(
+        reviewUpdates.map((update) => updateReviewStats(update.vocabularyId, update.remembered)),
+      );
+      for (const outcome of outcomes) {
+        if (outcome.status === "rejected") {
+          logger.error("Could not update vocabulary review stats:", outcome.reason);
         }
       }
       try {

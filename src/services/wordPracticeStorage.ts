@@ -217,9 +217,15 @@ export async function saveSettings(uid: string, settings: PracticeSettings): Pro
   });
 }
 
-/** The active homework, or null. A pointer to a legacy or finished homework counts as none. */
-export async function getActiveHomework(uid: string): Promise<Homework | null> {
-  const { activeHomeworkId } = await loadPracticeState(uid);
+/**
+ * The active homework, or null. A pointer to a legacy or finished homework counts as none.
+ * Pass the practice state when it was just loaded, to avoid reading it again.
+ */
+export async function getActiveHomework(
+  uid: string,
+  state?: WordPracticeState,
+): Promise<Homework | null> {
+  const { activeHomeworkId } = state ?? (await loadPracticeState(uid));
   if (!activeHomeworkId) return null;
   const homework = toHomework(await getDoc(homeworkRef(uid, activeHomeworkId)));
   return homework?.version === 2 && homework.status === "active" ? homework : null;

@@ -220,7 +220,12 @@ describe("useWordPractice loading", () => {
     await flushAsyncWork();
 
     expect(mocks.loadPracticeState).toHaveBeenCalledWith("user-1", expect.any(Number));
-    expect(mocks.getActiveHomework).toHaveBeenCalledWith("user-1");
+    expect(mocks.getActiveHomework).toHaveBeenCalledWith(
+      "user-1",
+      expect.objectContaining({ settings: SETTINGS }),
+    );
+    // The state document is read once per load and handed on to getActiveHomework.
+    expect(mocks.loadPracticeState).toHaveBeenCalledTimes(1);
     expect(mocks.listCompletedHomeworks).toHaveBeenCalledWith("user-1");
     expect(hook().status).toBe("ready");
     expect(hook().error).toBeNull();
@@ -328,7 +333,7 @@ describe("useWordPractice reload and account changes", () => {
       root?.render(<Probe />);
     });
     await flushAsyncWork();
-    expect(mocks.getActiveHomework).toHaveBeenLastCalledWith("user-2");
+    expect(mocks.getActiveHomework).toHaveBeenLastCalledWith("user-2", expect.anything());
     expect(hook().active?.id).toBe("hw-user-2");
 
     await act(async () => {
@@ -495,6 +500,36 @@ describe("useWordPractice submitting", () => {
     expect(hook().error).toBeNull();
     expect(hook().history[0].id).toBe(completed.id);
     expect(mocks.loggerError).toHaveBeenCalled();
+  });
+
+  it("starts every review stat update at once and waits for all of them", async () => {
+    await renderProbe();
+    const first = deferred<void>();
+    const second = deferred<void>();
+    mocks.completeHomework.mockResolvedValue({
+      homework: completedHomework("hw-1"),
+      reviewUpdates: [
+        { vocabularyId: "a", remembered: true },
+        { vocabularyId: "b", remembered: false },
+      ],
+    });
+    mocks.updateReviewStats.mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise);
+
+    let finished = false;
+    let submitting!: Promise<unknown>;
+    await act(async () => {
+      submitting = hook().submit().then(() => { finished = true; });
+      await flushAsyncWork();
+    });
+    expect(mocks.updateReviewStats).toHaveBeenCalledTimes(2);
+    expect(finished).toBe(false);
+
+    await act(async () => {
+      first.resolve();
+      second.resolve();
+      await submitting;
+    });
+    expect(finished).toBe(true);
   });
 
   it("recomputes the due count from the stored state after submitting", async () => {
