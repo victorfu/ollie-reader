@@ -13,7 +13,7 @@ NPM     := npm
 .DEFAULT_GOAL := help
 
 .PHONY: help setup install desktop-setup \
-        dev build lint preview web-test exam-images \
+        dev web-dev build lint preview web-test exam-images \
         server-setup server-dev server-build server-start server-lint server-test \
         desktop-serve desktop-run desktop-test desktop-models desktop-icon desktop-package desktop-package-clean desktop-clean \
         desktop-verify desktop-dmg desktop-release \
@@ -33,8 +33,11 @@ desktop-setup: ## Create the desktop venv and install deps via uv (incl. dev too
 	$(UV) sync --directory $(DESKTOP)
 
 # ── Frontend (web) ────────────────────────────────────────────────────────
-dev: ## Run the Vite dev server (http://localhost:5173)
+dev: ## Run the Vite dev server + ETTS API together (5173 + 3000)
 	$(NPM) run dev
+
+web-dev: ## Run only the Vite dev server (http://localhost:5173)
+	$(NPM) run dev:web
 
 build: ## Type-check + production build of the web app
 	$(NPM) run build
@@ -53,7 +56,7 @@ exam-images: ## Crop exam figures from the source PDF into public/exams/images
 
 # ── Server (Next.js ETTS API) ─────────────────────────────────────────────
 server-setup: ## Install the standalone Next.js API dependencies
-	$(NPM) ci --prefix server
+	$(NPM) run setup:server
 
 server-dev: ## Run the ETTS API dev server (http://localhost:3000)
 	$(NPM) run dev --prefix server

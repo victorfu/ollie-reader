@@ -80,7 +80,7 @@ cp .env.development.example .env.development
 npm run dev
 ```
 
-The Vite development server runs at `http://localhost:5173`. Most backend features also need the API server at `http://localhost:3000`; see [Compute and speech modes](#compute-and-speech-modes).
+`npm run dev` starts the Vite development server at `http://localhost:5173` and the API server in `server/` at `http://localhost:3000` together (run `npm run setup:server` once first). Use `npm run dev:web` or `npm run dev:server` to start only one of them. Most backend features need the API server; see [Compute and speech modes](#compute-and-speech-modes).
 
 Frontend environment files are separated by Vite mode:
 
@@ -141,7 +141,10 @@ audio requests.
 ### npm scripts
 
 ```bash
-npm run dev               # Vite development server with HMR
+npm run dev               # Vite (HMR) + server/ API together
+npm run dev:web           # Vite development server only
+npm run dev:server        # server/ API only
+npm run setup:server      # Install server/ dependencies (npm ci)
 npm run build             # Type-check with tsc, then build for production
 npm run preview           # Preview the production build
 npm run lint              # Run ESLint
@@ -150,7 +153,7 @@ npm run fetch-transcripts # Refresh bundled show transcripts
 npm run build-cefr        # Rebuild src/data/cefr/cefrLevels.json (needs network access)
 ```
 
-The root `Makefile` exposes equivalent Web targets (`make install`, `make dev`, `make build`, `make lint`, `make web-test`, and `make preview`), server targets (`make server-setup`, `server-dev`, `server-build`, `server-start`, `server-lint`, and `server-test`), aggregate setup/test targets, the exam-image crop utility, and all desktop workflows. Run `make help` for the complete list.
+The `dev*` and `setup:server` scripts run on Windows, macOS, and Linux without `make`. The root `Makefile` exposes equivalent Web targets (`make install`, `make dev`, `make web-dev`, `make build`, `make lint`, `make web-test`, and `make preview`), server targets (`make server-setup`, `server-dev`, `server-build`, `server-start`, `server-lint`, and `server-test`), aggregate setup/test targets, the exam-image crop utility, and all desktop workflows. Run `make help` for the complete list.
 
 ## Compute and speech modes
 
@@ -163,7 +166,7 @@ Compute location applies to Edge TTS, URL fetching, and OIKID booking records. P
 
 The Web app supports system speech and Edge TTS. Edge requires network access and works through either the desktop sidecar or the standalone Next.js API. Edge cloud requests use `VITE_ETTS_API_BASE_URL`; other cloud features continue using `VITE_API_BASE_URL`. In `auto` mode, a reachable desktop sidecar is preferred; `local` requires desktop, and `cloud` uses the configured cloud endpoint. Legacy engine preferences are treated as Edge TTS and saved as Edge on the next settings update; the system/API speech mode is preserved. The Web app no longer calls the Piper or Kokoro endpoints, which remain available in the desktop sidecar.
 
-For local server development, run `make server-setup` and `make server-dev` alongside Vite. The development template sets `VITE_API_BASE_URL`, `VITE_ETTS_API_BASE_URL`, and `VITE_PODCAST_API_BASE_URL` to `http://localhost:3000`. Use the deployed HTTPS API base in `.env.production`. `fetch-url` streams downloads up to 50 MiB. See the [server guide](server/README.md) for API contracts, server-only OIKID/Firebase configuration, validation, and Vercel deployment settings.
+For local server development, run `npm run setup:server` once; `npm run dev` then starts the server alongside Vite. The development template sets `VITE_API_BASE_URL`, `VITE_ETTS_API_BASE_URL`, and `VITE_PODCAST_API_BASE_URL` to `http://localhost:3000`. Use the deployed HTTPS API base in `.env.production`. `fetch-url` streams downloads up to 50 MiB. See the [server guide](server/README.md) for API contracts, server-only OIKID/Firebase configuration, validation, and Vercel deployment settings.
 
 If an older local environment still points `VITE_API_BASE_URL` at Cloud Run, update `.env.development` to `http://localhost:3000` and `.env.production` to the current Vercel backend (`https://server-one-xi-16.vercel.app`). Restart Vite after changing environment files; production values require a rebuild. A generic endpoint `404 Not Found` means the backend route is missing, not that the requested resource (for example a Podcast) is missing.
 
@@ -287,7 +290,7 @@ npm run test
 npm run build
 ```
 
-For server changes, also run `make server-lint`, `make server-test`, and `make server-build`. For desktop changes, run `make desktop-test`. `make test` runs both Web and desktop suites (not the server suite).
+For server changes, also run `npm run lint --prefix server`, `npm test --prefix server`, and `npm run build --prefix server` (or `make server-lint`, `make server-test`, and `make server-build`). For desktop changes, run `make desktop-test`. `make test` runs both Web and desktop suites (not the server suite).
 
 The production build is served from `dist/`. `firebase.json` configures an SPA rewrite to `index.html`, immutable caching for hashed assets, and no-cache headers for the service worker and HTML entry point. GitHub Actions builds Firebase Hosting preview channels for pull requests and deploys the `master` branch to the live channel. The `server/` API is deployed separately as its own Vercel project (Root Directory `server`, Node.js 24); see the [server guide](server/README.md#frontend-and-vercel).
 

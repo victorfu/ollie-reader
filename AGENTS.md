@@ -332,7 +332,10 @@ src/
 
 ```bash
 npm install        # Install dependencies
-npm run dev        # Dev server at localhost:5173
+npm run dev        # Vite (localhost:5173) + server/ API (localhost:3000) together
+npm run dev:web    # Vite dev server only
+npm run dev:server # server/ API only
+npm run setup:server # Install server/ dependencies (needed once before dev)
 npm run build      # Type-check + production build
 npm run lint       # ESLint check
 npm run test       # Vitest suite (jsdom)
