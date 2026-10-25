@@ -8,6 +8,8 @@ import { fitCameraDistance } from "./logic/framing";
 import { CLOUD_DEPTH, type ModelBounds } from "./rig";
 import { useCinnamorollRig } from "./useCinnamorollRig";
 import { usePetInteraction } from "./usePetInteraction";
+import type { CompanionOutfit } from "../../../types/companion";
+import { Accessories } from "./Accessories";
 
 const FOV_DEG = 30;
 
@@ -54,13 +56,15 @@ function ReadySignal({ onReady }: { onReady: () => void }) {
 function SceneContents({
   runtime,
   reducedMotion,
+  outfit,
 }: {
   runtime: CompanionRuntime;
   reducedMotion: boolean;
+  outfit: CompanionOutfit;
 }) {
   const built = useCinnamorollRig();
   const headHitRef = useMemo(() => ({ current: built.headHit }), [built]);
-  usePetInteraction(runtime, headHitRef);
+  usePetInteraction(runtime, headHitRef, built.hits);
 
   return (
     <>
@@ -69,6 +73,7 @@ function SceneContents({
       <directionalLight position={[-3, 6, 7]} intensity={1.7} color="#fff6ec" />
       <directionalLight position={[4, 2, -5]} intensity={0.9} color="#cfe4ff" />
       <CinnamorollModel built={built} runtime={runtime} reducedMotion={reducedMotion} />
+      <Accessories built={built} outfit={outfit} />
       <Hearts
         runtime={runtime}
         reducedMotion={reducedMotion}
@@ -79,6 +84,7 @@ function SceneContents({
 }
 
 export type CompanionSceneProps = {
+  outfit: CompanionOutfit;
   runtime: CompanionRuntime;
   reducedMotion: boolean;
   paused: boolean;
@@ -88,6 +94,7 @@ export type CompanionSceneProps = {
 };
 
 export default function CompanionScene({
+  outfit,
   runtime,
   reducedMotion,
   paused,
@@ -111,7 +118,7 @@ export default function CompanionScene({
     >
       {/* The model streams in; frames only count once it is on screen. */}
       <Suspense fallback={null}>
-        <SceneContents runtime={runtime} reducedMotion={reducedMotion} />
+        <SceneContents runtime={runtime} reducedMotion={reducedMotion} outfit={outfit} />
         <ReadySignal onReady={onReady} />
       </Suspense>
     </Canvas>

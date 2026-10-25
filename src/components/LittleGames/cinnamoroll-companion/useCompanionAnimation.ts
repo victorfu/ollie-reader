@@ -5,6 +5,7 @@ import type { RigParts } from "./rig";
 import type { CompanionRuntime } from "./logic/companionRuntime";
 import { petExpression, type PetPhase } from "./logic/petMachine";
 import { advanceSpin, applySpin } from "./logic/spin";
+import { actionPose } from "./logic/actions";
 
 const EAR_STIFFNESS = 70;
 const EAR_DAMPING = 7;
@@ -33,6 +34,7 @@ type AnimationState = {
   phase: PetPhase;
   /** Rest height of the neck pivot, read from the model on the first frame. */
   headBaseY: number | null;
+  characterBaseY: number | null;
 };
 
 function initialState(now: number): AnimationState {
@@ -58,6 +60,7 @@ function initialState(now: number): AnimationState {
     touchSide: 1,
     phase: "idle",
     headBaseY: null,
+    characterBaseY: null,
   };
 }
 
@@ -95,6 +98,13 @@ export function useCompanionAnimation(
     if (parts.turntable) applySpin(parts.turntable, runtime.spin);
     const pet = runtime.pet;
     const face = petExpression(pet, now);
+    const pose = actionPose(runtime.performance, now, reducedMotion);
+    face.smile = Math.max(face.smile, pose.delight);
+    face.eyesClosed = Math.max(face.eyesClosed, pose.delight);
+    a.characterBaseY ??= parts.character.position.y;
+    parts.character.position.y = a.characterBaseY + pose.lift;
+    parts.character.rotation.set(pose.lean, pose.yaw, 0);
+    parts.hand.rotation.z = pose.wave;
 
     // Phase transitions trigger one-off reactions; continuing a pet does not.
     if (pet.phase !== a.phase) {
@@ -140,7 +150,7 @@ export function useCompanionAnimation(
     let targetPitch = -0.16 * a.lookY - 0.2 * a.headLift;
     let targetYaw = 0.32 * a.lookX;
     let targetRoll =
-      -a.tiltSide * idleTilt + 0.13 * a.headLift * a.touchSide;
+      -a.tiltSide * idleTilt + 0.13 * a.headLift * a.touchSide + pose.tilt;
     if (pet.phase === "petting") {
       // Lean into the hand: the top of the head moves toward the touch.
       targetRoll = -MathUtils.clamp(runtime.contact.x, -1, 1) * 0.16;
@@ -178,7 +188,7 @@ export function useCompanionAnimation(
       const wiggle = Math.sin(t * 9 + index) * 0.07 * a.delight * motion;
       stepSpring(ear, relaxed + sway + wiggle - rollVelocity * 0.04 * side, dt);
       const node = parts.ears[index];
-      if (node) node.rotation.z = side * -ear.value;
+      if (node) node.rotation.z = side * -ear.value + (index === 0 ? pose.leftEar : pose.rightEar);
     });
 
     const open = (1 - blink) * (1 - a.eyesClosed);
