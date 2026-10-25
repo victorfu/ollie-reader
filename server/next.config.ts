@@ -11,6 +11,8 @@ const nextConfig: NextConfig = {
     "/api/podcasts/audio": ["./node_modules/ffmpeg-static/ffmpeg", "./node_modules/ffmpeg-static/ffmpeg.exe"],
   },
   poweredByHeader: false,
+  // Stop `next dev` from writing AGENTS.md/CLAUDE.md into server/.
+  agentRules: false,
 };
 
 export default nextConfig;
