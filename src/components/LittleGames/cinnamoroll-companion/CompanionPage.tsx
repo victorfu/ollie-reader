@@ -1,6 +1,6 @@
 import { Suspense, useEffect, useState, type ReactNode } from "react";
 import { useReducedMotion } from "framer-motion";
-import { ArrowLeft, Hand, Info, Rotate3d, RotateCcw } from "lucide-react";
+import { ArrowLeft, Hand, Info, RotateCcw } from "lucide-react";
 import { ErrorBoundary } from "../../common/ErrorBoundary";
 import { lazyWithReload } from "../../../utils/lazyWithReload";
 import { createCompanionRuntime } from "./logic/companionRuntime";
@@ -66,7 +66,6 @@ function Notice({
 export default function CompanionPage({ onExit }: { onExit: () => void }) {
   const [webGL] = useState(hasWebGL);
   const [runtime] = useState(() => createCompanionRuntime(performance.now()));
-  const [mode, setMode] = useState<"turn" | "pet">("turn");
   const [showCredit, setShowCredit] = useState(false);
   const [contextLost, setContextLost] = useState(false);
   const [sceneKey, setSceneKey] = useState(0);
@@ -75,27 +74,30 @@ export default function CompanionPage({ onExit }: { onExit: () => void }) {
   const [outfit, setOutfit] = useState<CompanionOutfit>({});
   const openPanel = (next: "actions" | "outfit") => {
     runtime.setPetting(false);
-    setMode("turn");
     setPanel(next);
   };
   const reducedMotion = Boolean(useReducedMotion());
   const hidden = usePageHidden();
 
-  const chooseTurn = () => {
-    runtime.setPetting(false);
-    setMode("turn");
-  };
-  // Choosing petting gives a pat straight away, so the mode visibly starts;
-  // pressing again pats again, which also serves keyboard users.
-  const choosePet = () => {
-    runtime.setPetting(true);
-    setMode("pet");
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    const target = window as Window & { render_game_to_text?: () => string };
+    const describe = () => JSON.stringify({
+      ready, panel, outfit,
+      coordinates: "canvas client pixels, x right, y down; spin in radians",
+      pet: runtime.pet.phase, patUntil: runtime.pet.patUntil,
+      action: runtime.performance?.action ?? null,
+      spin: { yaw: runtime.spin.yaw, pitch: runtime.spin.pitch },
+    });
+    target.render_game_to_text = describe;
+    return () => {
+      if (target.render_game_to_text === describe) delete target.render_game_to_text;
+    };
+  }, [outfit, panel, ready, runtime]);
+
+  const pat = () => {
     runtime.dispatch({ type: "pat", now: performance.now() });
   };
-  const modeButton = (active: boolean) =>
-    `inline-flex min-h-11 items-center gap-1.5 rounded-full px-4 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 active:scale-[0.98] ${
-      active ? "bg-sky-500 text-white shadow-sm" : "text-sky-950 hover:bg-white"
-    }`;
 
   const backButton = (
     <button
@@ -219,35 +221,19 @@ export default function CompanionPage({ onExit }: { onExit: () => void }) {
             aria-live="polite"
             className="rounded-full bg-white/75 px-4 py-2 text-sm font-medium text-sky-900 shadow-sm backdrop-blur-md"
           >
-            {mode === "turn" ? "拖曳轉一圈，點耳朵、肚子或手一起玩" : "在頭或耳朵上來回滑，摸摸我"}
+            拖曳轉一圈，點頭、耳朵、肚子或手一起玩
           </p>
           <div className="flex flex-wrap items-center justify-center gap-2">
             <button type="button" className="btn min-h-11 pointer-events-auto rounded-full" onClick={() => openPanel("actions")}>動作</button>
             <button type="button" className="btn min-h-11 pointer-events-auto rounded-full" onClick={() => openPanel("outfit")}>換裝</button>
-            <div
-              role="group"
-              aria-label="互動方式"
-              className="pointer-events-auto inline-flex gap-1 rounded-full border border-white/70 bg-white/80 p-1 shadow-sm backdrop-blur-md"
+            <button
+              type="button"
+              onClick={pat}
+              className="btn min-h-11 pointer-events-auto rounded-full"
             >
-              <button
-                type="button"
-                aria-pressed={mode === "turn"}
-                onClick={chooseTurn}
-                className={modeButton(mode === "turn")}
-              >
-                <Rotate3d className="size-4" aria-hidden="true" />
-                轉一轉
-              </button>
-              <button
-                type="button"
-                aria-pressed={mode === "pet"}
-                onClick={choosePet}
-                className={modeButton(mode === "pet")}
-              >
-                <Hand className="size-4" aria-hidden="true" />
-                摸摸頭
-              </button>
-            </div>
+              <Hand className="size-4" aria-hidden="true" />
+              摸摸頭
+            </button>
             <button
               type="button"
               onClick={() => runtime.resetView()}
