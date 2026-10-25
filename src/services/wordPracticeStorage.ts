@@ -18,7 +18,6 @@ import {
   orderBy,
   query,
   runTransaction,
-  updateDoc,
   type DocumentSnapshot,
 } from "firebase/firestore";
 import type {
@@ -247,20 +246,29 @@ export async function createHomework(uid: string, homework: Homework): Promise<v
   });
 }
 
-/** Replaces the three progress fields of a homework; fails when it does not exist. */
+/**
+ * Replaces the three progress fields of an active homework; fails when it does
+ * not exist and does nothing once it is completed or abandoned, so a stale tab
+ * cannot overwrite a finished homework.
+ */
 export async function saveHomeworkProgress(
   uid: string,
   id: string,
   progress: HomeworkProgress,
 ): Promise<void> {
-  await updateDoc(
-    homeworkRef(uid, id),
-    withoutUndefined({
-      pages: progress.pages,
-      dictation: progress.dictation,
-      corrections: progress.corrections,
-    }),
-  );
+  await runTransaction(db, async (tx) => {
+    const snapshot = await tx.get(homeworkRef(uid, id));
+    if (!snapshot.exists()) throw new Error(`No homework to save: ${id}`);
+    if (snapshot.data()?.status !== "active") return;
+    tx.update(
+      homeworkRef(uid, id),
+      withoutUndefined({
+        pages: progress.pages,
+        dictation: progress.dictation,
+        corrections: progress.corrections,
+      }),
+    );
+  });
 }
 
 /**

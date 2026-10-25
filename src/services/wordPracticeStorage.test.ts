@@ -115,7 +115,13 @@ import {
 } from "./wordPracticeStorage";
 
 const NOW = 1_700_000_000_000;
-const DAY = 86_400_000;
+/** Start of the local day `days` after NOW: review dates snap to local days. */
+const dayStart = (days: number) => {
+  const d = new Date(NOW);
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() + days);
+  return d.getTime();
+};
 const seed = (path: string, data: unknown) => m.docs.set(path, data as Data);
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const stored = (path: string): any => m.docs.get(path);
@@ -348,6 +354,15 @@ describe("saveHomeworkProgress", () => {
     expect(stored(hwPath("h1")).pages[0]).not.toHaveProperty("phrase");
   });
 
+  it.each(["completed", "abandoned"] as const)("leaves a %s homework untouched", async (status) => {
+    const h = hw("h1", [apple], [answered("apple", "apple")], { status, completedAt: 5 });
+    seedHw(h);
+    await expect(
+      saveHomeworkProgress("u", "h1", { pages: h.pages, dictation: [answered("apple", "aple")], corrections: { apple: 1 } }),
+    ).resolves.toBeUndefined();
+    expect(stored(hwPath("h1"))).toEqual(h);
+  });
+
   it("does not create a homework that does not exist", async () => {
     await expect(saveHomeworkProgress("u", "ghost", { pages: [], dictation: [], corrections: {} })).rejects.toThrow();
     expect(stored(hwPath("ghost"))).toBeUndefined();
@@ -366,7 +381,7 @@ describe("completeHomework", () => {
     const { homework, reviewUpdates } = await completeHomework("u", "h1", NOW);
     expect(homework).toMatchObject({ status: "completed", completedAt: NOW, result: { correctKeys: ["apple"], wrongKeys: ["river"] } });
     expect(stored(hwPath("h1"))).toEqual(homework);
-    expect(stored(STATE).words.apple).toMatchObject({ stage: 1, dueAt: NOW + DAY, sentence: "I ate an apple." });
+    expect(stored(STATE).words.apple).toMatchObject({ stage: 1, dueAt: dayStart(1), sentence: "I ate an apple." });
     expect(stored(STATE).words.river).toMatchObject({ stage: 0, needsPractice: true });
     expect(stored(STATE).words.river).not.toHaveProperty("sentence");
     expect(stored(STATE).activeHomeworkId).toBeNull();
@@ -378,7 +393,7 @@ describe("completeHomework", () => {
     seedRun(h, { words: { river: { stage: 2, dueAt: 1, missCount: 0 } } });
     const { reviewUpdates } = await completeHomework("u", "h1", NOW);
     expect(reviewUpdates.map((u) => u.vocabularyId)).toEqual(["v-apple", "v-river"]);
-    expect(stored(STATE).words.river).toMatchObject({ stage: 3, dueAt: NOW + 7 * DAY });
+    expect(stored(STATE).words.river).toMatchObject({ stage: 3, dueAt: dayStart(7) });
   });
 
   it("changes no schedule and returns no updates when every item was skipped", async () => {
