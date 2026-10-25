@@ -100,7 +100,6 @@ export default function GameHub() {
         tag: "3D Companion",
         emoji: "☁️",
         best: null,
-        inDevelopment: true,
         statusLabel: "打開就能玩",
       },
       {

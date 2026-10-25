@@ -79,7 +79,7 @@ describe("GameHub card layout", () => {
     const flagged = cards.filter((card) => card.textContent?.includes("開發中"));
 
     expect(flagged.map((card) => card.querySelector("h2")?.textContent)).toEqual(
-      ["大耳狗 3D 夥伴", "甜心防衛隊"],
+      ["甜心防衛隊"],
     );
   });
 
