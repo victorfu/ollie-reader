@@ -53,7 +53,10 @@ export function createCompanionRuntime(
     setPetting(on) {
       runtime.gestureVersion += 1;
       runtime.performance = null;
-      runtime.pet = { ...createPetState(runtime.pet.since), hearts: runtime.pet.hearts };
+      // Repeated keyboard pats reselect this mode; keep their accumulated credit.
+      if (!on || runtime.petting !== on) {
+        runtime.pet = { ...createPetState(runtime.pet.since), hearts: runtime.pet.hearts };
+      }
       runtime.petting = on;
     },
     resetView() {

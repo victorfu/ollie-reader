@@ -114,6 +114,20 @@ describe("CompanionPage", () => {
     expect(sceneProps?.runtime.pet.patUntil ?? 0).toBeGreaterThan(patUntil);
   });
 
+  it("accumulates a heart across repeated pet-button activations", async () => {
+    setWebGL(true);
+    let now = 0;
+    vi.spyOn(performance, "now").mockImplementation(() => now);
+    await renderPage();
+
+    for (now = 0; now <= 1500; now += 500) {
+      act(() => button("摸摸頭").click());
+    }
+
+    expect(sceneProps?.runtime.pet.strokeTime).toBe(1500);
+    expect(sceneProps?.runtime.pet.hearts).toBe(1);
+  });
+
   it("goes back to turning from petting", async () => {
     setWebGL(true);
     await renderPage();
