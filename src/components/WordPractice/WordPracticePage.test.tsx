@@ -300,10 +300,13 @@ describe("parent settings", () => {
     openSettings();
 
     const select = host.querySelector<HTMLSelectElement>("select")!;
-    expect(select).not.toBeNull();
+    act(() => {
+      select.value = "8";
+      select.dispatchEvent(new Event("change", { bubbles: true }));
+    });
     await click("儲存設定");
 
-    expect(hook.current.saveSettings).toHaveBeenCalledWith(SETTINGS);
+    expect(hook.current.saveSettings).toHaveBeenCalledWith({ ...SETTINGS, newWordCount: 8 });
   });
 
   it("has no abandon button when there is no homework in progress", () => {
