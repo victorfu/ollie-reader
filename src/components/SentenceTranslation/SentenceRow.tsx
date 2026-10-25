@@ -39,20 +39,20 @@ export const SentenceRow = ({
         type="button"
         onClick={onSelect}
         aria-current={isActive ? "true" : undefined}
-        className={`flex min-w-0 flex-1 items-start gap-2 rounded-lg px-3 py-2.5 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
+        className={`flex min-w-0 flex-1 items-start gap-2 rounded-lg px-3 py-1.5 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
           isActive ? "text-accent" : ""
         }`}
       >
         <Languages
-          className="mt-1 size-4 shrink-0 text-accent/70"
+          className="mt-1.5 size-4 shrink-0 text-accent/70"
           strokeWidth={1.75}
           aria-hidden="true"
         />
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-sm font-semibold tracking-tight">
+          <span className="block truncate text-base font-semibold tracking-tight">
             {sentence.english}
           </span>
-          <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+          <span className="block truncate text-sm text-muted-foreground">
             {sentence.chinese}
           </span>
         </span>

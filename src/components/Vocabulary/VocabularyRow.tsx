@@ -57,7 +57,7 @@ export const VocabularyRow = ({
         type="button"
         onClick={onSelect}
         aria-current={isActive ? "true" : undefined}
-        className={`flex min-w-0 flex-1 items-start gap-2 rounded-lg px-3 py-2.5 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
+        className={`flex min-w-0 flex-1 items-start gap-2 rounded-lg px-3 py-1.5 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
           isActive ? "text-accent" : ""
         }`}
       >
@@ -76,15 +76,15 @@ export const VocabularyRow = ({
                 title={word.difficulty}
               />
             )}
-            <span className="truncate text-sm font-semibold tracking-tight">
+            <span className="truncate text-base font-semibold tracking-tight">
               {word.word}
             </span>
             {cefr && <CefrBadge info={cefr} />}
           </span>
           {previewDef && (
-            <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+            <span className="block truncate text-sm text-muted-foreground">
               {def?.partOfSpeech ? (
-                <span className="mr-1 uppercase tracking-wider text-[10px] text-muted-foreground/70">
+                <span className="mr-1 uppercase tracking-wider text-[11px] text-muted-foreground/70">
                   {def.partOfSpeech}
                 </span>
               ) : null}

@@ -912,7 +912,7 @@ export const VocabularyBook = () => {
                         {group.items.length}
                       </span>
                     </h2>
-                    <div className="space-y-1">
+                    <div className="space-y-0.5">
                       <AnimatePresence mode="popLayout">
                         {group.items.map(renderFeedItem)}
                       </AnimatePresence>
