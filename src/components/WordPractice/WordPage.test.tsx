@@ -147,6 +147,17 @@ describe("WordPage", () => {
     expect(text()).toContain("____");
   });
 
+  it("puts the recall input and its feedback above the definitions, so long ones need no scrolling", async () => {
+    show(RIVER, page("recall", { copies: 3 }));
+    const definition = () =>
+      Array.from(host.querySelectorAll("p")).find((p) => p.textContent?.includes("natural stream"))!;
+    const before = (a: Node, b: Node) =>
+      Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(before(input(), definition())).toBe(true);
+    await type("rivr");
+    expect(before(host.querySelector('[role="img"]')!, definition())).toBe(true);
+  });
+
   it("makes the learner recall again after a wrong spelling", async () => {
     show(RIVER, page("recall", { copies: 3 }));
     await type("rivr");

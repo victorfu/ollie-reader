@@ -105,18 +105,6 @@ function RecallSection({ word, onDone }: { word: HomeworkWord; onDone: () => voi
       <div className="flex items-center gap-2">
         <SpeakButton text={word.word} size="md" />
       </div>
-      <ul className="space-y-2">
-        {word.definitions.map((d, i) => (
-          <li key={i} className="space-y-0.5">
-            <p>{redactWordForms(d.definition, word.word, "____")}</p>
-            {d.definitionChinese && (
-              <p className="text-muted-foreground">
-                {redactWordForms(d.definitionChinese, word.word, "____")}
-              </p>
-            )}
-          </li>
-        ))}
-      </ul>
       <AnswerInput
         key={attempts}
         value={typed}
@@ -135,6 +123,19 @@ function RecallSection({ word, onDone }: { word: HomeworkWord; onDone: () => voi
           <SpellingDiff input={missed} expected={word.word} />
         </div>
       )}
+      {/* Below the input, so a word with many meanings never pushes it off screen. */}
+      <ul className="space-y-2">
+        {word.definitions.map((d, i) => (
+          <li key={i} className="space-y-0.5">
+            <p>{redactWordForms(d.definition, word.word, "____")}</p>
+            {d.definitionChinese && (
+              <p className="text-muted-foreground">
+                {redactWordForms(d.definitionChinese, word.word, "____")}
+              </p>
+            )}
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }

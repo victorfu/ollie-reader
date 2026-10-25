@@ -1,8 +1,8 @@
 import { useEffect, useRef } from "react";
 import confetti from "canvas-confetti";
 import { PartyPopper } from "lucide-react";
-import type { Homework } from "../../types/wordPractice";
-import { gradeDictation } from "../../utils/homeworkFlow";
+import type { Homework, SentenceReview } from "../../types/wordPractice";
+import { gradeDictation, sentencesToReview } from "../../utils/homeworkFlow";
 
 interface FinishedViewProps {
   homework: Homework;
@@ -10,10 +10,33 @@ interface FinishedViewProps {
   onAgain?: () => void;
   /** True only right after the homework was handed in; false when opened from the history. */
   celebrate?: boolean;
+  /** Gemini review in progress or failed; absent when idle or done. */
+  reviewState?: "reviewing" | "failed";
+  /** Asks Gemini to review the sentences (again). Without it no review button is shown. */
+  onReview?: () => void;
+}
+
+function ReviewNote({ review }: { review: SentenceReview }) {
+  return (
+    <div className="mt-2 space-y-1 border-t border-border-hairline pt-2 text-sm">
+      <p className={review.ok ? "text-success" : "text-warning"}>
+        {review.ok ? "✓ " : ""}
+        {review.comment}
+      </p>
+      {review.corrected && <p className="text-muted-foreground">修正：{review.corrected}</p>}
+    </div>
+  );
 }
 
 /** The finished screen: the dictation score, and every new word's sentence for the parent. */
-export function FinishedView({ homework, onBack, onAgain, celebrate = false }: FinishedViewProps) {
+export function FinishedView({
+  homework,
+  onBack,
+  onAgain,
+  celebrate = false,
+  reviewState,
+  onReview,
+}: FinishedViewProps) {
   const result = homework.result ?? gradeDictation(homework);
   const firedRef = useRef(false);
 
@@ -31,6 +54,9 @@ export function FinishedView({ homework, onBack, onAgain, celebrate = false }: F
     return item && word ? [{ key, word: word.word, answer: item.answer }] : [];
   });
 
+  const reviews = new Map((homework.review?.items ?? []).map((item) => [item.key, item]));
+  const canReview = !homework.review && sentencesToReview(homework).length > 0;
+
   const score = result.total === 0 ? "這次沒有聽寫成績" : `聽寫 ${result.correctCount} / ${result.total}`;
 
   return (
@@ -44,6 +70,24 @@ export function FinishedView({ homework, onBack, onAgain, celebrate = false }: F
       {homework.newWords.length > 0 && (
         <section className="space-y-3">
           <h3 className="text-base font-semibold">造句（給家長看）</h3>
+          {canReview && reviewState === "reviewing" && (
+            <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground">
+              <span className="loading loading-spinner loading-xs" aria-hidden="true" />
+              正在批改造句…
+            </p>
+          )}
+          {canReview && reviewState !== "reviewing" && onReview && (
+            <div className="flex flex-wrap items-center gap-3">
+              {reviewState === "failed" && (
+                <p role="status" className="text-sm text-warning">
+                  還沒改好
+                </p>
+              )}
+              <button type="button" onClick={onReview} className="btn btn-outline btn-sm min-h-11">
+                {reviewState === "failed" ? "再改一次" : "批改造句"}
+              </button>
+            </div>
+          )}
           <ul className="space-y-2">
             {homework.newWords.map((word, i) => {
               const page = homework.pages[i];
@@ -53,6 +97,7 @@ export function FinishedView({ homework, onBack, onAgain, celebrate = false }: F
                   {/* Only homework written before the phrase step was dropped has one. */}
                   {page?.phrase && <p className="text-sm">{page.phrase}</p>}
                   <p className="text-sm">{page?.sentence ?? "（沒有寫）"}</p>
+                  {reviews.has(word.key) && <ReviewNote review={reviews.get(word.key)!} />}
                 </li>
               );
             })}

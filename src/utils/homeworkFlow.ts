@@ -106,6 +106,20 @@ export function checkSentence(text: string, word: string): "ok" | "missingWord" 
   return countEnglishWords(text) < SENTENCE_MIN_WORDS ? "tooShort" : "ok";
 }
 
+export interface SentenceToReview {
+  key: string;
+  word: string;
+  sentence: string;
+}
+
+/** Every new word's written sentence, in page order. */
+export function sentencesToReview(hw: Pick<Homework, "newWords" | "pages">): SentenceToReview[] {
+  return hw.newWords.flatMap((word, i) => {
+    const sentence = hw.pages[i]?.sentence?.trim();
+    return sentence ? [{ key: word.key, word: word.word, sentence }] : [];
+  });
+}
+
 export function gradeDictation(
   hw: Pick<Homework, "newWords" | "reviewWords" | "dictation">,
 ): DictationResult {

@@ -111,6 +111,7 @@ import {
   newHomeworkId,
   normalizeSettings,
   saveHomeworkProgress,
+  saveHomeworkReview,
   saveSettings,
 } from "./wordPracticeStorage";
 
@@ -366,6 +367,24 @@ describe("saveHomeworkProgress", () => {
   it("does not create a homework that does not exist", async () => {
     await expect(saveHomeworkProgress("u", "ghost", { pages: [], dictation: [], corrections: {} })).rejects.toThrow();
     expect(stored(hwPath("ghost"))).toBeUndefined();
+  });
+});
+
+describe("saveHomeworkReview", () => {
+  const review = {
+    reviewedAt: NOW,
+    items: [{ key: "apple", ok: false, comment: "要加 an。", corrected: "I ate an apple." }],
+  };
+
+  it("adds the review to a completed homework without touching anything else", async () => {
+    const done = hw("h1", [apple], [answered("apple", "apple")], { status: "completed", completedAt: NOW });
+    seedHw(done);
+    await saveHomeworkReview("u", "h1", review);
+    expect(stored(hwPath("h1"))).toEqual({ ...done, review });
+  });
+
+  it("refuses a homework that is missing", async () => {
+    await expect(saveHomeworkReview("u", "nope", review)).rejects.toThrow();
   });
 });
 
