@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { RefObject } from "react";
 import { PODCAST_API_BASE_URL } from "../constants/api";
-import type { PodcastCaptionWord, PodcastEpisode } from "../types/podcast";
+import type { CaptionDelay, PodcastCaptionWord, PodcastEpisode } from "../types/podcast";
 import { logger } from "../utils/logger";
 import {
   CAPTION_DELAY_SECONDS,
@@ -14,7 +14,6 @@ import {
 } from "../utils/podcastCaptions";
 
 export type PodcastCaptionStatus = "off" | "loading" | "listening" | "error";
-export type CaptionDelay = { seconds: number; anchor: number };
 
 // The worklet hears the media immediately; the speakers hear it through an
 // optional DelayNode, so captions can be ready before the words are heard.
@@ -23,7 +22,8 @@ type Graph = { source: MediaElementAudioSourceNode; worklet: AudioWorkletNode; o
 // createMediaElementSource() may be called only once per media element, and
 // from then on the element is heard only through this context. Keep the graph
 // for the element's lifetime, even while captions are off.
-type Capture = { context: AudioContext; graph?: Graph; ready?: Promise<Graph>; delay: CaptionDelay | null };
+// `endedAt` is the context time the media ended, while the delay line still plays its tail.
+type Capture = { context: AudioContext; graph?: Graph; ready?: Promise<Graph>; delay: CaptionDelay | null; endedAt: number | null };
 const captures = new WeakMap<HTMLAudioElement, Capture>();
 
 /** Must run inside the click that enables captions, so the context may start. */
@@ -31,10 +31,12 @@ function contextFor(audio: HTMLAudioElement): Capture {
   let capture = captures.get(audio);
   if (!capture) {
     const context = new AudioContext();
-    const created: Capture = { context, delay: null };
+    const created: Capture = { context, delay: null, endedAt: null };
     capture = created;
     captures.set(audio, created);
     audio.addEventListener("play", () => void context.resume());
+    audio.addEventListener("ended", () => { created.endedAt = context.currentTime; });
+    for (const type of ["play", "seeking", "emptied"]) audio.addEventListener(type, () => { created.endedAt = null; });
     // Freeze the delay line with the media, so pausing never plays on or loses audio.
     audio.addEventListener("pause", () => { if (created.delay && !audio.ended) void context.suspend(); });
   }
@@ -66,7 +68,7 @@ function route(audio: HTMLAudioElement, capture: Capture, delayed: boolean) {
     const delay = new DelayNode(context, { delayTime: CAPTION_DELAY_SECONDS, maxDelayTime: CAPTION_DELAY_SECONDS });
     delay.connect(context.destination);
     graph.output = delay;
-    capture.delay = { seconds: CAPTION_DELAY_SECONDS, anchor: audio.currentTime };
+    capture.delay = { seconds: CAPTION_DELAY_SECONDS, rate: audio.playbackRate, anchor: audio.currentTime };
   } else {
     graph.output = context.destination;
     capture.delay = null;
@@ -74,14 +76,24 @@ function route(audio: HTMLAudioElement, capture: Capture, delayed: boolean) {
   graph.source.connect(graph.output);
 }
 
+/** What the speakers have played, including the tail drained after the media ended. */
+function audibleTime(audio: HTMLAudioElement, capture: Capture): number {
+  const heard = heardTime(audio.currentTime, capture.delay);
+  if (!audio.ended || capture.endedAt === null || !capture.delay) return heard;
+  return Math.min(audio.currentTime, heard + (capture.context.currentTime - capture.endedAt) * capture.delay.rate);
+}
+
 /** Leave delayed playback without skipping what was decoded but not yet heard. */
 function undelay(audio: HTMLAudioElement, capture: Capture) {
-  const { delay } = capture;
-  if (!delay) return;
-  const heard = heardTime(audio.currentTime, delay);
+  if (!capture.delay) return;
+  const heard = audibleTime(audio, capture);
+  const unheard = heard < audio.currentTime - 0.05;
+  // The ending may still be draining from the delay line: replay it directly.
+  const drainingTail = audio.ended && unheard;
   route(audio, capture, false);
-  if (!audio.ended) audio.currentTime = heard;
-  if (!audio.paused) void capture.context.resume();
+  if (unheard) audio.currentTime = heard;
+  if (drainingTail) void audio.play().catch(() => {});
+  if (!audio.paused || drainingTail) void capture.context.resume();
 }
 
 /** Resolves once response headers prove the browser may read the bytes. */
@@ -153,17 +165,8 @@ async function ensureReadableSource(audio: HTMLAudioElement, episode: PodcastEpi
   }
 }
 
-function playing(audio: HTMLAudioElement, signal: AbortSignal): Promise<void> {
-  if (!audio.paused && !audio.seeking && audio.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) return Promise.resolve();
-  return new Promise((resolve, reject) => {
-    const ok = () => { signal.removeEventListener("abort", aborted); resolve(); };
-    const aborted = () => { audio.removeEventListener("playing", ok); reject(signal.reason); };
-    audio.addEventListener("playing", ok, { once: true });
-    signal.addEventListener("abort", aborted, { once: true });
-  });
-}
-
 const SEGMENT_BREAKS = ["pause", "seeking", "waiting", "ratechange", "ended", "emptied"] as const;
+const SEGMENT_STARTS = ["playing", "seeked", "canplay"] as const;
 
 export function usePodcastCaptions(audioRef: RefObject<HTMLAudioElement | null>, episode: PodcastEpisode) {
   const [enabled, setEnabled] = useState(false);
@@ -203,23 +206,45 @@ export function usePodcastCaptions(audioRef: RefObject<HTMLAudioElement | null>,
     if (!enabled || !audio || !capture) return;
     const controller = new AbortController();
     const { signal } = controller;
+    // `segment` receives audio now; `queue` holds ended or live segments that
+    // Whistle has not reached yet, so capture never waits on inference.
     let segment: CaptionSegment | undefined;
+    let recognising: CaptionSegment | undefined;
+    const queue: CaptionSegment[] = [];
+    let listening = false;
+    let wakeLoop: (() => void) | undefined;
     let downsample: ((input: Float32Array) => Float32Array) | undefined;
     let worklet: AudioWorkletNode | undefined;
     let closeSpeech: (() => void) | undefined;
+    const wake = () => {
+      const resume = wakeLoop;
+      wakeLoop = undefined;
+      resume?.();
+    };
+    signal.addEventListener("abort", wake);
     const stop = (message: string) => {
       if (signal.aborted) return;
       controller.abort();
       segment?.end();
+      for (const pending of queue) pending.end();
       closeSpeech?.();
       undelay(audio, capture);
       setDelay(null);
       setError(message);
       setState("error");
     };
+    const startSegment = () => {
+      if (!listening || signal.aborted || segment || audio.paused || audio.seeking || audio.readyState < HTMLMediaElement.HAVE_FUTURE_DATA) return;
+      segment = new CaptionSegment(audio.currentTime, audio.playbackRate);
+      downsample = createCaptionDownsampler(capture.context.sampleRate);
+      queue.push(segment);
+      wake();
+    };
     const breakSegment = () => {
       segment?.end();
       segment = undefined;
+      // A rate change keeps playing without a new "playing" event.
+      startSegment();
     };
     // After a seek the delay line still holds audio from the old position.
     const flush = () => {
@@ -227,7 +252,17 @@ export function usePodcastCaptions(audioRef: RefObject<HTMLAudioElement | null>,
       route(audio, capture, true);
       setDelay(capture.delay);
     };
+    // The delay line was filled at the old rate: re-anchor at what was heard
+    // and refill at the new rate, so nothing is skipped or mistimed.
+    const rerate = () => {
+      const delay = capture.delay;
+      if (!delay || delay.rate === audio.playbackRate) return;
+      audio.currentTime = heardTime(audio.currentTime, delay);
+      flush();
+    };
+    audio.addEventListener("ratechange", rerate);
     for (const type of SEGMENT_BREAKS) audio.addEventListener(type, breakSegment);
+    for (const type of SEGMENT_STARTS) audio.addEventListener(type, startSegment);
     audio.addEventListener("seeking", flush);
 
     void (async () => {
@@ -250,20 +285,27 @@ export function usePodcastCaptions(audioRef: RefObject<HTMLAudioElement | null>,
         worklet.port.onmessage = (event: MessageEvent<{ samples: Float32Array }>) => {
           if (!segment || !downsample) return;
           segment.push(downsample(event.data.samples));
-          if (segment.backlogSeconds > MAX_BACKLOG_SECONDS) stop("這台裝置的辨識速度跟不上播放，字幕已停止；音訊仍可正常播放。");
+          const waiting = new Set([recognising, ...queue, segment]);
+          let backlog = 0;
+          for (const pending of waiting) backlog += pending?.backlogSeconds ?? 0;
+          if (backlog > MAX_BACKLOG_SECONDS) stop("這台裝置的辨識速度跟不上播放，字幕已停止；音訊仍可正常播放。");
         };
         setState("listening");
+        listening = true;
+        startSegment();
         while (!signal.aborted) {
-          await playing(audio, signal);
-          const current = new CaptionSegment(audio.currentTime, audio.playbackRate);
-          downsample = createCaptionDownsampler(capture.context.sampleRate);
-          segment = current;
+          const current = queue.shift();
+          if (!current) {
+            await new Promise<void>((resolve) => { wakeLoop = resolve; });
+            continue;
+          }
+          recognising = current;
           for await (const part of whistle.stream(current.chunks(), { language: "en" })) {
             if (signal.aborted) break;
             const heard = toPodcastWords(part.words, current.anchor, current.playbackRate);
             if (heard.length) setWords((previous) => replaceCaptionWords(previous, heard));
           }
-          if (segment === current) segment = undefined;
+          recognising = undefined;
         }
       } catch (cause) {
         if (signal.aborted) return;
@@ -277,7 +319,10 @@ export function usePodcastCaptions(audioRef: RefObject<HTMLAudioElement | null>,
     return () => {
       controller.abort();
       segment?.end();
+      for (const pending of queue) pending.end();
+      audio.removeEventListener("ratechange", rerate);
       for (const type of SEGMENT_BREAKS) audio.removeEventListener(type, breakSegment);
+      for (const type of SEGMENT_STARTS) audio.removeEventListener(type, startSegment);
       audio.removeEventListener("seeking", flush);
       if (worklet) worklet.port.onmessage = null;
       closeSpeech?.();

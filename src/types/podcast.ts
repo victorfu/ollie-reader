@@ -23,6 +23,16 @@ export interface PodcastShow {
 
 export type PodcastResolution = PodcastEpisode | PodcastShow;
 
+/**
+ * The audible path's delay line: `seconds` of wall-clock delay, filled at
+ * playback `rate`, last emptied at media time `anchor`.
+ */
+export interface CaptionDelay {
+  seconds: number;
+  rate: number;
+  anchor: number;
+}
+
 /** A recognised word placed on the episode's media timeline, in seconds. */
 export interface PodcastCaptionWord {
   word: string;

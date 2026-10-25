@@ -3,7 +3,7 @@ import { Captions, Pause, Play, RotateCcw, RotateCw } from "lucide-react";
 import type { PodcastEpisode } from "../../types/podcast";
 
 import { usePodcastCaptions } from "../../hooks/usePodcastCaptions";
-import { heardTime, visibleCaptionWords } from "../../utils/podcastCaptions";
+import { delayFilling, heardTime, visibleCaptionWords } from "../../utils/podcastCaptions";
 import { formatPodcastTime } from "../../utils/podcastTime";
 import { PodcastTranscript } from "./PodcastTranscript";
 
@@ -25,7 +25,7 @@ export function PodcastPlayer({ episode }: { episode: PodcastEpisode }) {
   const time = Math.min(mediaTime, heardTime(mediaTime, captions.delay) + tail);
   const draining = endedAt !== null && time < mediaTime;
   // Right after enabling or seeking, the delay line is still filling.
-  const buffering = playing && !!captions.delay && mediaTime - captions.delay.seconds < captions.delay.anchor;
+  const buffering = playing && delayFilling(mediaTime, captions.delay);
   useEffect(() => {
     if (!draining) return;
     const timer = window.setInterval(() => setNow(performance.now()), 250);

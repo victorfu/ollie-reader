@@ -1,4 +1,4 @@
-import type { PodcastCaptionWord } from "../types/podcast";
+import type { CaptionDelay, PodcastCaptionWord } from "../types/podcast";
 
 export const CAPTION_SAMPLE_RATE = 16_000;
 /** Whistle re-decodes its open window on every pass, so fewer, larger chunks keep up better. */
@@ -14,13 +14,23 @@ export const MAX_BACKLOG_SECONDS = 30;
  */
 export const CAPTION_DELAY_SECONDS = 6;
 
+/** Media seconds held in the delay line: its wall-clock delay at the fill rate. */
+export function delayedMediaSeconds(delay: CaptionDelay): number {
+  return delay.seconds * delay.rate;
+}
+
 /**
  * The position the listener actually hears while playback runs through the
  * caption delay. `anchor` is where the delay line was last emptied (enabling
- * captions or seeking); nothing earlier than it is still to be heard.
+ * captions, seeking or a rate change); nothing earlier is still to be heard.
  */
-export function heardTime(mediaTime: number, delay: { seconds: number; anchor: number } | null): number {
-  return delay ? Math.max(delay.anchor, mediaTime - delay.seconds) : mediaTime;
+export function heardTime(mediaTime: number, delay: CaptionDelay | null): number {
+  return delay ? Math.max(delay.anchor, mediaTime - delayedMediaSeconds(delay)) : mediaTime;
+}
+
+/** True while a freshly emptied delay line has not yet reached the speakers. */
+export function delayFilling(mediaTime: number, delay: CaptionDelay | null): boolean {
+  return !!delay && mediaTime - delayedMediaSeconds(delay) < delay.anchor;
 }
 
 /**

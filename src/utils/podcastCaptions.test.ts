@@ -3,6 +3,7 @@ import {
   CaptionSegment,
   MAX_CHUNK_SECONDS,
   createCaptionDownsampler,
+  delayFilling,
   heardTime,
   replaceCaptionWords,
   toPodcastWords,
@@ -42,9 +43,17 @@ describe("caption word timing", () => {
 
   it("reports the heard position behind the delay line, never before its last flush", () => {
     expect(heardTime(30, null)).toBe(30);
-    expect(heardTime(30, { seconds: 6, anchor: 10 })).toBe(24);
+    expect(heardTime(30, { seconds: 6, rate: 1, anchor: 10 })).toBe(24);
     // Just after enabling or seeking to 42, nothing new has been heard yet.
-    expect(heardTime(44, { seconds: 6, anchor: 42 })).toBe(42);
+    expect(heardTime(44, { seconds: 6, rate: 1, anchor: 42 })).toBe(42);
+    expect(delayFilling(44, { seconds: 6, rate: 1, anchor: 42 })).toBe(true);
+    expect(delayFilling(48.5, { seconds: 6, rate: 1, anchor: 42 })).toBe(false);
+  });
+
+  it("converts the wall-clock delay to media time at the fill rate", () => {
+    // Six seconds of 1.5x playback hold nine media seconds.
+    expect(heardTime(30, { seconds: 6, rate: 1.5, anchor: 0 })).toBe(21);
+    expect(delayFilling(8, { seconds: 6, rate: 1.5, anchor: 0 })).toBe(true);
   });
 
   it("keeps a whole episode's transcript", () => {
