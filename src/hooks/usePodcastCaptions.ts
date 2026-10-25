@@ -86,6 +86,12 @@ export function usePodcastCaptions(audioRef: RefObject<HTMLAudioElement | null>,
         const { createWhistle } = await import("cactus-needle/browser");
         speech = await createWhistle();
         if (!valid()) { await speech.close(); return; }
+        // Cross-origin media without an explicit CORS-enabled source becomes
+        // silent when attached to Web Audio. Never compromise playback.
+        const sourceUrl = new URL(audio.currentSrc || audio.src, window.location.href);
+        if (sourceUrl.origin !== window.location.origin) {
+          throw new Error("目前 Podcast 音檔來自其他網域，直接擷取會使播放器靜音。此來源暫不支援本機字幕，播放功能不受影響。");
+        }
         capture = await getCapture(audio);
         if (!valid()) return;
         // Assign the clock anchor immediately before streaming begins.
