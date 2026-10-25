@@ -1,10 +1,10 @@
 import { useId } from "react";
 import { ChevronRight } from "lucide-react";
-import type { Homework } from "../../types/wordPractice";
+import type { HistoryHomework } from "../../types/wordPractice";
 import { formatHomeworkDate, formatHomeworkScore } from "./homeworkFormat";
 
 interface HomeworkHistoryProps {
-  history: Homework[];
+  history: HistoryHomework[];
   onOpen: (homeworkId: string) => void;
 }
 

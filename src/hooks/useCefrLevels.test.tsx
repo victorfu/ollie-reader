@@ -3,14 +3,13 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { CefrLevel, WordPracticeState } from "../types/wordPractice";
 import type { CefrTable } from "../utils/cefr";
+import { DEFAULT_SETTINGS } from "../utils/reviewSchedule";
 
 const mocks = vi.hoisted(() => ({
   useAuth: vi.fn(),
   loadCefrTable: vi.fn(),
   loadPracticeState: vi.fn(),
-  estimateCefrLevels: vi.fn(),
-  generateExampleSentences: vi.fn(),
-  getSentenceFeedback: vi.fn(),
+  generateGeminiContent: vi.fn(),
   loggerError: vi.fn(),
 }));
 
@@ -23,12 +22,7 @@ vi.mock("../services/wordPracticeStorage", () => ({
   loadPracticeState: mocks.loadPracticeState,
 }));
 // The vocabulary book must never spend the shared Gemini quota on levels.
-vi.mock("../services/wordPracticeAi", () => ({
-  CEFR_ESTIMATE_BATCH_SIZE: 50,
-  estimateCefrLevels: mocks.estimateCefrLevels,
-  generateExampleSentences: mocks.generateExampleSentences,
-  getSentenceFeedback: mocks.getSentenceFeedback,
-}));
+vi.mock("../services/geminiClient", () => ({ generateGeminiContent: mocks.generateGeminiContent }));
 vi.mock("../utils/logger", () => ({
   logger: {
     debug: vi.fn(),
@@ -46,7 +40,13 @@ const TABLE: CefrTable = new Map<string, CefrLevel>([
 ]);
 
 function practiceState(cefrEstimates: Record<string, CefrLevel>): WordPracticeState {
-  return { activeHomeworkId: null, words: {}, cefrEstimates };
+  return {
+    schemaVersion: 2,
+    activeHomeworkId: null,
+    words: {},
+    cefrEstimates,
+    settings: DEFAULT_SETTINGS,
+  };
 }
 
 function deferred<T>() {
@@ -276,8 +276,6 @@ describe("useCefrLevels", () => {
     hook().levelOf("xyzzy");
     hook().levelOf("run");
 
-    expect(mocks.estimateCefrLevels).not.toHaveBeenCalled();
-    expect(mocks.generateExampleSentences).not.toHaveBeenCalled();
-    expect(mocks.getSentenceFeedback).not.toHaveBeenCalled();
+    expect(mocks.generateGeminiContent).not.toHaveBeenCalled();
   });
 });
