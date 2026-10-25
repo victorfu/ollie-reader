@@ -2,6 +2,7 @@ import { fetch as publicFetch } from "undici";
 import { XMLParser, XMLValidator } from "fast-xml-parser";
 import { ApiError, readLimited } from "./api";
 import { parseTarget, publicAgent } from "./fetchUrl";
+import { signPodcastAudio } from "./podcastAudio";
 
 const MAX_METADATA_BYTES = 2 * 1024 * 1024;
 const MAX_RSS_BYTES = 4 * 1024 * 1024;
@@ -123,11 +124,13 @@ function rssEpisode(item: RecordValue, channel: RecordValue, metadata: AppleShow
   const artwork = record(item["itunes:image"])["@_href"] ?? record(channel["itunes:image"])["@_href"];
   let artworkUrl: string | null = null;
   if (artwork) { try { artworkUrl = mediaUrl(artwork); } catch { /* Optional artwork can be omitted. */ } }
+  const audioUrl = mediaUrl(enclosure["@_url"]);
   return {
     title: string(item.title) || metadata.title,
     podcastTitle: metadata.podcastTitle,
     artworkUrl,
-    audioUrl: mediaUrl(enclosure["@_url"]),
+    audioUrl,
+    captionAudioUrl: signPodcastAudio(audioUrl),
     durationSeconds: parseDuration(item["itunes:duration"]),
     sourceUrl: metadata.sourceUrl,
     podcastId: metadata.podcastId,

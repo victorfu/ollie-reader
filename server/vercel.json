@@ -6,6 +6,9 @@
     },
     "src/app/api/podcasts/resolve/route.ts": {
       "supportsCancellation": true
+    },
+    "src/app/api/podcasts/audio/route.ts": {
+      "supportsCancellation": true
     }
   }
 }

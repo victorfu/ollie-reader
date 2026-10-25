@@ -31,6 +31,10 @@ describe("Apple episode identification", () => {
   });
   it("matches the RSS GUID, supports M4A and parses duration", () => {
     expect(matchRssEpisode(rss(), metadata)).toMatchObject({ audioUrl: "https://audio.example/story.m4a", title: "Test episode", durationSeconds: 382, guid: offer.guid });
+    expect(matchRssEpisode(rss(), metadata).captionAudioUrl).toBeNull();
+    vi.stubEnv("PODCAST_AUDIO_SECRET", "s".repeat(32));
+    expect(matchRssEpisode(rss(), metadata).captionAudioUrl).toMatch(/^\/api\/podcasts\/audio\?url=https%3A%2F%2Faudio\.example%2Fstory\.m4a&expires=\d+&signature=/);
+    vi.unstubAllEnvs();
     expect(parseDuration("1:02:03")).toBe(3723);
     expect(parseDuration("invalid")).toBeNull();
   });
