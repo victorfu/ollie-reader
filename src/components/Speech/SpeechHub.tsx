@@ -3,9 +3,10 @@ import { NavLink, Outlet } from "react-router-dom";
 const tabs = [
   { to: "/english-speech", label: "✍️ 英文演講" },
   { to: "/speech-practice", label: "🎤 演講練習" },
+  { to: "/audio-uploads", label: "🎵 音訊庫" },
 ];
 
-/** 「演講」入口：上方切換英文演講 / 演講練習，下方顯示對應頁面。 */
+/** 「演講」入口：上方切換英文演講 / 演講練習 / 音訊庫，下方顯示對應頁面。 */
 export function SpeechHub() {
   return (
     <>

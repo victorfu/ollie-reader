@@ -128,8 +128,9 @@ describe("Speech navigation", () => {
     expect(labels).toContain("演講");
     expect(labels).not.toContain("英文演講");
     expect(labels).not.toContain("演講練習");
+    expect(labels).not.toContain("音訊庫");
   });
-  it.each(["/english-speech", "/speech-practice"])("marks the Speech entry active on %s and shows both sub-tabs", (path) => {
+  it.each(["/english-speech", "/speech-practice", "/audio-uploads"])("marks the Speech entry active on %s and shows all sub-tabs", (path) => {
     window.history.replaceState(null, "", path);
     act(() => root.render(<App />));
     const active = host.querySelector('aside nav a[aria-current="page"]');
@@ -137,6 +138,7 @@ describe("Speech navigation", () => {
     const tabs = host.querySelector('nav[aria-label="演講分類"]');
     expect(tabs?.querySelector('a[href="/english-speech"]')?.textContent).toContain("英文演講");
     expect(tabs?.querySelector('a[href="/speech-practice"]')?.textContent).toContain("演講練習");
+    expect(tabs?.querySelector('a[href="/audio-uploads"]')?.textContent).toContain("音訊庫");
     expect(tabs?.querySelector(`a[href="${path}"]`)?.getAttribute("aria-current")).toBe("page");
     expect(host.textContent).toContain("Page content");
   });

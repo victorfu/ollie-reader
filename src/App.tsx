@@ -13,7 +13,6 @@ import {
   BookMarked,
   SpellCheck,
   Mic,
-  Music,
   Headphones,
   MonitorPlay,
   ClipboardCheck,
@@ -442,9 +441,8 @@ function AppContent() {
       to: "/english-speech",
       label: "演講",
       icon: Mic,
-      matches: ["/speech-practice"],
+      matches: ["/speech-practice", "/audio-uploads"],
     },
-    { to: "/audio-uploads", label: "音訊庫", icon: Music },
     { to: "/podcasts", label: "Podcast 聽力", icon: Headphones },
     { to: "/show", label: "影集字幕", icon: MonitorPlay },
     { to: "/exams", label: "基本學力測驗", icon: ClipboardCheck },
@@ -747,8 +745,11 @@ function AppContent() {
                           path="/speech-practice"
                           element={<SpeechPractice />}
                         />
+                        <Route
+                          path="/audio-uploads"
+                          element={<AudioUploads />}
+                        />
                       </Route>
-                      <Route path="/audio-uploads" element={<AudioUploads />} />
                       <Route path="/podcasts" element={<Podcasts />} />
                       <Route path="/show" element={<ShowSubtitlesPage />} />
                       <Route path="/exams" element={<ExamPracticePage />} />
