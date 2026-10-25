@@ -3,6 +3,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { PodcastPlayer } from "./PodcastPlayer";
 import type { PodcastEpisode } from "../../types/podcast";
+vi.mock("cactus-needle/browser", () => ({ createWhistle: async () => ({ close: async () => {}, stream: async function* () {} }) }));
 const episode: PodcastEpisode = { title: "A story", podcastTitle: "Stories", sourceUrl: "https://podcasts.apple.com/us/podcast/id1?i=2", audioUrl: "https://audio.example/story.mp3", artworkUrl: null, durationSeconds: 100, podcastId: "1", episodeId: "2", guid: "guid" };
 let host: HTMLDivElement, root: Root;
 let play: ReturnType<typeof vi.spyOn>, pause: ReturnType<typeof vi.spyOn>, load: ReturnType<typeof vi.spyOn>;
@@ -73,4 +74,26 @@ it("keeps captions off by default and explains unsupported browsers without touc
   expect(host.querySelector('[role="alert"]')?.textContent).toContain("不支援即時字幕");
   expect(host.querySelector("audio")!.getAttribute("src")).toBe(episode.audioUrl);
   expect(play).not.toHaveBeenCalled();
+});
+it("does not revive the old episode when unmounted while captions prepare a CORS source", async () => {
+  class FakeAudioContext { sampleRate = 48_000; currentTime = 0; resume = vi.fn(async () => {}); suspend = vi.fn(async () => {}); close = vi.fn(async () => {}); }
+  vi.stubGlobal("AudioContext", FakeAudioContext);
+  vi.stubGlobal("AudioWorkletNode", class {});
+  vi.stubGlobal("fetch", vi.fn(async () => new Response("", { status: 200 })));
+  try {
+    act(() => root.render(<PodcastPlayer episode={episode} />));
+    const audio = ready();
+    await act(async () => button("播放").click());
+    play.mockClear();
+    const toggle = host.querySelector<HTMLInputElement>('input[role="switch"]')!;
+    // Captions switch the element to a CORS load and wait for its metadata.
+    await act(async () => { toggle.click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
+    expect(audio.crossOrigin).toBe("anonymous");
+    act(() => root.render(null));
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+    expect(audio.hasAttribute("src")).toBe(false);
+    expect(play).not.toHaveBeenCalled();
+  } finally {
+    vi.unstubAllGlobals();
+  }
 });

@@ -134,6 +134,8 @@ async function load(audio: HTMLAudioElement, url: string, crossOrigin: boolean, 
   audio.src = url;
   audio.load();
   await loaded(audio, signal);
+  // The player unmounted meanwhile; never revive its detached element.
+  if (!audio.isConnected) return;
   if (at > 0) audio.currentTime = at;
   // load() pauses without a pause event; keep the player's state in sync.
   if (resume) await audio.play().catch(() => audio.dispatchEvent(new Event("pause")));
@@ -159,7 +161,10 @@ async function ensureReadableSource(audio: HTMLAudioElement, episode: PodcastEpi
   try {
     await load(audio, url, true, at, resume, signal);
   } catch (error) {
-    // Never leave the player broken: fall back to the original source.
+    // Never leave a mounted player broken: fall back to the original source.
+    // After unmount (episode change, navigation) the element is detached and
+    // its source cleared, so restoring it would restart the old episode.
+    if (!audio.isConnected) throw error;
     await load(audio, current.href, false, at, resume, new AbortController().signal).catch(() => {});
     throw error;
   }
