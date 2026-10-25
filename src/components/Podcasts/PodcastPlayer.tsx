@@ -3,6 +3,7 @@ import { Pause, Play, RotateCcw, RotateCw } from "lucide-react";
 import type { PodcastEpisode } from "../../types/podcast";
 
 import { formatPodcastTime } from "../../utils/podcastTime";
+import { usePodcastCaptions } from "../../hooks/usePodcastCaptions";
 
 export function PodcastPlayer({ episode }: { episode: PodcastEpisode }) {
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -13,6 +14,8 @@ export function PodcastPlayer({ episode }: { episode: PodcastEpisode }) {
   const [seekable, setSeekable] = useState(false);
   const [speed, setSpeed] = useState(1);
   const [error, setError] = useState("");
+  const captions = usePodcastCaptions(audioRef, episode.audioUrl);
+  const displayed = captions.words.filter((w) => w.end >= time - 8 && w.start <= time + 1);
   useEffect(() => {
     const audio = audioRef.current;
     if (audio) {
@@ -80,6 +83,21 @@ export function PodcastPlayer({ episode }: { episode: PodcastEpisode }) {
           }}>{[0.75, 1, 1.25, 1.5].map((value) => <option key={value} value={value}>{value}x</option>)}</select>
         </label>
       </div>
+      <section aria-label="英文即時字幕" className="space-y-3 rounded-xl border border-border-hairline bg-background/60 p-4">
+        <div className="flex items-center justify-between gap-3">
+          <h3 className="text-base font-medium">英文即時字幕</h3>
+          <button type="button" className="btn btn-ghost min-h-11" aria-label={captions.enabled ? "關閉即時字幕" : "開啟即時字幕"} onClick={() => captions.enabled ? captions.disable() : captions.enable()}>
+            {captions.enabled ? "關閉字幕" : "開啟字幕"}
+          </button>
+        </div>
+        {captions.state === "loading" && <p role="status" className="text-sm text-muted-foreground">正在載入本機語音模型…</p>}
+        {captions.state === "listening" && <p role="status" className="text-xs text-muted-foreground">Whistle · 瀏覽器本機辨識，不上傳音訊</p>}
+        {captions.state === "error" && <p role="alert" className="text-sm text-destructive">{captions.error}</p>}
+        {captions.state === "off" && <p className="text-sm text-muted-foreground">字幕為選用功能，第一次開啟需要下載語音模型。部分 Podcast 來源可能因跨網域限制無法辨識。</p>}
+        <p aria-live="polite" className="min-h-14 rounded-lg bg-base-200/50 p-3 text-center text-lg leading-relaxed">
+          {displayed.length ? displayed.map((word, index) => <span key={index} className={word.start <= time && word.end >= time ? "font-bold text-accent" : "text-foreground"}>{word.word}{" "}</span>) : captions.pending || (captions.enabled ? "正在聆聽…" : "開啟字幕後顯示英文")}
+        </p>
+      </section>
       {loading && <p role="status" className="text-sm text-muted-foreground">正在載入音訊…</p>}
       {!loading && !seekable && !error && <p className="text-sm text-muted-foreground">來源尚未提供可跳轉的音訊範圍。</p>}
       {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
