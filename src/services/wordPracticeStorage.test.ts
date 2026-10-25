@@ -133,6 +133,7 @@ import {
   loadPracticeState,
   newHomeworkId,
   normalizeSettings,
+  resetPracticeProgress,
   saveHomeworkProgress,
   saveHomeworkReview,
   saveSettings,
@@ -595,6 +596,34 @@ describe("abandonHomework", () => {
     await abandonHomework("u", "h1");
     await abandonHomework("u", "ghost");
     expect([...m.docs.entries()]).toEqual(before);
+  });
+});
+
+describe("resetPracticeProgress", () => {
+  it("forgets every word and the streak, abandons the active homework, and keeps the rest", async () => {
+    const settings = { newWordCount: 7, reviewLimit: 3, startLevel: "A2" };
+    seed(
+      STATE,
+      v2State({
+        words: { apple: { stage: 2, dueAt: 5, missCount: 1 } },
+        cefrEstimates: { apple: "A1" },
+        settings,
+        homeworkStreak: { lastDay: "2026-10-24", days: 4 },
+      }),
+    );
+    await createHomework("u", hw("h1", [apple], []));
+    seedHw(hw("done", [river], [], { status: "completed", completedAt: 1 }));
+
+    await resetPracticeProgress("u");
+
+    expect(stored(hwPath("h1")).status).toBe("abandoned");
+    expect(stored(hwPath("done")).status).toBe("completed");
+    expect(stored(STATE)).toEqual(v2State({ cefrEstimates: { apple: "A1" }, settings }));
+  });
+
+  it("works when there is no state or no active homework yet", async () => {
+    await resetPracticeProgress("u");
+    expect(stored(STATE)).toMatchObject({ schemaVersion: 2, activeHomeworkId: null, words: {} });
   });
 });
 

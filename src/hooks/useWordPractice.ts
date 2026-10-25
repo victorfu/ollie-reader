@@ -14,6 +14,7 @@ import {
   getActiveHomework,
   listCompletedHomeworks,
   loadPracticeState,
+  resetPracticeProgress,
   saveHomeworkProgress,
   saveHomeworkReview,
   saveSettings as saveSettingsToStorage,
@@ -49,6 +50,11 @@ export interface UseWordPractice {
   submit(): Promise<Homework | null>;
   abandon(): Promise<void>;
   saveSettings(next: PracticeSettings): Promise<void>;
+  /**
+   * Starts the practice over (every word new, no streak, the active homework
+   * given up), then reloads. Does nothing while a homework is being made or handed in.
+   */
+  resetProgress(): Promise<void>;
   /** Gemini review in progress or failed, by homework id; absent when idle or done. */
   reviewState: Record<string, "reviewing" | "failed">;
   /**
@@ -70,6 +76,7 @@ const GENERATE_ERROR = "準備功課失敗，請稍後再試";
 const ABANDON_ERROR = "放棄功課失敗，請稍後再試";
 const FINISH_ERROR = "無法完成功課，請稍後再試";
 const SETTINGS_ERROR = "儲存設定失敗，請稍後再試";
+const RESET_ERROR = "重設進度失敗，請稍後再試";
 const SAVE_ERROR = "進度尚未儲存，下一次作答時會再試一次";
 const NO_STREAK = { firstToday: true, days: 1 };
 
@@ -417,6 +424,27 @@ export function useWordPractice(): UseWordPractice {
     }
   }, []);
 
+  const resetProgress = useCallback(async (): Promise<void> => {
+    const ownerUid = uidRef.current;
+    if (!ownerUid || startingRef.current || submitRef.current) return;
+    const session = sessionRef.current;
+    const tracker = trackerRef.current;
+
+    // As when abandoning: no save is made for the active homework from here on.
+    if (tracker) tracker.phase = "abandoning";
+    setError(null);
+    try {
+      await resetPracticeProgress(ownerUid);
+    } catch (err) {
+      if (tracker) tracker.phase = "open";
+      if (sessionRef.current !== session) return;
+      logger.error("Could not reset word practice progress:", err);
+      setError(RESET_ERROR);
+      return;
+    }
+    if (sessionRef.current === session) await load();
+  }, [load]);
+
   useEffect(() => {
     uidRef.current = uid;
     // Whatever the previous account (or the previous mount) left behind is not
@@ -461,6 +489,7 @@ export function useWordPractice(): UseWordPractice {
     submit,
     abandon,
     saveSettings,
+    resetProgress,
     reviewState,
     reviewHomework,
     reload: load,

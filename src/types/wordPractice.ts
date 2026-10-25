@@ -1,4 +1,5 @@
 import type { HomeworkReward, HomeworkStreak } from "../services/economyService";
+import type { InflectionKind } from "../utils/inflection";
 
 export type CefrLevel = "A1" | "A2" | "B1" | "B2" | "C1" | "C2";
 export interface CefrInfo {
@@ -38,17 +39,6 @@ export interface WordPracticeState {
   homeworkStreak?: HomeworkStreak;
 }
 
-export interface Cloze {
-  text: string;
-  /** The first blank as written in the sentence; this is the one shown as the answer. */
-  answer: string;
-  /**
-   * Every different form that is blanked, when the sentence blanks more than
-   * one ("Dogs love to run, and my dog runs fast."). Each one is accepted.
-   * Absent when there is a single form, and in homework stored before this existed.
-   */
-  answers?: string[];
-}
 export interface HomeworkWord {
   key: string; // practiceKey(word)
   vocabularyId: string;
@@ -61,20 +51,19 @@ export interface HomeworkWord {
   }[];
   sentence: string | null;
   cefr: CefrInfo | null;
+  /**
+   * Set when the saved word was an inflected form ("ran"): `word` is then the
+   * base form ("run"), taught first, and this is the saved form, taught after it.
+   */
+  inflection?: { form: string; kind: InflectionKind };
 }
 
-export type PageSection =
-  | "look"
-  | "copy"
-  | "recall"
-  | "cloze"
-  | "sentence"
-  | "done";
+export type PageSection = "look" | "copy" | "recall" | "form" | "sentence" | "done";
 
 export interface WordPageProgress {
   section: PageSection;
   copies: number;
-  /** Only in homework written before the phrase step was replaced by the cloze. */
+  /** Only in homework written while the page still had a phrase step. */
   phrase?: string | null;
   sentence: string | null;
 }
@@ -97,6 +86,8 @@ export interface DictationItem {
   source: "new" | "review";
   answer: string | null;
   skipped: boolean;
+  /** Asks for the word's inflected form instead of its base form. */
+  form?: true;
 }
 
 export interface HomeworkProgress {
@@ -105,6 +96,7 @@ export interface HomeworkProgress {
   corrections: Record<string, number>;
 }
 
+/** The keys are dictation item ids (`dictationId`): a form item has its own. */
 export interface DictationResult {
   correctKeys: string[];
   wrongKeys: string[];

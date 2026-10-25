@@ -144,7 +144,7 @@ describe("CorrectionStep", () => {
     render(
       <CorrectionStep
         homework={withAnswers(["rivr", null])}
-        wordKey="river"
+        itemId="river"
         onChange={onChange}
       />,
     );
@@ -152,6 +152,33 @@ describe("CorrectionStep", () => {
     expect(text()).toContain("river");
     await type("river");
     expect(onChange).toHaveBeenCalledWith({ river: 1 });
+  });
+});
+
+describe("an inflected word in the dictation", () => {
+  const RUN: HomeworkWord = { ...word("run", "She ran home."), inflection: { form: "ran", kind: "past" } };
+  const formItem = (answer: string | null): DictationItem => ({ ...item("run", answer), form: true });
+  const homework = (dictation: DictationItem[]) => makeHomework(dictation, { newWords: [RUN], pages: [] });
+
+  it("reads the form for the form item and names which form it is", async () => {
+    render(<DictationStep homework={homework([item("run", "run"), formItem(null)])} itemIndex={1} onChange={onChange} />);
+    await flush();
+    expect(spoken()).toEqual(["ran", "She ran home.", "ran"]);
+    expect(text()).toContain("提示：run 的過去式");
+  });
+
+  it("corrects the form item with the form", async () => {
+    render(<CorrectionStep homework={homework([item("run", "run"), formItem("runned")])} itemId="run#form" onChange={onChange} />);
+    expect(text()).toContain("ran");
+    await type("ran");
+    expect(onChange).toHaveBeenCalledWith({ "run#form": 1 });
+  });
+
+  it("lists a wrong form with the word it belongs to", () => {
+    const done = homework([item("run", "run"), formItem("runned")]);
+    render(<FinishedView homework={{ ...done, status: "completed" }} onBack={() => {}} />);
+    expect(text()).toContain("ran（run 的過去式）");
+    expect(text()).toContain("你寫的：runned");
   });
 });
 

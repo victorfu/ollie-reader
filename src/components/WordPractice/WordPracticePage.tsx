@@ -156,6 +156,7 @@ export default function WordPracticePage() {
           busy={starting || submitting}
           onSave={wordPractice.saveSettings}
           onAbandon={wordPractice.abandon}
+          onReset={wordPractice.resetProgress}
         />
       </>
     );
@@ -177,7 +178,7 @@ export default function WordPracticePage() {
             單字練習
           </h1>
           <p className="text-muted-foreground">
-            照作業簿一步一步寫：抄寫、默寫、例句填空、造句，最後聽寫。
+            照作業簿一步一步寫：抄寫、默寫、造句，最後聽寫。
           </p>
         </div>
         {/* The live regions stay mounted so that a change in their text is announced. */}

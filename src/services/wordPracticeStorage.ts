@@ -41,7 +41,7 @@ import {
 } from "./economyService";
 import { getOrCreateProgress, prepareCoinAward } from "./gameProgressService";
 import { db } from "../utils/firebaseUtil";
-import { currentPosition, gradeDictation, wordForKey } from "../utils/homeworkFlow";
+import { currentPosition, gradeDictation, wordForKey, wordOutcomes } from "../utils/homeworkFlow";
 import {
   applyDictationOutcome,
   DEFAULT_SETTINGS,
@@ -324,6 +324,31 @@ export async function abandonHomework(uid: string, id: string): Promise<void> {
   });
 }
 
+/**
+ * Starts the practice over: every word is new again, the streak is gone and
+ * an active homework is abandoned. The settings, the AI CEFR estimates and the
+ * homework history stay; so do the vocabulary book's own review stats.
+ */
+export async function resetPracticeProgress(uid: string): Promise<void> {
+  await runTransaction(db, async (tx) => {
+    const state = toV2State((await tx.get(stateRef(uid))).data(), Date.now());
+    const activeId = state.activeHomeworkId;
+    const active = activeId ? toHomework(await tx.get(homeworkRef(uid, activeId))) : null;
+
+    if (activeId && active?.status === "active") {
+      tx.update(homeworkRef(uid, activeId), { status: "abandoned" });
+    }
+    const reset: WordPracticeState = {
+      schemaVersion: 2,
+      activeHomeworkId: null,
+      words: {},
+      cefrEstimates: state.cefrEstimates,
+      settings: state.settings,
+    };
+    tx.set(stateRef(uid), reset);
+  });
+}
+
 export interface ReviewUpdate {
   vocabularyId: string;
   remembered: boolean;
@@ -361,13 +386,11 @@ export async function completeHomework(
     const state = toV2State(stateSnapshot.data(), now);
     const words = { ...state.words };
     const reviewUpdates: ReviewUpdate[] = [];
-    for (const item of homework.dictation) {
-      if (item.skipped) continue;
-      const word = wordForKey(homework, item.key);
-      const remembered = result.correctKeys.includes(item.key);
-      const previous = Object.hasOwn(words, item.key) ? words[item.key] : undefined;
+    for (const { key, remembered } of wordOutcomes(homework, result)) {
+      const word = wordForKey(homework, key);
+      const previous = Object.hasOwn(words, key) ? words[key] : undefined;
       const next = applyDictationOutcome(previous, remembered ? "correct" : "wrong", now);
-      words[item.key] = remembered && word.sentence ? { ...next, sentence: word.sentence } : next;
+      words[key] = remembered && word.sentence ? { ...next, sentence: word.sentence } : next;
       if (word.vocabularyId) reviewUpdates.push({ vocabularyId: word.vocabularyId, remembered });
     }
 

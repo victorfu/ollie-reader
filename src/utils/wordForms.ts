@@ -1,8 +1,8 @@
 /**
- * Word form utilities for Word Practice: inflections, cloze blanks and
- * headword redaction.
+ * Word form utilities for Word Practice: inflections, finding a word in a
+ * sentence and headword redaction.
  *
- * These helpers deliberately favour misses over false positives. A cloze that
+ * These helpers deliberately favour misses over false positives. A redaction that
  * blanks a different word ("now" inside "know", "run" inside "runner") is worse
  * than a sentence that is skipped, so forms are generated conservatively and
  * matched on whole-word boundaries only.
@@ -11,8 +11,6 @@
  * (it strips `-e`, `-ly`) to hide words; it is not suitable for finding forms
  * or looking words up, so it is not reused here.
  */
-
-import type { Cloze } from "../types/wordPractice";
 
 export const CLOZE_BLANK = "_____";
 
@@ -310,44 +308,13 @@ export function findWordForm(text: string, word: string): string | null {
 }
 
 /**
- * Replaces every form of `word` in `text` with `blank` and lists what was
- * replaced, as written. A possessive ("puppy's") is blanked too, so that the
- * visible text never contains the word; its "'s" stays.
+ * Replaces every form of `word` in `text` with `blank`. A possessive ("puppy's")
+ * is blanked too, so that the visible text never contains the word; its "'s" stays.
  */
-function redact(text: string, word: string, blank: string): { text: string; replaced: string[] } {
-  const matcher = matcherFor(word, true);
-  const replaced: string[] = [];
-  if (!matcher) return { text, replaced };
-  const redacted = text.replace(matcher, (found) => {
-    replaced.push(found);
-    return blank;
-  });
-  return { text: redacted, replaced };
-}
-
-/** Replaces every form of `word` in `text` with `blank`. */
 export function redactWordForms(text: string, word: string, blank: string = CLOZE_BLANK): string {
-  return redact(text, word, blank).text;
-}
-
-/**
- * Blanks every form of `word` in `sentence`. `answer` is the first blank as
- * written; `answers` lists every different form that was blanked, so that a
- * sentence with two ("Dogs love to run, and my dog runs fast.") accepts either,
- * and is left out when there is only one. Null when the sentence does not use
- * the word on its own (a use inside "puppy's" does not count).
- */
-export function makeCloze(sentence: string, word: string): Cloze | null {
-  if (findWordForm(sentence, word) === null) return null;
-  const { text, replaced } = redact(sentence, word, CLOZE_BLANK);
-  // The first spelling of each form, as written (a later "DOG" does not replace "Dog").
-  const firstOfForm = new Map<string, string>();
-  for (const found of replaced) {
-    const form = normalize(found);
-    if (!firstOfForm.has(form)) firstOfForm.set(form, found);
-  }
-  const answers = [...firstOfForm.values()];
-  return answers.length > 1 ? { text, answer: answers[0], answers } : { text, answer: answers[0] };
+  const matcher = matcherFor(word, true);
+  // A function, so that "$&" in the blank is not read as a replacement pattern.
+  return matcher ? text.replace(matcher, () => blank) : text;
 }
 
 export function sentenceUsesWord(sentence: string, word: string): boolean {

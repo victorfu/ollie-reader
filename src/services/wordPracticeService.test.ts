@@ -23,7 +23,7 @@ vi.mock("../utils/cefr", async (importOriginal) => ({
   loadCefrTable: mocks.loadCefrTable,
 }));
 
-import { findExampleCloze, generateHomework } from "./wordPracticeService";
+import { findExampleSentence, generateHomework } from "./wordPracticeService";
 
 const UID = "user-1";
 const NOW = Date.UTC(2026, 9, 19, 8, 30);
@@ -113,28 +113,22 @@ describe("wordPracticeService", () => {
     mockWords([]);
   });
 
-  describe("findExampleCloze", () => {
-    it("returns the first vocabulary example that contains the word, with its cloze", () => {
+  describe("findExampleSentence", () => {
+    it("returns the first vocabulary example that contains the word", () => {
       const word = makeWord("ember", {
         examples: [{ sentence: "The fire was warm." }, { sentence: "An ember glowed." }, { sentence: "Another ember fell." }],
       });
 
-      expect(findExampleCloze(word)).toEqual({
-        sentence: "An ember glowed.",
-        cloze: { text: "An _____ glowed.", answer: "ember" },
-      });
+      expect(findExampleSentence(word)).toBe("An ember glowed.");
     });
 
     it("accepts an inflected form of the word", () => {
-      expect(findExampleCloze(withExample("run", "She ran home."))).toEqual({
-        sentence: "She ran home.",
-        cloze: { text: "She _____ home.", answer: "ran" },
-      });
+      expect(findExampleSentence(withExample("run", "She ran home."))).toBe("She ran home.");
     });
 
     it("returns null when no example contains the word, or there are no examples", () => {
-      expect(findExampleCloze(withExample("ember", "The fire was warm."))).toBeNull();
-      expect(findExampleCloze(makeWord("ember"))).toBeNull();
+      expect(findExampleSentence(withExample("ember", "The fire was warm."))).toBeNull();
+      expect(findExampleSentence(makeWord("ember"))).toBeNull();
     });
   });
 
@@ -155,6 +149,55 @@ describe("wordPracticeService", () => {
     it("passes now to loadPracticeState", async () => {
       await generateHomework(UID, NOW);
       expect(mocks.loadPracticeState).toHaveBeenCalledWith(UID, NOW);
+    });
+
+    it("practises a word saved as an inflected form as its base, with the form, dictated twice", async () => {
+      mocks.loadCefrTable.mockResolvedValue(new Map([...TABLE, ["run", "A1"]]));
+      mockWords([
+        makeWord("ran", {
+          definitions: [{ partOfSpeech: "verb", definition: "past tense of run" }],
+          examples: [{ sentence: "She ran home." }],
+        }),
+      ]);
+      const result = await generateHomework(UID, NOW);
+      if (result.status !== "created") throw new Error("expected a homework");
+
+      expect(result.homework.newWords).toEqual([
+        expect.objectContaining({
+          key: "run",
+          word: "run",
+          vocabularyId: "id-ran",
+          sentence: "She ran home.",
+          cefr: { level: "A1", source: "list" },
+          inflection: { form: "ran", kind: "past" },
+        }),
+      ]);
+      expect(result.homework.dictation).toHaveLength(2);
+      expect(result.homework.dictation).toEqual(
+        expect.arrayContaining([
+          { key: "run", source: "new", answer: null, skipped: false },
+          { key: "run", source: "new", answer: null, skipped: false, form: true },
+        ]),
+      );
+    });
+
+    it("keeps the form when the book has the base and the inflected form", async () => {
+      mocks.loadCefrTable.mockResolvedValue(new Map([...TABLE, ["run", "A1"]]));
+      mockWords([
+        makeWord("run", { definitions: [{ partOfSpeech: "verb", definition: "to move fast" }] }),
+        makeWord("ran", { definitions: [{ partOfSpeech: "verb", definition: "past tense of run" }] }),
+      ]);
+      const result = await generateHomework(UID, NOW);
+      if (result.status !== "created") throw new Error("expected a homework");
+
+      expect(result.homework.newWords).toHaveLength(1);
+      expect(result.homework.newWords[0]).toMatchObject({ key: "run", word: "run", inflection: { form: "ran", kind: "past" } });
+    });
+
+    it("leaves a word that is not an inflected form without one", async () => {
+      const { homework } = await created({ newWords: ["river"] });
+      expect(homework.newWords[0]).not.toHaveProperty("inflection");
+      expect(homework.dictation).toHaveLength(1);
     });
 
     it("snapshots English and Chinese definitions and the first example that contains the word", async () => {

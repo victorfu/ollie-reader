@@ -1,15 +1,9 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useSpeechState } from "../../hooks/useSpeechState";
-import type { Cloze, HomeworkWord, WordPageProgress } from "../../types/wordPractice";
+import type { HomeworkWord, WordPageProgress } from "../../types/wordPractice";
 import { isAnswerCorrect } from "../../utils/answerMatch";
-import {
-  checkSentence,
-  clozeFor,
-  COPY_TARGET,
-  isClozeAnswer,
-  nextSection,
-  pageSection,
-} from "../../utils/homeworkFlow";
+import { checkSentence, COPY_TARGET, nextSection, pageSection, sentenceWord } from "../../utils/homeworkFlow";
+import { INFLECTION_LABEL, INFLECTION_USE, inflectionRule } from "../../utils/inflection";
 import { redactWordForms } from "../../utils/wordForms";
 import { SpeakButton } from "../common/SpeakButton";
 import { AnswerInput } from "./AnswerInput";
@@ -24,7 +18,7 @@ interface WordPageProps {
   onChange: (next: WordPageProgress) => void;
 }
 
-const SECTION_RANK = { look: 0, copy: 1, recall: 2, cloze: 3, sentence: 4, done: 5 } as const;
+const SECTION_RANK = { look: 0, copy: 1, recall: 2, form: 3, sentence: 4, done: 5 } as const;
 
 function sentenceHint(result: ReturnType<typeof checkSentence>, word: string): string {
   if (result === "missingWord") return `要用到「${word}」喔`;
@@ -70,6 +64,12 @@ function LookSection({ word, onDone }: { word: HomeworkWord; onDone: () => void 
       {word.sentence && (
         <p className="rounded-[10px] border border-border-hairline bg-background px-4 py-3">
           {word.sentence}
+        </p>
+      )}
+      {word.inflection && (
+        <p className="rounded-[10px] bg-accent-tint px-4 py-3 text-sm">
+          書裡看到的是 <strong>{word.inflection.form}</strong>，它是 <strong>{word.word}</strong> 的
+          {INFLECTION_LABEL[word.inflection.kind]}。先學 {word.word}，等一下再學 {word.inflection.form}。
         </p>
       )}
       <button
@@ -140,13 +140,27 @@ function RecallSection({ word, onDone }: { word: HomeworkWord; onDone: () => voi
   );
 }
 
-function ClozeSection({ cloze, onDone }: { cloze: Cloze; onDone: () => void }) {
+/**
+ * The inflected form of a word saved that way: first the form, how it is made
+ * and when it is used, copied once; then typed again without looking.
+ */
+function FormSection({
+  word,
+  inflection,
+  onDone,
+}: {
+  word: HomeworkWord;
+  inflection: NonNullable<HomeworkWord["inflection"]>;
+  onDone: () => void;
+}) {
+  const [learned, setLearned] = useState(false);
   const [typed, setTyped] = useState("");
   const [missed, setMissed] = useState<string | null>(null);
   const [attempts, setAttempts] = useState(0);
+  const label = INFLECTION_LABEL[inflection.kind];
 
   const check = () => {
-    if (isClozeAnswer(typed, cloze)) {
+    if (isAnswerCorrect(typed, inflection.form)) {
       onDone();
       return;
     }
@@ -155,18 +169,37 @@ function ClozeSection({ cloze, onDone }: { cloze: Cloze; onDone: () => void }) {
     setTyped("");
   };
 
+  if (!learned) {
+    return (
+      <section className="space-y-4">
+        <Heading>
+          變化形：{word.word} 的{label}
+        </Heading>
+        <div className="flex flex-wrap items-center gap-3">
+          <p className="text-2xl font-semibold">{inflection.form}</p>
+          <SpeakButton text={inflection.form} size="md" />
+        </div>
+        <ul className="space-y-1 rounded-[10px] border border-border-hairline bg-background px-4 py-3 text-sm">
+          <li>怎麼變：{inflectionRule(word.word, inflection.form)}</li>
+          <li>什麼時候用：{INFLECTION_USE[inflection.kind]}</li>
+        </ul>
+        <p className="text-sm text-muted-foreground">照著打一遍：</p>
+        <CopyBoxes word={inflection.form} done={0} target={1} onCorrect={() => setLearned(true)} />
+      </section>
+    );
+  }
+
   return (
     <section className="space-y-4">
-      <Heading>例句填空：把空格裡的字打出來</Heading>
-      <p className="rounded-[10px] border border-border-hairline bg-background px-4 py-3 text-lg">
-        {cloze.text}
-      </p>
+      <Heading>
+        不看答案，打出 {word.word} 的{label}
+      </Heading>
       <AnswerInput
         key={attempts}
         value={typed}
         onChange={setTyped}
         onSubmit={check}
-        label="空格裡的字"
+        label={`${word.word} 的${label}`}
       />
       {missed !== null && (
         <div
@@ -174,9 +207,9 @@ function ClozeSection({ cloze, onDone }: { cloze: Cloze; onDone: () => void }) {
           className="space-y-2 rounded-[10px] border border-border-hairline bg-background px-4 py-3"
         >
           <p className="text-sm text-muted-foreground">
-            正確答案是 <strong className="text-foreground">{cloze.answer}</strong>，再打一次：
+            正確答案是 <strong className="text-foreground">{inflection.form}</strong>，再打一次：
           </p>
-          <SpellingDiff input={missed} expected={cloze.answer} />
+          <SpellingDiff input={missed} expected={inflection.form} />
         </div>
       )}
     </section>
@@ -237,13 +270,14 @@ function WriteSection({
  * page while it is being recalled.
  */
 export function WordPage({ word, progress, index, total, onChange }: WordPageProps) {
-  const cloze = clozeFor(word);
+  const { inflection } = word;
   const stored = pageSection(progress);
-  // A word without a usable example has no cloze; a page saved there goes on to the sentence.
-  const section = stored === "cloze" && !cloze ? "sentence" : stored;
+  // Only a word saved as an inflected form has a form step.
+  const section = stored === "form" && !inflection ? "sentence" : stored;
   const rank = SECTION_RANK[section];
+  const target = sentenceWord(word);
   const advance = (extra: Partial<WordPageProgress> = {}) =>
-    onChange({ ...progress, ...extra, section: nextSection(section, cloze !== null) });
+    onChange({ ...progress, ...extra, section: nextSection(section, inflection !== undefined) });
 
   return (
     <article className="space-y-5">
@@ -271,7 +305,11 @@ export function WordPage({ word, progress, index, total, onChange }: WordPagePro
           <Summary>✓ 看字</Summary>
           {rank > SECTION_RANK.copy && <Summary>✓ 抄寫 {COPY_TARGET} 遍</Summary>}
           {rank > SECTION_RANK.recall && <Summary>✓ 默寫</Summary>}
-          {rank > SECTION_RANK.cloze && cloze && <Summary>✓ 例句填空</Summary>}
+          {rank > SECTION_RANK.form && inflection && (
+            <Summary>
+              ✓ 變化形：{inflection.form}（{INFLECTION_LABEL[inflection.kind]}）
+            </Summary>
+          )}
           {rank > SECTION_RANK.sentence && progress.sentence && (
             <Summary>✓ 造句：{progress.sentence}</Summary>
           )}
@@ -298,13 +336,15 @@ export function WordPage({ word, progress, index, total, onChange }: WordPagePro
 
       {section === "recall" && <RecallSection word={word} onDone={() => advance()} />}
 
-      {section === "cloze" && cloze && <ClozeSection cloze={cloze} onDone={() => advance()} />}
+      {section === "form" && inflection && (
+        <FormSection word={word} inflection={inflection} onDone={() => advance()} />
+      )}
 
       {section === "sentence" && (
         <WriteSection
-          title={`造句：用 ${word.word} 寫一個完整的句子`}
+          title={`造句：用 ${target} 寫一個完整的句子`}
           label="你的句子"
-          check={(text) => sentenceHint(checkSentence(text, word.word), word.word)}
+          check={(text) => sentenceHint(checkSentence(text, target), target)}
           onAccept={(text) => advance({ sentence: text })}
         />
       )}

@@ -27,6 +27,16 @@ const RIVER: HomeworkWord = {
   cefr: { level: "A1", source: "list" },
 };
 
+const RUN_RAN: HomeworkWord = {
+  key: "run",
+  vocabularyId: "v-ran",
+  word: "run",
+  definitions: [{ partOfSpeech: "verb", definition: "To move fast on your feet.", definitionChinese: "跑" }],
+  sentence: "She ran home.",
+  cefr: { level: "A1", source: "list" },
+  inflection: { form: "ran", kind: "past" },
+};
+
 const LOOK_FORWARD_TO: HomeworkWord = {
   key: "look forward to",
   vocabularyId: "v-lft",
@@ -36,15 +46,6 @@ const LOOK_FORWARD_TO: HomeworkWord = {
   ],
   sentence: null,
   cefr: { level: "A2", source: "list" },
-};
-
-const RAN: HomeworkWord = {
-  key: "run",
-  vocabularyId: "v-run",
-  word: "run",
-  definitions: [{ partOfSpeech: "verb", definition: "To move fast on your feet.", definitionChinese: "跑" }],
-  sentence: "Yesterday I ran to school.",
-  cefr: { level: "A1", source: "list" },
 };
 
 let host: HTMLDivElement;
@@ -165,36 +166,13 @@ describe("WordPage", () => {
     expect(diffShown()).toBe(true);
     expect(input().value).toBe("");
     await type("river");
-    expect(spy).toHaveBeenCalledWith({ ...page("cloze"), copies: 3 });
-  });
-
-  it("goes straight from recall to the sentence for a word without an example", async () => {
-    show(LOOK_FORWARD_TO, page("recall", { copies: 3 }));
-    await type("Look  forward to");
     expect(spy).toHaveBeenCalledWith({ ...page("sentence"), copies: 3 });
   });
 
-  it("shows the example with the word blanked out", () => {
-    show(RAN, page("cloze", { copies: 3 }));
-    expect(text()).toContain("例句填空");
-    expect(text()).toContain("Yesterday I _____ to school.");
-    expect(host.innerHTML).not.toMatch(/\bran\b/i);
-  });
-
-  it("asks for the form written in the sentence, showing it after a wrong answer", async () => {
-    show(RAN, page("cloze", { copies: 3 }));
-    await type("run");
-    expect(spy).not.toHaveBeenCalled();
-    expect(text()).toContain("正確答案是 ran");
-    expect(diffShown()).toBe(true);
-    expect(input().value).toBe("");
-    await type("Ran");
-    expect(spy).toHaveBeenCalledWith({ ...page("sentence"), copies: 3 });
-  });
-
-  it("continues an old page saved at the phrase step with the cloze", () => {
-    show(RIVER, { ...page("look", { copies: 3 }), section: "phrase" } as unknown as WordPageProgress);
-    expect(text()).toContain("The _____ is long.");
+  it.each(["phrase", "cloze"])("continues an old page saved at the %s step with the sentence", (old) => {
+    show(RIVER, { ...page("look", { copies: 3 }), section: old } as unknown as WordPageProgress);
+    expect(text()).toContain("造句");
+    expect(text()).not.toContain("例句填空");
   });
 
   it("saves the sentence and finishes the page", async () => {
@@ -212,7 +190,53 @@ describe("WordPage", () => {
     show(RIVER, page("sentence", { copies: 3 }));
     expect(text()).toContain("✓ 抄寫 3 遍");
     expect(text()).toContain("✓ 默寫");
-    expect(text()).toContain("✓ 例句填空");
+    expect(text()).not.toContain("例句填空");
     expect(text()).not.toContain("造詞");
+  });
+
+  describe("a word saved as an inflected form", () => {
+    it("says on the look page which form the book had", () => {
+      show(RUN_RAN, page("look"));
+      expect(text()).toContain("書裡看到的是 ran，它是 run 的過去式");
+    });
+
+    it("goes from recall to the form step", async () => {
+      show(RUN_RAN, page("recall", { copies: 3 }));
+      await type("run");
+      expect(spy).toHaveBeenCalledWith({ ...page("form"), copies: 3 });
+    });
+
+    it("teaches the form and its rule, has it copied, then asks for it without showing it", async () => {
+      show(RUN_RAN, page("form", { copies: 3 }));
+      expect(text()).toContain("變化形：run 的過去式");
+      expect(text()).toContain("不規則變化");
+      expect(text()).toContain("已經發生的事");
+
+      await type("ran");
+      expect(spy).not.toHaveBeenCalled();
+      expect(text()).toContain("不看答案，打出 run 的過去式");
+      expect(text()).not.toMatch(/\bran\b/);
+
+      await type("runned");
+      expect(text()).toContain("正確答案是 ran");
+      expect(spy).not.toHaveBeenCalled();
+      await type("ran");
+      expect(spy).toHaveBeenCalledWith({ ...page("sentence"), copies: 3 });
+    });
+
+    it("needs the form in the sentence", async () => {
+      show(RUN_RAN, page("sentence", { copies: 3 }));
+      expect(text()).toContain("造句：用 ran 寫一個完整的句子");
+      await type("I like to run fast.");
+      expect(text()).toContain("要用到「ran」喔");
+      expect(spy).not.toHaveBeenCalled();
+      await type("Yesterday I ran to school.");
+      expect(spy).toHaveBeenCalledWith(expect.objectContaining({ section: "done" }));
+    });
+
+    it("sends a page saved at the form step of a plain word on to the sentence", () => {
+      show(RIVER, page("form", { copies: 3 }));
+      expect(text()).toContain("造句：用 river");
+    });
   });
 });

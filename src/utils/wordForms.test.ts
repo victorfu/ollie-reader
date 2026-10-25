@@ -5,7 +5,6 @@ import {
   findWordForm,
   formsOf,
   IRREGULAR_FORMS,
-  makeCloze,
   redactWordForms,
   sentenceUsesWord,
 } from "./wordForms";
@@ -49,11 +48,9 @@ describe("sentence matching", () => {
     expect(findWordForm("We are looking  forward to it.", "look forward to")).toBe("looking  forward to");
     expect(findWordForm("I know it.", "now")).toBeNull();
   });
-  it("blanks every form and answers with the first occurrence", () => {
-    expect(makeCloze("Run fast! He runs every day.", "run")).toEqual({
-      text: `${CLOZE_BLANK} fast! He ${CLOZE_BLANK} every day.`, answer: "Run", answers: ["Run", "runs"],
-    });
-    expect(makeCloze("No match here.", "run")).toBeNull();
+  it("blanks every form", () => {
+    expect(redactWordForms("Run fast! He runs every day.", "run")).toBe(`${CLOZE_BLANK} fast! He ${CLOZE_BLANK} every day.`);
+    expect(redactWordForms("No match here.", "run")).toBe("No match here.");
   });
   it("redacts the headword inside a definition", () => {
     expect(redactWordForms("to keep running", "run", "____")).toBe("to keep ____");
@@ -183,7 +180,6 @@ describe("matching edge cases", () => {
   it("does not throw or match for blank words and clitic keys", () => {
     expect(findWordForm("anything", "")).toBeNull();
     expect(findWordForm("anything", "   ")).toBeNull();
-    expect(makeCloze("anything", "")).toBeNull();
     expect(sentenceUsesWord("anything", "")).toBe(false);
     expect(redactWordForms("anything", "", "__")).toBe("anything");
     for (const clitic of ["'m", "'re", "'s", "'ve", "'ll", "'d"]) {
@@ -194,7 +190,7 @@ describe("matching edge cases", () => {
   });
   it("is case-insensitive in the word and the text, and returns the text as written", () => {
     expect(findWordForm("She RAN home.", "Run")).toBe("RAN");
-    expect(makeCloze("Children play.", "CHILD")).toEqual({ text: `${CLOZE_BLANK} play.`, answer: "Children" });
+    expect(redactWordForms("Children play.", "CHILD")).toBe(`${CLOZE_BLANK} play.`);
   });
   it("treats a dollar sign in the blank literally", () => {
     expect(redactWordForms("to keep running", "run", "$&")).toBe("to keep $&");
@@ -296,11 +292,10 @@ describe("spelling rules added after review", () => {
 
 describe("possessives", () => {
   it("blanks the word in a possessive so that the sentence does not give it away", () => {
-    expect(makeCloze("My puppy sleeps in the puppy's bed.", "puppy")).toEqual({
-      text: `My ${CLOZE_BLANK} sleeps in the ${CLOZE_BLANK}'s bed.`,
-      answer: "puppy",
-    });
-    expect(makeCloze("My puppy sleeps in the puppy’s bed.", "puppy")?.text).toBe(
+    expect(redactWordForms("My puppy sleeps in the puppy's bed.", "puppy")).toBe(
+      `My ${CLOZE_BLANK} sleeps in the ${CLOZE_BLANK}'s bed.`,
+    );
+    expect(redactWordForms("My puppy sleeps in the puppy’s bed.", "puppy")).toBe(
       `My ${CLOZE_BLANK} sleeps in the ${CLOZE_BLANK}’s bed.`,
     );
   });
@@ -315,38 +310,15 @@ describe("possessives", () => {
   it("does not blank the start of a contraction", () => {
     expect(redactWordForms("He can't run and she won't.", "can", "__")).toBe("He can't run and she won't.");
   });
-  it("still needs a plain use of the word to make a cloze", () => {
-    expect(makeCloze("The puppy's bed is red.", "puppy")).toBeNull();
+  it("does not count a possessive alone as a use of the word", () => {
     expect(findWordForm("The puppy's bed is red.", "puppy")).toBeNull();
     expect(sentenceUsesWord("The puppy's bed is red.", "puppy")).toBe(false);
   });
 });
 
-describe("clozes with several forms", () => {
-  it("accepts every different form that was blanked, the first one is the answer", () => {
-    expect(makeCloze("Dogs love to run, and my dog runs fast.", "dog")).toEqual({
-      text: `${CLOZE_BLANK} love to run, and my ${CLOZE_BLANK} runs fast.`,
-      answer: "Dogs",
-      answers: ["Dogs", "dog"],
-    });
-  });
-  it("lists a form once, whatever its case, and leaves answers out when there is only one", () => {
-    const repeated = makeCloze("Dog is here. The dog runs. A DOG sleeps.", "dog");
-    expect(repeated).toEqual({ text: `${CLOZE_BLANK} is here. The ${CLOZE_BLANK} runs. A ${CLOZE_BLANK} sleeps.`, answer: "Dog" });
-    expect(repeated).not.toHaveProperty("answers");
-  });
-  it("takes the answer from the first blank, which can be a possessive", () => {
-    expect(makeCloze("The puppy's bed is where puppies sleep.", "puppy")).toEqual({
-      text: `The ${CLOZE_BLANK}'s bed is where ${CLOZE_BLANK} sleep.`,
-      answer: "puppy",
-      answers: ["puppy", "puppies"],
-    });
-  });
-});
-
 describe("clitic keys", () => {
-  it("never produce a cloze inside a contraction", () => {
-    expect(makeCloze("I'm sure", "'m")).toBeNull();
-    expect(makeCloze("I’m sure", "'m")).toBeNull();
+  it("never match inside a contraction", () => {
+    expect(findWordForm("I'm sure", "'m")).toBeNull();
+    expect(findWordForm("I’m sure", "'m")).toBeNull();
   });
 });

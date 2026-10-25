@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Volume2 } from "lucide-react";
 import { useSpeechState } from "../../hooks/useSpeechState";
-import { wordForKey } from "../../utils/homeworkFlow";
+import { dictationAnswer, dictationId, wordForKey } from "../../utils/homeworkFlow";
+import { INFLECTION_LABEL } from "../../utils/inflection";
 import type { DictationItem, Homework } from "../../types/wordPractice";
 import { AnswerInput } from "./AnswerInput";
 
@@ -13,19 +14,23 @@ interface DictationStepProps {
 
 /**
  * One dictation question: the word is said, then its sentence, then the word
- * again. Ollie types it once. Nothing on screen says whether it was right, and
+ * again. Ollie types it once. A form item says the inflected form and names
+ * which form of which word it is. Nothing on screen says whether it was right, and
  * neither the answer nor any earlier answer is ever rendered.
  */
 export function DictationStep({ homework, itemIndex, onChange }: DictationStepProps) {
   const { speakAsync, stopSpeaking } = useSpeechState();
   const { dictation } = homework;
   const current = dictation[itemIndex];
-  const spoken = wordForKey(homework, current.key);
+  const word = wordForKey(homework, current.key);
+  const spoken = { word: dictationAnswer(homework, current), sentence: word.sentence };
+  const itemId = dictationId(current);
+  const formHint = current.form && word.inflection ? `${word.word} 的${INFLECTION_LABEL[word.inflection.kind]}` : null;
 
   const [value, setValue] = useState("");
   // Counts "再聽一次" presses, which each start the words over.
   const [replays, setReplays] = useState(0);
-  // The playback that failed, as "<key>:<replays>"; once the question or the
+  // The playback that failed, as "<item id>:<replays>"; once the question or the
   // replay count changes it no longer matches and the error is gone.
   const [failedPlayback, setFailedPlayback] = useState<string | null>(null);
 
@@ -35,7 +40,7 @@ export function DictationStep({ homework, itemIndex, onChange }: DictationStepPr
   });
 
   useEffect(() => {
-    const playbackId = `${current.key}:${replays}`;
+    const playbackId = `${itemId}:${replays}`;
     let cancelled = false;
     const { word, sentence } = latestRef.current;
     const sequence = sentence ? [word, sentence, word] : [word, word];
@@ -53,7 +58,7 @@ export function DictationStep({ homework, itemIndex, onChange }: DictationStepPr
       cancelled = true;
       latestRef.current.stopSpeaking();
     };
-  }, [current.key, replays]);
+  }, [itemId, replays]);
 
   const record = (patch: Partial<DictationItem>) => {
     onChange(dictation.map((entry, i) => (i === itemIndex ? { ...entry, ...patch } : entry)));
@@ -67,7 +72,7 @@ export function DictationStep({ homework, itemIndex, onChange }: DictationStepPr
   };
 
   const replay = () => setReplays((count) => count + 1);
-  const playbackFailed = failedPlayback === `${current.key}:${replays}`;
+  const playbackFailed = failedPlayback === `${itemId}:${replays}`;
 
   return (
     <div className="space-y-4">
@@ -76,6 +81,7 @@ export function DictationStep({ homework, itemIndex, onChange }: DictationStepPr
       </p>
       <div className="flex flex-col items-center gap-3 text-center">
         <p className="text-muted-foreground">聽一聽，打出你聽到的字。</p>
+        {formHint && <p className="text-sm">提示：{formHint}</p>}
         <button type="button" onClick={replay} className="btn btn-outline min-h-11 gap-2 active:scale-[0.98]">
           <Volume2 className="size-5 text-accent" strokeWidth={1.75} aria-hidden="true" />
           再聽一次
@@ -102,7 +108,7 @@ export function DictationStep({ homework, itemIndex, onChange }: DictationStepPr
 
       <div className="flex items-end gap-2">
         <div className="min-w-0 flex-1">
-          <AnswerInput key={current.key} value={value} onChange={setValue} onSubmit={submit} label="打出你聽到的字" />
+          <AnswerInput key={itemId} value={value} onChange={setValue} onSubmit={submit} label="打出你聽到的字" />
         </div>
         <button
           type="button"

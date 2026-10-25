@@ -11,18 +11,21 @@ interface ParentSettingsProps {
   busy?: boolean;
   onSave: (next: PracticeSettings) => Promise<void>;
   onAbandon: () => Promise<void>;
+  /** Starts the practice over: every word new again, no streak, no active homework. */
+  onReset: () => Promise<void>;
 }
 
 const NEW_WORD_COUNTS = Array.from({ length: 8 }, (_, i) => i + 3);
 const REVIEW_LIMITS = Array.from({ length: 21 }, (_, i) => i);
 
-/** Collapsed at the bottom of the page: the amounts, the start level and giving up a homework. */
+/** Collapsed at the bottom of the page: the amounts, the start level, giving up a homework and starting over. */
 export function ParentSettings({
   settings,
   hasActive,
   busy = false,
   onSave,
   onAbandon,
+  onReset,
 }: ParentSettingsProps) {
   const newCountId = useId();
   const reviewId = useId();
@@ -31,6 +34,8 @@ export function ParentSettings({
   const [saving, setSaving] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [abandoning, setAbandoning] = useState(false);
+  const [confirmingReset, setConfirmingReset] = useState(false);
+  const [resetting, setResetting] = useState(false);
 
   const save = async () => {
     setSaving(true);
@@ -48,6 +53,16 @@ export function ParentSettings({
     } finally {
       setAbandoning(false);
       setConfirming(false);
+    }
+  };
+
+  const confirmReset = async () => {
+    setResetting(true);
+    try {
+      await onReset();
+    } finally {
+      setResetting(false);
+      setConfirmingReset(false);
     }
   };
 
@@ -137,6 +152,14 @@ export function ParentSettings({
               放棄這份功課
             </button>
           )}
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => setConfirmingReset(true)}
+            className="btn btn-ghost min-h-11 text-error active:scale-[0.98]"
+          >
+            重設練習進度
+          </button>
         </div>
       </div>
 
@@ -151,6 +174,16 @@ export function ParentSettings({
           onCancel={() => setConfirming(false)}
         />
       )}
+
+      <ConfirmModal
+        isOpen={confirmingReset}
+        title="重設練習進度"
+        message="所有單字會變回新字、複習排程和連續天數歸零，進行中的功課會被放棄。設定和歷史紀錄會保留。這個動作無法復原，確定要重設嗎？"
+        confirmText="重設進度"
+        isLoading={resetting}
+        onConfirm={() => void confirmReset()}
+        onCancel={() => setConfirmingReset(false)}
+      />
     </details>
   );
 }

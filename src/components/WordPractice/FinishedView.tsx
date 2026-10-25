@@ -3,7 +3,8 @@ import confetti from "canvas-confetti";
 import { Coins, PartyPopper } from "lucide-react";
 import type { HomeworkReward, HomeworkRewardItem } from "../../services/economyService";
 import type { Homework, SentenceReview } from "../../types/wordPractice";
-import { gradeDictation, sentencesToReview } from "../../utils/homeworkFlow";
+import { dictationAnswer, findDictationItem, gradeDictation, sentencesToReview } from "../../utils/homeworkFlow";
+import { INFLECTION_LABEL } from "../../utils/inflection";
 
 interface FinishedViewProps {
   homework: Homework;
@@ -83,10 +84,13 @@ export function FinishedView({
     }
   }, [celebrate, result.correctCount, result.total]);
 
-  const corrected = result.wrongKeys.flatMap((key) => {
-    const item = homework.dictation.find((candidate) => candidate.key === key);
-    const word = [...homework.newWords, ...homework.reviewWords].find((candidate) => candidate.key === key);
-    return item && word ? [{ key, word: word.word, answer: item.answer }] : [];
+  const corrected = result.wrongKeys.flatMap((id) => {
+    const item = findDictationItem(homework, id);
+    const word = item && [...homework.newWords, ...homework.reviewWords].find((candidate) => candidate.key === item.key);
+    if (!item || !word) return [];
+    const spelling = dictationAnswer(homework, item);
+    const note = item.form && word.inflection ? `（${word.word} 的${INFLECTION_LABEL[word.inflection.kind]}）` : "";
+    return [{ key: id, word: `${spelling}${note}`, answer: item.answer }];
   });
 
   const reviews = new Map((homework.review?.items ?? []).map((item) => [item.key, item]));
@@ -130,7 +134,14 @@ export function FinishedView({
               const page = homework.pages[i];
               return (
                 <li key={word.key} className="rounded-[10px] border border-border-hairline px-4 py-3">
-                  <p className="font-semibold">{word.word}</p>
+                  <p className="font-semibold">
+                    {word.word}
+                    {word.inflection && (
+                      <span className="ml-2 text-sm font-normal text-muted-foreground">
+                        {word.inflection.form}（{INFLECTION_LABEL[word.inflection.kind]}）
+                      </span>
+                    )}
+                  </p>
                   {/* Only homework written before the phrase step was dropped has one. */}
                   {page?.phrase && <p className="text-sm">{page.phrase}</p>}
                   <p className="text-sm">{page?.sentence ?? "（沒有寫）"}</p>

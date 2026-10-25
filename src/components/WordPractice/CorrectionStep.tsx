@@ -1,27 +1,30 @@
-import { CORRECTION_TARGET, wordForKey } from "../../utils/homeworkFlow";
+import { CORRECTION_TARGET, dictationAnswer, findDictationItem } from "../../utils/homeworkFlow";
 import type { Homework } from "../../types/wordPractice";
 import { CopyBoxes } from "./CopyBoxes";
 
 interface CorrectionStepProps {
   homework: Homework;
-  wordKey: string;
+  /** The dictation item id. */
+  itemId: string;
   onChange: (corrections: Record<string, number>) => void;
 }
 
 /** A word that was spelled wrong in dictation: copy the right spelling three times. */
-export function CorrectionStep({ homework, wordKey, onChange }: CorrectionStepProps) {
-  const word = wordForKey(homework, wordKey);
-  const done = homework.corrections[wordKey] ?? 0;
+export function CorrectionStep({ homework, itemId, onChange }: CorrectionStepProps) {
+  const item = findDictationItem(homework, itemId);
+  if (!item) return null;
+  const answer = dictationAnswer(homework, item);
+  const done = homework.corrections[itemId] ?? 0;
 
   return (
     <div className="space-y-4">
       <p className="text-sm font-medium text-muted-foreground">訂正：照著打 {CORRECTION_TARGET} 遍</p>
-      <p className="text-center text-3xl font-semibold">{word.word}</p>
+      <p className="text-center text-3xl font-semibold">{answer}</p>
       <CopyBoxes
-        word={word.word}
+        word={answer}
         done={done}
         target={CORRECTION_TARGET}
-        onCorrect={() => onChange({ ...homework.corrections, [wordKey]: done + 1 })}
+        onCorrect={() => onChange({ ...homework.corrections, [itemId]: done + 1 })}
       />
     </div>
   );

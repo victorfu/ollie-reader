@@ -4,7 +4,7 @@ import type {
   HomeworkProgress,
   WordPageProgress,
 } from "../../types/wordPractice";
-import { currentPosition } from "../../utils/homeworkFlow";
+import { currentPosition, dictationId, findDictationItem } from "../../utils/homeworkFlow";
 import { CorrectionStep } from "./CorrectionStep";
 import { DictationStep } from "./DictationStep";
 import { WordPage } from "./WordPage";
@@ -69,7 +69,7 @@ export function HomeworkBook({
     if (item && hasWord(homework, item.key)) {
       step = (
         <DictationStep
-          key={item.key}
+          key={dictationId(item)}
           homework={homework}
           itemIndex={position.itemIndex}
           onChange={setDictation}
@@ -77,12 +77,13 @@ export function HomeworkBook({
       );
     }
   } else if (position.phase === "correction") {
-    if (hasWord(homework, position.key)) {
+    const item = findDictationItem(homework, position.key);
+    if (item && hasWord(homework, item.key)) {
       step = (
         <CorrectionStep
           key={position.key}
           homework={homework}
-          wordKey={position.key}
+          itemId={position.key}
           onChange={setCorrections}
         />
       );

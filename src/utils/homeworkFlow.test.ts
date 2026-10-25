@@ -2,14 +2,16 @@ import { describe, expect, it } from "vitest";
 import type { DictationItem, Homework, HomeworkWord, WordPageProgress } from "../types/wordPractice";
 import {
   checkSentence,
-  clozeFor,
   countEnglishWords,
   currentPosition,
+  dictationAnswer,
+  dictationId,
   emptyPage,
   gradeDictation,
-  isClozeAnswer,
   nextSection,
+  sentencesToReview,
   wordForKey,
+  wordOutcomes,
 } from "./homeworkFlow";
 
 const SKIP = Symbol("skip");
@@ -81,12 +83,12 @@ describe("currentPosition", () => {
       currentPosition(withWords({ pages: [], dictation: [answered("run")], corrections: {} }, ["run"])),
     ).toEqual({ phase: "submit" });
   });
-  it("resumes a page saved at the old phrase step at the cloze step", () => {
-    const legacy = { ...emptyPage(), section: "phrase" } as unknown as WordPageProgress;
+  it.each(["phrase", "cloze"])("resumes a page saved at the old %s step at the sentence", (old) => {
+    const legacy = { ...emptyPage(), section: old } as unknown as WordPageProgress;
     expect(currentPosition(noWords({ pages: [legacy], dictation: [], corrections: {} }))).toEqual({
       phase: "page",
       wordIndex: 0,
-      section: "cloze",
+      section: "sentence",
     });
   });
 });
@@ -96,27 +98,9 @@ describe("page helpers", () => {
     expect(emptyPage()).toEqual({ section: "look", copies: 0, sentence: null });
     expect(nextSection("look")).toBe("copy");
     expect(nextSection("copy")).toBe("recall");
-    expect(nextSection("recall")).toBe("cloze");
-    expect(nextSection("cloze")).toBe("sentence");
+    expect(nextSection("recall")).toBe("sentence");
     expect(nextSection("sentence")).toBe("done");
     expect(nextSection("done")).toBe("done");
-  });
-  it("skips the cloze step for a word without a usable example", () => {
-    expect(nextSection("recall", false)).toBe("sentence");
-  });
-  it("blanks the word in its example sentence, in the form it is written", () => {
-    expect(clozeFor({ word: "run", sentence: "Yesterday I ran to school." })).toEqual({
-      text: "Yesterday I _____ to school.",
-      answer: "ran",
-    });
-    expect(clozeFor({ word: "run", sentence: null })).toBeNull();
-    expect(clozeFor({ word: "run", sentence: "I like to swim." })).toBeNull();
-  });
-  it("accepts any blanked form, ignoring case and spaces", () => {
-    const cloze = { text: "Dogs love to _____, and my dog _____ fast.", answer: "run", answers: ["run", "runs"] };
-    expect(isClozeAnswer(" Run ", cloze)).toBe(true);
-    expect(isClozeAnswer("runs", cloze)).toBe(true);
-    expect(isClozeAnswer("ran", cloze)).toBe(false);
   });
   it("finds a word among new and review words", () => {
     const hw = { newWords: [word("run")], reviewWords: [word("jump")] };
@@ -145,5 +129,52 @@ describe("gradeDictation", () => {
       correctCount: 1,
       total: 2,
     });
+  });
+});
+
+describe("inflected words", () => {
+  const run: HomeworkWord = { ...word("run"), inflection: { form: "ran", kind: "past" } };
+  const formItem = (answer: string | null): DictationItem => ({ key: "run", source: "new", answer, skipped: false, form: true });
+  const hw = (dictation: DictationItem[], corrections: Record<string, number> = {}) => ({
+    newWords: [run],
+    reviewWords: [] as HomeworkWord[],
+    pages: [done()],
+    dictation,
+    corrections,
+  });
+
+  it("has a form step between recall and the sentence", () => {
+    expect(nextSection("recall", true)).toBe("form");
+    expect(nextSection("form", true)).toBe("sentence");
+    expect(nextSection("recall")).toBe("sentence");
+  });
+
+  it("gives the form item its own id and answer", () => {
+    expect(dictationId(formItem(null))).toBe("run#form");
+    expect(dictationId(answered("run"))).toBe("run");
+    expect(dictationAnswer(hw([]), formItem(null))).toBe("ran");
+    expect(dictationAnswer(hw([]), answered("run"))).toBe("run");
+  });
+
+  it("grades the base and the form apart, and asks to correct only the wrong one", () => {
+    const homework = hw([answered("run"), formItem("runned")]);
+    expect(gradeDictation(homework)).toMatchObject({ correctKeys: ["run"], wrongKeys: ["run#form"], total: 2 });
+    expect(currentPosition(homework)).toEqual({ phase: "correction", key: "run#form" });
+    expect(currentPosition(hw(homework.dictation, { "run#form": 3 }))).toEqual({ phase: "submit" });
+  });
+
+  it("counts a word as remembered only when every item for it is right", () => {
+    const wrongForm = hw([answered("run"), formItem("runned")]);
+    expect(wordOutcomes(wrongForm, gradeDictation(wrongForm))).toEqual([{ key: "run", remembered: false }]);
+    const right = hw([answered("run"), formItem("ran")]);
+    expect(wordOutcomes(right, gradeDictation(right))).toEqual([{ key: "run", remembered: true }]);
+    const skippedAll = hw([skipped("run")]);
+    expect(wordOutcomes(skippedAll, gradeDictation(skippedAll))).toEqual([]);
+  });
+
+  it("reviews the sentence against the form", () => {
+    expect(sentencesToReview({ newWords: [run], pages: [{ ...done(), sentence: "I ran home." }] })).toEqual([
+      { key: "run", word: "ran", sentence: "I ran home." },
+    ]);
   });
 });

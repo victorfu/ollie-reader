@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   listCompletedHomeworks: vi.fn(),
   saveHomeworkProgress: vi.fn(),
   abandonHomework: vi.fn(),
+  resetPracticeProgress: vi.fn(),
   completeHomework: vi.fn(),
   generateHomework: vi.fn(),
   updateReviewStats: vi.fn(),
@@ -32,6 +33,7 @@ vi.mock("../services/wordPracticeStorage", () => ({
   listCompletedHomeworks: mocks.listCompletedHomeworks,
   saveHomeworkProgress: mocks.saveHomeworkProgress,
   abandonHomework: mocks.abandonHomework,
+  resetPracticeProgress: mocks.resetPracticeProgress,
   completeHomework: mocks.completeHomework,
   saveHomeworkReview: mocks.saveHomeworkReview,
 }));
@@ -196,6 +198,7 @@ beforeEach(() => {
   mocks.listCompletedHomeworks.mockResolvedValue([completedHomework("old-1")]);
   mocks.saveHomeworkProgress.mockResolvedValue(undefined);
   mocks.abandonHomework.mockResolvedValue(undefined);
+  mocks.resetPracticeProgress.mockResolvedValue(undefined);
   mocks.completeHomework.mockImplementation(async (_uid: string, id: string) =>
     completion(id),
   );
@@ -1154,5 +1157,40 @@ describe("useWordPractice settings", () => {
 
     expect(hook().settings).toEqual(SETTINGS);
     expect(hook().error).toMatch(/[一-鿿]/);
+  });
+});
+
+describe("useWordPractice resetting", () => {
+  it("resets the progress on the server, saves nothing more for the old homework, and reloads", async () => {
+    await renderProbe();
+    mocks.getActiveHomework.mockResolvedValueOnce(null);
+
+    await act(async () => {
+      await hook().resetProgress();
+    });
+
+    expect(mocks.resetPracticeProgress).toHaveBeenCalledWith("user-1");
+    expect(mocks.loadPracticeState).toHaveBeenCalledTimes(2);
+    expect(hook().active).toBeNull();
+    expect(hook().status).toBe("ready");
+
+    act(() => hook().updateProgress(progressWithCopies(2, 1)));
+    await flushAsyncWork();
+    expect(mocks.saveHomeworkProgress).not.toHaveBeenCalled();
+  });
+
+  it("keeps the homework and reports an error when resetting fails", async () => {
+    await renderProbe();
+    mocks.resetPracticeProgress.mockRejectedValueOnce(new Error("offline"));
+
+    await act(async () => {
+      await hook().resetProgress();
+    });
+
+    expect(hook().active?.id).toBe("hw-1");
+    expect(hook().error).toMatch(/[一-鿿]/);
+    act(() => hook().updateProgress(progressWithCopies(2, 1)));
+    await flushAsyncWork();
+    expect(mocks.saveHomeworkProgress).toHaveBeenCalledTimes(1);
   });
 });

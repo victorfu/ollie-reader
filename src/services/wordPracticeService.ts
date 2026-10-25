@@ -1,16 +1,19 @@
 /**
  * Generates a Word Practice homework from the user's vocabulary book, offline:
  * picks the new words, adds the review words that are due, snapshots each
- * word's definitions and example sentence, and stores the homework.
+ * word's definitions and example sentence, and stores the homework. A word
+ * saved as an inflected form ("ran") is practised as its base form ("run")
+ * together with the saved form.
  * Nothing here calls Gemini.
  */
 import type { VocabularyWord } from "../types/vocabulary";
-import type { Cloze, DictationItem, Homework, HomeworkWord, WordPracticeState } from "../types/wordPractice";
+import type { DictationItem, Homework, HomeworkWord, WordPracticeState } from "../types/wordPractice";
 import { shuffleArray } from "../utils/arrayUtils";
-import { loadCefrTable, practiceForm, practiceKey, resolveCefr } from "../utils/cefr";
+import { loadCefrTable, practiceForm, practiceKey, resolveCefr, type CefrTable } from "../utils/cefr";
 import { emptyPage } from "../utils/homeworkFlow";
+import { inflectionOf } from "../utils/inflection";
 import { dueReviewKeys } from "../utils/reviewSchedule";
-import { makeCloze } from "../utils/wordForms";
+import { sentenceUsesWord } from "../utils/wordForms";
 import { getAllVocabularyWords } from "./vocabularyService";
 import { createHomework, loadPracticeState, newHomeworkId } from "./wordPracticeStorage";
 import { isEligibleWord, selectHomeworkWords } from "./wordPracticeSelection";
@@ -23,19 +26,37 @@ type PracticableWord = VocabularyWord & { id: string };
 const isPracticable = (word: VocabularyWord): word is PracticableWord =>
   Boolean(word.id) && isEligibleWord(word);
 
-/** The first vocabulary example that contains the word (any form of it), with its cloze. */
-export function findExampleCloze(word: VocabularyWord): { sentence: string; cloze: Cloze } | null {
-  for (const { sentence } of word.examples) {
-    const cloze = makeCloze(sentence, word.word);
-    if (cloze) return { sentence, cloze };
-  }
-  return null;
+/** The first vocabulary example that contains the word (any form of it). */
+export function findExampleSentence(word: VocabularyWord): string | null {
+  return word.examples.find(({ sentence }) => sentenceUsesWord(sentence, word.word))?.sentence ?? null;
+}
+
+type HomeworkInflection = NonNullable<HomeworkWord["inflection"]>;
+
+/**
+ * The word as it is practised: punctuation from the book dropped, and an
+ * inflected form replaced by its base, with the form returned beside it.
+ */
+function toPracticeWord(
+  table: CefrTable,
+  word: PracticableWord,
+): { word: PracticableWord; inflection: HomeworkInflection | null } {
+  const spelling = practiceForm(table, word.word);
+  const found = inflectionOf(
+    table,
+    spelling,
+    word.definitions.map((definition) => (typeof definition?.partOfSpeech === "string" ? definition.partOfSpeech : "")),
+  );
+  return found
+    ? { word: { ...word, word: found.base }, inflection: { form: found.form, kind: found.kind } }
+    : { word: { ...word, word: spelling }, inflection: null };
 }
 
 function toHomeworkWord(
   word: PracticableWord,
   state: WordPracticeState,
   cefr: HomeworkWord["cefr"],
+  inflection: HomeworkInflection | null,
 ): HomeworkWord {
   const key = practiceKey(word.word);
   const kept = Object.hasOwn(state.words, key) ? state.words[key].sentence : undefined;
@@ -52,8 +73,9 @@ function toHomeworkWord(
         definition,
         ...(typeof definitionChinese === "string" && definitionChinese.trim() !== "" ? { definitionChinese } : {}),
       })),
-    sentence: findExampleCloze(word)?.sentence ?? kept ?? null,
+    sentence: findExampleSentence(word) ?? kept ?? null,
     cefr,
+    ...(inflection ? { inflection } : {}),
   };
 }
 
@@ -62,11 +84,18 @@ export async function generateHomework(uid: string, now: number = Date.now()): P
   const state = await loadPracticeState(uid, now);
   const table = await loadCefrTable();
 
-  const candidates = vocabulary.filter(isPracticable);
+  // The practice form is the spelling graded, redacted and read aloud.
+  const practised = vocabulary.filter(isPracticable).map((word) => toPracticeWord(table, word));
+  const candidates = practised.map(({ word }) => word);
+  // "ran" and "run" are one word now; the form goes with it whichever entry is picked.
+  const inflections = new Map<string, HomeworkInflection>();
+  for (const { word, inflection } of practised) {
+    const key = practiceKey(word.word);
+    if (inflection && !inflections.has(key)) inflections.set(key, inflection);
+  }
   const levelOf = (word: VocabularyWord) => resolveCefr(table, state.cefrEstimates, word.word);
   const snapshot = (word: PracticableWord): HomeworkWord =>
-    // The practice form is the spelling graded, blanked and read aloud.
-    toHomeworkWord({ ...word, word: practiceForm(table, word.word) }, state, levelOf(word));
+    toHomeworkWord(word, state, levelOf(word), inflections.get(practiceKey(word.word)) ?? null);
 
   // Selection only returns members of `candidates`, all of which have an id.
   const newWords = (
@@ -91,9 +120,14 @@ export async function generateHomework(uid: string, now: number = Date.now()): P
 
   if (newWords.length === 0 && reviewWords.length === 0) return { status: "empty" };
 
+  // A word saved as an inflected form is dictated twice: once for the base, once for the form.
+  const itemsFor = (word: HomeworkWord, source: DictationItem["source"]): DictationItem[] => [
+    { key: word.key, source, answer: null, skipped: false },
+    ...(word.inflection ? [{ key: word.key, source, answer: null, skipped: false, form: true } as const] : []),
+  ];
   const dictation: DictationItem[] = shuffleArray([
-    ...newWords.map(({ key }): DictationItem => ({ key, source: "new", answer: null, skipped: false })),
-    ...reviewWords.map(({ key }): DictationItem => ({ key, source: "review", answer: null, skipped: false })),
+    ...newWords.flatMap((word) => itemsFor(word, "new")),
+    ...reviewWords.flatMap((word) => itemsFor(word, "review")),
   ]);
   const homework: Homework = {
     version: 2,

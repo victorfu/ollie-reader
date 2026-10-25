@@ -138,6 +138,7 @@ function makeHook(overrides: Partial<UseWordPractice> = {}): UseWordPractice {
     submit: vi.fn().mockResolvedValue(null),
     abandon: vi.fn().mockResolvedValue(undefined),
     saveSettings: vi.fn().mockResolvedValue(undefined),
+    resetProgress: vi.fn().mockResolvedValue(undefined),
     reviewState: {},
     reviewHomework: vi.fn().mockResolvedValue(undefined),
     reload: vi.fn().mockResolvedValue(undefined),
@@ -328,6 +329,22 @@ describe("parent settings", () => {
     await click("儲存設定");
 
     expect(hook.current.saveSettings).toHaveBeenCalledWith({ ...SETTINGS, newWordCount: 8 });
+  });
+
+  it("resets the progress only after a confirmation", async () => {
+    render();
+    openSettings();
+
+    await click("重設練習進度");
+    expect(openDialog()?.textContent).toContain("無法復原");
+    expect(hook.current.resetProgress).not.toHaveBeenCalled();
+
+    await act(async () => {
+      Array.from(openDialog()!.querySelectorAll("button"))
+        .find((button) => button.textContent === "重設進度")!
+        .click();
+    });
+    expect(hook.current.resetProgress).toHaveBeenCalledTimes(1);
   });
 
   it("has no abandon button when there is no homework in progress", () => {

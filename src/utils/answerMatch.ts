@@ -1,7 +1,7 @@
 /**
  * Answer matching for Word Practice.
  *
- * Every typed answer (spelling practice, cloze, definition → word, spelling
+ * Every typed answer (spelling practice, definition → word, spelling
  * test) is graded by `isAnswerCorrect`; `diffSpelling` shows the learner where
  * a misspelling went wrong, rendered against the expected word.
  */
