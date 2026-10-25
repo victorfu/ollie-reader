@@ -1,12 +1,12 @@
 import type { VocabularyWord } from "../types/vocabulary";
-import type { CefrInfo, HomeworkOptions, WordPracticeState } from "../types/wordPractice";
+import type { CefrInfo, PracticeSettings, WordPracticeState } from "../types/wordPractice";
 import { cefrRank, hasEdgePunctuation, practiceKey } from "../utils/cefr";
 
 export interface SelectionInput {
   words: VocabularyWord[];
   state: WordPracticeState;
   levelOf: (word: VocabularyWord) => CefrInfo | null;
-  options: HomeworkOptions;
+  settings: PracticeSettings;
 }
 
 /** Rank of a word without a CEFR level: after C2 (rank 5). */
@@ -68,24 +68,25 @@ function isPreferred(candidate: Candidate, known: Candidate): boolean {
 }
 
 /**
- * Picks the words for a new homework (spec 7.2 and 7.3): practicable, not yet
- * learned words, missed ones first and then from A1 up to C2. A word that
- * was never missed is skipped when its list level is below `startLevel`.
+ * Picks the words for a new homework (spec 7.2 and 7.3): practicable words that
+ * are not in the review schedule yet, words that need practice first and then from A1 up to C2. A word that
+ * does not need practice is skipped when its list level is below `settings.startLevel`.
  */
-export function selectHomeworkWords({ words, state, levelOf, options }: SelectionInput): VocabularyWord[] {
+export function selectHomeworkWords({ words, state, levelOf, settings }: SelectionInput): VocabularyWord[] {
   const byKey = new Map<string, Candidate>();
 
   for (const word of words) {
     if (!isEligibleWord(word)) continue;
     const key = practiceKey(word.word);
     const practiced = Object.hasOwn(state.words, key) ? state.words[key] : undefined;
-    if (typeof practiced?.learnedAt === "number") continue;
+    // A word that has entered the review schedule (stage >= 1) is not new any more.
+    if (practiced && practiced.stage !== 0) continue;
 
     const level = levelOf(word);
     const candidate: Candidate = {
       word,
       key,
-      missed: (practiced?.missCount ?? 0) > 0,
+      missed: practiced?.needsPractice === true,
       lastMissedAt: practiced?.lastMissedAt ?? Number.NEGATIVE_INFINITY,
       rank: level ? cefrRank(level.level) : UNRATED_RANK,
       createdAt: createdAtOf(word),
@@ -96,10 +97,10 @@ export function selectHomeworkWords({ words, state, levelOf, options }: Selectio
     if (!known || isPreferred(candidate, known)) byKey.set(key, candidate);
   }
 
-  const startRank = cefrRank(options.startLevel);
+  const startRank = cefrRank(settings.startLevel);
   return [...byKey.values()]
     .filter(({ missed, level }) => missed || level?.source !== "list" || cefrRank(level.level) >= startRank)
     .sort(compareCandidates)
-    .slice(0, Math.max(0, options.wordCount))
+    .slice(0, Math.max(0, settings.newWordCount))
     .map(({ word }) => word);
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { VocabularyWord } from "../types/vocabulary";
-import type { CefrInfo, HomeworkOptions, WordPracticeState } from "../types/wordPractice";
+import type { CefrInfo, PracticeSettings, WordPracticeWordState } from "../types/wordPractice";
 import { isEligibleWord, selectHomeworkWords } from "./wordPracticeSelection";
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -26,22 +26,31 @@ function makeWord(word: string, dayOffset: number, overrides: Partial<Vocabulary
 const list = (level: CefrInfo["level"]): CefrInfo => ({ level, source: "list" });
 const ai = (level: CefrInfo["level"]): CefrInfo => ({ level, source: "ai" });
 
+const needs = (lastMissedAt?: number): WordPracticeWordState => ({
+  stage: 0,
+  needsPractice: true,
+  missCount: 1,
+  ...(lastMissedAt === undefined ? {} : { lastMissedAt }),
+});
+
+const SETTINGS: PracticeSettings = { newWordCount: 20, reviewLimit: 10, startLevel: "A1" };
+
 function selectWords(
   words: VocabularyWord[],
   levels: Record<string, CefrInfo>,
   {
     state = {},
-    options = {},
+    settings = {},
   }: {
-    state?: Partial<WordPracticeState>;
-    options?: Partial<HomeworkOptions>;
+    state?: Record<string, WordPracticeWordState>;
+    settings?: Partial<PracticeSettings>;
   } = {},
 ): VocabularyWord[] {
   return selectHomeworkWords({
     words,
-    state: { activeHomeworkId: null, words: {}, cefrEstimates: {}, ...state },
+    state: { schemaVersion: 2, activeHomeworkId: null, words: state, cefrEstimates: {}, settings: SETTINGS },
     levelOf: (word) => levels[word.word] ?? null,
-    options: { wordCount: 20, startLevel: "A1", ...options },
+    settings: { ...SETTINGS, ...settings },
   });
 }
 
@@ -115,7 +124,7 @@ describe("isEligibleWord", () => {
 });
 
 describe("selectHomeworkWords", () => {
-  it("orders by level A1 to C2, then by createdAt, with AI estimates ranked and unrated words last", () => {
+  it("orders by level A1 to C2, then by createdAt, with estimates ranked and unrated words last", () => {
     const words = [
       makeWord("unrated", 0),
       makeWord("b1-old", 1),
@@ -156,12 +165,7 @@ describe("selectHomeworkWords", () => {
       "missed-old": list("B2"),
       "missed-new": list("B2"),
     };
-    const state = {
-      words: {
-        "missed-old": { missCount: 1, lastMissedAt: 1000 },
-        "missed-new": { missCount: 3, lastMissedAt: 5000 },
-      },
-    };
+    const state = { "missed-old": needs(1000), "missed-new": needs(5000) };
 
     expect(select(words, levels, { state })).toEqual(["missed-new", "missed-old", "easy", "also-easy"]);
   });
@@ -169,50 +173,31 @@ describe("selectHomeworkWords", () => {
   it("sorts a missed word without lastMissedAt after missed words that have one", () => {
     const words = [makeWord("no-time", 0), makeWord("timed", 1), makeWord("plain", 2)];
     const levels = { "no-time": list("A1"), timed: list("C2"), plain: list("A1") };
-    const state = {
-      words: {
-        "no-time": { missCount: 2 },
-        timed: { missCount: 1, lastMissedAt: 10 },
-      },
-    };
+    const state = { "no-time": needs(), timed: needs(10) };
 
     expect(select(words, levels, { state })).toEqual(["timed", "no-time", "plain"]);
   });
 
   it("falls back to createdAt then key when missed words share a lastMissedAt", () => {
     const words = [makeWord("beta", 2), makeWord("alpha", 2), makeWord("gamma", 1)];
-    const state = {
-      words: {
-        beta: { missCount: 1, lastMissedAt: 7 },
-        alpha: { missCount: 1, lastMissedAt: 7 },
-        gamma: { missCount: 1, lastMissedAt: 7 },
-      },
-    };
+    const state = { beta: needs(7), alpha: needs(7), gamma: needs(7) };
 
     expect(select(words, {}, { state })).toEqual(["gamma", "alpha", "beta"]);
   });
 
   it("falls back to createdAt then key when missed words all lack lastMissedAt", () => {
     const words = [makeWord("delta", 2), makeWord("charlie", 2), makeWord("echo", 1)];
-    const state = {
-      words: {
-        delta: { missCount: 1 },
-        charlie: { missCount: 4 },
-        echo: { missCount: 2 },
-      },
-    };
+    const state = { delta: needs(), charlie: needs(), echo: needs() };
 
     expect(select(words, {}, { state })).toEqual(["echo", "charlie", "delta"]);
   });
 
-  it("excludes learned words, including words that were missed before being learned", () => {
+  it("excludes words that are already in the review schedule (stage 1 or higher)", () => {
     const words = [makeWord("learned", 0), makeWord("relearned", 1), makeWord("fresh", 2)];
     const levels = { learned: list("A1"), relearned: list("A1"), fresh: list("A1") };
-    const state = {
-      words: {
-        learned: { missCount: 0, learnedAt: 100 },
-        relearned: { missCount: 2, lastMissedAt: 50, learnedAt: 100 },
-      },
+    const state: Record<string, WordPracticeWordState> = {
+      learned: { stage: 1, dueAt: 100, missCount: 0, learnedAt: 100 },
+      relearned: { stage: 3, dueAt: 100, missCount: 2, lastMissedAt: 50, learnedAt: 100 },
     };
 
     expect(select(words, levels, { state })).toEqual(["fresh"]);
@@ -240,9 +225,9 @@ describe("selectHomeworkWords", () => {
       "list-a2": list("A2"),
       "list-b1": list("B1"),
     };
-    const state = { words: { "missed-a1": { missCount: 1, lastMissedAt: 1 } } };
+    const state = { "missed-a1": needs(1) };
 
-    expect(select(words, levels, { state, options: { startLevel: "A2" } })).toEqual([
+    expect(select(words, levels, { state, settings: { startLevel: "A2" } })).toEqual([
       "missed-a1",
       "ai-a1",
       "list-a2",
@@ -314,12 +299,12 @@ describe("selectHomeworkWords", () => {
     expect(selectWords([only], {})).toEqual([only]);
   });
 
-  it("does not exceed wordCount and returns everything when fewer words are available", () => {
+  it("does not exceed newWordCount and returns everything when fewer words are available", () => {
     const words = [makeWord("one", 0), makeWord("two", 1), makeWord("three", 2), makeWord("four", 3)];
     const levels = { one: list("A1"), two: list("A1"), three: list("A1"), four: list("A1") };
 
-    expect(select(words, levels, { options: { wordCount: 3 } })).toEqual(["one", "two", "three"]);
-    expect(select(words, levels, { options: { wordCount: 10 } })).toEqual(["one", "two", "three", "four"]);
+    expect(select(words, levels, { settings: { newWordCount: 3 } })).toEqual(["one", "two", "three"]);
+    expect(select(words, levels, { settings: { newWordCount: 10 } })).toEqual(["one", "two", "three", "four"]);
     expect(select([], levels)).toEqual([]);
   });
 
@@ -332,6 +317,38 @@ describe("selectHomeworkWords", () => {
     const levels = { "broken-date": list("B1"), "dated-late": list("B1"), "dated-early": list("B1") };
 
     expect(select(words, levels)).toEqual(["dated-early", "dated-late", "broken-date"]);
+  });
+
+  it("only offers stage 0 words, needsPractice first", () => {
+    const state: Record<string, WordPracticeWordState> = {
+      apple: { stage: 2, dueAt: 1, missCount: 0 },
+      river: needs(5),
+    };
+    const levels = { apple: list("A1"), cat: list("A1"), river: list("C1") };
+
+    expect(select([makeWord("apple", 0), makeWord("cat", 1), makeWord("river", 2)], levels, { state })).toEqual([
+      "river",
+      "cat",
+    ]);
+  });
+
+  it("offers a stage 0 word that has a record but no needsPractice flag as an ordinary new word", () => {
+    const state: Record<string, WordPracticeWordState> = { cat: { stage: 0, missCount: 2 } };
+    const levels = { cat: list("B2"), dog: list("A1") };
+
+    expect(select([makeWord("cat", 0), makeWord("dog", 1)], levels, { state })).toEqual(["dog", "cat"]);
+  });
+
+  it("puts words without a level after every rated word", () => {
+    expect(select([makeWord("look forward to", 0), makeWord("cat", 1)], { cat: list("C2") })).toEqual([
+      "cat",
+      "look forward to",
+    ]);
+  });
+
+  it("takes settings.newWordCount words", () => {
+    const words = Array.from({ length: 8 }, (_, i) => makeWord(`w${i}`, i));
+    expect(select(words, {}, { settings: { newWordCount: 5 } })).toHaveLength(5);
   });
 
   it("does not mutate its input", () => {
