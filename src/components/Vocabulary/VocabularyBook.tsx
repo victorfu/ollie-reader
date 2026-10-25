@@ -1,24 +1,25 @@
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
-import type { FormEvent } from "react";
+import type { FormEvent, ReactNode } from "react";
 import { AnimatePresence } from "framer-motion";
-import { Search } from "lucide-react";
+import {
+  CircleAlert,
+  CircleCheck,
+  CornerDownLeft,
+  Search,
+  X,
+} from "lucide-react";
 import { useVocabulary } from "../../hooks/useVocabulary";
 import { useSentenceTranslation } from "../../hooks/useSentenceTranslation";
 import { useDebounce } from "../../hooks/useDebounce";
 import { useCefrLevels } from "../../hooks/useCefrLevels";
 import { smartLookup } from "../../services/aiService";
 import { isGeminiRateLimitError } from "../../services/geminiErrorPolicy";
-import type {
-  VocabularyWord,
-  VocabularyFilters,
-  ReviewSettings,
-} from "../../types/vocabulary";
+import type { VocabularyWord, VocabularyFilters } from "../../types/vocabulary";
+import type { SentenceTranslation } from "../../types/sentenceTranslation";
 import { WordDetail } from "./WordDetail";
 import { Toast } from "../common/Toast";
 import { ConfirmModal } from "../common/ConfirmModal";
 
-import { FlashcardMode } from "./FlashcardMode";
-import { ReviewSettingsModal } from "./ReviewSettingsModal";
 import { VocabularyRow } from "./VocabularyRow";
 import { WordDetailPanel } from "./WordDetailPanel";
 import { SentenceRow } from "../SentenceTranslation/SentenceRow";
@@ -37,6 +38,13 @@ import {
   type FeedItem,
   type FeedTypeFilter,
 } from "../../utils/unifiedFeed";
+import {
+  findExactFeedItem,
+  mergeFeedItems,
+  searchFeedItems,
+  stripEdgePunctuation,
+  toSearchKey,
+} from "../../utils/vocabularySearch";
 
 // The feed is always newest-first; sorting UI was removed with the tab merge.
 const FEED_FILTERS: VocabularyFilters = {
@@ -51,9 +59,8 @@ const REMOTE_WORD_SEARCH_LIMIT = 50;
 // Han + kana + hangul — the smart query only handles English input.
 const CJK_PATTERN = /\p{Script=Han}|[぀-ヿ가-힯]/u;
 
-// Strip punctuation around the input ("run." → "run") while keeping inner
-// characters like hyphens and apostrophes intact.
-const EDGE_PUNCTUATION_PATTERN = /^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu;
+const LOOKUP_FAILED_MESSAGE = "查詢失敗，請稍後再試";
+const ENGLISH_ONLY_MESSAGE = "請輸入英文單字或句子喔！";
 
 const TYPE_FILTERS: Array<{ value: FeedTypeFilter; label: string }> = [
   { value: "all", label: "全部" },
@@ -61,47 +68,59 @@ const TYPE_FILTERS: Array<{ value: FeedTypeFilter; label: string }> = [
   { value: "sentences", label: "句子" },
 ];
 
-const getWordKey = (word: VocabularyWord): string =>
-  word.id || `${word.userId}-${word.word}`;
+const wordItem = (word: VocabularyWord): FeedItem => ({ kind: "word", word });
 
-const sortBySearchRelevance = (
-  inputWords: VocabularyWord[],
-  searchLower: string,
-): VocabularyWord[] => {
-  return [...inputWords].sort((a, b) => {
-    const aWord = a.word.toLowerCase();
-    const bWord = b.word.toLowerCase();
+const sentenceItem = (sentence: SentenceTranslation): FeedItem => ({
+  kind: "sentence",
+  sentence,
+});
 
-    if (aWord === searchLower && bWord !== searchLower) return -1;
-    if (bWord === searchLower && aWord !== searchLower) return 1;
+const feedItemId = (item: FeedItem): string | undefined =>
+  item.kind === "word" ? item.word.id : item.sentence.id;
 
-    const aStartsWith = aWord.startsWith(searchLower);
-    const bStartsWith = bWord.startsWith(searchLower);
-    if (aStartsWith && !bStartsWith) return -1;
-    if (bStartsWith && !aStartsWith) return 1;
+type LookupOutcome =
+  | { status: "added" | "existing"; item: FeedItem }
+  | { status: "failed"; message: string }
+  | { status: "aborted" };
 
-    return aWord.localeCompare(bWord);
-  });
-};
+interface FocusRequest {
+  /** Select the kept text so typing the next entry replaces it. */
+  selectAll: boolean;
+  /** What had focus when the lookup started (the field or the add button). */
+  trigger: Element | null;
+}
 
-const mergeSearchResults = (
-  localResults: VocabularyWord[],
-  remoteResults: VocabularyWord[],
-  searchLower: string,
-): VocabularyWord[] => {
-  const seenKeys = new Set(localResults.map(getWordKey));
-  const merged = [...localResults];
-
-  remoteResults.forEach((word) => {
-    const key = getWordKey(word);
-    if (!seenKeys.has(key)) {
-      seenKeys.add(key);
-      merged.push(word);
-    }
-  });
-
-  return sortBySearchRelevance(merged, searchLower);
-};
+/**
+ * Where focus goes once a lookup settles. On desktop the field takes it back
+ * so the next word can be typed right away — unless the user has since moved
+ * on to something else. On touch screens the detail sheet opens over the
+ * field, so the keyboard is dismissed instead of being popped up behind it.
+ */
+function settleQueryFocus(
+  input: HTMLInputElement,
+  { selectAll, trigger }: FocusRequest,
+  { isDesktop, sheetOpen }: { isDesktop: boolean; sheetOpen: boolean },
+) {
+  if (!isDesktop) {
+    if (sheetOpen) input.blur();
+    return;
+  }
+  const active = document.activeElement;
+  const movedOn =
+    active !== null &&
+    active !== document.body &&
+    active !== input &&
+    active !== trigger &&
+    !input.form?.contains(active);
+  if (movedOn) return;
+  input.focus();
+  if (selectAll) {
+    input.select();
+  } else {
+    const end = input.value.length;
+    input.setSelectionRange(end, end);
+  }
+}
 
 export const VocabularyBook = () => {
   const {
@@ -118,11 +137,8 @@ export const VocabularyBook = () => {
     addWordFromDetails,
     updateWord,
     regenerateWordDetails,
-    updateReview,
-    loadWordsForReview,
     searchWords,
     getTags,
-    getWordCount,
   } = useVocabulary();
   const {
     sentences,
@@ -138,18 +154,30 @@ export const VocabularyBook = () => {
   const { levelOf } = useCefrLevels();
   const isDesktop = useIsDesktop();
 
-  // One field for both: typing filters the list, submitting looks up and adds.
+  // One field for both: typing searches the saved items, submitting looks the
+  // text up and saves it (or opens the saved entry when it already exists).
   const [query, setQuery] = useState("");
-  const [isQuerying, setIsQuerying] = useState(false);
+  // Text being looked up and saved; null while idle.
+  const [pendingText, setPendingText] = useState<string | null>(null);
+  const isQuerying = pendingText !== null;
+  // Why the last submit failed; cleared as soon as the text changes.
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [typeFilter, setTypeFilter] = useState<FeedTypeFilter>("all");
   const [selected, setSelected] = useState<FeedItem | null>(null);
   const debouncedQuery = useDebounce(query, 300);
+  const isSearchActive = query.trim().length > 0;
+  const queryKey = toSearchKey(query);
   // Clearing the field (or adding, which clears it) restores the full list
   // right away instead of waiting out the debounce.
-  const searchText = query.trim() ? debouncedQuery.trim() : "";
-  const canAdd = query.trim().length > 0 && !CJK_PATTERN.test(query);
-  const [searchItems, setSearchItems] = useState<FeedItem[] | null>(null);
-  const [isSearching, setIsSearching] = useState(false);
+  const remoteSearchKey = isSearchActive ? toSearchKey(debouncedQuery) : "";
+  const [remoteResults, setRemoteResults] = useState<{
+    key: string;
+    items: FeedItem[];
+  } | null>(null);
+  const isSearching =
+    isSearchActive && queryKey !== "" && remoteResults?.key !== queryKey;
+  const isEnglishQuery = !CJK_PATTERN.test(query);
+  const canAdd = queryKey !== "" && isEnglishQuery;
 
   const [toastMessage, setToastMessage] = useState<{
     message: string;
@@ -160,19 +188,19 @@ export const VocabularyBook = () => {
     id: string;
   } | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [isReviewMode, setIsReviewMode] = useState(false);
-  const [reviewWords, setReviewWords] = useState<VocabularyWord[]>([]);
-  const [isLoadingReview, setIsLoadingReview] = useState(false);
-  const [showReviewSettings, setShowReviewSettings] = useState(false);
-  const [totalWordCount, setTotalWordCount] = useState(0);
   const [availableTags, setAvailableTags] = useState<string[]>([]);
 
   const smartQueryFieldId = "smart-query-input";
+  const smartQueryStatusId = "smart-query-status";
   const smartQueryInputRef = useRef<HTMLInputElement>(null);
-  const refocusSmartQueryRef = useRef(false);
+  const pendingFocusRef = useRef<FocusRequest | null>(null);
+  // Set synchronously, unlike pendingText, so a second Enter in the same
+  // tick cannot start a second lookup and save.
+  const isSubmittingRef = useRef(false);
   const loadMoreRef = useRef<HTMLDivElement>(null);
-  const searchRequestIdRef = useRef(0);
   const queryAbortRef = useRef<AbortController | null>(null);
+
+  const closeToast = useCallback(() => setToastMessage(null), []);
 
   const refreshTags = useCallback(async () => {
     const tags = await getTags();
@@ -199,6 +227,12 @@ export const VocabularyBook = () => {
     };
   }, []);
 
+  const changeQuery = useCallback((value: string) => {
+    setQuery(value);
+    setSubmitError(null);
+    if (!value.trim()) setRemoteResults(null);
+  }, []);
+
   const mergedFeed = useMemo(
     () =>
       computeMergedFeed({
@@ -209,6 +243,30 @@ export const VocabularyBook = () => {
         sentencesHasMore,
       }),
     [typeFilter, words, hasMore, sentences, sentencesHasMore],
+  );
+
+  const loadedItems = useMemo(
+    () => [...words.map(wordItem), ...sentences.map(sentenceItem)],
+    [words, sentences],
+  );
+
+  // Every saved item matching the text, best match first. Loaded items are
+  // filtered on each keystroke; account-wide results join once the debounced
+  // search returns. The loaded copy wins, so edits made here show up.
+  const searchItems = useMemo(
+    () =>
+      isSearchActive
+        ? searchFeedItems(
+            mergeFeedItems(loadedItems, remoteResults?.items ?? []),
+            query,
+          )
+        : null,
+    [isSearchActive, loadedItems, remoteResults, query],
+  );
+
+  const exactMatch = useMemo(
+    () => (searchItems ? findExactFeedItem(searchItems, query) : null),
+    [searchItems, query],
   );
 
   const displayItems = useMemo(
@@ -224,82 +282,42 @@ export const VocabularyBook = () => {
     [displayItems],
   );
 
-  // Unified search: show local matches immediately, then merge account-wide
-  // results. Words come from a bounded Firestore prefix query; sentences from
-  // the hook's in-memory copy of the book.
+  // Account-wide search: words come from a bounded Firestore prefix query,
+  // sentences from the hook's in-memory copy of the book. A newer query (or
+  // leaving the page) discards the result of an older one.
   useEffect(() => {
-    if (!searchText) {
-      searchRequestIdRef.current += 1;
-      setIsSearching(false);
-      setSearchItems(null);
-      return;
-    }
+    if (!remoteSearchKey) return;
 
-    const requestId = ++searchRequestIdRef.current;
-    const searchLower = searchText.toLowerCase();
-
-    const sentenceMatches = sentences
-      .filter(
-        (sentence) =>
-          sentence.english.toLowerCase().includes(searchLower) ||
-          sentence.chinese.includes(searchText),
-      )
-      .map((sentence) => ({ kind: "sentence" as const, sentence }));
-
-    const localWordResults = sortBySearchRelevance(
-      words.filter((word) => word.word.toLowerCase().includes(searchLower)),
-      searchLower,
-    );
-
-    const toItems = (
-      wordResults: VocabularyWord[],
-      sentenceResults = sentenceMatches,
-    ): FeedItem[] => [
-      ...wordResults.map((word) => ({ kind: "word" as const, word })),
-      ...sentenceResults,
-    ];
-
-    setSearchItems(toItems(localWordResults));
-    setIsSearching(true);
-
+    let cancelled = false;
     const performSearch = async () => {
       try {
         const [remoteWords, remoteSentences] = await Promise.all([
-          searchWords(searchText, {
+          searchWords(remoteSearchKey, {
             mode: "prefix",
             limit: REMOTE_WORD_SEARCH_LIMIT,
           }),
-          searchSentences(searchText),
+          searchSentences(remoteSearchKey),
         ]);
-        if (requestId !== searchRequestIdRef.current) return;
-        const seenSentenceIds = new Set(
-          sentenceMatches.map((item) => item.sentence.id),
-        );
-        const mergedSentences = [
-          ...sentenceMatches,
-          ...remoteSentences
-            .filter((sentence) => !seenSentenceIds.has(sentence.id))
-            .map((sentence) => ({ kind: "sentence" as const, sentence })),
-        ];
-        setSearchItems(
-          toItems(
-            mergeSearchResults(localWordResults, remoteWords, searchLower),
-            mergedSentences,
-          ),
-        );
+        if (cancelled) return;
+        setRemoteResults({
+          key: remoteSearchKey,
+          items: [
+            ...remoteWords.map(wordItem),
+            ...remoteSentences.map(sentenceItem),
+          ],
+        });
       } catch (error) {
         console.error("Search failed:", error);
-        if (requestId !== searchRequestIdRef.current) return;
-        setSearchItems(toItems(localWordResults));
-      } finally {
-        if (requestId === searchRequestIdRef.current) {
-          setIsSearching(false);
-        }
+        if (cancelled) return;
+        setRemoteResults({ key: remoteSearchKey, items: [] });
       }
     };
 
     void performSearch();
-  }, [searchText, words, sentences, searchWords, searchSentences]);
+    return () => {
+      cancelled = true;
+    };
+  }, [remoteSearchKey, searchWords, searchSentences]);
 
   const handleUpdateWord = useCallback(
     async (wordId: string, updates: Partial<VocabularyWord>) => {
@@ -312,61 +330,110 @@ export const VocabularyBook = () => {
     [updateWord, refreshTags],
   );
 
-  const fetchTotalWordCount = useCallback(async () => {
-    const count = await getWordCount();
-    setTotalWordCount(count);
-    return count;
-  }, [getWordCount]);
+  // A single word looks up the dictionary directly; multi-word input is
+  // classified by AI as a phrase (saved as a word) or a sentence (translated
+  // and saved). Anything already saved is returned without calling AI.
+  const lookUpAndSave = async (
+    text: string,
+    signal: AbortSignal,
+  ): Promise<LookupOutcome> => {
+    const stripped = stripEdgePunctuation(text);
+    const failed = (message?: string): LookupOutcome => ({
+      status: "failed",
+      message: message || LOOKUP_FAILED_MESSAGE,
+    });
 
-  // Handle opening review settings modal
-  const handleOpenReviewSettings = useCallback(async () => {
-    await fetchTotalWordCount();
-    setShowReviewSettings(true);
-  }, [fetchTotalWordCount]);
+    if (!stripped.includes(" ")) {
+      const res = await lookupOrAddWord(stripped, undefined, signal);
+      if (signal.aborted) return { status: "aborted" };
+      if (!res.success || !res.existingWord) return failed(res.message);
+      return {
+        status: res.isNew ? "added" : "existing",
+        item: wordItem(res.existingWord),
+      };
+    }
 
-  // Handle starting review with settings
-  const handleStartReview = useCallback(
-    async (settings: ReviewSettings) => {
-      setShowReviewSettings(false);
-      setIsLoadingReview(true);
-      try {
-        const selectedWords = await loadWordsForReview(
-          settings.wordCount,
-          settings.mode,
-          settings.selectedTag,
-        );
-        setReviewWords(selectedWords);
-        if (selectedWords.length > 0) {
-          setIsReviewMode(true);
-        } else {
-          setToastMessage({ message: "沒有單字可以複習", type: "info" });
-        }
-      } catch (error) {
-        console.error("Error loading review words:", error);
-        setToastMessage({ message: "載入複習清單失敗", type: "error" });
-      } finally {
-        setIsLoadingReview(false);
-      }
-    },
-    [loadWordsForReview],
-  );
+    const existingWord = await findExistingWord(stripped);
+    if (signal.aborted) return { status: "aborted" };
+    if (existingWord) return { status: "existing", item: wordItem(existingWord) };
 
-  // One input for everything: a single word looks up the dictionary directly;
-  // multi-word input is classified by AI as a phrase (saved as a word) or a
-  // sentence (translated and saved), with cached results short-circuiting.
-  const handleSmartSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const trimmed = query.trim();
-    if (!trimmed || isQuerying) return;
+    // Sentences keep their punctuation, so the exact lookup misses a saved
+    // copy typed with different punctuation; the searchable copy of the book
+    // catches that before AI is asked again.
+    const sentence = text.trim().replace(/\s+/g, " ");
+    const existingSentence = await findExistingSentence(sentence);
+    if (signal.aborted) return { status: "aborted" };
+    if (existingSentence) {
+      return { status: "existing", item: sentenceItem(existingSentence) };
+    }
+    const lookalikeSentence = findExactFeedItem(
+      (await searchSentences(stripped)).map(sentenceItem),
+      sentence,
+    );
+    if (signal.aborted) return { status: "aborted" };
+    if (lookalikeSentence) {
+      return { status: "existing", item: lookalikeSentence };
+    }
 
-    if (CJK_PATTERN.test(trimmed)) {
-      setToastMessage({ message: "請輸入英文單字或句子喔！", type: "info" });
+    const result = await smartLookup(sentence, signal);
+    if (signal.aborted) return { status: "aborted" };
+    if (!result) return failed();
+
+    if (result.kind === "word") {
+      const res = await addWordFromDetails(stripped, result.details);
+      if (signal.aborted) return { status: "aborted" };
+      if (!res.success || !res.word) return failed(res.message);
+      return {
+        status: res.existing ? "existing" : "added",
+        item: wordItem(res.word),
+      };
+    }
+
+    const saved = await addTranslatedSentence(
+      sentence,
+      result.chinese,
+      result.keyWords,
+    );
+    if (signal.aborted) return { status: "aborted" };
+    if (!saved) return failed("儲存句子失敗，請稍後再試");
+    return { status: "added", item: sentenceItem(saved) };
+  };
+
+  const showExisting = (item: FeedItem) => {
+    setSelected(item);
+    setToastMessage({
+      message:
+        item.kind === "word"
+          ? `「${item.word.word}」已經在生詞本裡了`
+          : "句子已存在翻譯本",
+      type: "info",
+    });
+  };
+
+  const submitQuery = async (text: string) => {
+    const trimmed = text.trim();
+    if (!trimmed || isSubmittingRef.current) return;
+
+    if (CJK_PATTERN.test(trimmed) || !stripEdgePunctuation(trimmed)) {
+      setToastMessage({ message: ENGLISH_ONLY_MESSAGE, type: "info" });
       return;
     }
 
-    const stripped = trimmed.replace(EDGE_PUNCTUATION_PATTERN, "");
-    if (!stripped) {
-      setToastMessage({ message: "請輸入英文單字或句子喔！", type: "info" });
+    const trigger = document.activeElement;
+    const known = findExactFeedItem(
+      mergeFeedItems(loadedItems, remoteResults?.items ?? []),
+      trimmed,
+    );
+    if (known) {
+      showExisting(known);
+      const input = smartQueryInputRef.current;
+      if (input) {
+        settleQueryFocus(
+          input,
+          { selectAll: true, trigger },
+          { isDesktop, sheetOpen: true },
+        );
+      }
       return;
     }
 
@@ -374,139 +441,77 @@ export const VocabularyBook = () => {
     const controller = new AbortController();
     queryAbortRef.current = controller;
     const { signal } = controller;
-    // Keep the field ready for the next entry when the user submitted from it
-    // (Enter or the button), so consecutive lookups need no extra click.
-    const shouldRefocus = event.currentTarget.contains(document.activeElement);
 
-    setIsQuerying(true);
+    isSubmittingRef.current = true;
+    setPendingText(stripEdgePunctuation(trimmed));
+    setSubmitError(null);
+    let outcome: LookupOutcome = { status: "aborted" };
     try {
-      if (!/\s/.test(stripped)) {
-        const res = await lookupOrAddWord(stripped, undefined, signal);
-        if (signal.aborted) return;
-        if (res.success && res.existingWord) {
-          setSelected({ kind: "word", word: res.existingWord });
-          if (res.isNew) {
-            setToastMessage({
-              message: `「${res.existingWord.word}」已加入生詞本！`,
-              type: "success",
-            });
-            setQuery("");
-            await loadVocabulary(FEED_FILTERS);
-            void refreshTags();
-          } else {
-            setToastMessage({
-              message: `「${res.existingWord.word}」已經在生詞本裡了`,
-              type: "info",
-            });
-          }
-        } else {
-          setToastMessage({
-            message: res.message || "查詢失敗，請稍後再試",
-            type: "error",
-          });
-        }
-        return;
-      }
-
-      const phrase = stripped.replace(/\s+/g, " ");
-      const existingWord = await findExistingWord(phrase);
-      if (signal.aborted) return;
-      if (existingWord) {
-        setSelected({ kind: "word", word: existingWord });
-        setToastMessage({
-          message: `「${existingWord.word}」已經在生詞本裡了`,
-          type: "info",
-        });
-        return;
-      }
-
-      const existingSentence = await findExistingSentence(trimmed);
-      if (signal.aborted) return;
-      if (existingSentence) {
-        setSelected({ kind: "sentence", sentence: existingSentence });
-        setToastMessage({ message: "句子已存在翻譯本", type: "info" });
-        return;
-      }
-
-      const result = await smartLookup(trimmed, signal);
-      if (signal.aborted) return;
-      if (!result) {
-        setToastMessage({ message: "查詢失敗，請稍後再試", type: "error" });
-        return;
-      }
-
-      if (result.kind === "word") {
-        const res = await addWordFromDetails(phrase, result.details);
-        if (signal.aborted) return;
-        if (res.success && res.word) {
-          setSelected({ kind: "word", word: res.word });
-          if (res.existing) {
-            setToastMessage({
-              message: `「${res.word.word}」已經在生詞本裡了`,
-              type: "info",
-            });
-          } else {
-            setToastMessage({
-              message: `「${res.word.word}」已加入生詞本！`,
-              type: "success",
-            });
-            setQuery("");
-            await loadVocabulary(FEED_FILTERS);
-            void refreshTags();
-          }
-        } else {
-          setToastMessage({
-            message: res.message || "查詢失敗，請稍後再試",
-            type: "error",
-          });
-        }
-        return;
-      }
-
-      const saved = await addTranslatedSentence(
-        trimmed,
-        result.chinese,
-        result.keyWords,
-      );
-      if (signal.aborted) return;
-      if (saved) {
-        setSelected({ kind: "sentence", sentence: saved });
-        setToastMessage({ message: "句子已加入翻譯本", type: "success" });
-        setQuery("");
-        await loadSentences();
-      } else {
-        setToastMessage({ message: "儲存句子失敗，請稍後再試", type: "error" });
-      }
+      outcome = await lookUpAndSave(trimmed, signal);
     } catch (error) {
       console.error("Smart lookup failed:", error);
-      if (!signal.aborted) {
-        setToastMessage({
-          message: isGeminiRateLimitError(error)
-            ? error.message
-            : "查詢失敗，請稍後再試",
-          type: "error",
-        });
-      }
+      outcome = signal.aborted
+        ? { status: "aborted" }
+        : {
+            status: "failed",
+            message: isGeminiRateLimitError(error)
+              ? error.message
+              : LOOKUP_FAILED_MESSAGE,
+          };
     } finally {
-      setIsQuerying(false);
-      if (shouldRefocus && !signal.aborted) {
-        refocusSmartQueryRef.current = true;
-      }
+      isSubmittingRef.current = false;
+      setPendingText(null);
+    }
+
+    if (outcome.status === "aborted") return;
+    pendingFocusRef.current = {
+      selectAll: outcome.status === "existing",
+      trigger,
+    };
+
+    if (outcome.status === "failed") {
+      setSubmitError(outcome.message);
+      setToastMessage({ message: outcome.message, type: "error" });
+      return;
+    }
+
+    if (outcome.status === "existing") {
+      showExisting(outcome.item);
+      return;
+    }
+
+    const { item } = outcome;
+    setSelected(item);
+    changeQuery("");
+    if (item.kind === "word") {
+      setToastMessage({
+        message: `「${item.word.word}」已加入生詞本！`,
+        type: "success",
+      });
+      void loadVocabulary(FEED_FILTERS);
+      void refreshTags();
+    } else {
+      setToastMessage({ message: "句子已加入翻譯本", type: "success" });
+      void loadSentences();
     }
   };
 
-  // Restore focus after the query result has rendered (detail pane, toast),
-  // with the caret at the end so a kept query can be edited right away.
-  // Skipped on mobile when the detail sheet covers the field.
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    void submitQuery(query);
+  };
+
+  // Settle focus once the lookup's result has rendered (detail pane, toast).
   useEffect(() => {
-    if (isQuerying || !refocusSmartQueryRef.current) return;
-    refocusSmartQueryRef.current = false;
-    if (!isDesktop && selected) return;
+    if (isQuerying) return;
+    const request = pendingFocusRef.current;
     const input = smartQueryInputRef.current;
-    if (!input) return;
-    input.focus();
-    const end = input.value.length;
-    input.setSelectionRange(end, end);
+    if (!request || !input) return;
+    pendingFocusRef.current = null;
+    settleQueryFocus(input, request, {
+      isDesktop,
+      sheetOpen: selected !== null,
+    });
   }, [isQuerying, isDesktop, selected]);
 
   // Add a key word from a sentence's chips to the vocabulary book
@@ -541,6 +546,9 @@ export const VocabularyBook = () => {
   const confirmDelete = async () => {
     if (!pendingDelete) return;
 
+    const isDeletedItem = (item: FeedItem) =>
+      item.kind === pendingDelete.kind && feedItemId(item) === pendingDelete.id;
+
     setIsDeleting(true);
     try {
       if (pendingDelete.kind === "word") {
@@ -555,13 +563,16 @@ export const VocabularyBook = () => {
           throw new Error(result.message || "Failed to delete sentence");
         }
       }
-      const selectedId =
-        selected?.kind === "word"
-          ? selected.word.id
-          : selected?.kind === "sentence"
-            ? selected.sentence.id
-            : undefined;
-      if (selected && selected.kind === pendingDelete.kind && selectedId === pendingDelete.id) {
+      // The hooks drop the item from the loaded lists; search results fetched
+      // before the delete still hold a copy.
+      setRemoteResults(
+        (prev) =>
+          prev && {
+            ...prev,
+            items: prev.items.filter((item) => !isDeletedItem(item)),
+          },
+      );
+      if (selected && isDeletedItem(selected)) {
         setSelected(null);
       }
       setToastMessage({
@@ -621,23 +632,10 @@ export const VocabularyBook = () => {
     if (!isDesktop) return;
     if (selected) return;
     if (loading || sentencesLoading) return;
-    if (searchItems === null && mergedFeed.items.length > 0) {
+    if (!isSearchActive && mergedFeed.items.length > 0) {
       setSelected(mergedFeed.items[0]);
     }
-  }, [isDesktop, selected, loading, sentencesLoading, searchItems, mergedFeed.items]);
-
-  if (isReviewMode && reviewWords.length > 0) {
-    return (
-      <FlashcardMode
-        words={reviewWords}
-        onClose={() => {
-          setIsReviewMode(false);
-          setReviewWords([]);
-        }}
-        onUpdateReview={updateReview}
-      />
-    );
-  }
+  }, [isDesktop, selected, loading, sentencesLoading, isSearchActive, mergedFeed.items]);
 
   const showingSearch = searchItems !== null;
   const isInitialLoading =
@@ -645,12 +643,75 @@ export const VocabularyBook = () => {
     ((loading && words.length === 0) ||
       (sentencesLoading && sentences.length === 0));
 
+  const typedText = stripEdgePunctuation(query);
+
   const emptyCopy =
     typeFilter === "sentences"
       ? "還沒有翻譯過的句子。輸入英文句子，或在閱讀器中選取句子並點擊翻譯。"
       : typeFilter === "words"
         ? "還沒有收藏的單字。輸入英文單字，或在閱讀 PDF 時選取單字加入生詞本。"
         : "還沒有收藏的內容。輸入英文單字或句子，或在閱讀 PDF 時選取文字加入。";
+
+  // What Enter will do with the current text, so it never reads as a filter.
+  const renderQueryStatus = (): ReactNode => {
+    if (pendingText !== null) {
+      return (
+        <>
+          <span className="loading loading-spinner loading-xs shrink-0 text-accent" />
+          <span className="truncate text-accent">
+            正在查詢並加入「{pendingText}」…
+          </span>
+        </>
+      );
+    }
+    if (submitError) {
+      return (
+        <>
+          <CircleAlert className="size-3.5 shrink-0 text-error" aria-hidden="true" />
+          <span className="truncate text-error">
+            {submitError}，按 Enter 再試一次
+          </span>
+        </>
+      );
+    }
+    if (!isSearchActive) {
+      return (
+        <span className="truncate">
+          輸入即可搜尋收藏；按 Enter 查詢並加入生詞本
+        </span>
+      );
+    }
+    if (!isEnglishQuery) {
+      return (
+        <span className="truncate">
+          可搜尋已收藏的中文翻譯；要加入請輸入英文
+        </span>
+      );
+    }
+    if (!canAdd) {
+      return <span className="truncate">請輸入英文單字或句子</span>;
+    }
+    if (exactMatch) {
+      return (
+        <>
+          <CircleCheck className="size-3.5 shrink-0 text-success" aria-hidden="true" />
+          <span className="truncate">
+            已在生詞本，按 Enter 開啟「
+            {exactMatch.kind === "word"
+              ? exactMatch.word.word
+              : exactMatch.sentence.english}
+            」
+          </span>
+        </>
+      );
+    }
+    return (
+      <>
+        <CornerDownLeft className="size-3.5 shrink-0" aria-hidden="true" />
+        <span className="truncate">按 Enter 查詢並加入「{typedText}」</span>
+      </>
+    );
+  };
 
   const renderFeedItem = (item: FeedItem) => {
     if (item.kind === "word") {
@@ -693,105 +754,97 @@ export const VocabularyBook = () => {
         <Toast
           message={toastMessage.message}
           type={toastMessage.type}
-          onClose={() => setToastMessage(null)}
+          onClose={closeToast}
         />
       )}
-
-      <ReviewSettingsModal
-        isOpen={showReviewSettings}
-        onClose={() => setShowReviewSettings(false)}
-        onStart={handleStartReview}
-        totalWords={totalWordCount}
-        availableTags={availableTags}
-        isLoading={isLoadingReview}
-      />
 
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row lg:gap-6">
         {/* List pane */}
         <aside className="flex min-h-0 flex-1 flex-col lg:w-72 lg:flex-none lg:shrink-0 xl:w-80 2xl:w-96">
           {/* Compact toolbar */}
           <div className="shrink-0 space-y-2">
-            <form className="flex gap-2" onSubmit={handleSmartSubmit}>
-              <div className="relative min-w-0 flex-1">
-                <Search
-                  className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-                  strokeWidth={1.75}
-                  aria-hidden="true"
-                />
-                <input
-                  ref={smartQueryInputRef}
-                  id={smartQueryFieldId}
-                  // A search field, not a login form: keeps iOS from offering
-                  // passwords, addresses and cards above the keyboard.
-                  type="search"
-                  placeholder="搜尋或加入單字、句子"
-                  aria-label="搜尋或加入單字、句子"
-                  className={`${toolbarFieldClass} w-full pl-9 [&::-webkit-search-cancel-button]:appearance-none ${query.trim() ? "pr-16" : ""}`}
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  // readOnly (not disabled) so the field keeps focus while querying
-                  readOnly={isQuerying}
-                  aria-busy={isQuerying}
-                  autoComplete="off"
-                  autoCorrect="off"
-                  autoCapitalize="none"
-                  spellCheck={false}
-                  enterKeyHint="search"
-                />
-                {query.trim() && (
-                  <div className="pointer-events-none absolute inset-y-0 right-2 flex items-center gap-1 text-xs text-muted-foreground">
-                    {isSearching && <span className="loading loading-spinner loading-xs" />}
-                    <span>{isSearching ? "更新中" : `${displayItems.length}`}</span>
-                  </div>
-                )}
-              </div>
-              <button
-                type="submit"
-                className={toolbarPrimaryButtonClass}
-                disabled={isQuerying || !canAdd}
-                title={canAdd ? "查詢並加入生詞本" : undefined}
-              >
-                {isQuerying ? (
-                  <span className="loading loading-spinner loading-xs" />
-                ) : (
-                  "加入"
-                )}
-              </button>
-            </form>
-
-            <div className="flex items-center gap-2">
-              <div className="flex h-11 flex-1 gap-1 rounded-lg border border-border-hairline bg-background/75 p-0.5 shadow-soft">
-                {TYPE_FILTERS.map(({ value, label }) => (
-                  <button
-                    key={value}
-                    type="button"
-                    className={`inline-flex flex-1 items-center justify-center rounded-md px-2 text-xs font-medium transition-all active:scale-[0.98] ${
-                      typeFilter === value
-                        ? "bg-accent text-white shadow-soft"
-                        : "text-muted-foreground hover:bg-accent-tint hover:text-accent"
-                    }`}
-                    onClick={() => setTypeFilter(value)}
-                    aria-pressed={typeFilter === value}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-              {words.length > 0 && !loading && (
+            <div>
+              <form className="flex gap-2" onSubmit={handleSubmit}>
+                <div className="relative min-w-0 flex-1">
+                  <Search
+                    className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+                    strokeWidth={1.75}
+                    aria-hidden="true"
+                  />
+                  <input
+                    ref={smartQueryInputRef}
+                    id={smartQueryFieldId}
+                    // A search field, not a login form: keeps iOS from offering
+                    // passwords, addresses and cards above the keyboard.
+                    type="search"
+                    placeholder="搜尋或加入單字、句子"
+                    aria-label="搜尋或加入單字、句子"
+                    aria-describedby={smartQueryStatusId}
+                    className={`${toolbarFieldClass} w-full pl-9 [&::-webkit-search-cancel-button]:appearance-none ${query ? "pr-11" : ""}`}
+                    value={query}
+                    onChange={(e) => changeQuery(e.target.value)}
+                    // readOnly (not disabled) so the field keeps focus while querying
+                    readOnly={isQuerying}
+                    aria-busy={isQuerying}
+                    autoComplete="off"
+                    autoCorrect="off"
+                    autoCapitalize="none"
+                    spellCheck={false}
+                    enterKeyHint="search"
+                  />
+                  {query && !isQuerying && (
+                    <button
+                      type="button"
+                      className="absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-r-lg text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                      onClick={() => {
+                        changeQuery("");
+                        smartQueryInputRef.current?.focus();
+                      }}
+                      aria-label="清除輸入"
+                      title="清除輸入"
+                    >
+                      <X className="size-4" strokeWidth={1.75} aria-hidden="true" />
+                    </button>
+                  )}
+                </div>
                 <button
-                  type="button"
-                  className={`${toolbarPrimaryButtonClass} shrink-0`}
-                  onClick={handleOpenReviewSettings}
-                  disabled={isLoadingReview}
-                  title="開始複習"
+                  type="submit"
+                  className={toolbarPrimaryButtonClass}
+                  disabled={isQuerying || !canAdd}
+                  aria-label="查詢並加入生詞本"
+                  title="查詢並加入生詞本（Enter）"
                 >
-                  {isLoadingReview ? (
+                  {isQuerying ? (
                     <span className="loading loading-spinner loading-xs" />
                   ) : (
-                    "複習"
+                    "加入"
                   )}
                 </button>
-              )}
+              </form>
+              <p
+                id={smartQueryStatusId}
+                className="mt-1 flex h-5 min-w-0 items-center gap-1.5 px-1 text-xs text-muted-foreground"
+              >
+                {renderQueryStatus()}
+              </p>
+            </div>
+
+            <div className="flex h-11 gap-1 rounded-lg border border-border-hairline bg-background/75 p-0.5 shadow-soft">
+              {TYPE_FILTERS.map(({ value, label }) => (
+                <button
+                  key={value}
+                  type="button"
+                  className={`inline-flex flex-1 items-center justify-center rounded-md px-2 text-xs font-medium transition-all active:scale-[0.98] ${
+                    typeFilter === value
+                      ? "bg-accent text-white shadow-soft"
+                      : "text-muted-foreground hover:bg-accent-tint hover:text-accent"
+                  }`}
+                  onClick={() => setTypeFilter(value)}
+                  aria-pressed={typeFilter === value}
+                >
+                  {label}
+                </button>
+              ))}
             </div>
           </div>
 
@@ -816,25 +869,45 @@ export const VocabularyBook = () => {
               </div>
             )}
 
-            {/* Search results as flat rows (relevance order) */}
+            {/* Saved items matching the text (relevance order) */}
             {!isInitialLoading && showingSearch && (
               <div className="space-y-1">
-                {displayItems.length === 0 ? (
-                  <div className="rounded-xl surface-card p-6 text-center">
-                    <div className="mb-2 text-3xl">🔍</div>
-                    <p className="text-sm text-muted-foreground">
-                      找不到符合「{searchText || query.trim()}」的內容
-                    </p>
-                    {canAdd && (
-                      <p className="mt-1 text-xs text-muted-foreground/80">
-                        按 Enter 或「加入」查詢並收藏
-                      </p>
+                <h2 className="flex items-center justify-between gap-2 px-2 pb-1 text-xs font-semibold text-muted-foreground">
+                  <span>已收藏的搜尋結果</span>
+                  <span className="flex items-center gap-1 font-normal">
+                    {isSearching && (
+                      <span className="loading loading-spinner loading-xs" />
                     )}
-                  </div>
-                ) : (
+                    {isSearching ? "搜尋收藏中" : `${displayItems.length} 筆`}
+                  </span>
+                </h2>
+                {displayItems.length > 0 ? (
                   <AnimatePresence mode="popLayout">
                     {displayItems.map(renderFeedItem)}
                   </AnimatePresence>
+                ) : isSearching ? null : (
+                  <div className="rounded-xl surface-card p-6 text-center">
+                    <div className="mb-2 text-3xl">🔍</div>
+                    <p className="text-sm text-muted-foreground">
+                      收藏裡沒有符合「{query.trim()}」的內容
+                    </p>
+                    {canAdd && (
+                      <button
+                        type="button"
+                        className={`${toolbarPrimaryButtonClass} mt-4 max-w-full`}
+                        onClick={() => void submitQuery(query)}
+                        disabled={isQuerying}
+                      >
+                        {isQuerying ? (
+                          <span className="loading loading-spinner loading-xs" />
+                        ) : (
+                          <span className="truncate">
+                            查詢並加入「{typedText}」
+                          </span>
+                        )}
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
             )}

@@ -83,7 +83,10 @@ vi.mock("../../hooks/useSettings", () => ({
 }));
 vi.mock("../../services/aiService", () => ({ smartLookup: vi.fn() }));
 
+import { smartLookup } from "../../services/aiService";
 import { VocabularyBook } from "./VocabularyBook";
+
+const smartLookupMock = vi.mocked(smartLookup);
 
 const SEARCH_DEBOUNCE_MS = 300;
 
@@ -132,6 +135,50 @@ async function waitForSearch() {
   });
 }
 
+async function submit(field: HTMLInputElement) {
+  await act(async () => {
+    field.form?.requestSubmit();
+  });
+}
+
+/** Word names of the rows currently listed, in order. */
+function listedWords(container: HTMLElement): string[] {
+  return Array.from(
+    container.querySelectorAll("aside button[type='button'] .font-semibold"),
+    (node) => node.textContent ?? "",
+  );
+}
+
+function findButton(container: HTMLElement, text: string): HTMLButtonElement {
+  const button = Array.from(container.querySelectorAll("button")).find(
+    (candidate) => candidate.textContent?.includes(text),
+  );
+  if (!button) throw new Error(`no button containing "${text}"`);
+  return button;
+}
+
+/** The mobile detail sheet (jsdom has no matchMedia, so the book is "mobile"). */
+function detailSheet(): HTMLElement | null {
+  return document.querySelector(".modal-open");
+}
+
+function stubDesktop() {
+  vi.stubGlobal("matchMedia", (query: string) => ({
+    matches: true,
+    media: query,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+  }));
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((settle) => {
+    resolve = settle;
+  });
+  return { promise, resolve };
+}
+
 beforeEach(() => {
   (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean })
     .IS_REACT_ACT_ENVIRONMENT = true;
@@ -145,7 +192,14 @@ beforeEach(() => {
   mocks.vocabulary.words = [makeWord("w-1", "apple"), makeWord("w-2", "banana")];
   mocks.sentences.sentences = [SENTENCE];
   mocks.vocabulary.lookupOrAddWord.mockReset();
-  mocks.vocabulary.searchWords.mockClear();
+  mocks.vocabulary.searchWords.mockReset().mockResolvedValue([]);
+  mocks.vocabulary.findExistingWord.mockReset().mockResolvedValue(null);
+  mocks.vocabulary.addWordFromDetails.mockReset();
+  mocks.vocabulary.loadVocabulary.mockClear();
+  mocks.sentences.findExistingSentence.mockReset().mockResolvedValue(null);
+  mocks.sentences.addTranslatedSentence.mockReset().mockResolvedValue(null);
+  mocks.sentences.searchSentences.mockReset().mockResolvedValue([]);
+  smartLookupMock.mockReset();
   root = null;
   host = document.createElement("div");
   document.body.appendChild(host);
@@ -224,5 +278,297 @@ describe("VocabularyBook search-or-add field", () => {
     await typeInto(field, "");
 
     expect(container.textContent).toContain("banana");
+  });
+
+  it("filters loaded items on the first keystroke, before the remote search", async () => {
+    const container = await renderBook();
+    const field = getField(container);
+
+    await typeInto(field, "ban");
+
+    expect(listedWords(container)).toEqual(["banana"]);
+    expect(mocks.vocabulary.searchWords).not.toHaveBeenCalled();
+  });
+
+  it("lists exact matches first, then prefix matches, then the rest", async () => {
+    mocks.vocabulary.words = [
+      makeWord("w-1", "incurious"),
+      makeWord("w-2", "curiously"),
+      makeWord("w-3", "curious"),
+    ];
+    const container = await renderBook();
+
+    await typeInto(getField(container), "curious");
+
+    expect(listedWords(container)).toEqual(["curious", "curiously", "incurious"]);
+  });
+
+  it("opens a saved result without adding it or asking AI", async () => {
+    mocks.vocabulary.words = [makeWord("w-1", "curious"), makeWord("w-2", "apple")];
+    const container = await renderBook();
+    await typeInto(getField(container), "cur");
+
+    await act(async () => {
+      findButton(container, "curious").click();
+    });
+
+    expect(detailSheet()?.textContent).toContain("curious");
+    expect(mocks.vocabulary.lookupOrAddWord).not.toHaveBeenCalled();
+    expect(smartLookupMock).not.toHaveBeenCalled();
+  });
+
+  it("opens an already saved word on Enter without a lookup", async () => {
+    mocks.vocabulary.words = [makeWord("w-1", "curious")];
+    const container = await renderBook();
+    const field = getField(container);
+
+    await typeInto(field, "Curious!");
+    await submit(field);
+
+    expect(detailSheet()?.textContent).toContain("curious");
+    expect(container.textContent).toContain("已經在生詞本裡了");
+    expect(mocks.vocabulary.lookupOrAddWord).not.toHaveBeenCalled();
+    expect(smartLookupMock).not.toHaveBeenCalled();
+    expect(field.value).toBe("Curious!");
+  });
+
+  it("adds a new word straight away, shows it and clears the field", async () => {
+    mocks.vocabulary.lookupOrAddWord.mockResolvedValue({
+      success: true,
+      existingWord: makeWord("w-3", "river"),
+      isNew: true,
+    });
+    const container = await renderBook();
+    const field = getField(container);
+
+    await typeInto(field, "river");
+    await submit(field);
+
+    expect(detailSheet()?.textContent).toContain("river");
+    expect(container.textContent).toContain("已加入生詞本");
+    expect(field.value).toBe("");
+    expect(mocks.vocabulary.loadVocabulary).toHaveBeenCalledTimes(2);
+  });
+
+  it("submits only once when Enter is pressed again while looking up", async () => {
+    const lookup = deferred<unknown>();
+    mocks.vocabulary.lookupOrAddWord.mockReturnValue(lookup.promise);
+    const container = await renderBook();
+    const field = getField(container);
+
+    await typeInto(field, "river");
+    await act(async () => {
+      field.form?.requestSubmit();
+      field.form?.requestSubmit();
+    });
+    await submit(field);
+
+    expect(mocks.vocabulary.lookupOrAddWord).toHaveBeenCalledTimes(1);
+    expect(container.textContent).toContain("正在查詢並加入「river」");
+
+    await act(async () => {
+      lookup.resolve({
+        success: true,
+        existingWord: makeWord("w-3", "river"),
+        isNew: true,
+      });
+    });
+    expect(container.textContent).not.toContain("正在查詢並加入");
+  });
+
+  it("keeps the text and explains the failure so the user can retry", async () => {
+    mocks.vocabulary.lookupOrAddWord.mockResolvedValueOnce({
+      success: false,
+      isNew: false,
+      message: "無法取得 AI 生成的內容",
+    });
+    const container = await renderBook();
+    const field = getField(container);
+
+    await typeInto(field, "river");
+    await submit(field);
+
+    expect(field.value).toBe("river");
+    expect(container.textContent).toContain("按 Enter 再試一次");
+
+    mocks.vocabulary.lookupOrAddWord.mockResolvedValueOnce({
+      success: true,
+      existingWord: makeWord("w-3", "river"),
+      isNew: true,
+    });
+    await submit(field);
+
+    expect(mocks.vocabulary.lookupOrAddWord).toHaveBeenCalledTimes(2);
+    expect(field.value).toBe("");
+  });
+
+  it("saves a phrase classified by AI as a word", async () => {
+    smartLookupMock.mockResolvedValue({
+      kind: "word",
+      details: {
+        definitions: [
+          {
+            partOfSpeech: "phrase",
+            definition: "to stop trying",
+            definitionChinese: "放棄",
+          },
+        ],
+        examples: [],
+      },
+    });
+    mocks.vocabulary.addWordFromDetails.mockResolvedValue({
+      success: true,
+      word: makeWord("w-9", "give up"),
+    });
+    const container = await renderBook();
+    const field = getField(container);
+
+    await typeInto(field, "  Give   up! ");
+    await submit(field);
+
+    expect(mocks.vocabulary.findExistingWord).toHaveBeenCalledWith("Give up");
+    expect(mocks.vocabulary.addWordFromDetails.mock.calls[0][0]).toBe("Give up");
+    expect(mocks.sentences.addTranslatedSentence).not.toHaveBeenCalled();
+    expect(field.value).toBe("");
+  });
+
+  it("saves a sentence classified by AI as a sentence", async () => {
+    smartLookupMock.mockResolvedValue({
+      kind: "sentence",
+      chinese: "我喜歡蘋果。",
+      keyWords: [],
+    });
+    mocks.sentences.addTranslatedSentence.mockResolvedValue({
+      ...SENTENCE,
+      id: "sentence-2",
+      english: "I like apples.",
+      chinese: "我喜歡蘋果。",
+    });
+    const container = await renderBook();
+    const field = getField(container);
+
+    await typeInto(field, "I like apples.");
+    await submit(field);
+
+    expect(mocks.sentences.addTranslatedSentence.mock.calls[0].slice(0, 2)).toEqual([
+      "I like apples.",
+      "我喜歡蘋果。",
+    ]);
+    expect(mocks.vocabulary.addWordFromDetails).not.toHaveBeenCalled();
+    expect(detailSheet()?.textContent).toContain("I like apples.");
+  });
+
+  it("finds a saved sentence typed without its punctuation instead of adding it again", async () => {
+    mocks.sentences.sentences = [];
+    mocks.sentences.searchSentences.mockResolvedValue([SENTENCE]);
+    const container = await renderBook();
+    const field = getField(container);
+
+    await typeInto(field, "i like fruit");
+    await submit(field);
+
+    expect(smartLookupMock).not.toHaveBeenCalled();
+    expect(mocks.sentences.addTranslatedSentence).not.toHaveBeenCalled();
+    expect(detailSheet()?.textContent).toContain("I like fruit.");
+  });
+
+  it("offers to look up and add the text when nothing saved matches", async () => {
+    mocks.vocabulary.lookupOrAddWord.mockResolvedValue({
+      success: true,
+      existingWord: makeWord("w-3", "river"),
+      isNew: true,
+    });
+    const container = await renderBook();
+    await typeInto(getField(container), "river");
+    await waitForSearch();
+
+    await act(async () => {
+      findButton(container, "查詢並加入「river」").click();
+    });
+
+    expect(mocks.vocabulary.lookupOrAddWord).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the typed text and results when switching the type filter", async () => {
+    const container = await renderBook();
+    const field = getField(container);
+    await typeInto(field, "app");
+
+    await act(async () => {
+      findButton(container, "句子").click();
+    });
+    expect(field.value).toBe("app");
+    expect(listedWords(container)).toEqual([]);
+
+    await act(async () => {
+      findButton(container, "全部").click();
+    });
+    expect(listedWords(container)).toEqual(["apple"]);
+  });
+
+  it("ignores a slow search that finishes after the query changed", async () => {
+    const slow = deferred<VocabularyWord[]>();
+    mocks.vocabulary.searchWords
+      .mockReturnValueOnce(slow.promise)
+      .mockResolvedValue([]);
+    const container = await renderBook();
+    const field = getField(container);
+
+    await typeInto(field, "ap");
+    await waitForSearch();
+    await typeInto(field, "ban");
+    await waitForSearch();
+    await act(async () => {
+      slow.resolve([makeWord("w-7", "apricot")]);
+    });
+
+    expect(listedWords(container)).toEqual(["banana"]);
+  });
+
+  it("returns focus to the field after adding on desktop", async () => {
+    stubDesktop();
+    mocks.vocabulary.lookupOrAddWord.mockResolvedValue({
+      success: true,
+      existingWord: makeWord("w-3", "river"),
+      isNew: true,
+    });
+    const container = await renderBook();
+    const field = getField(container);
+    field.focus();
+
+    await typeInto(field, "river");
+    await submit(field);
+
+    expect(document.activeElement).toBe(field);
+    expect(field.value).toBe("");
+  });
+
+  it("drops the keyboard on touch screens when the result opens over the field", async () => {
+    mocks.vocabulary.lookupOrAddWord.mockResolvedValue({
+      success: true,
+      existingWord: makeWord("w-3", "river"),
+      isNew: true,
+    });
+    const container = await renderBook();
+    const field = getField(container);
+    field.focus();
+
+    await typeInto(field, "river");
+    await submit(field);
+
+    expect(detailSheet()).not.toBeNull();
+    expect(document.activeElement).not.toBe(field);
+  });
+});
+
+describe("VocabularyBook review entry", () => {
+  it("no longer offers a review button", async () => {
+    const container = await renderBook();
+
+    const labels = Array.from(container.querySelectorAll("button"), (button) =>
+      button.textContent?.trim(),
+    );
+    expect(labels).not.toContain("複習");
+    expect(container.querySelector('[title="開始複習"]')).toBeNull();
   });
 });
