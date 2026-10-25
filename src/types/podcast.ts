@@ -1,4 +1,4 @@
-/** Stable identifiers leave room for transcripts and per-episode progress later. */
+/** Stable identifiers leave room for per-episode progress later. */
 export interface PodcastEpisode {
   title: string;
   podcastTitle: string;

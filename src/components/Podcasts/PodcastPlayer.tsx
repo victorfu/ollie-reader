@@ -1,11 +1,10 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Pause, Play, RotateCcw, RotateCw } from "lucide-react";
 import type { PodcastEpisode } from "../../types/podcast";
 
 import { formatPodcastTime } from "../../utils/podcastTime";
-import { PodcastPlaybackContext } from "./PodcastPlaybackContext";
 
-export function PodcastPlayer({ episode, children }: { episode: PodcastEpisode; children?: ReactNode }) {
+export function PodcastPlayer({ episode }: { episode: PodcastEpisode }) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [playing, setPlaying] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -59,7 +58,6 @@ export function PodcastPlayer({ episode, children }: { episode: PodcastEpisode; 
     }
   };
   return (
-    <PodcastPlaybackContext.Provider value={{ time, seekable: seekable && !error, seek }}>
     <section aria-label="Podcast 播放器" className="space-y-4">
       <audio ref={audioRef} src={episode.audioUrl} preload="metadata"
         onLoadedMetadata={() => { setLoading(false); sync(); }} onDurationChange={sync} onTimeUpdate={sync} onProgress={sync}
@@ -85,8 +83,6 @@ export function PodcastPlayer({ episode, children }: { episode: PodcastEpisode; 
       {loading && <p role="status" className="text-sm text-muted-foreground">正在載入音訊…</p>}
       {!loading && !seekable && !error && <p className="text-sm text-muted-foreground">來源尚未提供可跳轉的音訊範圍。</p>}
       {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
-      {children}
     </section>
-    </PodcastPlaybackContext.Provider>
   );
 }

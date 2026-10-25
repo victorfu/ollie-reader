@@ -80,9 +80,9 @@ describe("generateGeminiContent", () => {
 
   it("sends multimodal configuration through the same queue and cross-tab gate", async () => {
     const input = { contents: [{ role: "user" as const, parts: [{ inlineData: { mimeType: "audio/webm", data: "audio" } }] }], generationConfig: { responseMimeType: "application/json" } };
-    await generateGeminiContent(input, { action: "podcast_transcript", retry: false });
+    await generateGeminiContent(input, { action: "sentence_review", retry: false });
     expect(mocks.generateContent).toHaveBeenCalledWith(input, { signal: expect.any(AbortSignal) });
-    expect(mocks.run.mock.calls[0][1]).toMatchObject({ action: "podcast_transcript", quotaKey: "project-test:gemini-test", retry: false });
+    expect(mocks.run.mock.calls[0][1]).toMatchObject({ action: "sentence_review", quotaKey: "project-test:gemini-test", retry: false });
     expect(mocks.gateRun).toHaveBeenCalledOnce();
   });
 
