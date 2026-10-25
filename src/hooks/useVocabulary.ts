@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { useAuth } from "./useAuth";
 import {
   addVocabularyWord,
@@ -7,7 +7,7 @@ import {
   updateVocabularyWord,
   deleteVocabularyWord,
   checkWordExists,
-  getUserTags,
+  getUserWordTags,
   getVocabularyForReview,
   updateReviewStats,
   searchUserVocabulary,
@@ -72,6 +72,33 @@ const hasUsableWordDetails = (
     ),
   );
 
+// Every distinct tag, sorted. Later sources describe a word more recently:
+// the whole-book read, then the loaded pages, then this session's edits
+// (null marks a deleted word).
+const collectAvailableTags = (
+  bookTags: ReadonlyMap<string, string[]> | null,
+  words: VocabularyWord[],
+  tagEdits: ReadonlyMap<string, string[] | null>,
+): string[] => {
+  const tagsByWordId = new Map(bookTags ?? []);
+  for (const word of words) {
+    if (word.id) tagsByWordId.set(word.id, word.tags);
+  }
+  for (const [wordId, tags] of tagEdits) {
+    if (tags) {
+      tagsByWordId.set(wordId, tags);
+    } else {
+      tagsByWordId.delete(wordId);
+    }
+  }
+
+  const tags = new Set<string>();
+  for (const wordTags of tagsByWordId.values()) {
+    wordTags.forEach((tag) => tags.add(tag));
+  }
+  return Array.from(tags).sort();
+};
+
 export const useVocabulary = () => {
   const { user } = useAuth();
   const [words, setWords] = useState<VocabularyWord[]>([]);
@@ -81,21 +108,35 @@ export const useVocabulary = () => {
   const [error, setError] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
   const [lastDocId, setLastDocId] = useState<string | undefined>(undefined);
+  // Tags of the whole book, read only on demand (see loadAllTags).
+  const [bookTags, setBookTags] = useState<ReadonlyMap<string, string[]> | null>(
+    null,
+  );
+  const [tagEdits, setTagEdits] = useState<
+    ReadonlyMap<string, string[] | null>
+  >(() => new Map());
   const abortControllerRef = useRef<AbortController | null>(null);
   const currentFiltersRef = useRef<VocabularyFilters | undefined>(undefined);
   const loadRequestIdRef = useRef(0);
+  const bookTagsRequestRef = useRef<{
+    uid: string;
+    request: Promise<void>;
+  } | null>(null);
   const activeUidRef = useRef(user?.uid);
 
   useEffect(() => {
     activeUidRef.current = user?.uid;
     loadRequestIdRef.current += 1;
     abortControllerRef.current?.abort();
+    bookTagsRequestRef.current = null;
     setWords([]);
     setHasMore(false);
     setLastDocId(undefined);
     setLoading(false);
     setIsLoadingMore(false);
     setError(null);
+    setBookTags(null);
+    setTagEdits(new Map());
   }, [user?.uid]);
 
   // Cleanup abort controller on unmount
@@ -587,6 +628,10 @@ export const useVocabulary = () => {
         setWords((prev) =>
           prev.map((w) => (w.id === wordId ? { ...w, ...updates } : w)),
         );
+        const { tags } = updates;
+        if (tags) {
+          setTagEdits((prev) => new Map(prev).set(wordId, tags));
+        }
         return { success: true };
       } catch (err) {
         // Ignore abort errors
@@ -609,6 +654,7 @@ export const useVocabulary = () => {
     try {
       await deleteVocabularyWord(wordId);
       setWords((prev) => prev.filter((w) => w.id !== wordId));
+      setTagEdits((prev) => new Map(prev).set(wordId, null));
       return { success: true };
     } catch (err) {
       // Ignore abort errors
@@ -622,18 +668,36 @@ export const useVocabulary = () => {
     }
   }, []);
 
-  // Get user's tags
-  const getTags = useCallback(async () => {
-    if (!user) return [];
+  // Tags for suggestions: the loaded pages' tags at no cost, plus the rest of
+  // the book once loadAllTags has read it.
+  const availableTags = useMemo(
+    () => collectAvailableTags(bookTags, words, tagEdits),
+    [bookTags, words, tagEdits],
+  );
 
-    try {
-      return await getUserTags(user.uid);
-    } catch (err) {
-      // Ignore abort errors
-      if (isAbortError(err)) return [];
-      console.error("Failed to get tags:", err);
-      return [];
-    }
+  // Read every word's tags. This costs one read per word, so it runs at most
+  // once per user, when a complete tag list is shown (the tag editor); this
+  // session's edits and deletes then keep the list current without rereading.
+  const loadAllTags = useCallback((): Promise<void> => {
+    if (!user) return Promise.resolve();
+    const uid = user.uid;
+    const pending = bookTagsRequestRef.current;
+    if (pending?.uid === uid) return pending.request;
+
+    const request = getUserWordTags(uid).then(
+      (tags) => {
+        if (activeUidRef.current === uid) setBookTags(tags);
+      },
+      (err) => {
+        console.error("Failed to get tags:", err);
+        // Let the next request try again.
+        if (bookTagsRequestRef.current?.request === request) {
+          bookTagsRequestRef.current = null;
+        }
+      },
+    );
+    bookTagsRequestRef.current = { uid, request };
+    return request;
   }, [user]);
 
   // Get total word count for review settings
@@ -790,7 +854,8 @@ export const useVocabulary = () => {
     getWord,
     updateWord,
     deleteWord,
-    getTags,
+    availableTags,
+    loadAllTags,
     getWordCount,
     updateReview,
     regenerateWordDetails,

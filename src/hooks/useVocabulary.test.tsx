@@ -14,7 +14,7 @@ const mocks = vi.hoisted(() => ({
   updateVocabularyWord: vi.fn(),
   deleteVocabularyWord: vi.fn(),
   checkWordExists: vi.fn(),
-  getUserTags: vi.fn(),
+  getUserWordTags: vi.fn(),
   getVocabularyForReview: vi.fn(),
   updateReviewStats: vi.fn(),
   searchUserVocabulary: vi.fn(),
@@ -33,7 +33,7 @@ vi.mock("../services/vocabularyService", () => ({
   updateVocabularyWord: mocks.updateVocabularyWord,
   deleteVocabularyWord: mocks.deleteVocabularyWord,
   checkWordExists: mocks.checkWordExists,
-  getUserTags: mocks.getUserTags,
+  getUserWordTags: mocks.getUserWordTags,
   getVocabularyForReview: mocks.getVocabularyForReview,
   updateReviewStats: mocks.updateReviewStats,
   searchUserVocabulary: mocks.searchUserVocabulary,
@@ -48,7 +48,11 @@ import { useVocabulary } from "./useVocabulary";
 
 type VocabularyHook = ReturnType<typeof useVocabulary>;
 
-const makeWord = (id: string, word: string): VocabularyWord => ({
+const makeWord = (
+  id: string,
+  word: string,
+  tags: string[] = [],
+): VocabularyWord => ({
   id,
   word,
   userId: "user-1",
@@ -56,7 +60,7 @@ const makeWord = (id: string, word: string): VocabularyWord => ({
   examples: [],
   synonyms: [],
   antonyms: [],
-  tags: [],
+  tags,
   createdAt: new Date("2026-01-01T00:00:00Z"),
   updatedAt: new Date("2026-01-01T00:00:00Z"),
   reviewCount: 0,
@@ -306,5 +310,138 @@ describe("useVocabulary", () => {
 
     expect(hook.current.words.map((word) => word.id)).toEqual(["fresh"]);
     expect(hook.current.isLoadingMore).toBe(false);
+  });
+});
+
+describe("useVocabulary tags", () => {
+  let hook: ReturnType<typeof renderUseVocabulary> | undefined;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.useAuth.mockReturnValue({ user: { uid: "user-1" } });
+    mocks.updateVocabularyWord.mockResolvedValue(undefined);
+    mocks.deleteVocabularyWord.mockResolvedValue(undefined);
+    mocks.getUserVocabulary.mockResolvedValue({
+      words: [
+        makeWord("a", "apple", ["fruit"]),
+        makeWord("b", "bat", ["animal", "fruit"]),
+      ],
+      hasMore: true,
+      lastDocId: "b",
+    });
+  });
+
+  afterEach(() => {
+    hook?.unmount();
+    hook = undefined;
+    vi.restoreAllMocks();
+  });
+
+  const loadFirstPage = async () => {
+    hook = renderUseVocabulary();
+    await act(async () => {
+      await hook?.current.loadVocabulary();
+    });
+    return hook;
+  };
+
+  it("offers the loaded words' tags without reading the whole book", async () => {
+    const view = await loadFirstPage();
+
+    expect(view.current.availableTags).toEqual(["animal", "fruit"]);
+    expect(mocks.getUserWordTags).not.toHaveBeenCalled();
+  });
+
+  it("reads every word's tags once, when the full list is asked for", async () => {
+    mocks.getUserWordTags.mockResolvedValue(
+      new Map([
+        ["a", ["fruit"]],
+        ["b", ["animal", "fruit"]],
+        ["older", ["verbs"]],
+      ]),
+    );
+    const view = await loadFirstPage();
+
+    await act(async () => {
+      await Promise.all([
+        view.current.loadAllTags(),
+        view.current.loadAllTags(),
+      ]);
+    });
+    await act(async () => {
+      await view.current.loadAllTags();
+    });
+
+    expect(mocks.getUserWordTags).toHaveBeenCalledTimes(1);
+    expect(mocks.getUserWordTags).toHaveBeenCalledWith("user-1");
+    expect(view.current.availableTags).toEqual(["animal", "fruit", "verbs"]);
+  });
+
+  it("keeps the tag list current after edits and deletes without rereading", async () => {
+    mocks.getUserWordTags.mockResolvedValue(
+      new Map([
+        ["a", ["fruit"]],
+        ["b", ["animal", "fruit"]],
+        ["older", ["verbs"]],
+      ]),
+    );
+    const view = await loadFirstPage();
+    await act(async () => {
+      await view.current.loadAllTags();
+    });
+
+    // "older" is not on a loaded page, e.g. opened from search results.
+    await act(async () => {
+      await view.current.updateWord("older", { tags: ["nouns"] });
+    });
+    expect(view.current.availableTags).toEqual(["animal", "fruit", "nouns"]);
+
+    await act(async () => {
+      await view.current.deleteWord("b");
+    });
+    expect(view.current.availableTags).toEqual(["fruit", "nouns"]);
+    expect(mocks.getUserWordTags).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps an edit made while the full tag list is still loading", async () => {
+    let resolveRead: ((tags: Map<string, string[]>) => void) | undefined;
+    mocks.getUserWordTags.mockReturnValue(
+      new Promise<Map<string, string[]>>((resolve) => {
+        resolveRead = resolve;
+      }),
+    );
+    const view = await loadFirstPage();
+
+    let read: Promise<void> | undefined;
+    act(() => {
+      read = view.current.loadAllTags();
+    });
+    await act(async () => {
+      await view.current.updateWord("older", { tags: [] });
+    });
+    await act(async () => {
+      resolveRead?.(new Map([["older", ["verbs"]]]));
+      await read;
+    });
+
+    expect(view.current.availableTags).toEqual(["animal", "fruit"]);
+  });
+
+  it("tries the full tag read again after it fails", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    mocks.getUserWordTags
+      .mockRejectedValueOnce(new Error("Quota exceeded."))
+      .mockResolvedValueOnce(new Map([["older", ["verbs"]]]));
+    const view = await loadFirstPage();
+
+    await act(async () => {
+      await view.current.loadAllTags();
+    });
+    expect(view.current.availableTags).toEqual(["animal", "fruit"]);
+
+    await act(async () => {
+      await view.current.loadAllTags();
+    });
+    expect(view.current.availableTags).toEqual(["animal", "fruit", "verbs"]);
   });
 });

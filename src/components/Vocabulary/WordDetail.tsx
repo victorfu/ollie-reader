@@ -12,6 +12,7 @@ export const WordDetail = ({
   onUpdateWord,
   onRegenerateWordDetails,
   availableTags = [],
+  onTagEditorOpen,
   cefr,
 }: WordDetailProps) => {
   return (
@@ -23,6 +24,7 @@ export const WordDetail = ({
           onUpdateWord={onUpdateWord}
           onRegenerateWordDetails={onRegenerateWordDetails}
           availableTags={availableTags}
+          onTagEditorOpen={onTagEditorOpen}
           cefr={cefr}
           headerAction={
             <button

@@ -151,7 +151,8 @@ export const VocabularyBook = () => {
     updateWord,
     regenerateWordDetails,
     searchWords,
-    getTags,
+    availableTags,
+    loadAllTags,
   } = useVocabulary();
   const {
     sentences,
@@ -201,7 +202,6 @@ export const VocabularyBook = () => {
     id: string;
   } | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [availableTags, setAvailableTags] = useState<string[]>([]);
 
   const smartQueryFieldId = "smart-query-input";
   const smartQueryStatusId = "smart-query-status";
@@ -215,11 +215,6 @@ export const VocabularyBook = () => {
 
   const closeToast = useCallback(() => setToastMessage(null), []);
 
-  const refreshTags = useCallback(async () => {
-    const tags = await getTags();
-    setAvailableTags(tags);
-  }, [getTags]);
-
   // Load both streams when the component mounts (or the user changes)
   useEffect(() => {
     void loadVocabulary(FEED_FILTERS);
@@ -228,10 +223,6 @@ export const VocabularyBook = () => {
   useEffect(() => {
     void loadSentences();
   }, [loadSentences]);
-
-  useEffect(() => {
-    void refreshTags();
-  }, [refreshTags]);
 
   // Abort an in-flight smart query when leaving the page
   useEffect(() => {
@@ -331,17 +322,6 @@ export const VocabularyBook = () => {
       cancelled = true;
     };
   }, [remoteSearchKey, searchWords, searchSentences]);
-
-  const handleUpdateWord = useCallback(
-    async (wordId: string, updates: Partial<VocabularyWord>) => {
-      const result = await updateWord(wordId, updates);
-      if (result.success) {
-        void refreshTags();
-      }
-      return result;
-    },
-    [updateWord, refreshTags],
-  );
 
   // A single word looks up the dictionary directly; multi-word input is
   // classified by AI as a phrase (saved as a word) or a sentence (translated
@@ -502,7 +482,6 @@ export const VocabularyBook = () => {
         type: "success",
       });
       void loadVocabulary(FEED_FILTERS);
-      void refreshTags();
     } else {
       setToastMessage({ message: "句子已加入翻譯本", type: "success" });
       void loadSentences();
@@ -537,7 +516,6 @@ export const VocabularyBook = () => {
           type: "success",
         });
         void loadVocabulary(FEED_FILTERS);
-        void refreshTags();
         return { success: true };
       }
       if (response.message === "Word already in vocabulary") {
@@ -553,7 +531,7 @@ export const VocabularyBook = () => {
       });
       return { success: false, message: response.message };
     },
-    [addWord, loadVocabulary, refreshTags],
+    [addWord, loadVocabulary],
   );
 
   const confirmDelete = async () => {
@@ -569,7 +547,6 @@ export const VocabularyBook = () => {
         if (!result.success) {
           throw new Error(result.message || "Failed to delete word");
         }
-        await refreshTags();
       } else {
         const result = await deleteSentence(pendingDelete.id);
         if (!result.success) {
@@ -958,9 +935,10 @@ export const VocabularyBook = () => {
             <WordDetailPanel
               key={selected.word.id}
               word={selected.word}
-              onUpdateWord={handleUpdateWord}
+              onUpdateWord={updateWord}
               onRegenerateWordDetails={regenerateWordDetails}
               availableTags={availableTags}
+              onTagEditorOpen={loadAllTags}
               cefr={levelOf(selected.word.word)}
             />
           ) : selected?.kind === "sentence" ? (
@@ -983,9 +961,10 @@ export const VocabularyBook = () => {
         <WordDetail
           word={selected.word}
           onClose={() => setSelected(null)}
-          onUpdateWord={handleUpdateWord}
+          onUpdateWord={updateWord}
           onRegenerateWordDetails={regenerateWordDetails}
           availableTags={availableTags}
+          onTagEditorOpen={loadAllTags}
           cefr={levelOf(selected.word.word)}
         />
       )}

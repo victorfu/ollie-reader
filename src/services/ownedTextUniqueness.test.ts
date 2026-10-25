@@ -6,6 +6,8 @@ const firestore = vi.hoisted(() => {
   const getDocsFromServer = vi.fn();
   const getDoc = vi.fn();
   const updateDoc = vi.fn();
+  const batchUpdate = vi.fn();
+  const batchCommit = vi.fn();
   let transactionQueue = Promise.resolve();
   const set = vi.fn(
     (reference: { path: string }, data: Record<string, unknown>) => {
@@ -20,9 +22,14 @@ const firestore = vi.hoisted(() => {
     getDocsFromServer,
     set,
     updateDoc,
+    batchUpdate,
+    batchCommit,
     reset() {
       documents.clear();
       set.mockClear();
+      batchUpdate.mockReset();
+      batchCommit.mockReset();
+      batchCommit.mockResolvedValue(undefined);
       getDoc.mockReset();
       getDoc.mockResolvedValue({ exists: () => false });
       getDocs.mockReset();
@@ -75,7 +82,7 @@ vi.mock("firebase/firestore", () => ({
   getDocs: firestore.getDocs,
   getDocsFromServer: firestore.getDocsFromServer,
   increment: vi.fn(),
-  limit: vi.fn(),
+  limit: vi.fn((count: number) => ({ limit: count })),
   orderBy: vi.fn(),
   query: vi.fn((...parts: unknown[]) => parts),
   runTransaction: firestore.runTransaction,
@@ -85,8 +92,13 @@ vi.mock("firebase/firestore", () => ({
     now: () => ({ toDate: () => new Date("2026-01-01T00:00:00Z") }),
   },
   updateDoc: firestore.updateDoc,
-  where: vi.fn(),
-  writeBatch: vi.fn(),
+  where: vi.fn((field: string, op: string, value: unknown) => ({
+    where: [field, op, value],
+  })),
+  writeBatch: vi.fn(() => ({
+    update: firestore.batchUpdate,
+    commit: firestore.batchCommit,
+  })),
 }));
 
 import { addSentenceTranslation } from "./sentenceTranslationService";
@@ -98,9 +110,43 @@ import {
   searchUserVocabulary,
 } from "./vocabularyService";
 
+const vocabularyEntry = (word: string) => ({
+  userId: "user-1",
+  word,
+  definitions: [{ partOfSpeech: "noun", definition: `meaning of ${word}` }],
+  examples: [],
+  synonyms: [],
+  antonyms: [],
+  tags: [],
+});
+
+const savedVocabularyDocument = (
+  id: string,
+  fields: Record<string, unknown>,
+) => {
+  const timestamp = { toDate: () => new Date("2026-01-01T00:00:00Z") };
+  return {
+    id,
+    ref: { path: `vocabulary/${id}` },
+    data: () => ({
+      userId: "user-1",
+      definitions: [],
+      examples: [],
+      synonyms: [],
+      antonyms: [],
+      tags: [],
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      reviewCount: 0,
+      ...fields,
+    }),
+  };
+};
+
 describe("user-owned text uniqueness", () => {
   beforeEach(() => {
     firestore.reset();
+    window.localStorage.clear();
   });
 
   it("uses saved recall history to prioritize forgotten words", async () => {
@@ -160,37 +206,23 @@ describe("user-owned text uniqueness", () => {
     expect(first.id).toBe(second.id);
     expect([first.created, second.created].sort()).toEqual([false, true]);
     expect(firestore.set).toHaveBeenCalledTimes(1);
+    // Both first-time adds share one account scan.
+    expect(firestore.getDocsFromServer).toHaveBeenCalledTimes(1);
   });
 
   it("reuses and migrates a case/whitespace-equivalent legacy vocabulary record", async () => {
-    const timestamp = { toDate: () => new Date("2026-01-01T00:00:00Z") };
-    const legacy = {
-      id: "legacy-auto-id",
-      ref: { path: "vocabulary/legacy-auto-id" },
-      data: () => ({
-        userId: "user-1",
-        word: "  Ice   CREAM ",
-        definitions: [{ partOfSpeech: "noun", definition: "a dessert" }],
-        examples: [],
-        synonyms: [],
-        antonyms: [],
-        tags: [],
-        createdAt: timestamp,
-        updatedAt: timestamp,
-        reviewCount: 0,
-      }),
-    };
-    firestore.getDocs.mockResolvedValueOnce({ docs: [legacy], empty: false });
-
-    const result = await addVocabularyWord({
-      userId: "user-1",
-      word: "ice cream",
-      definitions: [{ partOfSpeech: "noun", definition: "a dessert" }],
-      examples: [],
-      synonyms: [],
-      antonyms: [],
-      tags: [],
+    const legacy = savedVocabularyDocument("legacy-auto-id", {
+      word: "  Ice   CREAM ",
+      reviewCount: 4,
+      rememberedCount: 3,
+      forgotCount: 1,
     });
+    firestore.getDocsFromServer.mockResolvedValueOnce({
+      docs: [legacy],
+      empty: false,
+    });
+
+    const result = await addVocabularyWord(vocabularyEntry("ice cream"));
 
     expect(result).toEqual({
       id: "legacy-auto-id",
@@ -198,11 +230,128 @@ describe("user-owned text uniqueness", () => {
       word: expect.objectContaining({
         id: "legacy-auto-id",
         word: "  Ice   CREAM ",
+        reviewCount: 4,
+        rememberedCount: 3,
+        forgotCount: 1,
       }),
     });
-    expect(firestore.updateDoc).toHaveBeenCalledWith(legacy.ref, {
+    expect(firestore.batchUpdate).toHaveBeenCalledWith(legacy.ref, {
       normalizedWord: "ice cream",
     });
+    expect(firestore.set).not.toHaveBeenCalled();
+  });
+
+  it("backfills only the normalized word of legacy records on the first add", async () => {
+    const legacyIceCream = savedVocabularyDocument("legacy-ice", {
+      word: "  Ice   CREAM ",
+      reviewCount: 7,
+    });
+    const legacyApple = savedVocabularyDocument("legacy-apple", {
+      word: "apple",
+    });
+    const alreadyNormalized = savedVocabularyDocument("v1_pear", {
+      word: "pear",
+      normalizedWord: "pear",
+    });
+    const blank = savedVocabularyDocument("legacy-blank", { word: "   " });
+    firestore.getDocsFromServer.mockResolvedValueOnce({
+      docs: [legacyIceCream, legacyApple, alreadyNormalized, blank],
+      empty: false,
+    });
+
+    const result = await addVocabularyWord(vocabularyEntry("river"));
+
+    expect(result.created).toBe(true);
+    expect(firestore.batchUpdate.mock.calls).toEqual([
+      [legacyIceCream.ref, { normalizedWord: "ice cream" }],
+      [legacyApple.ref, { normalizedWord: "apple" }],
+    ]);
+    expect(firestore.batchCommit).toHaveBeenCalledTimes(1);
+  });
+
+  it("adds without rescanning the account once its records are backfilled", async () => {
+    await addVocabularyWord(vocabularyEntry("river"));
+    firestore.getDocsFromServer.mockClear();
+    firestore.getDocs.mockClear();
+    firestore.getDocs.mockResolvedValue({ docs: [], empty: true });
+
+    const result = await addVocabularyWord(vocabularyEntry("lake"));
+
+    expect(result.created).toBe(true);
+    expect(firestore.getDocsFromServer).not.toHaveBeenCalled();
+    // A single one-document query; the transaction then reads the new id.
+    expect(firestore.getDocs).toHaveBeenCalledTimes(1);
+    expect(firestore.getDocs.mock.calls[0][0]).toContainEqual({ limit: 1 });
+  });
+
+  it("finds a backfilled legacy record by its normalized word without a scan", async () => {
+    await addVocabularyWord(vocabularyEntry("river"));
+    firestore.getDocsFromServer.mockClear();
+    firestore.set.mockClear();
+    const legacy = savedVocabularyDocument("legacy-ice", {
+      word: "Ice  Cream",
+      normalizedWord: "ice cream",
+    });
+    firestore.getDocs.mockResolvedValueOnce({ docs: [legacy], empty: false });
+
+    const result = await addVocabularyWord(vocabularyEntry("ice cream"));
+
+    expect(result).toEqual({
+      id: "legacy-ice",
+      created: false,
+      word: expect.objectContaining({ id: "legacy-ice", word: "Ice  Cream" }),
+    });
+    expect(firestore.getDocsFromServer).not.toHaveBeenCalled();
+    expect(firestore.getDocs).toHaveBeenLastCalledWith(
+      expect.arrayContaining([
+        { where: ["normalizedWord", "==", "ice cream"] },
+        { limit: 1 },
+      ]),
+    );
+    expect(firestore.set).not.toHaveBeenCalled();
+  });
+
+  it("splits a large backfill into batches Firestore accepts", async () => {
+    firestore.getDocsFromServer.mockResolvedValueOnce({
+      docs: Array.from({ length: 501 }, (_, index) =>
+        savedVocabularyDocument(`legacy-${index}`, { word: `word ${index}` }),
+      ),
+      empty: false,
+    });
+
+    await addVocabularyWord(vocabularyEntry("river"));
+
+    expect(firestore.batchUpdate).toHaveBeenCalledTimes(501);
+    expect(firestore.batchCommit).toHaveBeenCalledTimes(2);
+  });
+
+  it("still reuses the legacy record and rescans next time when the backfill fails", async () => {
+    const legacy = savedVocabularyDocument("legacy-ice", {
+      word: "Ice Cream",
+    });
+    firestore.getDocsFromServer.mockResolvedValue({
+      docs: [legacy],
+      empty: false,
+    });
+    firestore.batchCommit.mockRejectedValueOnce(new Error("Quota exceeded."));
+
+    const result = await addVocabularyWord(vocabularyEntry("ice cream"));
+
+    expect(result).toMatchObject({ id: "legacy-ice", created: false });
+    expect(firestore.set).not.toHaveBeenCalled();
+
+    await addVocabularyWord(vocabularyEntry("river"));
+    expect(firestore.getDocsFromServer).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not create a word when the account scan fails", async () => {
+    firestore.getDocsFromServer.mockRejectedValueOnce(
+      new Error("Quota exceeded."),
+    );
+
+    await expect(
+      addVocabularyWord(vocabularyEntry("river")),
+    ).rejects.toThrow("Quota exceeded.");
     expect(firestore.set).not.toHaveBeenCalled();
   });
 

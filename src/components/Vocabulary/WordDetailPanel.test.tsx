@@ -81,6 +81,29 @@ describe("WordDetailPanel CEFR badge", () => {
   });
 });
 
+describe("WordDetailPanel tag editor", () => {
+  it("tells the parent when the tag editor opens", async () => {
+    const onTagEditorOpen = vi.fn();
+    const view = await render(
+      <WordDetailPanel
+        word={WORD}
+        onTagEditorOpen={onTagEditorOpen}
+        {...handlers}
+      />,
+    );
+    expect(onTagEditorOpen).not.toHaveBeenCalled();
+
+    const editButton = Array.from(view.querySelectorAll("button")).find(
+      (button) => button.textContent === "編輯標籤",
+    );
+    await act(async () => {
+      editButton?.click();
+    });
+
+    expect(onTagEditorOpen).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("WordDetail CEFR badge", () => {
   it("passes the level on to the panel in the sheet", async () => {
     const view = await render(
