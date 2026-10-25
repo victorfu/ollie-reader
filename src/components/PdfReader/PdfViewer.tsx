@@ -21,6 +21,12 @@ import {
   computeFitPageWidth,
 } from "../../utils/pdfPageFit";
 import { selectWordAtPoint } from "../../utils/pdfTextSelection";
+import {
+  advancesFromStore,
+  fitTextLayerRuns,
+  type FontStore,
+  type TextItemLike,
+} from "../../utils/pdfTextLayerFit";
 import { Tooltip } from "../common/Tooltip";
 import { CopyPagePromptButton } from "./CopyPagePromptButton";
 
@@ -43,6 +49,11 @@ interface PdfViewerProps {
    */
   headerActions?: ReactNode;
 }
+
+type LoadedPage = {
+  pageNumber: number;
+  commonObjs: FontStore;
+};
 
 type PointerStart = {
   pointerId: number;
@@ -87,6 +98,12 @@ export const PdfViewer = memo(
     const measuredWidthRef = useRef(0);
     const measuredHeightRef = useRef(0);
     const pendingScrollRatioRef = useRef<number | null>(null);
+    // Per page: the PDF.js page (whose store holds the loaded fonts) and its
+    // text items, for re-laying the text layer once it renders.
+    const loadedPagesRef = useRef(new Map<number, LoadedPage>());
+    const textItemsRef = useRef(
+      new Map<number, { items: TextItemLike[]; lang: string }>(),
+    );
     const [documentState, setDocumentState] = useState({
       url,
       numPages: 0,
@@ -107,11 +124,21 @@ export const PdfViewer = memo(
       url,
       pages: new Map<number, string>(),
     });
+    // The PDF's /Lang, or "" when it has none — exactly the lang PDF.js tags
+    // the canvas it measures text-layer runs on. The text layer's spans must
+    // resolve their generic font (sans-serif, serif) under that same lang:
+    // inheriting the app's "en" instead picks a different font whenever the
+    // two disagree (a zh-TW PDF, or a zh-TW browser for a PDF without /Lang,
+    // where "" falls back to the browser's locale), and every run is then
+    // stretched to the wrong width, drifting selections off the glyphs. The
+    // PDF.js viewer sets this on its viewer container for the same reason.
+    const [pdfLangState, setPdfLangState] = useState({ url, lang: "" });
 
     const numPages = documentState.url === url ? documentState.numPages : 0;
     const pdfReady = pdfReadyState.url === url && pdfReadyState.ready;
     const pdfJsPages =
       pdfJsPageState.url === url ? pdfJsPageState.pages : EMPTY_PDFJS_PAGES;
+    const pdfLang = pdfLangState.url === url ? pdfLangState.lang : "";
     const pageAspectRatio =
       pageAspectState.url === url ? pageAspectState.ratio : null;
 
@@ -198,6 +225,8 @@ export const PdfViewer = memo(
       scrollRestoredRef.current = false;
       pointerStartRef.current = null;
       pendingScrollRatioRef.current = null;
+      loadedPagesRef.current.clear();
+      textItemsRef.current.clear();
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current);
         debounceTimerRef.current = null;
@@ -219,14 +248,13 @@ export const PdfViewer = memo(
     // Fitting needs the document's shape, which only the PDF itself knows. One
     // page is enough: a mixed-orientation document is fitted to its first page,
     // which is still far closer than not fitting at all.
-    const handleFirstPageLoad = useCallback(
-      ({
-        originalWidth,
-        originalHeight,
-      }: {
-        originalWidth: number;
-        originalHeight: number;
-      }) => {
+    const handlePageLoad = useCallback(
+      (
+        page: LoadedPage & { originalWidth: number; originalHeight: number },
+      ) => {
+        loadedPagesRef.current.set(page.pageNumber, page);
+        if (page.pageNumber !== 1) return;
+        const { originalWidth, originalHeight } = page;
         if (!originalWidth || !originalHeight) return;
         const ratio = originalWidth / originalHeight;
         setPageAspectState((previous) =>
@@ -236,6 +264,43 @@ export const PdfViewer = memo(
         );
       },
       [url],
+    );
+
+    // Re-lays a page's text layer from the PDF's real glyph advances. Runs
+    // whose font the canvas has not loaded yet are skipped, so this runs both
+    // when the text layer and when the canvas finishes, in whichever order.
+    const fitPageTextLayer = useCallback((pageNumber: number) => {
+      const page = loadedPagesRef.current.get(pageNumber);
+      const text = textItemsRef.current.get(pageNumber);
+      const layer = containerRef.current?.querySelector<HTMLElement>(
+        `[data-page-number="${pageNumber}"] .textLayer`,
+      );
+      if (!page || !text || !layer) return;
+      fitTextLayerRuns(
+        layer,
+        text.items,
+        (fontName) => advancesFromStore(page.commonObjs, fontName),
+        { lang: text.lang },
+      );
+    }, []);
+
+    const handleCanvasRender = useCallback(
+      (page: LoadedPage) => {
+        loadedPagesRef.current.set(page.pageNumber, page);
+        fitPageTextLayer(page.pageNumber);
+      },
+      [fitPageTextLayer],
+    );
+
+    // One stable callback per page: react-pdf re-renders the whole text layer
+    // whenever this callback's identity changes.
+    const textLayerRenderHandlers = useMemo(
+      () =>
+        Array.from(
+          { length: numPages },
+          (_, index) => () => fitPageTextLayer(index + 1),
+        ),
+      [numPages, fitPageTextLayer],
     );
 
     const getPageText = useCallback(
@@ -462,6 +527,7 @@ export const PdfViewer = memo(
 
                         <div
                           data-pdf-page-surface="true"
+                          lang={pdfLang}
                           className="relative overflow-hidden rounded-lg bg-base-100 shadow-sm selection:bg-accent/25"
                           onPointerDown={handlePointerDown}
                           onPointerUp={handlePointerUp}
@@ -475,10 +541,26 @@ export const PdfViewer = memo(
                               width={pdfPageWidth}
                               renderTextLayer
                               renderAnnotationLayer
-                              onLoadSuccess={
-                                pageNumber === 1 ? handleFirstPageLoad : undefined
+                              onLoadSuccess={handlePageLoad}
+                              onRenderSuccess={handleCanvasRender}
+                              onRenderTextLayerSuccess={
+                                textLayerRenderHandlers[pageNumber - 1]
                               }
-                              onGetTextSuccess={({ items }) => {
+                              onGetTextSuccess={({ items, lang }) => {
+                                const nextLang = lang ?? "";
+                                textItemsRef.current.set(pageNumber, {
+                                  items: items.filter(
+                                    (item): item is TextItemLike & typeof item =>
+                                      "str" in item,
+                                  ),
+                                  lang: nextLang,
+                                });
+                                setPdfLangState((previous) =>
+                                  previous.url === url &&
+                                  previous.lang === nextLang
+                                    ? previous
+                                    : { url, lang: nextLang },
+                                );
                                 // Runs already carry their word spaces; a
                                 // separator would split words stored one glyph
                                 // per run ("I R S . g o v").

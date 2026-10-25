@@ -11,6 +11,9 @@ export const pdfDocumentOptions = {
   cMapUrl: `https://unpkg.com/pdfjs-dist@${pdfjs.version}/cmaps/`,
   cMapPacked: true,
   standardFontDataUrl: `https://unpkg.com/pdfjs-dist@${pdfjs.version}/standard_fonts/`,
+  // Keeps each font's glyph widths and ToUnicode map on the main thread; the
+  // reader re-lays text-layer words from them (see utils/pdfTextLayerFit).
+  fontExtraProperties: true,
 };
 
 // Initialize immediately when this module is imported

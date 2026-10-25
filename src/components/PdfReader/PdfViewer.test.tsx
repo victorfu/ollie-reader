@@ -6,12 +6,26 @@ const pdfMocks = vi.hoisted(() => ({
   renderWidths: [] as Array<number | undefined>,
   pdfJsText: "PDF.js extracted page text",
   pdfJsItems: null as Array<{ str: string; hasEOL: boolean }> | null,
+  pdfJsLang: null as string | null,
   renderTextLayerValues: [] as Array<boolean | undefined>,
   // Left null so pages report no size at all, as they did before fitting.
   pageDimensions: null as {
     originalWidth: number;
     originalHeight: number;
   } | null,
+  // When set, pages report a rendered canvas and text layer for this proxy.
+  pageProxy: null as {
+    pageNumber: number;
+    commonObjs: { has(name: string): boolean; get(name: string): unknown };
+  } | null,
+  textLayerSuccessHandlers: [] as Array<(() => void) | undefined>,
+}));
+
+const fitMocks = vi.hoisted(() => ({ fitTextLayerRuns: vi.fn() }));
+
+vi.mock("../../utils/pdfTextLayerFit", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../utils/pdfTextLayerFit")>()),
+  fitTextLayerRuns: fitMocks.fitTextLayerRuns,
 }));
 
 vi.mock("react-pdf", async () => {
@@ -30,20 +44,28 @@ vi.mock("react-pdf", async () => {
       return <div>{children}</div>;
     },
     Page: ({
+      pageNumber,
       width,
       onGetTextSuccess,
       onLoadSuccess,
+      onRenderSuccess,
+      onRenderTextLayerSuccess,
       renderTextLayer,
       children,
     }: {
+      pageNumber: number;
       width?: number;
       onGetTextSuccess?: (result: {
         items: Array<{ str: string; hasEOL: boolean }>;
+        lang: string | null;
       }) => void;
       onLoadSuccess?: (result: {
+        pageNumber: number;
         originalWidth: number;
         originalHeight: number;
       }) => void;
+      onRenderSuccess?: (page: unknown) => void;
+      onRenderTextLayerSuccess?: () => void;
       renderTextLayer?: boolean;
       children?: React.ReactNode;
     }) => {
@@ -51,12 +73,13 @@ vi.mock("react-pdf", async () => {
       const didReportSize = React.useRef(false);
       pdfMocks.renderWidths.push(width);
       pdfMocks.renderTextLayerValues.push(renderTextLayer);
+      pdfMocks.textLayerSuccessHandlers.push(onRenderTextLayerSuccess);
       React.useEffect(() => {
         const dimensions = pdfMocks.pageDimensions;
         if (!dimensions || !onLoadSuccess || didReportSize.current) return;
         didReportSize.current = true;
-        onLoadSuccess(dimensions);
-      }, [onLoadSuccess]);
+        onLoadSuccess({ pageNumber, ...dimensions });
+      }, [onLoadSuccess, pageNumber]);
       React.useEffect(() => {
         if (!renderTextLayer || didReportText.current) return;
         didReportText.current = true;
@@ -64,8 +87,18 @@ vi.mock("react-pdf", async () => {
           items: pdfMocks.pdfJsItems ?? [
             { str: pdfMocks.pdfJsText, hasEOL: false },
           ],
+          lang: pdfMocks.pdfJsLang,
         });
-      }, [onGetTextSuccess, renderTextLayer]);
+        if (pdfMocks.pageProxy) {
+          onRenderSuccess?.(pdfMocks.pageProxy);
+          onRenderTextLayerSuccess?.();
+        }
+      }, [
+        onGetTextSuccess,
+        onRenderSuccess,
+        onRenderTextLayerSuccess,
+        renderTextLayer,
+      ]);
       return (
         <div data-testid="pdf-page" data-width={width ?? "unset"}>
           {renderTextLayer && (
@@ -155,6 +188,8 @@ beforeEach(() => {
   vi.useFakeTimers();
   pdfMocks.renderWidths.length = 0;
   pdfMocks.renderTextLayerValues.length = 0;
+  pdfMocks.textLayerSuccessHandlers.length = 0;
+  fitMocks.fitTextLayerRuns.mockClear();
   scrollToMock = vi.fn();
   HTMLElement.prototype.scrollTo =
     scrollToMock as unknown as typeof HTMLElement.prototype.scrollTo;
@@ -206,6 +241,8 @@ afterEach(() => {
   window.getSelection()?.removeAllRanges();
   pdfMocks.pageDimensions = null;
   pdfMocks.pdfJsItems = null;
+  pdfMocks.pdfJsLang = null;
+  pdfMocks.pageProxy = null;
   if (clientWidthDescriptor) {
     Object.defineProperty(
       HTMLElement.prototype,
@@ -320,6 +357,62 @@ describe("PdfViewer PDF-only layout", () => {
         ?.click(),
     );
     expect(onSpeak).toHaveBeenCalledWith("• IRS.gov (English)\nLearn more");
+  });
+
+  // PDF.js sizes every text-layer run by measuring it on a canvas tagged with
+  // the PDF's /Lang ("" when absent). If the spans resolve their generic font
+  // under a different lang, every run is stretched to the wrong width and the
+  // selection drifts away from the drawn glyphs.
+  it("gives the text layer the PDF's own language", async () => {
+    pdfMocks.pdfJsLang = "zh-TW";
+    renderViewer("blob:lang", null);
+
+    await act(async () => Promise.resolve());
+    const textLayer = host.querySelector(".textLayer");
+    expect(textLayer?.closest("[lang]")?.getAttribute("lang")).toBe("zh-TW");
+  });
+
+  it("re-lays the rendered text layer from the page's real font widths", async () => {
+    const font = { toUnicode: { _map: ["A"] }, widths: [722] };
+    pdfMocks.pageProxy = {
+      pageNumber: 1,
+      commonObjs: {
+        has: (name) => name === "g_d0_f1",
+        get: () => font,
+      },
+    };
+    renderViewer("blob:fit", null);
+
+    await act(async () => Promise.resolve());
+    expect(fitMocks.fitTextLayerRuns).toHaveBeenCalled();
+    const [layer, items, getAdvances, options] =
+      fitMocks.fitTextLayerRuns.mock.calls.at(-1)!;
+    expect(layer).toBe(host.querySelector(".textLayer"));
+    expect(items).toEqual([{ str: pdfMocks.pdfJsText, hasEOL: false }]);
+    expect(getAdvances("g_d0_f1").get("A")).toBe(722);
+    expect(getAdvances("g_d0_f9")).toBeNull();
+    expect(options).toEqual({ lang: "" });
+  });
+
+  // react-pdf re-renders the whole text layer whenever this callback changes.
+  it("keeps each page's text-layer callback stable across renders", async () => {
+    renderViewer("blob:stable", null);
+    await act(async () => Promise.resolve());
+    renderViewer("blob:stable", null, vi.fn());
+
+    const handlers = pdfMocks.textLayerSuccessHandlers.filter(Boolean);
+    expect(handlers.length).toBeGreaterThan(1);
+    expect(new Set(handlers).size).toBe(1);
+  });
+
+  it("keeps the app's language off a text layer whose PDF has no /Lang", async () => {
+    document.documentElement.lang = "en";
+    renderViewer("blob:no-lang", null);
+
+    await act(async () => Promise.resolve());
+    const textLayer = host.querySelector(".textLayer");
+    expect(textLayer?.closest("[lang]")?.getAttribute("lang")).toBe("");
+    document.documentElement.removeAttribute("lang");
   });
 });
 
