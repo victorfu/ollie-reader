@@ -111,6 +111,7 @@ export function useWordPractice(): UseWordPractice {
   const applyPracticeState = useCallback((state: WordPracticeState, now: number) => {
     reviewWordsRef.current = state.words;
     setSettings(state.settings);
+    // Upper bound: it only sees the state document, so due words deleted from the vocabulary book still count.
     setReviewDueCount(dueReviewKeys(state.words, now, state.settings.reviewLimit).length);
   }, []);
 

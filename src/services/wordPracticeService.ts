@@ -74,18 +74,20 @@ export async function generateHomework(uid: string, now: number = Date.now()): P
   ).map(snapshot);
 
   const newKeys = new Set(newWords.map(({ key }) => key));
-  const dueKeys = dueReviewKeys(state.words, now, state.settings.reviewLimit).filter((key) => !newKeys.has(key));
-  const dueSet = new Set(dueKeys);
+  // Take every due key first: deleted words must not use up the review limit.
+  const dueSet = new Set(
+    dueReviewKeys(state.words, now, Number.POSITIVE_INFINITY).filter((key) => !newKeys.has(key)),
+  );
   const found = new Map<string, PracticableWord>();
   for (const word of candidates) {
     const key = practiceKey(word.word);
     if (dueSet.has(key) && !found.has(key)) found.set(key, word);
   }
-  // A due word that was deleted from the vocabulary book is left out.
-  const reviewWords = dueKeys.flatMap((key) => {
-    const word = found.get(key);
-    return word ? [snapshot(word)] : [];
-  });
+  // A due word that was deleted from the vocabulary book is left out, then the limit applies.
+  const reviewWords = [...dueSet]
+    .filter((key) => found.has(key))
+    .slice(0, Math.max(0, state.settings.reviewLimit))
+    .map((key) => snapshot(found.get(key)!));
 
   if (newWords.length === 0 && reviewWords.length === 0) return { status: "empty" };
 

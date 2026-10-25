@@ -253,6 +253,20 @@ describe("wordPracticeService", () => {
       expect(result.homework.reviewWords.map((w) => w.key)).toEqual(["moon", "cat"]);
     });
 
+    it("does not let deleted due words use up the review limit", async () => {
+      mockWords(
+        [makeWord("apple")],
+        stateWith(
+          { ghost1: due(NOW - 5 * DAY), ghost2: due(NOW - 4 * DAY), apple: due(NOW - DAY) },
+          { settings: { ...S5, newWordCount: 0, reviewLimit: 2 } },
+        ),
+      );
+      const result = await generateHomework(UID, NOW);
+      if (result.status !== "created") throw new Error("expected a homework");
+      expect(result.homework.reviewWords.map((w) => w.key)).toEqual(["apple"]);
+      expect(result.homework.dictation.map((i) => i.key)).toEqual(["apple"]);
+    });
+
     it("does not add a word that is not due yet", async () => {
       mockWords(
         [makeWord("apple"), makeWord("moon")],
