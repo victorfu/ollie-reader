@@ -29,7 +29,8 @@ dist-ssr
 .env.development
 .env.package
 
-.claude
+.claude/*
+!.claude/launch.json
 .codex
 
 # git worktrees
