@@ -47,3 +47,6 @@ jobs:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_OLLIE_READER }}
           projectId: ollie-reader
+          # 15.34.1 needs serviceusage.services.get, which our deploy service
+          # account lacks: https://github.com/firebase/firebase-tools/issues/11335
+          firebaseToolsVersion: 15.34.0
