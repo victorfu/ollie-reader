@@ -467,6 +467,32 @@ describe("useWordPractice saves across unmount", () => {
   });
 });
 
+describe("useWordPractice homework streak", () => {
+  it("says a homework today would be the first of the day and continue yesterday's streak", async () => {
+    const now = new Date(2026, 9, 25, 18).getTime();
+    const clock = vi.spyOn(Date, "now").mockReturnValue(now);
+    mocks.loadPracticeState.mockResolvedValue({
+      ...practiceState(),
+      homeworkStreak: { lastDay: "2026-10-24", days: 2 },
+    });
+    await renderProbe();
+    clock.mockRestore();
+    expect(hook().homeworkStreak).toEqual({ firstToday: true, days: 3 });
+  });
+
+  it("says today's daily bonus is used once a homework was handed in today", async () => {
+    const now = new Date(2026, 9, 25, 18).getTime();
+    const clock = vi.spyOn(Date, "now").mockReturnValue(now);
+    mocks.loadPracticeState.mockResolvedValue({
+      ...practiceState(),
+      homeworkStreak: { lastDay: "2026-10-25", days: 4 },
+    });
+    await renderProbe();
+    clock.mockRestore();
+    expect(hook().homeworkStreak).toEqual({ firstToday: false, days: 4 });
+  });
+});
+
 describe("useWordPractice sentence review", () => {
   const REVIEWS = [{ key: "apple", ok: false, comment: "要加 an。", corrected: "I ate an apple." }];
   const withSentence = (id: string) => {

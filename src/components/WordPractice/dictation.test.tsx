@@ -247,6 +247,36 @@ describe("FinishedView", () => {
     expect(again).toHaveBeenCalled();
   });
 
+  describe("coins", () => {
+    it("shows the coins earned and where each part came from", () => {
+      const paid = {
+        ...finished,
+        reward: {
+          coins: 58,
+          items: [
+            { kind: "handIn" as const, coins: 20 },
+            { kind: "dictation" as const, coins: 3, count: 1 },
+            { kind: "firstToday" as const, coins: 10 },
+            { kind: "streak" as const, coins: 10, count: 3 },
+            { kind: "perfect" as const, coins: 10 },
+          ],
+        },
+      };
+      render(<FinishedView homework={paid} onBack={noop} />);
+      expect(text()).toContain("獲得 58 代幣！");
+      expect(text()).toContain("交作業+20");
+      expect(text()).toContain("聽寫寫對 1 題+3");
+      expect(text()).toContain("今天第一份功課+10");
+      expect(text()).toContain("連續寫功課 3 天+10");
+      expect(text()).toContain("聽寫全對+10");
+    });
+
+    it("shows nothing about coins for a homework handed in before coins existed", () => {
+      render(<FinishedView homework={finished} onBack={noop} />);
+      expect(text()).not.toContain("代幣");
+    });
+  });
+
   describe("sentence review", () => {
     const reviewed = {
       ...finished,

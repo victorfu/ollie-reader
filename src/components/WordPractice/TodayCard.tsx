@@ -1,5 +1,6 @@
 import { useId } from "react";
-import { BookOpen } from "lucide-react";
+import { BookOpen, Coins } from "lucide-react";
+import { HOMEWORK_REWARDS } from "../../services/economyService";
 import type { Homework, PracticeSettings } from "../../types/wordPractice";
 import { currentPosition } from "../../utils/homeworkFlow";
 
@@ -9,8 +10,22 @@ interface TodayCardProps {
   active: Homework | null;
   /** A homework is being made; the buttons wait. */
   starting: boolean;
+  /** Whether a homework handed in now is the day's first, and the streak it would make. */
+  homeworkStreak: { firstToday: boolean; days: number };
   onStart: () => void;
   onContinue: () => void;
+}
+
+function coinHint({ firstToday, days }: { firstToday: boolean; days: number }): string {
+  const parts = ["寫完可以拿到代幣"];
+  if (firstToday) {
+    parts.push(`今天第一份 +${HOMEWORK_REWARDS.firstToday}`);
+    if (days >= 2) {
+      const streak = Math.min((days - 1) * HOMEWORK_REWARDS.streakStep, HOMEWORK_REWARDS.streakCap);
+      parts.push(`連續第 ${days} 天 +${streak}`);
+    }
+  }
+  return parts.join("・");
 }
 
 function continueLabel(homework: Homework): string {
@@ -33,6 +48,7 @@ export function TodayCard({
   reviewDueCount,
   active,
   starting,
+  homeworkStreak,
   onStart,
   onContinue,
 }: TodayCardProps) {
@@ -49,6 +65,11 @@ export function TodayCard({
           {active ? "進行中的功課" : "今天的功課"}
         </h2>
       </div>
+
+      <p className="flex items-center gap-2 text-sm text-muted-foreground">
+        <Coins className="size-4 shrink-0 text-warning" strokeWidth={1.75} aria-hidden="true" />
+        {coinHint(homeworkStreak)}
+      </p>
 
       {active ? (
         <button

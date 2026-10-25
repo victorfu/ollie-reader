@@ -5,6 +5,8 @@ import {
   coinsForAnswer,
   coinsForStageClear,
   computeDailyBonus,
+  computeHomeworkReward,
+  nextHomeworkStreak,
   todayLocal,
 } from "./economyService";
 
@@ -137,5 +139,62 @@ describe("todayLocal", () => {
   it("formats a date as YYYY-MM-DD with zero padding", () => {
     expect(todayLocal(new Date(2026, 0, 5))).toBe("2026-01-05");
     expect(todayLocal(new Date(2026, 11, 31))).toBe("2026-12-31");
+  });
+});
+
+describe("homework rewards", () => {
+  it("counts the hand-in, each correct dictation word, and the first homework of the day", () => {
+    expect(computeHomeworkReward({ correctCount: 6, total: 7, firstToday: true, streakDays: 1 })).toEqual({
+      coins: 48,
+      items: [
+        { kind: "handIn", coins: 20 },
+        { kind: "dictation", coins: 18, count: 6 },
+        { kind: "firstToday", coins: 10 },
+      ],
+    });
+  });
+
+  it("adds the perfect-dictation bonus and the streak bonus, capped at 20", () => {
+    expect(computeHomeworkReward({ correctCount: 3, total: 3, firstToday: true, streakDays: 3 })).toEqual({
+      coins: 20 + 9 + 10 + 10 + 10,
+      items: [
+        { kind: "handIn", coins: 20 },
+        { kind: "dictation", coins: 9, count: 3 },
+        { kind: "perfect", coins: 10 },
+        { kind: "firstToday", coins: 10 },
+        { kind: "streak", coins: 10, count: 3 },
+      ],
+    });
+    const long = computeHomeworkReward({ correctCount: 0, total: 2, firstToday: true, streakDays: 30 });
+    expect(long.items.find((item) => item.kind === "streak")?.coins).toBe(20);
+  });
+
+  it("gives a later homework the same day only the hand-in and dictation parts", () => {
+    expect(computeHomeworkReward({ correctCount: 2, total: 4, firstToday: false, streakDays: 5 })).toEqual({
+      coins: 26,
+      items: [
+        { kind: "handIn", coins: 20 },
+        { kind: "dictation", coins: 6, count: 2 },
+      ],
+    });
+  });
+
+  it("gives no perfect bonus when every dictation item was skipped", () => {
+    const reward = computeHomeworkReward({ correctCount: 0, total: 0, firstToday: false, streakDays: 1 });
+    expect(reward).toEqual({ coins: 20, items: [{ kind: "handIn", coins: 20 }] });
+  });
+
+  it("stays below a cleared adventure stage of five correct answers", () => {
+    const adventureStage = [0, 1, 2, 3, 4].reduce((sum, combo) => sum + coinsForAnswer(combo), 0)
+      + coinsForStageClear(undefined, false);
+    const typical = computeHomeworkReward({ correctCount: 6, total: 7, firstToday: true, streakDays: 1 });
+    expect(typical.coins).toBeLessThan(adventureStage);
+  });
+
+  it("tracks the homework streak by local day", () => {
+    expect(nextHomeworkStreak(undefined, "2026-10-25")).toEqual({ firstToday: true, days: 1 });
+    expect(nextHomeworkStreak({ lastDay: "2026-10-24", days: 4 }, "2026-10-25")).toEqual({ firstToday: true, days: 5 });
+    expect(nextHomeworkStreak({ lastDay: "2026-10-25", days: 5 }, "2026-10-25")).toEqual({ firstToday: false, days: 5 });
+    expect(nextHomeworkStreak({ lastDay: "2026-10-20", days: 9 }, "2026-10-25")).toEqual({ firstToday: true, days: 1 });
   });
 });

@@ -130,6 +130,7 @@ function makeHook(overrides: Partial<UseWordPractice> = {}): UseWordPractice {
     history: [],
     settings: SETTINGS,
     reviewDueCount: 3,
+    homeworkStreak: { firstToday: true, days: 1 },
     starting: false,
     saveError: null,
     start: vi.fn().mockResolvedValue("created"),
@@ -418,6 +419,22 @@ describe("history", () => {
     expect(text()).toContain("apple");
     await click("回到首頁");
     expect(text()).toContain("今天的功課");
+  });
+
+  it("tells Ollie the homework earns coins, with the day's first bonus and the streak", () => {
+    hook.current = makeHook({ homeworkStreak: { firstToday: true, days: 3 } });
+    render();
+    expect(text()).toContain("寫完可以拿到代幣");
+    expect(text()).toContain("今天第一份 +10");
+    expect(text()).toContain("連續第 3 天 +10");
+  });
+
+  it("leaves out the daily bonus once today's first homework is done", () => {
+    hook.current = makeHook({ homeworkStreak: { firstToday: false, days: 3 } });
+    render();
+    expect(text()).toContain("寫完可以拿到代幣");
+    expect(text()).not.toContain("今天第一份");
+    expect(text()).not.toContain("連續第");
   });
 
   it("opens a finished homework with every word's phrase and sentence", async () => {

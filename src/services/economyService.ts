@@ -90,3 +90,77 @@ export function computeDailyBonus(
   );
   return { eligible: true, coins, streakDays };
 }
+
+// ============ 單字練習功課獎勵 ============
+// 功課比單字大冒險花時間，但每分鐘拿到的代幣刻意比較少：一份常見的功課
+// 大約 40～60 代幣，約一次扭蛋；大冒險一關 5 題全對約 65。
+
+export const HOMEWORK_REWARDS = {
+  handIn: 20, // 交作業
+  dictationCorrect: 3, // 聽寫每寫對一題
+  perfect: 10, // 聽寫全對
+  firstToday: 10, // 今天第一份功課
+  streakStep: 5, // 連續每天寫功課，第 2 天起每天多 5
+  streakCap: 20, // 連續天數加成上限
+} as const;
+
+export type HomeworkRewardKind = "handIn" | "dictation" | "perfect" | "firstToday" | "streak";
+
+export interface HomeworkRewardItem {
+  kind: HomeworkRewardKind;
+  coins: number;
+  /** Words written right for "dictation"; streak days for "streak". */
+  count?: number;
+}
+
+export interface HomeworkReward {
+  coins: number;
+  items: HomeworkRewardItem[];
+}
+
+export interface HomeworkStreak {
+  /** The local day (YYYY-MM-DD) of the last handed-in homework. */
+  lastDay: string;
+  days: number;
+}
+
+/** Whether a homework handed in `today` is the first of the day, and the streak it makes. */
+export function nextHomeworkStreak(
+  previous: HomeworkStreak | undefined,
+  today: string,
+): { firstToday: boolean; days: number } {
+  if (previous?.lastDay === today) return { firstToday: false, days: previous.days };
+  const continued = previous !== undefined && previous.lastDay === addDaysLocal(today, -1);
+  return { firstToday: true, days: continued ? previous.days + 1 : 1 };
+}
+
+/**
+ * The coins for a handed-in homework. The day's first homework also gets the
+ * daily and streak bonuses; later ones only the hand-in and dictation parts.
+ * Skipped dictation words count neither way.
+ */
+export function computeHomeworkReward({
+  correctCount,
+  total,
+  firstToday,
+  streakDays,
+}: {
+  correctCount: number;
+  total: number;
+  firstToday: boolean;
+  streakDays: number;
+}): HomeworkReward {
+  const items: HomeworkRewardItem[] = [{ kind: "handIn", coins: HOMEWORK_REWARDS.handIn }];
+  if (correctCount > 0) {
+    items.push({ kind: "dictation", coins: correctCount * HOMEWORK_REWARDS.dictationCorrect, count: correctCount });
+  }
+  if (total > 0 && correctCount === total) items.push({ kind: "perfect", coins: HOMEWORK_REWARDS.perfect });
+  if (firstToday) {
+    items.push({ kind: "firstToday", coins: HOMEWORK_REWARDS.firstToday });
+    if (streakDays >= 2) {
+      const coins = Math.min((streakDays - 1) * HOMEWORK_REWARDS.streakStep, HOMEWORK_REWARDS.streakCap);
+      items.push({ kind: "streak", coins, count: streakDays });
+    }
+  }
+  return { coins: items.reduce((sum, item) => sum + item.coins, 0), items };
+}

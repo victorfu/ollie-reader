@@ -22,6 +22,7 @@ import { reviewSentences } from "../services/sentenceReview";
 import { sentencesToReview } from "../utils/homeworkFlow";
 import { updateReviewStats } from "../services/vocabularyService";
 import { dueReviewKeys, DEFAULT_SETTINGS } from "../utils/reviewSchedule";
+import { nextHomeworkStreak, todayLocal } from "../services/economyService";
 import { logger } from "../utils/logger";
 
 export interface UseWordPractice {
@@ -33,6 +34,8 @@ export interface UseWordPractice {
   settings: PracticeSettings;
   /** Reviews due now, capped by `settings.reviewLimit`. */
   reviewDueCount: number;
+  /** Whether a homework handed in now is the day's first, and the streak it would make. */
+  homeworkStreak: { firstToday: boolean; days: number };
   starting: boolean;
   /** Set while the latest progress is not on the server; the next `updateProgress` retries. */
   saveError: string | null;
@@ -68,6 +71,7 @@ const ABANDON_ERROR = "放棄功課失敗，請稍後再試";
 const FINISH_ERROR = "無法完成功課，請稍後再試";
 const SETTINGS_ERROR = "儲存設定失敗，請稍後再試";
 const SAVE_ERROR = "進度尚未儲存，下一次作答時會再試一次";
+const NO_STREAK = { firstToday: true, days: 1 };
 
 /**
  * Bookkeeping for one homework's progress saves. A new tracker is made
@@ -101,6 +105,7 @@ export function useWordPractice(): UseWordPractice {
   const [error, setError] = useState<string | null>(null);
   const [active, setActive] = useState<Homework | null>(null);
   const [history, setHistory] = useState<HistoryHomework[]>([]);
+  const [homeworkStreak, setHomeworkStreak] = useState(NO_STREAK);
   const [reviewState, setReviewState] = useState<UseWordPractice["reviewState"]>({});
   const reviewingRef = useRef(new Set<string>());
   const [settings, setSettings] = useState<PracticeSettings>(DEFAULT_SETTINGS);
@@ -126,6 +131,7 @@ export function useWordPractice(): UseWordPractice {
     setSettings(state.settings);
     // Upper bound: it only sees the state document, so due words deleted from the vocabulary book still count.
     setReviewDueCount(dueReviewKeys(state.words, now, state.settings.reviewLimit).length);
+    setHomeworkStreak(nextHomeworkStreak(state.homeworkStreak, todayLocal(new Date(now))));
   }, []);
 
   const installActive = useCallback((next: Homework | null, ownerUid?: string) => {
@@ -427,6 +433,7 @@ export function useWordPractice(): UseWordPractice {
     setStarting(false);
     setSettings(DEFAULT_SETTINGS);
     setReviewDueCount(0);
+    setHomeworkStreak(NO_STREAK);
     reviewWordsRef.current = {};
     if (!uid) return undefined;
 
@@ -446,6 +453,7 @@ export function useWordPractice(): UseWordPractice {
     history,
     settings,
     reviewDueCount,
+    homeworkStreak,
     starting,
     saveError,
     start,
