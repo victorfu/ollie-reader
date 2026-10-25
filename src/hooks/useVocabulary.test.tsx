@@ -168,6 +168,59 @@ describe("useVocabulary", () => {
     expect(mocks.addVocabularyWord).not.toHaveBeenCalled();
   });
 
+  it("explains a Firestore quota error in Chinese instead of the raw message", async () => {
+    mocks.checkWordExists.mockRejectedValue(
+      Object.assign(new Error("Quota exceeded."), {
+        code: "resource-exhausted",
+      }),
+    );
+    hook = renderUseVocabulary();
+
+    let result:
+      | Awaited<ReturnType<VocabularyHook["lookupOrAddWord"]>>
+      | undefined;
+    await act(async () => {
+      result = await hook?.current.lookupOrAddWord("orbit");
+    });
+
+    expect(result).toEqual({
+      success: false,
+      isNew: false,
+      message: "雲端資料庫用量已達上限，請稍後再試",
+    });
+    expect(mocks.generateWordDetails).not.toHaveBeenCalled();
+  });
+
+  it("explains a Firestore quota error when saving precomputed details", async () => {
+    mocks.addVocabularyWord.mockRejectedValue(
+      Object.assign(new Error("Quota exceeded."), {
+        code: "resource-exhausted",
+      }),
+    );
+    hook = renderUseVocabulary();
+
+    let result:
+      | Awaited<ReturnType<VocabularyHook["addWordFromDetails"]>>
+      | undefined;
+    await act(async () => {
+      result = await hook?.current.addWordFromDetails("give up", {
+        definitions: [
+          {
+            partOfSpeech: "phrase",
+            definition: "to stop trying",
+            definitionChinese: "放棄",
+          },
+        ],
+        examples: [],
+      });
+    });
+
+    expect(result).toEqual({
+      success: false,
+      message: "雲端資料庫用量已達上限，請稍後再試",
+    });
+  });
+
   it("still returns an existing vocabulary word without regenerating details", async () => {
     const existingWord: VocabularyWord = {
       id: "existing-1",

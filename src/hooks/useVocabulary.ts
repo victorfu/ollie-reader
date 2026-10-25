@@ -15,6 +15,7 @@ import {
 } from "../services/vocabularyService";
 import { generateWordDetails, type WordDetails } from "../services/aiService";
 import { isAbortError } from "../utils/errorUtils";
+import { getFirestoreErrorMessage } from "../utils/firestoreErrors";
 import type {
   VocabularyWord,
   VocabularyFilters,
@@ -198,8 +199,7 @@ export const useVocabulary = () => {
         if (isAbortError(err)) {
           return { success: false, message: "Request cancelled" };
         }
-        const message =
-          err instanceof Error ? err.message : "Failed to add word";
+        const message = getFirestoreErrorMessage(err, "Failed to add word");
         setError(message);
         return { success: false, message };
       } finally {
@@ -342,8 +342,7 @@ export const useVocabulary = () => {
         if (isAbortError(err)) {
           return { success: false, isNew: false, message: "Request cancelled" };
         }
-        const message =
-          err instanceof Error ? err.message : "Failed to lookup word";
+        const message = getFirestoreErrorMessage(err, "Failed to lookup word");
         setError(message);
         return { success: false, isNew: false, message };
       } finally {
@@ -443,8 +442,7 @@ export const useVocabulary = () => {
         if (isAbortError(err)) {
           return { success: false, message: "Request cancelled" };
         }
-        const message =
-          err instanceof Error ? err.message : "Failed to add word";
+        const message = getFirestoreErrorMessage(err, "Failed to add word");
         setError(message);
         return { success: false, message };
       }

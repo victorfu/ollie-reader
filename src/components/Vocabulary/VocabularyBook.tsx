@@ -62,6 +62,19 @@ const CJK_PATTERN = /\p{Script=Han}|[぀-ヿ가-힯]/u;
 const LOOKUP_FAILED_MESSAGE = "查詢失敗，請稍後再試";
 const ENGLISH_ONLY_MESSAGE = "請輸入英文單字或句子喔！";
 
+// The hint already says how to retry, so a message's own "請稍後再試" and
+// final punctuation would read twice ("查詢失敗，請稍後再試，按 Enter…").
+const RETRY_LATER_SUFFIX = /[，,\s]*請稍後再試[\s。.!！]*$/u;
+const TRAILING_PUNCTUATION = /[\s.,;:!?。，、；：！？…]+$/u;
+
+const toRetryHint = (message: string): string => {
+  const reason =
+    message
+      .replace(RETRY_LATER_SUFFIX, "")
+      .replace(TRAILING_PUNCTUATION, "") || "查詢失敗";
+  return `${reason}，按 Enter 再試一次`;
+};
+
 const TYPE_FILTERS: Array<{ value: FeedTypeFilter; label: string }> = [
   { value: "all", label: "全部" },
   { value: "words", label: "單字" },
@@ -668,9 +681,7 @@ export const VocabularyBook = () => {
       return (
         <>
           <CircleAlert className="size-3.5 shrink-0 text-error" aria-hidden="true" />
-          <span className="truncate text-error">
-            {submitError}，按 Enter 再試一次
-          </span>
+          <span className="truncate text-error">{toRetryHint(submitError)}</span>
         </>
       );
     }

@@ -402,6 +402,39 @@ describe("VocabularyBook search-or-add field", () => {
     expect(field.value).toBe("");
   });
 
+  it("drops the message's own final punctuation before the retry hint", async () => {
+    mocks.vocabulary.lookupOrAddWord.mockResolvedValue({
+      success: false,
+      isNew: false,
+      message: "Something broke.",
+    });
+    const container = await renderBook();
+    const field = getField(container);
+
+    await typeInto(field, "river");
+    await submit(field);
+
+    expect(container.querySelector("#smart-query-status")?.textContent).toBe(
+      "Something broke，按 Enter 再試一次",
+    );
+  });
+
+  it("does not ask to retry twice when the message already says so", async () => {
+    mocks.vocabulary.lookupOrAddWord.mockResolvedValue({
+      success: false,
+      isNew: false,
+    });
+    const container = await renderBook();
+    const field = getField(container);
+
+    await typeInto(field, "river");
+    await submit(field);
+
+    expect(container.querySelector("#smart-query-status")?.textContent).toBe(
+      "查詢失敗，按 Enter 再試一次",
+    );
+  });
+
   it("saves a phrase classified by AI as a word", async () => {
     smartLookupMock.mockResolvedValue({
       kind: "word",
