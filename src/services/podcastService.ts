@@ -1,10 +1,12 @@
 import { PODCAST_API_BASE_URL } from "../constants/api";
 import type { PodcastResolution } from "../types/podcast";
+import { apiFetch } from "../utils/apiUtil";
 
 export async function resolvePodcast(url: string, signal: AbortSignal): Promise<PodcastResolution> {
   // Podcast resolution lives only in the Next.js backend, not the desktop sidecar.
-  const response = await fetch(`${PODCAST_API_BASE_URL}/api/podcasts/resolve`, {
+  const response = await apiFetch(`${PODCAST_API_BASE_URL}/api/podcasts/resolve`, {
     method: "POST",
+    includeAuthToken: true,
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ url }),
     signal: AbortSignal.any([signal, AbortSignal.timeout(25_000)]),

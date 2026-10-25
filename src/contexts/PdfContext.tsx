@@ -14,6 +14,7 @@ import {
   localUnavailableMessage,
 } from "../services/localBackend";
 import { pdfSessionCache } from "../services/pdfSessionCache";
+import { apiFetch } from "../utils/apiUtil";
 import { isAbortError } from "../utils/errorUtils";
 import { logger } from "../utils/logger";
 import { useAuth } from "../hooks/useAuth";
@@ -263,6 +264,8 @@ export const PdfProvider = ({ children }: PdfProviderProps) => {
         const response = await fetchWithComputeBase(
           `${FETCH_URL_PATH}?${params.toString()}`,
           { signal: request.controller.signal },
+          // 雲端帶 Firebase token；本機 sidecar 會忽略它。
+          (target, init) => apiFetch(target, { ...init, includeAuthToken: true }),
         );
 
         if (!response.ok) {

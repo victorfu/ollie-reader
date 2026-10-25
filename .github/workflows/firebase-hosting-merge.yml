@@ -28,6 +28,12 @@ jobs:
       VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
     steps:
       - uses: actions/checkout@v4
+      # Pin the exact patched Node (CVE-2026-111497); the runner image's preinstalled
+      # Node is whatever the image shipped with.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.22.1
+      - run: node --version
       - name: Create .env.production
         run: |
           echo "VITE_FIREBASE_APPCHECK_DEBUG_TOKEN=" > .env.production

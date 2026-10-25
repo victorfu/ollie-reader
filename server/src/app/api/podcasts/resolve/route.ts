@@ -1,4 +1,5 @@
 import { ApiError, apiResponse, postOptions, readLimited } from "../../../../lib/api";
+import { verifyFirebaseToken } from "../../../../lib/firebaseAuth";
 import { resolvePodcast } from "../../../../lib/podcasts";
 
 export const runtime = "nodejs";
@@ -6,6 +7,7 @@ export const maxDuration = 30;
 export const OPTIONS = postOptions;
 export async function POST(request: Request): Promise<Response> {
   return apiResponse(request, async (headers) => {
+    await verifyFirebaseToken(request);
     if (request.headers.get("content-type")?.split(";")[0].trim() !== "application/json") throw new ApiError("請使用 JSON 傳送單集網址", 400);
     const bytes = await readLimited(request as unknown as Response, 4096);
     let body: unknown;

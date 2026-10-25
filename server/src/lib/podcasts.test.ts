@@ -1,8 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-const mocks = vi.hoisted(() => ({ fetch: vi.fn() }));
+const mocks = vi.hoisted(() => ({ fetch: vi.fn(), verify: vi.fn() }));
+vi.mock("./firebaseAuth", () => ({ verifyFirebaseToken: mocks.verify }));
 vi.mock("undici", async (original) => ({ ...await original<typeof import("undici")>(), fetch: mocks.fetch }));
 import { matchRssEpisode, parseAppleEpisodeUrl, parseAppleMetadata, parseDuration } from "./podcasts";
 import { POST, OPTIONS } from "../app/api/podcasts/resolve/route";
+import { ApiError } from "./api";
 
 const url = "https://podcasts.apple.com/tw/podcast/storytime-sweeter-than-honey/id1567336024?i=1000539350317";
 const ids = parseAppleEpisodeUrl(url);
@@ -86,8 +88,14 @@ describe("Podcast resolver API", () => {
     expect(mocks.fetch).not.toHaveBeenCalled();
   });
   it("supports JSON POST preflight", async () => {
-    const response = await OPTIONS(new Request("http://localhost/api/podcasts/resolve", { method: "OPTIONS", headers: { origin: "http://localhost:5173", "access-control-request-method": "POST", "access-control-request-headers": "content-type" } }));
+    const response = await OPTIONS(new Request("http://localhost/api/podcasts/resolve", { method: "OPTIONS", headers: { origin: "http://localhost:5173", "access-control-request-method": "POST", "access-control-request-headers": "content-type, authorization" } }));
     expect(response.status).toBe(204);
+    expect(response.headers.get("access-control-allow-headers")).toContain("Authorization");
+  });
+  it("never fetches Apple or RSS when Firebase authentication fails", async () => {
+    mocks.verify.mockRejectedValueOnce(new ApiError("Missing authorization header", 401));
+    expect((await POST(request())).status).toBe(401);
+    expect(mocks.fetch).not.toHaveBeenCalled();
   });
 });
 

@@ -1,6 +1,16 @@
 import { afterEach, expect, it, vi } from "vitest";
 
+const mocks = vi.hoisted(() => ({ apiFetch: vi.fn() }));
+vi.mock("../utils/apiUtil", () => ({ apiFetch: mocks.apiFetch }));
+mocks.apiFetch.mockImplementation((url: string, init: RequestInit) => fetch(url, init));
 afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); vi.resetModules(); });
+
+it("sends the Firebase ID token so the resolver cannot be used anonymously", async () => {
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ audioUrl: "https://audio.example/a.mp3" }))));
+  const { resolvePodcast } = await import("./podcastService");
+  await resolvePodcast("url", new AbortController().signal);
+  expect(mocks.apiFetch).toHaveBeenCalledWith(expect.stringContaining("/api/podcasts/resolve"), expect.objectContaining({ includeAuthToken: true }));
+});
 
 it("uses the local Podcast server even when the general API targets a legacy cloud service", async () => {
   vi.stubEnv("DEV", true);

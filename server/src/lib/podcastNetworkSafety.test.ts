@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({ lookup: vi.fn(), socketLookup: undefined as un
 vi.mock("node:dns", () => ({ lookup: mocks.lookup }));
 vi.mock("undici", () => ({ fetch: vi.fn(), Agent: class {
   constructor(options: { connect: { lookup: NonNullable<typeof mocks.socketLookup> } }) { mocks.socketLookup = options.connect.lookup; }
+  compose() { return this; }
 } }));
 import { publicAgent } from "./fetchUrl";
 afterEach(() => vi.resetAllMocks());

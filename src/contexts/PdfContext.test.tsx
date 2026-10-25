@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   auth: { user: { uid: "user-1" } as { uid: string } | null },
   fetchWithComputeBase: vi.fn(),
+  apiFetch: vi.fn(),
   getComputeMode: vi.fn(() => "cloud" as const),
   loadPdfFromCache: vi.fn(),
   savePdfToCache: vi.fn(),
@@ -27,6 +28,7 @@ vi.mock("../services/localBackend", () => ({
   localUnavailableMessage: () => "本機 sidecar 未連線",
 }));
 
+vi.mock("../utils/apiUtil", () => ({ apiFetch: mocks.apiFetch }));
 vi.mock("../services/pdfSessionCache", () => ({
   pdfSessionCache: {
     loadPdfFromCache: mocks.loadPdfFromCache,
@@ -303,6 +305,9 @@ describe("PdfProvider document lifecycle", () => {
     await flushAsyncWork();
 
     expect(mocks.fetchWithComputeBase).toHaveBeenCalledTimes(1);
+    const fetcher = mocks.fetchWithComputeBase.mock.calls[0][2];
+    await fetcher("https://api.example/api/fetch-url", { method: "GET" });
+    expect(mocks.apiFetch).toHaveBeenCalledWith("https://api.example/api/fetch-url", { method: "GET", includeAuthToken: true });
     expect(state().pdfUrl).toBe("blob:remote.pdf");
     expect(state().selectedFile?.type).toBe("application/pdf");
     expect(state().isLoadingFromUrl).toBe(false);

@@ -1,12 +1,19 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-const mocks = vi.hoisted(() => ({ fetch: vi.fn() }));
+const mocks = vi.hoisted(() => ({ fetch: vi.fn(), verify: vi.fn() }));
+vi.mock("./firebaseAuth", () => ({ verifyFirebaseToken: mocks.verify }));
 vi.mock("undici", async (importOriginal) => ({ ...await importOriginal<typeof import("undici")>(), fetch: mocks.fetch }));
 import { fetchOptions, isPublicAddress, MAX_BYTES, parseTarget } from "./fetchUrl";
 import { GET, OPTIONS } from "../app/api/fetch-url/route";
+import { ApiError } from "./api";
 
 const request = (params = "") => new Request(`http://localhost/api/fetch-url?url=https%3A%2F%2Fexample.com%2Fdownload.php${params}`);
 afterEach(() => { vi.clearAllMocks(); vi.useRealTimers(); });
 describe("fetch-url", () => {
+  it("never contacts upstream when Firebase authentication fails", async () => {
+    mocks.verify.mockRejectedValueOnce(new ApiError("Missing authorization header", 401));
+    expect((await GET(request())).status).toBe(401);
+    expect(mocks.fetch).not.toHaveBeenCalled();
+  });
   it("returns raw bytes with final URL, redirect count and MIME-derived extension", async () => {
     mocks.fetch.mockResolvedValueOnce(new Response(null, { status: 302, headers: { location: "/final.php" } }))
       .mockResolvedValueOnce(new Response("pdf-content", { headers: { "content-type": "application/pdf", "content-length": "11" } }));

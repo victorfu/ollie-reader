@@ -2,7 +2,7 @@ import { lookup } from "node:dns";
 import { isIP } from "node:net";
 import { basename, extname } from "node:path";
 import ipaddr from "ipaddr.js";
-import { Agent, fetch as undiciFetch } from "undici";
+import { Agent, type Dispatcher, fetch as undiciFetch } from "undici";
 import { ApiError } from "./api";
 
 // Streamed responses are exempt from Vercel's 4.5 MB body limit, so this only bounds the transfer.
@@ -26,9 +26,29 @@ export function parseTarget(input: string): URL {
   return url;
 }
 
+// CVE-2026-111497: never hand upstream bytes to Node's Brotli decoder. fetch pipes
+// the body through zlib as soon as headers arrive, so a later content-encoding check
+// is too late; refuse br at the dispatcher, before fetch sees the response.
+export const rejectBrotli: Dispatcher.DispatcherComposeInterceptor = (dispatch) => (options, handler) => {
+  const headers = Object.fromEntries(Object.entries(options.headers ?? {}).filter(([name]) => name.toLowerCase() !== "accept-encoding"));
+  return dispatch({ ...options, headers: { ...headers, "accept-encoding": "gzip, deflate" } }, {
+    onRequestStart: (controller, context) => handler.onRequestStart?.(controller, context),
+    onRequestUpgrade: (controller, statusCode, upgradeHeaders, socket) => handler.onRequestUpgrade?.(controller, statusCode, upgradeHeaders, socket),
+    onResponseStart(controller, statusCode, responseHeaders, statusMessage) {
+      if (String(responseHeaders["content-encoding"] ?? "").toLowerCase().split(",").some((coding) => coding.trim() === "br")) {
+        return controller.abort(new Error("Brotli-encoded upstream response refused"));
+      }
+      return handler.onResponseStart?.(controller, statusCode, responseHeaders, statusMessage);
+    },
+    onResponseData: (controller, chunk) => handler.onResponseData?.(controller, chunk),
+    onResponseEnd: (controller, trailers) => handler.onResponseEnd?.(controller, trailers),
+    onResponseError: (controller, error) => handler.onResponseError?.(controller, error),
+  });
+};
+
 // Validate the actual socket lookup, not a separate DNS preflight; redirects use
 // the same dispatcher so DNS changes cannot bypass the public-address boundary.
-export function publicAgent(): Agent {
+export function publicAgent(): Dispatcher {
   return new Agent({ connect: { lookup(hostname, options, callback) {
     lookup(hostname, { family: options.family, all: true }, (error, addresses) => {
       if (error) return callback(error, [], undefined);
@@ -38,7 +58,7 @@ export function publicAgent(): Agent {
       if (options.all) callback(null, addresses);
       else callback(null, addresses[0].address, addresses[0].family);
     });
-  } } });
+  } } }).compose(rejectBrotli);
 }
 
 export function fetchOptions(params: URLSearchParams) {
