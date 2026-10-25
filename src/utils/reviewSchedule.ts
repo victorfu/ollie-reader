@@ -4,7 +4,13 @@ import type {
   WordPracticeWordState,
 } from "../types/wordPractice";
 
-const DAY_MS = 86_400_000;
+/** Start of the local calendar day `days` after `now` (DST-safe via setDate). */
+function localDayStart(now: number, days: number): number {
+  const d = new Date(now);
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() + days);
+  return d.getTime();
+}
 
 export const REVIEW_INTERVAL_DAYS: readonly number[] = [1, 3, 7, 14, 30];
 
@@ -36,7 +42,7 @@ export function applyDictationOutcome(
       ...base,
       needsPractice: undefined,
       stage,
-      dueAt: now + REVIEW_INTERVAL_DAYS[stage - 1] * DAY_MS,
+      dueAt: localDayStart(now, REVIEW_INTERVAL_DAYS[stage - 1]),
       lastResult: "correct",
       learnedAt: base.learnedAt ?? now,
     });

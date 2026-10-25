@@ -9,11 +9,18 @@ import type { WordPracticeWordState } from "../types/wordPractice";
 const DAY = 86_400_000;
 const NOW = 1_800_000_000_000;
 
+function localMidnightPlus(now: number, days: number): number {
+  const d = new Date(now);
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() + days);
+  return d.getTime();
+}
+
 describe("reviewSchedule", () => {
   it("moves a new word to stage 1, due one day later, when written correctly", () => {
     expect(applyDictationOutcome(undefined, "correct", NOW)).toMatchObject({
       stage: 1,
-      dueAt: NOW + DAY,
+      dueAt: localMidnightPlus(NOW, 1),
       lastResult: "correct",
       learnedAt: NOW,
       missCount: 0,
@@ -25,10 +32,18 @@ describe("reviewSchedule", () => {
     const gaps: number[] = [];
     for (let i = 0; i < 5; i++) {
       state = applyDictationOutcome(state, "correct", NOW);
-      gaps.push((state.dueAt! - NOW) / DAY);
+      gaps.push(Math.round((state.dueAt! - localMidnightPlus(NOW, 0)) / DAY));
     }
     expect(gaps).toEqual([3, 7, 14, 30, 30]);
     expect(state.stage).toBe(5);
+  });
+
+  it("snaps due dates to local midnight so an evening answer is due the next afternoon", () => {
+    const evening = new Date(2026, 5, 10, 19, 30).getTime();
+    const state = applyDictationOutcome(undefined, "correct", evening);
+    expect(state.dueAt).toBe(new Date(2026, 5, 11, 0, 0).getTime());
+    const nextDay6pm = new Date(2026, 5, 11, 18, 0).getTime();
+    expect(dueReviewKeys({ w: state }, nextDay6pm, 10)).toEqual(["w"]);
   });
 
   it("sends a wrong word back to stage 0 to be practised again", () => {
