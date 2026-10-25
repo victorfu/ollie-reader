@@ -415,10 +415,10 @@ function AppContent() {
     );
   }
 
-  // 已登入者不停留在 /login：導回登入前的頁面（沒有就進閱讀器）。
+  // 已登入者不停留在 /login：導回登入前的頁面（沒有就進生詞本）。
   if (normalizedPathname === "/login") {
     const from = (location.state as { from?: string } | null)?.from;
-    return <Navigate to={from && from !== "/login" ? from : "/reader"} replace />;
+    return <Navigate to={from && from !== "/login" ? from : "/vocabulary"} replace />;
   }
 
   const handleSignOut = () => {
@@ -714,7 +714,7 @@ function AppContent() {
                   <Suspense fallback={<RouteLoadingFallback />}>
                     <Routes>
                       {/* 閱讀器有自己的 /reader 路由；根路徑只做轉址 */}
-                      <Route path="/" element={<Navigate to="/reader" replace />} />
+                      <Route path="/" element={<Navigate to="/vocabulary" replace />} />
                       <Route path="/reader" element={<PdfReader />} />
                       <Route path="/vocabulary" element={<VocabularyBook />} />
                       <Route

@@ -36,6 +36,19 @@ afterEach(() => {
   window.history.replaceState(null, "", "/");
 });
 
+describe("default home page", () => {
+  it("opens the Vocabulary Book from the root path", () => {
+    window.history.replaceState(null, "", "/");
+    act(() => root.render(<App />));
+    expect(window.location.pathname).toBe("/vocabulary");
+  });
+  it("lands on the Vocabulary Book after login when no page was requested", () => {
+    window.history.replaceState(null, "", "/login");
+    act(() => root.render(<App />));
+    expect(window.location.pathname).toBe("/vocabulary");
+  });
+});
+
 describe("retired travel page", () => {
   it.each(["/travel", "/travel/?topic=airport"])("redirects %s to the reader without adding history", (path) => {
     window.history.replaceState(null, "", path);
