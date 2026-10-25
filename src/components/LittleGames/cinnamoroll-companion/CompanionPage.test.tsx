@@ -33,6 +33,11 @@ function button(label: string): HTMLButtonElement {
   return match;
 }
 
+function pat() {
+  act(() => button("動作").click());
+  act(() => button("摸摸頭").click());
+}
+
 async function renderPage(onExit = vi.fn()) {
   await act(async () => {
     root.render(<CompanionPage onExit={onExit} />);
@@ -44,6 +49,8 @@ beforeEach(() => {
   (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean })
     .IS_REACT_ACT_ENVIRONMENT = true;
   sceneProps = null;
+  HTMLDialogElement.prototype.showModal = function () { this.open = true; };
+  HTMLDialogElement.prototype.close = function () { this.open = false; };
   container = document.createElement("div");
   document.body.appendChild(container);
   root = createRoot(container);
@@ -58,8 +65,6 @@ afterEach(() => {
 describe("CompanionPage", () => {
   it("previews six accessories, replaces headwear, removes items and performs actions", async () => {
     setWebGL(true);
-    HTMLDialogElement.prototype.showModal = function () { this.open = true; };
-    HTMLDialogElement.prototype.close = function () { this.open = false; };
     await renderPage();
     act(() => button("換裝").click());
     expect(container.textContent).toContain("不代表擁有");
@@ -89,40 +94,40 @@ describe("CompanionPage", () => {
     expect(onExit).toHaveBeenCalledTimes(1);
   });
 
-  it("offers a pat action without a rotation mode switch", async () => {
+  it("offers pat inside the actions panel instead of as its own button", async () => {
     setWebGL(true);
     await renderPage();
 
     expect(container.textContent).not.toContain("轉一轉");
-    expect(button("摸摸頭").hasAttribute("aria-pressed")).toBe(false);
+    expect(container.textContent).not.toContain("摸摸頭");
     expect(sceneProps?.runtime.petting).toBe(false);
     expect(container.textContent).toContain("拖曳");
+
+    pat();
+    expect(container.querySelector("dialog")).toBeNull();
+    expect(sceneProps?.runtime.petting).toBe(false);
+    expect(sceneProps?.runtime.pet.phase).toBe("petting");
   });
 
-  it("pats on every press while leaving canvas drags available for turning", async () => {
+  it("extends the pat on every press while leaving canvas drags available for turning", async () => {
     setWebGL(true);
     await renderPage();
 
-    act(() => button("摸摸頭").click());
-    expect(button("摸摸頭").hasAttribute("aria-pressed")).toBe(false);
-    expect(sceneProps?.runtime.petting).toBe(false);
-    expect(sceneProps?.runtime.pet.phase).toBe("petting");
-
+    pat();
     const patUntil = sceneProps?.runtime.pet.patUntil ?? 0;
     await new Promise((resolve) => setTimeout(resolve, 5));
-    act(() => button("摸摸頭").click());
+    pat();
     expect(sceneProps?.runtime.pet.patUntil ?? 0).toBeGreaterThan(patUntil);
+    expect(sceneProps?.runtime.petting).toBe(false);
   });
 
-  it("accumulates a heart across repeated pet-button activations", async () => {
+  it("accumulates a heart across repeated pats", async () => {
     setWebGL(true);
     let now = 0;
     vi.spyOn(performance, "now").mockImplementation(() => now);
     await renderPage();
 
-    for (now = 0; now <= 1500; now += 500) {
-      act(() => button("摸摸頭").click());
-    }
+    for (now = 0; now <= 1500; now += 500) pat();
 
     expect(sceneProps?.runtime.pet.strokeTime).toBe(1500);
     expect(sceneProps?.runtime.pet.hearts).toBe(1);
@@ -131,14 +136,11 @@ describe("CompanionPage", () => {
   it("interrupts another action with a pat without changing drag behavior", async () => {
     setWebGL(true);
     await renderPage();
-    act(() => button("摸摸頭").click());
 
     act(() => sceneProps!.runtime.perform("jump", performance.now()));
-    act(() => button("摸摸頭").click());
+    pat();
     expect(sceneProps?.runtime.performance).toBeNull();
     expect(sceneProps?.runtime.pet.phase).toBe("petting");
-
-    expect(container.textContent).not.toContain("轉一轉");
     expect(sceneProps?.runtime.petting).toBe(false);
   });
 

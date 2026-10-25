@@ -4,11 +4,12 @@ import type { CompanionAction, CompanionAccessory, CompanionOutfit, CompanionSlo
 import { ACTIONS } from "./logic/actions";
 import { ACCESSORIES } from "./logic/outfit";
 
-export function CompanionPanel({ panel, outfit, onClose, onAction, onPreview, onClear }: {
+export function CompanionPanel({ panel, outfit, onClose, onAction, onPat, onPreview, onClear }: {
   panel: "actions" | "outfit";
   outfit: CompanionOutfit;
   onClose: () => void;
   onAction: (action: CompanionAction) => void;
+  onPat: () => void;
   onPreview: (id: CompanionAccessory) => void;
   onClear: () => void;
 }) {
@@ -27,6 +28,7 @@ export function CompanionPanel({ panel, outfit, onClose, onAction, onPreview, on
       <button type="button" onClick={onClose} aria-label="關閉" className="btn btn-ghost min-h-11 min-w-11"><X size={20} /></button>
     </div>
     {panel === "actions" ? <div className="mt-3 grid grid-cols-3 gap-2">
+      <button type="button" className="btn btn-outline min-h-11" onClick={onPat}>摸摸頭</button>
       {ACTIONS.map(({ id, label }) => <button key={id} type="button" className="btn btn-outline min-h-11" onClick={() => onAction(id)}>{label}</button>)}
     </div> : <>
       <p className="mb-3 text-sm text-muted-foreground">免費試穿，不代表擁有；離開後不儲存。商店將於後續版本開放。</p>

@@ -1,6 +1,6 @@
 import { Suspense, useEffect, useState, type ReactNode } from "react";
 import { useReducedMotion } from "framer-motion";
-import { ArrowLeft, Hand, Info, RotateCcw } from "lucide-react";
+import { ArrowLeft, Info, RotateCcw } from "lucide-react";
 import { ErrorBoundary } from "../../common/ErrorBoundary";
 import { lazyWithReload } from "../../../utils/lazyWithReload";
 import { createCompanionRuntime } from "./logic/companionRuntime";
@@ -72,10 +72,6 @@ export default function CompanionPage({ onExit }: { onExit: () => void }) {
   const [ready, setReady] = useState(false);
   const [panel, setPanel] = useState<"actions" | "outfit" | null>(null);
   const [outfit, setOutfit] = useState<CompanionOutfit>({});
-  const openPanel = (next: "actions" | "outfit") => {
-    runtime.setPetting(false);
-    setPanel(next);
-  };
   const reducedMotion = Boolean(useReducedMotion());
   const hidden = usePageHidden();
 
@@ -94,10 +90,6 @@ export default function CompanionPage({ onExit }: { onExit: () => void }) {
       if (target.render_game_to_text === describe) delete target.render_game_to_text;
     };
   }, [outfit, panel, ready, runtime]);
-
-  const pat = () => {
-    runtime.dispatch({ type: "pat", now: performance.now() });
-  };
 
   const backButton = (
     <button
@@ -224,16 +216,8 @@ export default function CompanionPage({ onExit }: { onExit: () => void }) {
             拖曳轉一圈，點頭、耳朵、肚子或手一起玩
           </p>
           <div className="flex flex-wrap items-center justify-center gap-2">
-            <button type="button" className="btn min-h-11 pointer-events-auto rounded-full" onClick={() => openPanel("actions")}>動作</button>
-            <button type="button" className="btn min-h-11 pointer-events-auto rounded-full" onClick={() => openPanel("outfit")}>換裝</button>
-            <button
-              type="button"
-              onClick={pat}
-              className="btn min-h-11 pointer-events-auto rounded-full"
-            >
-              <Hand className="size-4" aria-hidden="true" />
-              摸摸頭
-            </button>
+            <button type="button" className="btn min-h-11 pointer-events-auto rounded-full" onClick={() => setPanel("actions")}>動作</button>
+            <button type="button" className="btn min-h-11 pointer-events-auto rounded-full" onClick={() => setPanel("outfit")}>換裝</button>
             <button
               type="button"
               onClick={() => runtime.resetView()}
@@ -248,6 +232,7 @@ export default function CompanionPage({ onExit }: { onExit: () => void }) {
       {panel && webGL && !contextLost ? <CompanionPanel panel={panel} outfit={outfit}
         onClose={() => setPanel(null)}
         onAction={(action) => { runtime.perform(action, performance.now()); setPanel(null); }}
+        onPat={() => { runtime.dispatch({ type: "pat", now: performance.now() }); setPanel(null); }}
         onPreview={(id) => setOutfit((current) => previewAccessory(current, id))}
         onClear={() => setOutfit({})} /> : null}
     </div>
