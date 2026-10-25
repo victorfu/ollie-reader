@@ -137,6 +137,8 @@ function makeHook(overrides: Partial<UseWordPractice> = {}): UseWordPractice {
     submit: vi.fn().mockResolvedValue(null),
     abandon: vi.fn().mockResolvedValue(undefined),
     saveSettings: vi.fn().mockResolvedValue(undefined),
+    reviewState: {},
+    reviewHomework: vi.fn().mockResolvedValue(undefined),
     reload: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   };
@@ -426,5 +428,23 @@ describe("history", () => {
 
     expect(text()).toContain("a banana pie");
     expect(text()).toContain("I like the cherry a lot.");
+  });
+
+  it("shows the review as soon as it lands in the history, and retries a failed one", async () => {
+    const done = makeCompleted();
+    hook.current = makeHook({ history: [done], reviewState: { [done.id]: "failed" } });
+    render();
+    await click("5 / 5");
+    expect(text()).toContain("還沒改好");
+
+    await click("再改一次");
+    expect(hook.current.reviewHomework).toHaveBeenCalledWith(expect.objectContaining({ id: done.id }));
+
+    const comment = "用法正確！";
+    hook.current = makeHook({
+      history: [{ ...done, review: { reviewedAt: 1, items: [{ key: done.newWords[0].key, ok: true, comment }] } }],
+    });
+    render();
+    expect(text()).toContain(comment);
   });
 });

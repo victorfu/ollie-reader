@@ -105,15 +105,19 @@ export default function WordPracticePage() {
       </button>
     );
   } else if (viewing) {
-    content = isHomeworkBook(viewing.homework) ? (
+    // The history copy carries the sentence review once Gemini has answered.
+    const shown = history.find((item) => item.id === viewing.homework.id) ?? viewing.homework;
+    content = isHomeworkBook(shown) ? (
       <FinishedView
-        homework={viewing.homework}
+        homework={shown}
         onBack={goHome}
         onAgain={viewing.justFinished ? () => void start() : undefined}
         celebrate={viewing.justFinished}
+        reviewState={wordPractice.reviewState[shown.id]}
+        onReview={() => void wordPractice.reviewHomework(shown)}
       />
     ) : (
-      <LegacyResult homework={viewing.homework} onBack={goHome} />
+      <LegacyResult homework={shown} onBack={goHome} />
     );
   } else if (inBook && active) {
     content = (

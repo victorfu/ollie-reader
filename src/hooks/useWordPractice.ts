@@ -15,8 +15,11 @@ import {
   listCompletedHomeworks,
   loadPracticeState,
   saveHomeworkProgress,
+  saveHomeworkReview,
   saveSettings as saveSettingsToStorage,
 } from "../services/wordPracticeStorage";
+import { reviewSentences } from "../services/sentenceReview";
+import { sentencesToReview } from "../utils/homeworkFlow";
 import { updateReviewStats } from "../services/vocabularyService";
 import { dueReviewKeys, DEFAULT_SETTINGS } from "../utils/reviewSchedule";
 import { logger } from "../utils/logger";
@@ -43,6 +46,14 @@ export interface UseWordPractice {
   submit(): Promise<Homework | null>;
   abandon(): Promise<void>;
   saveSettings(next: PracticeSettings): Promise<void>;
+  /** Gemini review in progress or failed, by homework id; absent when idle or done. */
+  reviewState: Record<string, "reviewing" | "failed">;
+  /**
+   * Asks Gemini once to review the homework's sentences and stores the result.
+   * Runs by itself after a submit; call it again to retry a failed review.
+   * Does nothing for a homework that has a review or no sentences.
+   */
+  reviewHomework(homework: Homework): Promise<void>;
   /**
    * Sets `status` back to "loading" and replaces the state, `active` and
    * `history` with the server's copy. Meant for retrying after a failed load;
@@ -90,6 +101,8 @@ export function useWordPractice(): UseWordPractice {
   const [error, setError] = useState<string | null>(null);
   const [active, setActive] = useState<Homework | null>(null);
   const [history, setHistory] = useState<HistoryHomework[]>([]);
+  const [reviewState, setReviewState] = useState<UseWordPractice["reviewState"]>({});
+  const reviewingRef = useRef(new Set<string>());
   const [settings, setSettings] = useState<PracticeSettings>(DEFAULT_SETTINGS);
   const [reviewDueCount, setReviewDueCount] = useState(0);
   const [starting, setStarting] = useState(false);
@@ -275,6 +288,45 @@ export function useWordPractice(): UseWordPractice {
     [queueSave],
   );
 
+  const reviewHomework = useCallback(async (homework: Homework): Promise<void> => {
+    const ownerUid = uidRef.current;
+    const items = sentencesToReview(homework);
+    if (!ownerUid || homework.review || items.length === 0 || reviewingRef.current.has(homework.id)) {
+      return;
+    }
+    const session = sessionRef.current;
+    const isCurrent = () => sessionRef.current === session;
+    const settle = (next?: "failed") =>
+      setReviewState((previous) => {
+        const rest = { ...previous };
+        delete rest[homework.id];
+        return next ? { ...rest, [homework.id]: next } : rest;
+      });
+
+    reviewingRef.current.add(homework.id);
+    setReviewState((previous) => ({ ...previous, [homework.id]: "reviewing" }));
+    try {
+      const review = { reviewedAt: Date.now(), items: await reviewSentences(items) };
+      if (!isCurrent()) return;
+      setHistory((previous) =>
+        previous.map((item) => (item.id === homework.id ? { ...homework, review } : item)),
+      );
+      settle();
+      try {
+        await saveHomeworkReview(ownerUid, homework.id, review);
+      } catch (err) {
+        // Shown now; the next visit offers the review again.
+        logger.error("Could not save the sentence review:", err);
+      }
+    } catch (err) {
+      if (!isCurrent()) return;
+      logger.error("Could not review the homework sentences:", err);
+      settle("failed");
+    } finally {
+      reviewingRef.current.delete(homework.id);
+    }
+  }, []);
+
   const submit = useCallback((): Promise<Homework | null> => {
     if (submitRef.current) return submitRef.current;
     const ownerUid = uidRef.current;
@@ -313,6 +365,8 @@ export function useWordPractice(): UseWordPractice {
           completed,
           ...previous.filter((item) => item.id !== completed.id),
         ]);
+        // One Gemini request for all the sentences; the finished screen shows it when it lands.
+        void reviewHomework(completed);
       }
 
       // The homework is done; the vocabulary review stats are best effort.
@@ -338,7 +392,7 @@ export function useWordPractice(): UseWordPractice {
     });
     submitRef.current = run;
     return run;
-  }, [applyPracticeState, installActive, queueSave]);
+  }, [applyPracticeState, installActive, queueSave, reviewHomework]);
 
   const saveSettings = useCallback(async (next: PracticeSettings): Promise<void> => {
     const ownerUid = uidRef.current;
@@ -368,6 +422,8 @@ export function useWordPractice(): UseWordPractice {
     setSaveError(null);
     setActive(null);
     setHistory([]);
+    setReviewState({});
+    reviewingRef.current.clear();
     setStarting(false);
     setSettings(DEFAULT_SETTINGS);
     setReviewDueCount(0);
@@ -397,6 +453,8 @@ export function useWordPractice(): UseWordPractice {
     submit,
     abandon,
     saveSettings,
+    reviewState,
+    reviewHomework,
     reload: load,
   };
 }

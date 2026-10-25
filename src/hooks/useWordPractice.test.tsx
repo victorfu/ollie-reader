@@ -19,6 +19,8 @@ const mocks = vi.hoisted(() => ({
   completeHomework: vi.fn(),
   generateHomework: vi.fn(),
   updateReviewStats: vi.fn(),
+  saveHomeworkReview: vi.fn(),
+  reviewSentences: vi.fn(),
   loggerError: vi.fn(),
 }));
 
@@ -31,7 +33,9 @@ vi.mock("../services/wordPracticeStorage", () => ({
   saveHomeworkProgress: mocks.saveHomeworkProgress,
   abandonHomework: mocks.abandonHomework,
   completeHomework: mocks.completeHomework,
+  saveHomeworkReview: mocks.saveHomeworkReview,
 }));
+vi.mock("../services/sentenceReview", () => ({ reviewSentences: mocks.reviewSentences }));
 vi.mock("../services/wordPracticeService", () => ({
   generateHomework: mocks.generateHomework,
 }));
@@ -195,6 +199,8 @@ beforeEach(() => {
   mocks.completeHomework.mockImplementation(async (_uid: string, id: string) =>
     completion(id),
   );
+  mocks.saveHomeworkReview.mockResolvedValue(undefined);
+  mocks.reviewSentences.mockResolvedValue([]);
 });
 
 afterEach(() => {
@@ -458,6 +464,101 @@ describe("useWordPractice saves across unmount", () => {
     expect(mocks.saveHomeworkProgress).toHaveBeenCalledTimes(2);
     expect(hook().saveError).toBeNull();
     expect(hook().active).toBeNull();
+  });
+});
+
+describe("useWordPractice sentence review", () => {
+  const REVIEWS = [{ key: "apple", ok: false, comment: "要加 an。", corrected: "I ate an apple." }];
+  const withSentence = (id: string) => {
+    const done = completedHomework(id);
+    return {
+      ...done,
+      pages: done.pages.map((page, i) => ({ ...page, sentence: i === 0 ? "I ate a apple." : null })),
+    };
+  };
+
+  it("reviews the sentences once after submitting and stores the review in the history", async () => {
+    mocks.completeHomework.mockResolvedValue({ homework: withSentence("hw-1"), reviewUpdates: [] });
+    mocks.reviewSentences.mockResolvedValue(REVIEWS);
+    await renderProbe();
+
+    await act(() => hook().submit());
+    await flushAsyncWork();
+
+    expect(mocks.reviewSentences).toHaveBeenCalledTimes(1);
+    expect(mocks.reviewSentences.mock.calls[0][0]).toEqual([
+      { key: "apple", word: "apple", sentence: "I ate a apple." },
+    ]);
+    expect(mocks.saveHomeworkReview).toHaveBeenCalledWith(
+      "user-1",
+      "hw-1",
+      expect.objectContaining({ items: REVIEWS }),
+    );
+    expect(hook().history[0]).toMatchObject({ id: "hw-1", review: { items: REVIEWS } });
+    expect(hook().reviewState["hw-1"]).toBeUndefined();
+  });
+
+  it("does not ask Gemini when no sentence was written", async () => {
+    await renderProbe();
+    await act(() => hook().submit());
+    await flushAsyncWork();
+    expect(mocks.reviewSentences).not.toHaveBeenCalled();
+  });
+
+  it("marks a failed review so it can be retried, without failing the homework", async () => {
+    mocks.completeHomework.mockResolvedValue({ homework: withSentence("hw-1"), reviewUpdates: [] });
+    mocks.reviewSentences.mockRejectedValueOnce(new Error("quota"));
+    await renderProbe();
+
+    await act(() => hook().submit());
+    await flushAsyncWork();
+    expect(hook().reviewState["hw-1"]).toBe("failed");
+    expect(hook().error).toBeNull();
+    expect(hook().history[0]).toMatchObject({ id: "hw-1", status: "completed" });
+
+    mocks.reviewSentences.mockResolvedValueOnce(REVIEWS);
+    await act(() => hook().reviewHomework(hook().history[0] as Homework));
+    expect(mocks.reviewSentences).toHaveBeenCalledTimes(2);
+    expect(hook().history[0]).toMatchObject({ review: { items: REVIEWS } });
+    expect(hook().reviewState["hw-1"]).toBeUndefined();
+  });
+
+  it("shows the review even when saving it fails", async () => {
+    mocks.completeHomework.mockResolvedValue({ homework: withSentence("hw-1"), reviewUpdates: [] });
+    mocks.reviewSentences.mockResolvedValue(REVIEWS);
+    mocks.saveHomeworkReview.mockRejectedValue(new Error("offline"));
+    await renderProbe();
+
+    await act(() => hook().submit());
+    await flushAsyncWork();
+
+    expect(hook().history[0]).toMatchObject({ review: { items: REVIEWS } });
+    expect(mocks.loggerError).toHaveBeenCalled();
+  });
+
+  it("sends one request when a review is asked for twice at once", async () => {
+    const pending = deferred<typeof REVIEWS>();
+    mocks.reviewSentences.mockReturnValue(pending.promise);
+    mocks.listCompletedHomeworks.mockResolvedValue([withSentence("old-1")]);
+    await renderProbe();
+
+    const old = hook().history[0] as Homework;
+    await act(async () => {
+      void hook().reviewHomework(old);
+      void hook().reviewHomework(old);
+    });
+    expect(hook().reviewState["old-1"]).toBe("reviewing");
+    await act(async () => pending.resolve(REVIEWS));
+    expect(mocks.reviewSentences).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not review a homework that already has a review", async () => {
+    mocks.listCompletedHomeworks.mockResolvedValue([
+      { ...withSentence("old-1"), review: { reviewedAt: 1, items: REVIEWS } },
+    ]);
+    await renderProbe();
+    await act(() => hook().reviewHomework(hook().history[0] as Homework));
+    expect(mocks.reviewSentences).not.toHaveBeenCalled();
   });
 });
 

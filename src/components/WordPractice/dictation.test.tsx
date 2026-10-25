@@ -246,4 +246,53 @@ describe("FinishedView", () => {
     expect(back).toHaveBeenCalled();
     expect(again).toHaveBeenCalled();
   });
+
+  describe("sentence review", () => {
+    const reviewed = {
+      ...finished,
+      review: {
+        reviewedAt: 5,
+        items: [{ key: "river", ok: false, comment: "很好，但要用 very 修飾。", corrected: "The river is very, very long." }],
+      },
+    };
+
+    it("shows Gemini's Chinese comment and the corrected sentence under the sentence", () => {
+      render(<FinishedView homework={reviewed} onBack={noop} />);
+      expect(text()).toContain("很好，但要用 very 修飾。");
+      expect(text()).toContain("修正：The river is very, very long.");
+    });
+
+    it("shows a correct sentence's comment without a fix", () => {
+      const ok = { ...reviewed, review: { reviewedAt: 5, items: [{ key: "river", ok: true, comment: "用法正確！" }] } };
+      render(<FinishedView homework={ok} onBack={noop} />);
+      expect(text()).toContain("用法正確！");
+      expect(text()).not.toContain("修正：");
+    });
+
+    it("says the sentences are being reviewed", () => {
+      render(<FinishedView homework={finished} onBack={noop} reviewState="reviewing" />);
+      expect(text()).toContain("正在批改造句");
+    });
+
+    it("offers a retry when the review failed", async () => {
+      const retry = vi.fn();
+      render(<FinishedView homework={finished} onBack={noop} reviewState="failed" onReview={retry} />);
+      expect(text()).toContain("還沒改好");
+      await click("再改一次");
+      expect(retry).toHaveBeenCalledTimes(1);
+    });
+
+    it("offers a review for a homework that has none yet", async () => {
+      const review = vi.fn();
+      render(<FinishedView homework={finished} onBack={noop} onReview={review} />);
+      await click("批改造句");
+      expect(review).toHaveBeenCalledTimes(1);
+    });
+
+    it("offers no review when there is no sentence to review", () => {
+      const none = { ...finished, pages: finished.pages.map((page) => ({ ...page, sentence: null })) };
+      render(<FinishedView homework={none} onBack={noop} onReview={vi.fn()} />);
+      expect(text()).not.toContain("批改造句");
+    });
+  });
 });

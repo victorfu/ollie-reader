@@ -75,6 +75,19 @@ export interface WordPageProgress {
   sentence: string | null;
 }
 
+/** Gemini's review of one sentence Ollie wrote: a Chinese comment, and a fix when needed. */
+export interface SentenceReview {
+  key: string;
+  ok: boolean;
+  comment: string;
+  corrected?: string;
+}
+
+export interface HomeworkReview {
+  reviewedAt: number;
+  items: SentenceReview[];
+}
+
 export interface DictationItem {
   key: string;
   source: "new" | "review";
@@ -105,6 +118,8 @@ export interface Homework extends HomeworkProgress {
   newWords: HomeworkWord[]; // same order as pages
   reviewWords: HomeworkWord[];
   result?: DictationResult;
+  /** Gemini's review of the sentences, added after the homework is handed in. */
+  review?: HomeworkReview;
 }
 
 /** Old completed homework, kept only to show its date and score in the history. */

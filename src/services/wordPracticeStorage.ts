@@ -18,6 +18,7 @@ import {
   orderBy,
   query,
   runTransaction,
+  updateDoc,
   type DocumentSnapshot,
 } from "firebase/firestore";
 import type {
@@ -25,6 +26,7 @@ import type {
   Homework,
   HistoryHomework,
   HomeworkProgress,
+  HomeworkReview,
   PracticeSettings,
   ReviewStage,
   WordPracticeState,
@@ -275,6 +277,11 @@ export async function saveHomeworkProgress(
       }),
     );
   });
+}
+
+/** Stores Gemini's review of a handed-in homework's sentences. */
+export async function saveHomeworkReview(uid: string, id: string, review: HomeworkReview): Promise<void> {
+  await updateDoc(homeworkRef(uid, id), { review: withoutUndefined(review) });
 }
 
 /**
