@@ -855,6 +855,47 @@ describe("useWordPractice start", () => {
     expect(mocks.saveHomeworkProgress).toHaveBeenCalledTimes(1);
   });
 
+  it("sends no save for the old homework while a new one is being generated", async () => {
+    await renderProbe();
+    const generation = deferred<{ status: "created"; homework: Homework }>();
+    mocks.generateHomework.mockReturnValueOnce(generation.promise);
+
+    let pending!: ReturnType<UseWordPractice["start"]>;
+    act(() => {
+      pending = hook().start();
+    });
+    act(() => hook().updateProgress(progressWithCopies(2, 1)));
+    await flushAsyncWork();
+    expect(mocks.saveHomeworkProgress).not.toHaveBeenCalled();
+
+    await act(async () => {
+      generation.resolve({ status: "created", homework: homework("hw-2") });
+      await pending;
+    });
+    await flushAsyncWork();
+
+    expect(mocks.saveHomeworkProgress).not.toHaveBeenCalled();
+    expect(hook().active?.id).toBe("hw-2");
+  });
+
+  it("keeps saving the old homework when starting fails or finds nothing", async () => {
+    await renderProbe();
+    mocks.generateHomework.mockRejectedValueOnce(new Error("offline"));
+    await act(async () => {
+      await hook().start();
+    });
+    mocks.generateHomework.mockResolvedValueOnce({ status: "empty" });
+    await act(async () => {
+      await hook().start();
+    });
+    const next = progressWithCopies(2, 1);
+
+    act(() => hook().updateProgress(next));
+    await flushAsyncWork();
+
+    expect(mocks.saveHomeworkProgress).toHaveBeenCalledWith("user-1", "hw-1", next);
+  });
+
   it("leaves the active homework alone when there is nothing to practise", async () => {
     await renderProbe();
     mocks.generateHomework.mockResolvedValueOnce({ status: "empty" });

@@ -200,18 +200,27 @@ export function useWordPractice(): UseWordPractice {
     startingRef.current = true;
     setStarting(true);
     setError(null);
+    // Generating abandons the previous homework on the server, and saving
+    // progress has no status guard there. So stop saving for it from now on
+    // (a homework being submitted keeps its tracker: its last save must run),
+    // and reopen it below if no new homework replaces it.
+    const previous = trackerRef.current;
+    const suspended = previous?.phase === "open" ? previous : null;
+    if (suspended) suspended.phase = "abandoning";
+    const reopen = () => {
+      if (suspended?.phase === "abandoning") suspended.phase = "open";
+    };
     try {
       const result = await generateHomework(ownerUid);
       if (isCancelled()) return "failed";
-      if (result.status === "empty") return "empty";
-      // The service has already abandoned the previous homework on the server,
-      // so its progress must not be saved any more. A homework that is being
-      // submitted keeps its tracker: its last save still has to run.
-      const previous = trackerRef.current;
-      if (previous?.phase === "open") previous.phase = "abandoning";
+      if (result.status === "empty") {
+        reopen();
+        return "empty";
+      }
       installActive(result.homework, ownerUid);
       return "created";
     } catch (err) {
+      reopen();
       if (isCancelled()) return "failed";
       logger.error("Could not start word practice homework:", err);
       setError(GENERATE_ERROR);
