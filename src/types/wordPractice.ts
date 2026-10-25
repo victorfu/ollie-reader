@@ -4,15 +4,34 @@ export interface CefrInfo {
   source: "list" | "ai";
 }
 
+export type HomeworkStatus = "active" | "completed" | "abandoned";
+
+/** 0 = not yet written correctly; 1-5 = index into the review intervals. */
+export type ReviewStage = 0 | 1 | 2 | 3 | 4 | 5;
+
 export interface WordPracticeWordState {
+  stage: ReviewStage;
+  dueAt?: number; // ms; only when stage >= 1
+  needsPractice?: boolean; // missed in dictation, not yet written correctly again
+  lastResult?: "correct" | "wrong";
+  sentence?: string; // the example sentence from an earlier homework snapshot
   learnedAt?: number;
   missCount: number;
-  lastMissedAt?: number;
+  lastMissedAt?: number; // learnedAt, missCount and lastMissedAt are records only
 }
+
+export interface PracticeSettings {
+  newWordCount: number;
+  reviewLimit: number;
+  startLevel: CefrLevel;
+}
+
 export interface WordPracticeState {
+  schemaVersion: 2;
   activeHomeworkId: string | null;
   words: Record<string, WordPracticeWordState>; // key = practiceKey(word)
   cefrEstimates: Record<string, CefrLevel>; // key = practiceKey(word)
+  settings: PracticeSettings;
 }
 
 export interface Cloze {
@@ -31,47 +50,70 @@ export interface HomeworkWord {
   vocabularyId: string;
   word: string;
   emoji?: string;
-  definitions: { partOfSpeech: string; definition: string }[]; // English only
+  definitions: {
+    partOfSpeech: string;
+    definition: string;
+    definitionChinese?: string;
+  }[];
   sentence: string | null;
-  cloze: Cloze | null;
   cefr: CefrInfo | null;
 }
-export interface ExerciseProgress {
-  attempts: number;
-  correct: boolean;
-  done: boolean;
+
+export type PageSection =
+  | "look"
+  | "copy"
+  | "recall"
+  | "phrase"
+  | "sentence"
+  | "done";
+
+export interface WordPageProgress {
+  section: PageSection;
+  copies: number;
+  phrase: string | null;
+  sentence: string | null;
 }
-export interface SentenceFeedback {
-  usedCorrectly: boolean;
-  feedback: string;
-  suggestion?: string;
+
+export interface DictationItem {
+  key: string;
+  source: "new" | "review";
+  answer: string | null;
+  skipped: boolean;
 }
-export interface HomeworkWordProgress {
-  learned: boolean;
-  spellCorrect: number;
-  fill: ExerciseProgress;
-  define: ExerciseProgress;
-  sentence: { text: string; feedback: SentenceFeedback | null } | null;
-  testAnswer: string | null;
+
+export interface HomeworkProgress {
+  pages: WordPageProgress[];
+  dictation: DictationItem[];
+  corrections: Record<string, number>;
 }
-export interface HomeworkOptions {
-  wordCount: number;
-  startLevel: CefrLevel;
-}
-export interface HomeworkResult {
+
+export interface DictationResult {
   correctKeys: string[];
-  missedKeys: string[];
+  wrongKeys: string[];
+  skippedKeys: string[];
   correctCount: number;
   total: number;
 }
-export type HomeworkStatus = "active" | "completed" | "abandoned";
-export interface Homework {
+
+export interface Homework extends HomeworkProgress {
+  version: 2;
   id: string;
   status: HomeworkStatus;
   createdAt: number;
   completedAt?: number;
-  options: HomeworkOptions;
-  words: HomeworkWord[];
-  progress: HomeworkWordProgress[]; // same order as words
-  result?: HomeworkResult;
+  newWords: HomeworkWord[]; // same order as pages
+  reviewWords: HomeworkWord[];
+  result?: DictationResult;
 }
+
+/** Old completed homework, kept only to show its date and score in the history. */
+export interface LegacyHomework {
+  id: string;
+  status: HomeworkStatus;
+  createdAt: number;
+  completedAt?: number;
+  words: { key: string; word: string }[];
+  result?: { correctCount: number; total: number };
+}
+
+export type HistoryHomework = Homework | LegacyHomework;
