@@ -20,6 +20,7 @@
     "@supabase/supabase-js": "^2.108.2",
     "@tailwindcss/vite": "^4.1.18",
     "@types/canvas-confetti": "^1.9.0",
+    "cactus-needle": "0.3.0",
     "canvas-confetti": "^1.9.4",
     "daisyui": "^5.5.18",
     "firebase": "^12.9.0",

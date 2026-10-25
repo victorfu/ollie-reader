@@ -4,6 +4,8 @@ export interface PodcastEpisode {
   podcastTitle: string;
   artworkUrl: string | null;
   audioUrl: string;
+  /** Signed backend path that relays audio with CORS for live captions; null when not configured. */
+  captionAudioUrl?: string | null;
   durationSeconds: number | null;
   sourceUrl: string;
   podcastId: string;
@@ -20,3 +22,20 @@ export interface PodcastShow {
 }
 
 export type PodcastResolution = PodcastEpisode | PodcastShow;
+
+/**
+ * The audible path's delay line: `seconds` of wall-clock delay, filled at
+ * playback `rate`, last emptied at media time `anchor`.
+ */
+export interface CaptionDelay {
+  seconds: number;
+  rate: number;
+  anchor: number;
+}
+
+/** A recognised word placed on the episode's media timeline, in seconds. */
+export interface PodcastCaptionWord {
+  word: string;
+  start: number;
+  end: number;
+}

@@ -8,6 +8,9 @@ import { NAVIGATE_FALLBACK_DENYLIST } from "./src/constants/pwa";
 
 // https://vite.dev/config/
 export default defineConfig({
+  // Whistle resolves its worker and WASM relative to import.meta.url, which
+  // dependency pre-bundling would break in development.
+  optimizeDeps: { exclude: ["cactus-needle"] },
   plugins: [
     tailwindcss(),
     react(),

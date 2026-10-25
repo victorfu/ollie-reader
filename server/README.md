@@ -93,6 +93,7 @@ curl --fail-with-body http://localhost:3000/api/etts \
 | `API_VERSION` | `1.0.1`; value returned by `/api/version` |
 | `FIREBASE_PROJECT_ID` | Firebase project whose client ID tokens may access OIKID |
 | `OIKID_USERNAME`, `OIKID_PASSWORD` | Shared OIKID account, server-only secrets |
+| `PODCAST_AUDIO_SECRET` | At least 32 random characters; signs Podcast caption audio links. Unset disables `/api/podcasts/audio` |
 
 Default allowed origins are `http://localhost:5173`, `http://127.0.0.1:5173`, `https://ollie-reader.web.app` and `https://ollie-reader.firebaseapp.com`. `OPTIONS` supports JSON `POST` preflights. Add an exact Firebase preview origin here when testing a preview channel. Direct clients without an Origin header are accepted. This endpoint is intentionally unauthenticated; CORS controls browser access, not authorization of non-browser clients.
 
@@ -110,7 +111,7 @@ Edge TTS uses Microsoft's network service through a community package, just like
 ## POST /api/podcasts/resolve
 
 Accepts JSON `{ "url": "https://podcasts.apple.com/tw/podcast/storytime-sweeter-than-honey/id1567336024?i=1000539350317" }`.
-Returns `title`, `podcastTitle`, nullable `artworkUrl` and `durationSeconds`, `audioUrl`, `sourceUrl`, `podcastId`, `episodeId`, and the RSS `guid`.
+Returns `title`, `podcastTitle`, nullable `artworkUrl` and `durationSeconds`, `audioUrl`, `sourceUrl`, `podcastId`, `episodeId`, the RSS `guid`, and `captionAudioUrl` (a signed `/api/podcasts/audio` path, or `null` when `PODCAST_AUDIO_SECRET` is unset).
 
 The entry URL must be HTTPS on exactly `podcasts.apple.com`, use a country/show path, and may contain one numeric episode `i` parameter. Duplicate, empty, or nonnumeric `i` parameters are rejected. Apple’s public episode page currently exposes `serialized-server-data`: the resolver requires an offer whose `contentId` **and** `showOffer.adamId` match the requested episode/show, then obtains its actual RSS GUID and feed URL. Repeated identical offers are deduplicated; conflicting offers fail. This avoids treating the Apple numeric ID as the RSS GUID. Only one RSS item with that exact GUID is accepted; title/date guesses and latest-episode fallback are deliberately unsupported.
 
@@ -124,3 +125,11 @@ Errors use `{ "detail": "..." }`: `400` invalid input, `404` requested GUID abse
 
 
 For a show URL without `i`, the same endpoint returns `{ kind: "show", podcastTitle, sourceUrl, episodes, unavailableCount }`. Show metadata must match the requested `adamId` exactly (related-show recommendations are ignored). The public RSS supplies the episode choices; no episode is selected automatically. Every choice includes its exact GUID and validated enclosure. Its `episodeId` is `null` because Apple numeric IDs cannot be inferred from RSS GUIDs. Items with missing/duplicate GUIDs or unsupported/unsafe enclosures are excluded and counted in `unavailableCount`. No subscription or background synchronization is added.
+
+## GET /api/podcasts/audio
+
+Relays one verified RSS enclosure with CORS so the web player's optional English live captions can read the audio through Web Audio. Browsers cannot capture cross-origin media whose host omits CORS headers (for example Libsyn); hosts that already allow CORS are read directly and never reach this route.
+
+Media elements cannot send a Firebase token, so the credential is the link itself: `url`, `expires` and an HMAC-SHA256 `signature` minted by the resolver with `PODCAST_AUDIO_SECRET`. Links last 12 hours and bind the exact enclosure URL; any change returns `403`. Without the secret the route returns `503`.
+
+Each response is a single `206` slice of at most 4 MiB: an open or larger `Range` is clamped, and the media element requests the next range itself, so no invocation streams a whole episode. Suffix and multi-range requests return `416`, and an upstream `416` is passed through. Upstream redirects (up to eight) go through the same public-address-only socket dispatcher as other fetches. Only a byte-exact `206` answer with an audio (or octet-stream) type and no content encoding is relayed; anything else returns `502`. The upstream deadline is 60 seconds.
