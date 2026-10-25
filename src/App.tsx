@@ -13,7 +13,6 @@ import {
   BookMarked,
   SpellCheck,
   Mic,
-  PenLine,
   Music,
   Headphones,
   MonitorPlay,
@@ -36,6 +35,7 @@ import { ThemeToggle } from "./components/common/ThemeToggle";
 import { useWarmServerOnRouteChange } from "./hooks/useWarmServer";
 import { ErrorBoundary } from "./components/common/ErrorBoundary";
 import { lazyWithReload } from "./utils/lazyWithReload";
+import { SpeechHub } from "./components/Speech/SpeechHub";
 
 // Lazy load route components for code splitting. lazyWithReload recovers from
 // stale-chunk errors (old hashed chunks gone after a deploy) by reloading once.
@@ -428,20 +428,33 @@ function AppContent() {
   const accountLabel = user.displayName || user.email || "使用者";
   const accountEmail = user.email;
   const accountInitial = accountLabel.charAt(0).toUpperCase();
-  const navItems: { to: string; label: string; icon: typeof BookOpen }[] = [
+  const navItems: {
+    to: string;
+    label: string;
+    icon: typeof BookOpen;
+    /** 其他也算在這個入口底下的路徑（子分頁） */
+    matches?: string[];
+  }[] = [
     { to: "/reader", label: "閱讀器", icon: BookOpen },
     { to: "/vocabulary", label: "生詞本", icon: BookMarked },
     { to: "/word-practice", label: "單字練習", icon: SpellCheck },
-    { to: "/english-speech", label: "英文演講", icon: PenLine },
-    { to: "/speech-practice", label: "演講練習", icon: Mic },
+    {
+      to: "/english-speech",
+      label: "演講",
+      icon: Mic,
+      matches: ["/speech-practice"],
+    },
     { to: "/audio-uploads", label: "音訊庫", icon: Music },
     { to: "/podcasts", label: "Podcast 聽力", icon: Headphones },
     { to: "/show", label: "影集字幕", icon: MonitorPlay },
     { to: "/exams", label: "基本學力測驗", icon: ClipboardCheck },
     { to: "/games", label: "小遊戲", icon: Joystick },
   ];
+  const isNavItemActive = (item: (typeof navItems)[number]) =>
+    item.to === location.pathname ||
+    (item.matches?.includes(location.pathname) ?? false);
   const currentLabel =
-    navItems.find((item) => item.to === location.pathname)?.label ??
+    navItems.find(isNavItemActive)?.label ??
     (location.pathname === "/settings" ? "設定" : "Ollie Reader");
 
   return (
@@ -490,7 +503,7 @@ function AppContent() {
           }`}
         >
           {navItems.map((item) => {
-            const isActive = location.pathname === item.to;
+            const isActive = isNavItemActive(item);
             const Icon = item.icon;
             return (
               <Link
@@ -668,7 +681,7 @@ function AppContent() {
               {/* Navigation */}
               <nav className="flex-1 space-y-1 overflow-y-auto p-3">
                 {navItems.map((item) => {
-                  const isActive = location.pathname === item.to;
+                  const isActive = isNavItemActive(item);
                   const Icon = item.icon;
                   return (
                     <Link
@@ -722,13 +735,19 @@ function AppContent() {
                         element={<WordPracticePage />}
                       />
                       <Route
-                        path="/speech-practice"
-                        element={<SpeechPractice />}
+                        path="/speech"
+                        element={<Navigate to="/english-speech" replace />}
                       />
-                      <Route
-                        path="/english-speech"
-                        element={<SentencePractice />}
-                      />
+                      <Route element={<SpeechHub />}>
+                        <Route
+                          path="/english-speech"
+                          element={<SentencePractice />}
+                        />
+                        <Route
+                          path="/speech-practice"
+                          element={<SpeechPractice />}
+                        />
+                      </Route>
                       <Route path="/audio-uploads" element={<AudioUploads />} />
                       <Route path="/podcasts" element={<Podcasts />} />
                       <Route path="/show" element={<ShowSubtitlesPage />} />

@@ -119,3 +119,30 @@ describe("Podcast navigation", () => {
     expect(window.history.state.usr.from).toBe("/podcasts");
   });
 });
+
+describe("Speech navigation", () => {
+  it("shows a single Speech entry instead of separate speech items", () => {
+    window.history.replaceState(null, "", "/reader");
+    act(() => root.render(<App />));
+    const labels = Array.from(host.querySelectorAll("aside nav a")).map((link) => link.textContent);
+    expect(labels).toContain("演講");
+    expect(labels).not.toContain("英文演講");
+    expect(labels).not.toContain("演講練習");
+  });
+  it.each(["/english-speech", "/speech-practice"])("marks the Speech entry active on %s and shows both sub-tabs", (path) => {
+    window.history.replaceState(null, "", path);
+    act(() => root.render(<App />));
+    const active = host.querySelector('aside nav a[aria-current="page"]');
+    expect(active?.textContent).toBe("演講");
+    const tabs = host.querySelector('nav[aria-label="演講分類"]');
+    expect(tabs?.querySelector('a[href="/english-speech"]')?.textContent).toContain("英文演講");
+    expect(tabs?.querySelector('a[href="/speech-practice"]')?.textContent).toContain("演講練習");
+    expect(tabs?.querySelector(`a[href="${path}"]`)?.getAttribute("aria-current")).toBe("page");
+    expect(host.textContent).toContain("Page content");
+  });
+  it("redirects /speech to English Speech", () => {
+    window.history.replaceState(null, "", "/speech");
+    act(() => root.render(<App />));
+    expect(window.location.pathname).toBe("/english-speech");
+  });
+});
