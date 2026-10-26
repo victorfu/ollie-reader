@@ -9,6 +9,7 @@ import { BossHpBar } from "./BossHpBar";
 import { useSpeechState } from "../../hooks/useSpeechState";
 import { useLanguage } from "../../hooks/useLanguage";
 import { T } from "../common/T";
+import { BOSS_EMOJI } from "../../constants/sceneThemes";
 
 interface BossBattleProps {
   stage: Stage;
@@ -21,18 +22,6 @@ interface BossBattleProps {
   onQuit: () => void;
   isSettling: boolean;
 }
-
-// 每個魔王的外觀
-const BOSS_EMOJI: Record<string, string> = {
-  "boss-1": "🛡️",
-  "boss-2": "❄️",
-  "boss-3": "🔥",
-  "boss-4": "⚡",
-  "boss-5": "🌪️",
-  "boss-6": "🍥",
-  "boss-7": "🎩",
-  "boss-8": "👑",
-};
 
 export function BossBattle({
   stage,

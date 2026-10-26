@@ -2,8 +2,9 @@ vi.mock("../utils/firebaseUtil", () => ({ db: {} }));
 import { describe, it, expect, vi } from "vitest";
 import { STAGES, LEVEL_EXP_TABLE } from "./gameProgressService";
 import { CHAPTERS, getChapterForStageIndex } from "../constants/chapters";
+import { BOSS_EMOJI, SCENE_THEMES } from "../constants/sceneThemes";
 
-const QUIZ_KINDS = ["meaning", "listen", "spell", "reverse", "emoji"];
+const QUIZ_KINDS = ["meaning", "listen", "spell", "reverse", "emoji", "cloze"];
 
 describe("STAGES data integrity", () => {
   it("stage numbers are strictly increasing", () => {
@@ -58,6 +59,33 @@ describe("chapters", () => {
     expect(getChapterForStageIndex(0).id).toBe("ch1");
     expect(getChapterForStageIndex(12).id).toBe("ch1");
     expect(getChapterForStageIndex(13).id).toBe("ch2");
-    expect(getChapterForStageIndex(STAGES.length - 1).id).toBe("ch2");
+    expect(getChapterForStageIndex(22).id).toBe("ch2");
+    expect(getChapterForStageIndex(23).id).toBe("ch3");
+    expect(getChapterForStageIndex(STAGES.length - 1).id).toBe("ch3");
+  });
+});
+
+describe("chapter 3", () => {
+  const ch3 = STAGES.filter((s) => s.chapterId === "ch3");
+
+  it("has 33 stages ending with the deep sea whale king", () => {
+    expect(STAGES).toHaveLength(33);
+    expect(STAGES[32].id).toBe("boss-11");
+    expect(ch3).toHaveLength(10);
+  });
+
+  it("only chapter 3 uses cloze", () => {
+    for (const stage of STAGES) {
+      if (stage.questionKinds?.includes("cloze")) {
+        expect(stage.chapterId, stage.id).toBe("ch3");
+      }
+    }
+  });
+
+  it("every chapter 3 stage has a scene theme and every boss an emoji", () => {
+    for (const stage of ch3) {
+      expect(SCENE_THEMES[stage.id], stage.id).toBeDefined();
+      if (stage.isBoss) expect(BOSS_EMOJI[stage.id], stage.id).toBeDefined();
+    }
   });
 });
