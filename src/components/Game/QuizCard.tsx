@@ -203,7 +203,7 @@ export function QuizCard({
               className="btn btn-primary gap-2 rounded-full text-lg min-h-14 px-8 active:scale-95"
             >
               <Volume2 className="h-5 w-5" strokeWidth={2} aria-hidden="true" />
-              <T k="adventure.quiz.listenAgain" variant="stacked" />
+              <T k="adventure.quiz.listenAgain" />
             </button>
           )}
           {question.kind === "cloze" && (
@@ -399,7 +399,6 @@ export function QuizCard({
                           ? "adventure.quiz.seeResults"
                           : "adventure.quiz.next"
                     }
-                    variant="stacked"
                   />
                   <ArrowRight
                     className="h-4 w-4"

@@ -50,7 +50,7 @@ export function ExamRandomHub({
           </span>
           <div>
             <h2 className="text-xl font-semibold tracking-tight">
-              <T k="exams.scope.mixed" variant="stacked" />
+              <T k="exams.scope.mixed" />
             </h2>
             <p className="text-xs text-muted-foreground">
               <T k="exams.random.pool" params={{ total: MIXED_POOL_TOTAL }} />
@@ -88,7 +88,7 @@ export function ExamRandomHub({
           className="btn btn-primary min-h-[48px] w-full gap-1.5 rounded-xl"
         >
           <Play size={18} strokeWidth={2} />
-          <T k="exams.random.generate" variant="stacked" />
+          <T k="exams.random.generate" />
         </button>
       </article>
 

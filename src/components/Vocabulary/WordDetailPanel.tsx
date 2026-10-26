@@ -74,7 +74,7 @@ export const WordDetailPanel = ({
     if (!result.success) {
       setToast({
         message: result.message || (
-          <T k="reader.vocab.saveFailed" variant="stacked" />
+          <T k="reader.vocab.saveFailed" />
         ),
         type: "error",
       });
@@ -83,7 +83,7 @@ export const WordDetailPanel = ({
     setWord((prev) => ({ ...prev, ...updates }));
     setIsEditing(false);
     setToast({
-      message: <T k="reader.vocab.tagsSaved" variant="stacked" />,
+      message: <T k="reader.vocab.tagsSaved" />,
       type: "success",
     });
   };
@@ -126,20 +126,20 @@ export const WordDetailPanel = ({
       if (result.success && result.updatedWord) {
         setWord((prev) => ({ ...prev, ...result.updatedWord }));
         setToast({
-          message: <T k="reader.vocab.regenerated" variant="stacked" />,
+          message: <T k="reader.vocab.regenerated" />,
           type: "success",
         });
       } else {
         setToast({
           message: result.message || (
-            <T k="reader.vocab.regenerateFailed" variant="stacked" />
+            <T k="reader.vocab.regenerateFailed" />
           ),
           type: "error",
         });
       }
     } catch {
       setToast({
-        message: <T k="reader.vocab.regenerateError" variant="stacked" />,
+        message: <T k="reader.vocab.regenerateError" />,
         type: "error",
       });
     } finally {
@@ -228,7 +228,7 @@ export const WordDetailPanel = ({
                   className="btn btn-sm btn-primary"
                   disabled={!newTag.trim()}
                 >
-                  <T k="reader.vocab.addTag" variant="stacked" />
+                  <T k="reader.vocab.addTag" />
                 </button>
               </div>
               {tagSuggestions.length > 0 && (
@@ -270,7 +270,7 @@ export const WordDetailPanel = ({
             </div>
             <div className="flex gap-2">
               <button type="button" onClick={handleSave} className="btn btn-primary btn-sm">
-                <T k="reader.vocab.save" variant="stacked" />
+                <T k="reader.vocab.save" />
               </button>
               <button
                 type="button"
@@ -281,7 +281,7 @@ export const WordDetailPanel = ({
                 }}
                 className="btn btn-ghost btn-sm"
               >
-                <T k="common.cancel" variant="stacked" />
+                <T k="common.cancel" />
               </button>
             </div>
           </div>
@@ -321,7 +321,7 @@ export const WordDetailPanel = ({
               }}
               className="btn btn-ghost btn-xs"
             >
-              <T k="reader.vocab.editTags" variant="stacked" />
+              <T k="reader.vocab.editTags" />
             </button>
           </div>
         )}
@@ -332,7 +332,7 @@ export const WordDetailPanel = ({
         <div className="mb-6">
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-semibold text-lg">
-              📖 <T k="reader.vocab.definitions" variant="stacked" />
+              📖 <T k="reader.vocab.definitions" />
             </h3>
             <label className="flex items-center gap-2 cursor-pointer text-sm select-none">
               <span className="text-muted-foreground">
@@ -373,7 +373,7 @@ export const WordDetailPanel = ({
       {word.examples.length > 0 && (
         <div className="mb-6">
           <h3 className="font-semibold text-lg mb-3">
-            💡 <T k="reader.vocab.examples" variant="stacked" />
+            💡 <T k="reader.vocab.examples" />
           </h3>
           <div className="space-y-3">
             {word.examples.map((example, index) => (

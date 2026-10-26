@@ -12,7 +12,7 @@ export interface LanguageContextValue {
   mode: LanguageMode;
   /** The language the interface is displayed in. */
   language: Language;
-  /** True in "en-hint" mode: English text should offer its Chinese meaning. */
+  /** True in English mode: English text should offer its Chinese meaning. */
   showHints: boolean;
   setMode: (mode: LanguageMode) => void;
   /** Text in the display language. */

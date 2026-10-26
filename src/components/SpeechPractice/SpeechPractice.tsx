@@ -110,7 +110,7 @@ export function SpeechPractice() {
 
         if (result.success) {
           enqueueToast({
-            message: <T k="listening.speech.msg.scriptSaved" variant="stacked" />,
+            message: <T k="listening.speech.msg.scriptSaved" />,
             type: "success",
           });
           return true;
@@ -272,7 +272,7 @@ export function SpeechPractice() {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight flex items-center gap-2">
-              🎤 <T k="listening.speech.title" variant="stacked" />
+              🎤 <T k="listening.speech.title" />
             </h1>
             <p className="text-muted-foreground mt-1">
               <T k="listening.speech.subtitle" />
@@ -293,7 +293,7 @@ export function SpeechPractice() {
               }}
               disabled={timer.isRunning}
             >
-              <T k="listening.speech.tabTopics" variant="stacked" />
+              <T k="listening.speech.tabTopics" />
             </button>
             <button
               type="button"
@@ -307,7 +307,7 @@ export function SpeechPractice() {
               }}
               disabled={timer.isRunning}
             >
-              <T k="listening.speech.tabHistory" variant="stacked" />
+              <T k="listening.speech.tabHistory" />
             </button>
           </div>
         </div>
@@ -392,7 +392,7 @@ export function SpeechPractice() {
                     onChange={(e) => setIsScriptExpanded(e.target.checked)}
                   />
                   <div className="collapse-title font-medium flex items-center gap-2">
-                    📄 <T k="listening.speech.referenceScript" variant="stacked" />
+                    📄 <T k="listening.speech.referenceScript" />
                     <span className="badge badge-sm badge-ghost">
                       <T k="listening.charCount" params={{ count: script.length }} />
                     </span>
@@ -428,7 +428,7 @@ export function SpeechPractice() {
                   {recorder.audioUrl && (
                     <div className="space-y-2">
                       <h3 className="text-sm font-semibold flex items-center gap-2">
-                        🎧 <T k="listening.speech.playback" variant="stacked" />
+                        🎧 <T k="listening.speech.playback" />
                       </h3>
                       <audio
                         controls
@@ -469,15 +469,15 @@ export function SpeechPractice() {
                       {recorder.isFinalizing ? (
                         <>
                           <span className="loading loading-spinner loading-sm" />
-                          <T k="listening.speech.processingRecording" variant="stacked" />
+                          <T k="listening.speech.processingRecording" />
                         </>
                       ) : isSaving ? (
                         <>
                           <span className="loading loading-spinner loading-sm" />
-                          <T k="listening.saving" variant="stacked" />
+                          <T k="listening.saving" />
                         </>
                       ) : (
-                        <T k="listening.speech.saveRecord" variant="stacked" />
+                        <T k="listening.speech.saveRecord" />
                       )}
                     </button>
                     <button
@@ -486,7 +486,7 @@ export function SpeechPractice() {
                       onClick={handleCancelPractice}
                       disabled={isSaving}
                     >
-                      <T k="listening.speech.discard" variant="stacked" />
+                      <T k="listening.speech.discard" />
                     </button>
                   </div>
                 </div>
@@ -533,7 +533,7 @@ export function SpeechPractice() {
                       >
                         <path d="M19 12H5M12 19l-7-7 7-7" />
                       </svg>
-                      <T k="listening.speech.back" variant="stacked" />
+                      <T k="listening.speech.back" />
                     </button>
                     <button
                       type="button"
@@ -552,10 +552,10 @@ export function SpeechPractice() {
                       {recorder.isStarting ? (
                         <>
                           <span className="loading loading-spinner loading-sm" />
-                          <T k="listening.speech.startingMic" variant="stacked" />
+                          <T k="listening.speech.startingMic" />
                         </>
                       ) : (
-                        <T k="listening.speech.start" variant="stacked" />
+                        <T k="listening.speech.start" />
                       )}
                     </button>
                     <div className="w-16" /> {/* Spacer for balance */}
@@ -662,12 +662,12 @@ export function SpeechPractice() {
       {/* Delete Confirmation Modal */}
       <ConfirmModal
         isOpen={deleteRecordId !== null}
-        title={<T k="listening.speech.deleteTitle" variant="stacked" />}
+        title={<T k="listening.speech.deleteTitle" />}
         message={<T k="listening.speech.deleteMessage" />}
         onConfirm={confirmDelete}
         onCancel={cancelDelete}
-        confirmText={<T k="listening.delete" variant="stacked" />}
-        cancelText={<T k="common.cancel" variant="stacked" />}
+        confirmText={<T k="listening.delete" />}
+        cancelText={<T k="common.cancel" />}
         confirmVariant="error"
         isLoading={isDeleting}
       />

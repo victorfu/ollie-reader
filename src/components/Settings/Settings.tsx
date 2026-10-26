@@ -152,7 +152,7 @@ export const Settings = () => {
         <aside className="lg:sticky lg:top-[4.5rem] lg:w-56 lg:shrink-0">
           {/* Mobile: page heading */}
           <h1 className="mb-3 text-2xl font-semibold tracking-tight lg:hidden">
-            ⚙️ <T k="settings.title" variant="stacked" />
+            ⚙️ <T k="settings.title" />
           </h1>
 
           {/* Mobile: horizontally scrollable segmented nav */}
@@ -174,7 +174,7 @@ export const Settings = () => {
                     }`}
                   >
                     <Icon className="size-4" strokeWidth={1.75} aria-hidden="true" />
-                    <T k={cat.label} variant="stacked" />
+                    <T k={cat.label} />
                   </button>
                 );
               })}
@@ -184,7 +184,7 @@ export const Settings = () => {
           {/* Desktop: vertical sidebar nav */}
           <GlassCard className="hidden overflow-hidden lg:block">
             <div className="px-3 pb-1 pt-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground/70">
-              <T k="settings.title" variant="stacked" />
+              <T k="settings.title" />
             </div>
             <nav className="space-y-1 p-2 pt-1">
               {CATEGORIES.map((cat) => {
@@ -203,7 +203,7 @@ export const Settings = () => {
                     }`}
                   >
                     <Icon className="size-5 shrink-0" strokeWidth={1.75} aria-hidden="true" />
-                    <T k={cat.label} variant="stacked" />
+                    <T k={cat.label} />
                   </button>
                 );
               })}
@@ -225,7 +225,7 @@ export const Settings = () => {
               {activeCategory === "appearance" && (
                 <div>
                   <h3 className="text-lg font-semibold mb-3">
-                    <T k="settings.theme.title" variant="stacked" />
+                    <T k="settings.theme.title" />
                   </h3>
                   <p className="text-sm text-muted-foreground mb-4">
                     <T k="settings.theme.description" />
@@ -248,14 +248,14 @@ export const Settings = () => {
                           }`}
                         >
                           <Icon className="size-4" strokeWidth={1.75} aria-hidden="true" />
-                          <T k={opt.label} variant="stacked" />
+                          <T k={opt.label} />
                         </button>
                       );
                     })}
                   </div>
 
                   <h3 className="text-lg font-semibold mb-3 mt-8">
-                    <T k="settings.language.title" variant="stacked" />
+                    <T k="settings.language.title" />
                   </h3>
                   <p className="text-sm text-muted-foreground mb-4">
                     <T k="settings.language.description" />
@@ -271,7 +271,7 @@ export const Settings = () => {
                   {/* TTS Mode Selection */}
                   <div>
                     <h3 className="text-lg font-semibold mb-3">
-                      <T k="settings.tts.title" variant="stacked" />
+                      <T k="settings.tts.title" />
                     </h3>
                     <p className="text-sm text-muted-foreground mb-4">
                       <T k="settings.tts.description" />
@@ -289,7 +289,7 @@ export const Settings = () => {
                         />
                         <div className="flex-1">
                           <div className="font-medium">
-                            <T k="settings.tts.browser" variant="stacked" />
+                            <T k="settings.tts.browser" />
                           </div>
                           <div className="text-sm text-muted-foreground">
                             <T k="settings.tts.browserDesc" />
@@ -308,7 +308,7 @@ export const Settings = () => {
                         />
                         <div className="flex-1">
                           <div className="font-medium">
-                            <T k="settings.tts.api" variant="stacked" />
+                            <T k="settings.tts.api" />
                           </div>
                           <div className="text-sm text-muted-foreground">
                             <T k="settings.tts.apiDesc" />
@@ -324,7 +324,7 @@ export const Settings = () => {
                   {/* Speech Rate Setting */}
                   <div>
                     <h3 className="text-lg font-semibold mb-3">
-                      <T k="settings.rate.title" variant="stacked" />
+                      <T k="settings.rate.title" />
                     </h3>
                     <p className="text-sm text-muted-foreground mb-4">
                       <T k="settings.rate.description" />
@@ -333,7 +333,7 @@ export const Settings = () => {
                     <div className="p-4 border border-border-hairline rounded-lg">
                       <div className="flex items-center gap-4">
                         <span className="text-sm whitespace-nowrap">
-                          <T k="settings.rate.slow" variant="stacked" />
+                          <T k="settings.rate.slow" />
                         </span>
                         <input
                           type="range"
@@ -348,7 +348,7 @@ export const Settings = () => {
                           disabled={saving}
                         />
                         <span className="text-sm whitespace-nowrap">
-                          <T k="settings.rate.fast" variant="stacked" />
+                          <T k="settings.rate.fast" />
                         </span>
                         <span className="badge badge-primary min-w-[4rem] justify-center">
                           {speechRate.toFixed(1)}x
@@ -365,7 +365,7 @@ export const Settings = () => {
                   {/* 運算後端 / 連線模式 */}
                   <div>
                     <h3 className="text-lg font-semibold mb-3">
-                      <T k="settings.compute.title" variant="stacked" />
+                      <T k="settings.compute.title" />
                     </h3>
                     <p className="text-sm text-muted-foreground mb-4">
                       <T k="settings.compute.description" />
@@ -393,7 +393,7 @@ export const Settings = () => {
                           />
                           <div className="flex-1">
                             <div className="font-medium">
-                              <T k={opt.name} variant="stacked" />
+                              <T k={opt.name} />
                             </div>
                             <div className="text-sm text-muted-foreground">
                               <T k={opt.desc} />
@@ -428,7 +428,6 @@ export const Settings = () => {
                         >
                           <T
                             k={redetecting ? "settings.compute.detecting" : "settings.compute.redetect"}
-                            variant="stacked"
                           />
                         </button>
                       </div>
@@ -441,7 +440,7 @@ export const Settings = () => {
               {activeCategory === "game" && (
                 <div>
                   <h3 className="text-lg font-semibold mb-3">
-                    🎮 <T k="settings.game.title" variant="stacked" />
+                    🎮 <T k="settings.game.title" />
                   </h3>
                   <p className="text-sm text-muted-foreground mb-4">
                     <T k="settings.game.description" />
@@ -460,7 +459,7 @@ export const Settings = () => {
                           </span>
                           <span className="min-w-0">
                             <span className="block font-medium">
-                              <T k="settings.game.missRate" variant="stacked" />
+                              <T k="settings.game.missRate" />
                             </span>
                             <span
                               id="gacha-miss-rate-description"
@@ -513,7 +512,7 @@ export const Settings = () => {
                         </span>
                         <span className="min-w-0">
                           <span className="block font-medium">
-                            <T k="settings.game.showAll" variant="stacked" />
+                            <T k="settings.game.showAll" />
                           </span>
                           <span
                             id="show-all-gacha-description"
@@ -538,7 +537,7 @@ export const Settings = () => {
                       <div className="flex items-center justify-between">
                         <div>
                           <div className="font-medium text-error">
-                            <T k="settings.game.reset" variant="stacked" />
+                            <T k="settings.game.reset" />
                           </div>
                           <div className="text-sm text-muted-foreground">
                             <T k="settings.game.resetDesc" />
@@ -550,7 +549,7 @@ export const Settings = () => {
                           onClick={() => setShowResetModal(true)}
                           disabled={!user}
                         >
-                          <T k="settings.game.resetButton" variant="stacked" />
+                          <T k="settings.game.resetButton" />
                         </button>
                       </div>
                     </div>
@@ -575,27 +574,27 @@ export const Settings = () => {
           <div className="flex items-center gap-3 rounded-xl border border-border-hairline bg-background/80 px-4 py-3 shadow-floating backdrop-blur-md">
             <span className="loading loading-spinner loading-sm" />
             <span className="text-sm font-medium">
-              <T k="settings.saving" variant="stacked" />
+              <T k="settings.saving" />
             </span>
           </div>
         </div>
       ) : saveSuccess ? (
         <Toast
-          message={<>✓ <T k="settings.saved" variant="stacked" /></>}
+          message={<>✓ <T k="settings.saved" /></>}
           onClose={() => setSaveSuccess(false)}
         />
       ) : resetSuccess ? (
         <Toast
-          message={<T k="settings.game.resetDone" variant="stacked" />}
+          message={<T k="settings.game.resetDone" />}
           onClose={() => setResetSuccess(false)}
         />
       ) : null}
 
       <ConfirmModal
         isOpen={showResetModal}
-        title={<T k="settings.game.resetConfirmTitle" variant="stacked" />}
+        title={<T k="settings.game.resetConfirmTitle" />}
         message={<T k="settings.game.resetConfirmMessage" />}
-        confirmText={<T k="settings.game.resetButton" variant="stacked" />}
+        confirmText={<T k="settings.game.resetButton" />}
         confirmVariant="error"
         isLoading={resetting}
         onConfirm={handleResetGameProgress}

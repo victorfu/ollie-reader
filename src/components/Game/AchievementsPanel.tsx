@@ -121,7 +121,7 @@ export function AchievementsPanel({
           <div>
             <h2 className="text-lg font-semibold tracking-tight flex items-center gap-2">
               <span>🏅</span>
-              <T k="adventure.achievements.title" variant="stacked" />
+              <T k="adventure.achievements.title" />
             </h2>
             <p className="text-sm text-muted-foreground">
               <T

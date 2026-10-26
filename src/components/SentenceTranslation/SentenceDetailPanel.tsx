@@ -55,7 +55,7 @@ export const SentenceDetailPanel = ({
       {/* Translation */}
       <div className="mb-6">
         <h3 className="mb-3 text-lg font-semibold">
-          🌐 <T k="reader.sentence.translation" variant="stacked" />
+          🌐 <T k="reader.sentence.translation" />
         </h3>
         <p className="border-l-4 border-accent pl-4 text-base leading-relaxed">
           {sentence.chinese}
@@ -66,7 +66,7 @@ export const SentenceDetailPanel = ({
       {keyWords.length > 0 && (
         <div className="mb-6">
           <h3 className="mb-1 text-lg font-semibold">
-            ⭐ <T k="reader.sentence.keyWords" variant="stacked" />
+            ⭐ <T k="reader.sentence.keyWords" />
           </h3>
           <p className="mb-3 text-xs text-muted-foreground">
             <T k="reader.sentence.keyWordsHint" />

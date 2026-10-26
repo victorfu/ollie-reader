@@ -846,7 +846,7 @@ export default function MeteorGlider({ onExit, onPlayBunny }: MeteorGliderProps)
           className="absolute left-6 top-6 z-20 rounded-full bg-white/90 px-4 py-2 text-sm font-semibold text-slate-900 shadow-lg backdrop-blur transition hover:-translate-y-0.5 hover:shadow-xl"
           type="button"
         >
-          ← <T k="arcade.common.backToGames" variant="stacked" />
+          ← <T k="arcade.common.backToGames" />
         </button>
       )}
 
@@ -894,13 +894,13 @@ export default function MeteorGlider({ onExit, onPlayBunny }: MeteorGliderProps)
                       onClick={startTutorial}
                       className="rounded-full bg-amber-400 text-slate-900 font-semibold py-3 shadow-lg transition hover:-translate-y-0.5 hover:shadow-xl"
                     >
-                      🎓 <T k="arcade.common.tutorialFirst" variant="stacked" />
+                      🎓 <T k="arcade.common.tutorialFirst" />
                     </button>
                     <button
                       onClick={startGame}
                       className="rounded-full border border-white/30 text-white font-semibold py-3 transition hover:-translate-y-0.5 hover:bg-white/10"
                     >
-                      <T k="arcade.common.skipTutorial" variant="stacked" />
+                      <T k="arcade.common.skipTutorial" />
                     </button>
                   </>
                 ) : (
@@ -914,7 +914,6 @@ export default function MeteorGlider({ onExit, onPlayBunny }: MeteorGliderProps)
                           ? "arcade.meteor.startRun"
                           : "arcade.common.playAgain"
                       }
-                      variant="stacked"
                     />
                   </button>
                 )}
@@ -923,7 +922,7 @@ export default function MeteorGlider({ onExit, onPlayBunny }: MeteorGliderProps)
                     onClick={startTutorial}
                     className="rounded-full border border-white/30 text-white font-semibold py-3 transition hover:-translate-y-0.5 hover:bg-white/10"
                   >
-                    🎓 <T k="arcade.common.tutorial" variant="stacked" />
+                    🎓 <T k="arcade.common.tutorial" />
                   </button>
                 )}
                 {onPlayBunny && (
@@ -931,7 +930,7 @@ export default function MeteorGlider({ onExit, onPlayBunny }: MeteorGliderProps)
                     onClick={onPlayBunny}
                     className="rounded-full border border-white/30 text-white font-semibold py-3 transition hover:-translate-y-0.5 hover:bg-white/10"
                   >
-                    <T k="arcade.meteor.playBunny" variant="stacked" />
+                    <T k="arcade.meteor.playBunny" />
                   </button>
                 )}
               </div>
@@ -947,7 +946,7 @@ export default function MeteorGlider({ onExit, onPlayBunny }: MeteorGliderProps)
             <div className="w-[90%] max-w-[360px] rounded-3xl border border-white/15 bg-white/10 p-8 backdrop-blur-xl shadow-2xl text-white text-center">
               <div className="text-5xl">🎉</div>
               <h1 className="mt-2 text-3xl font-bold">
-                <T k="arcade.common.tutorialDone" variant="stacked" />
+                <T k="arcade.common.tutorialDone" />
               </h1>
               <p className="mt-3 text-slate-200">
                 <T k="arcade.meteor.tutorialDoneBody" />
@@ -957,13 +956,13 @@ export default function MeteorGlider({ onExit, onPlayBunny }: MeteorGliderProps)
                   onClick={startGame}
                   className="rounded-full bg-amber-400 text-slate-900 font-semibold py-3 shadow-lg transition hover:-translate-y-0.5 hover:shadow-xl"
                 >
-                  <T k="arcade.common.startGame" variant="stacked" />
+                  <T k="arcade.common.startGame" />
                 </button>
                 <button
                   onClick={() => setGameState("menu")}
                   className="rounded-full border border-white/30 text-white font-semibold py-3 transition hover:-translate-y-0.5 hover:bg-white/10"
                 >
-                  <T k="arcade.common.backToMenu" variant="stacked" />
+                  <T k="arcade.common.backToMenu" />
                 </button>
               </div>
             </div>
@@ -974,7 +973,7 @@ export default function MeteorGlider({ onExit, onPlayBunny }: MeteorGliderProps)
           <div className="absolute inset-0 flex items-center justify-center bg-slate-900/50 backdrop-blur">
             <div className="rounded-2xl bg-white/90 px-6 py-5 text-slate-900 shadow-2xl">
               <p className="text-lg font-semibold">
-                <T k="arcade.common.paused" variant="stacked" />
+                <T k="arcade.common.paused" />
               </p>
               <p className="text-sm text-slate-600 mt-1">
                 <T k="arcade.meteor.pausedHint" />
@@ -984,13 +983,13 @@ export default function MeteorGlider({ onExit, onPlayBunny }: MeteorGliderProps)
                   onClick={pauseToggle}
                   className="rounded-full bg-slate-900 text-white px-4 py-2 text-sm font-semibold"
                 >
-                  <T k="arcade.common.resume" variant="stacked" />
+                  <T k="arcade.common.resume" />
                 </button>
                 <button
                   onClick={() => setGameState("menu")}
                   className="rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-800"
                 >
-                  <T k="arcade.meteor.quit" variant="stacked" />
+                  <T k="arcade.meteor.quit" />
                 </button>
               </div>
             </div>
@@ -1004,7 +1003,7 @@ export default function MeteorGlider({ onExit, onPlayBunny }: MeteorGliderProps)
                 {isTutorial ? (
                   <>
                     <span className="text-xs uppercase tracking-[0.2em] text-amber-200">
-                      <T k="arcade.common.tutorial" variant="stacked" />
+                      <T k="arcade.common.tutorial" />
                     </span>
                     <span className="text-2xl font-bold">
                       <T
@@ -1019,7 +1018,7 @@ export default function MeteorGlider({ onExit, onPlayBunny }: MeteorGliderProps)
                 ) : (
                   <>
                     <span className="text-xs uppercase tracking-[0.2em] text-slate-200">
-                      <T k="arcade.common.score" variant="stacked" />
+                      <T k="arcade.common.score" />
                     </span>
                     <span className="text-3xl font-bold">{score}</span>
                     <span className="text-[11px] text-slate-200">
@@ -1034,12 +1033,12 @@ export default function MeteorGlider({ onExit, onPlayBunny }: MeteorGliderProps)
                     onClick={pauseToggle}
                     className="rounded-full bg-white/20 px-3 py-2 text-xs font-semibold backdrop-blur border border-white/30"
                   >
-                    <T k="arcade.common.pause" variant="stacked" />
+                    <T k="arcade.common.pause" />
                   </button>
                 </div>
                 <div className="flex flex-col gap-1 text-xs text-slate-100">
                   <span>
-                    <T k="arcade.meteor.fuel" variant="stacked" />
+                    <T k="arcade.meteor.fuel" />
                   </span>
                   <div className="h-2 w-32 rounded-full bg-white/15 overflow-hidden">
                     <div
@@ -1048,7 +1047,7 @@ export default function MeteorGlider({ onExit, onPlayBunny }: MeteorGliderProps)
                     />
                   </div>
                   <span className="mt-1">
-                    <T k="arcade.meteor.dash" variant="stacked" />
+                    <T k="arcade.meteor.dash" />
                   </span>
                   <div className="h-2 w-32 rounded-full bg-white/15 overflow-hidden">
                     <div
@@ -1067,7 +1066,7 @@ export default function MeteorGlider({ onExit, onPlayBunny }: MeteorGliderProps)
                 onClick={dashButton}
                 className="rounded-full bg-amber-400 text-slate-900 px-6 py-3 text-sm font-semibold shadow-lg transition hover:-translate-y-0.5"
               >
-                <T k="arcade.meteor.dash" variant="stacked" />
+                <T k="arcade.meteor.dash" />
               </button>
             </div>
           </div>

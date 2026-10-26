@@ -44,15 +44,14 @@ function ContinueLabel({ homework }: { homework: Homework }) {
         <T
           k="practice.today.continuePage"
           params={{ current: position.wordIndex + 1, total: homework.newWords.length }}
-          variant="stacked"
         />
       );
     case "dictation":
-      return <T k="practice.today.continueDictation" variant="stacked" />;
+      return <T k="practice.today.continueDictation" />;
     case "correction":
-      return <T k="practice.today.continueCorrection" variant="stacked" />;
+      return <T k="practice.today.continueCorrection" />;
     case "submit":
-      return <T k="practice.today.continueSubmit" variant="stacked" />;
+      return <T k="practice.today.continueSubmit" />;
   }
 }
 
@@ -76,7 +75,7 @@ export function TodayCard({
       <div className="flex items-center gap-3">
         <BookOpen className="size-6 shrink-0 text-accent" strokeWidth={1.75} aria-hidden="true" />
         <h2 id={headingId} className="text-xl font-semibold">
-          <T k={active ? "practice.today.titleActive" : "practice.today.title"} variant="stacked" />
+          <T k={active ? "practice.today.titleActive" : "practice.today.title"} />
         </h2>
       </div>
 
@@ -109,7 +108,7 @@ export function TodayCard({
             className="btn btn-primary btn-lg min-h-14 w-full active:scale-[0.98]"
           >
             {starting && <span className="loading loading-spinner loading-sm" aria-hidden="true" />}
-            <T k="practice.today.start" variant="stacked" />
+            <T k="practice.today.start" />
           </button>
         </>
       )}

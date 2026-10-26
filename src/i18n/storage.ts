@@ -9,9 +9,9 @@ export const LANGUAGE_STORAGE_KEY = "ollie-language";
 export const readStoredLanguageMode = (): LanguageMode => {
   try {
     const stored = localStorage.getItem(LANGUAGE_STORAGE_KEY);
-    if (stored === "zh-TW" || stored === "en" || stored === "en-hint") {
-      return stored;
-    }
+    if (stored === "zh-TW" || stored === "en") return stored;
+    // The retired "English + Chinese hints" mode is plain English now.
+    if (stored === "en-hint") return "en";
   } catch {
     // localStorage unavailable
   }

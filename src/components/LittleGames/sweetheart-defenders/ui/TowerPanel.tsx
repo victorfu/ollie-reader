@@ -170,7 +170,7 @@ function EmptySlot({
           onClick={onClose}
           className="min-h-11 shrink-0 rounded-[8px] px-3 text-sm font-medium text-slate-500 transition hover:bg-black/5"
         >
-          <T k="defenders.tower.cancel" variant="stacked" />
+          <T k="defenders.tower.cancel" />
         </button>
       </div>
 
@@ -238,12 +238,11 @@ function EmptySlot({
           >
             <span className="flex items-center justify-center gap-1">
               {frosting < getPlaceCost(preview) ? (
-                <T k="defenders.tower.short" variant="stacked" />
+                <T k="defenders.tower.short" />
               ) : (
                 <T
                   k="defenders.tower.place"
                   params={{ name: preview.nameZh }}
-                  variant="stacked"
                 />
               )}
               <Candy size={14} strokeWidth={2} aria-hidden="true" />
@@ -352,10 +351,10 @@ function OccupiedSlot({
           }`}
         >
           {maxed ? (
-            <T k="defenders.tower.maxed" variant="stacked" />
+            <T k="defenders.tower.maxed" />
           ) : (
             <span className="flex items-center justify-center gap-1">
-              <T k="defenders.tower.upgrade" variant="stacked" />
+              <T k="defenders.tower.upgrade" />
               <Candy size={14} strokeWidth={2} aria-hidden="true" />
               {upgradeCost}
             </span>
@@ -369,7 +368,6 @@ function OccupiedSlot({
           <T
             k="defenders.tower.sell"
             params={{ n: getSellRefund(pet, tower.level) }}
-            variant="stacked"
           />
         </button>
       </div>

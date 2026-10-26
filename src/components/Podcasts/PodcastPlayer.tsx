@@ -96,9 +96,9 @@ export function PodcastPlayer({ episode }: { episode: PodcastEpisode }) {
         className="w-full min-h-11 accent-accent" />
       <div className="flex justify-between text-sm tabular-nums text-muted-foreground"><span>{formatPodcastTime(time)}</span><span>{formatPodcastTime(duration || episode.durationSeconds || 0)}</span></div>
       <div className="flex flex-wrap items-center justify-center gap-3">
-        <button type="button" aria-label={t("listening.player.back10")} disabled={!seekable || !!error} onClick={() => seek(time - 10)} className="btn btn-ghost min-h-11 min-w-11"><RotateCcw size={20} /><T k="listening.player.tenSeconds" variant="stacked" /></button>
-        <button type="button" aria-label={playing ? t("listening.pause") : t("listening.play")} onClick={() => void toggle()} className="btn btn-primary min-h-12 min-w-20">{playing ? <Pause size={20} /> : <Play size={20} />}{playing ? <T k="listening.pause" variant="stacked" /> : <T k="listening.play" variant="stacked" />}</button>
-        <button type="button" aria-label={t("listening.player.forward10")} disabled={!seekable || !!error} onClick={() => seek(time + 10)} className="btn btn-ghost min-h-11 min-w-11"><T k="listening.player.tenSeconds" variant="stacked" /><RotateCw size={20} /></button>
+        <button type="button" aria-label={t("listening.player.back10")} disabled={!seekable || !!error} onClick={() => seek(time - 10)} className="btn btn-ghost min-h-11 min-w-11"><RotateCcw size={20} /><T k="listening.player.tenSeconds" /></button>
+        <button type="button" aria-label={playing ? t("listening.pause") : t("listening.play")} onClick={() => void toggle()} className="btn btn-primary min-h-12 min-w-20">{playing ? <Pause size={20} /> : <Play size={20} />}{playing ? <T k="listening.pause" /> : <T k="listening.play" />}</button>
+        <button type="button" aria-label={t("listening.player.forward10")} disabled={!seekable || !!error} onClick={() => seek(time + 10)} className="btn btn-ghost min-h-11 min-w-11"><T k="listening.player.tenSeconds" /><RotateCw size={20} /></button>
         <label className="flex items-center gap-2 text-sm"><T k="listening.player.speed" />
           <select aria-label={t("listening.player.speed")} value={speed} className="select select-bordered min-h-11 w-24" onChange={(event) => {
             const value = Number(event.target.value); setSpeed(value); if (audioRef.current) audioRef.current.playbackRate = value;
@@ -107,7 +107,7 @@ export function PodcastPlayer({ episode }: { episode: PodcastEpisode }) {
       </div>
       <section aria-label={t("listening.captions.title")} className="space-y-3 rounded-[10px] border border-border-hairline bg-background/60 p-4">
         <label className="flex min-h-11 cursor-pointer items-center justify-between gap-3">
-          <span className="flex items-center gap-2 text-base font-medium"><Captions size={20} aria-hidden="true" /><T k="listening.captions.title" variant="stacked" /></span>
+          <span className="flex items-center gap-2 text-base font-medium"><Captions size={20} aria-hidden="true" /><T k="listening.captions.title" /></span>
           <input type="checkbox" role="switch" className="toggle toggle-accent shrink-0" checked={captions.enabled} aria-describedby="podcast-caption-status"
             onChange={(event) => event.target.checked ? captions.enable() : captions.disable()} />
         </label>

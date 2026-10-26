@@ -65,7 +65,7 @@ export function Popup({
               id={titleId}
               className="text-lg font-semibold tracking-tight text-slate-900"
             >
-              <T k={titleKey} variant="stacked" />
+              <T k={titleKey} />
             </h2>
             {subtitle && (
               <p className="mt-0.5 text-xs text-slate-500">{subtitle}</p>

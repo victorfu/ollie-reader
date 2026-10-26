@@ -21,8 +21,8 @@ export function ConfirmModal({
   message,
   onConfirm,
   onCancel,
-  confirmText = <T k="common.confirm" variant="stacked" />,
-  cancelText = <T k="common.cancel" variant="stacked" />,
+  confirmText = <T k="common.confirm" />,
+  cancelText = <T k="common.cancel" />,
   confirmVariant = "error",
   isLoading = false,
   errorMessage = null,
@@ -93,7 +93,7 @@ export function ConfirmModal({
             {isLoading ? (
               <>
                 <span className="loading loading-spinner loading-sm" />
-                <T k="common.processing" variant="stacked" />
+                <T k="common.processing" />
               </>
             ) : (
               confirmText

@@ -214,12 +214,12 @@ export function ExamQuizView({
           className="btn btn-ghost btn-sm min-h-[44px] shrink-0 gap-1 rounded-full text-muted-foreground"
         >
           <X size={16} strokeWidth={2} />
-          <T k="exams.common.exit" variant="stacked" />
+          <T k="exams.common.exit" />
         </button>
         <div className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground">
           <span className="truncate font-medium text-foreground">
             {scopeKey ? (
-              <T k={scopeKey} variant="stacked" />
+              <T k={scopeKey} />
             ) : (
               session.scopeLabel
             )}
@@ -487,7 +487,6 @@ export function ExamQuizView({
                       ? "exams.quiz.finish"
                       : "exams.quiz.next"
                 }
-                variant="stacked"
               />
               <ArrowRight size={18} strokeWidth={2} />
             </button>

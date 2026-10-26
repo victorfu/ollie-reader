@@ -67,7 +67,7 @@ function Notice({
     <div className="absolute inset-0 flex items-center justify-center p-6">
       <div className="max-w-sm rounded-[16px] border border-white/70 bg-white/85 p-6 text-center shadow-lg backdrop-blur-md">
         <p className="text-4xl" aria-hidden="true">☁️</p>
-        <h2 className="mt-3 text-lg font-semibold text-sky-950"><T k={title} variant="stacked" /></h2>
+        <h2 className="mt-3 text-lg font-semibold text-sky-950"><T k={title} /></h2>
         <p className="mt-2 text-sm leading-6 text-slate-600">{children}</p>
         {action ? <div className="mt-5 flex justify-center">{action}</div> : null}
       </div>
@@ -148,7 +148,7 @@ export default function CompanionPage({ onExit }: { onExit: () => void }) {
       className="inline-flex min-h-11 items-center gap-1.5 rounded-full border border-white/70 bg-white/80 px-4 text-sm font-medium text-sky-950 shadow-sm backdrop-blur-md transition-colors hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
     >
       <ArrowLeft className="size-4" aria-hidden="true" />
-      <T k="gacha.companion.back" variant="stacked" />
+      <T k="gacha.companion.back" />
     </button>
   );
 
@@ -199,7 +199,7 @@ export default function CompanionPage({ onExit }: { onExit: () => void }) {
               className="btn btn-primary min-h-11 rounded-full px-5"
             >
               <RotateCcw className="size-4" aria-hidden="true" />
-              <T k="gacha.companion.reload" variant="stacked" />
+              <T k="gacha.companion.reload" />
             </button>
           }
         >
@@ -266,16 +266,16 @@ export default function CompanionPage({ onExit }: { onExit: () => void }) {
             <T k="gacha.companion.hint" />
           </p>
           <div className="flex flex-wrap items-center justify-center gap-2">
-            <button type="button" className="btn min-h-11 pointer-events-auto rounded-full" onClick={() => openPanel("actions")}><T k="gacha.companion.actions" variant="stacked" /></button>
-            <button type="button" className="btn min-h-11 pointer-events-auto rounded-full" onClick={() => openPanel("outfit")}><T k="gacha.companion.outfit" variant="stacked" /></button>
-            <button type="button" className="btn min-h-11 pointer-events-auto rounded-full" onClick={() => openPanel("shop")}><T k="gacha.companion.shop" variant="stacked" /></button>
+            <button type="button" className="btn min-h-11 pointer-events-auto rounded-full" onClick={() => openPanel("actions")}><T k="gacha.companion.actions" /></button>
+            <button type="button" className="btn min-h-11 pointer-events-auto rounded-full" onClick={() => openPanel("outfit")}><T k="gacha.companion.outfit" /></button>
+            <button type="button" className="btn min-h-11 pointer-events-auto rounded-full" onClick={() => openPanel("shop")}><T k="gacha.companion.shop" /></button>
             <button
               type="button"
               onClick={() => runtime.resetView()}
               className="pointer-events-auto inline-flex min-h-11 items-center gap-1.5 rounded-full border border-white/70 bg-white/80 px-4 text-sm font-medium text-sky-950 shadow-sm backdrop-blur-md transition-colors hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 active:scale-[0.98]"
             >
               <RotateCcw className="size-4" aria-hidden="true" />
-              <T k="gacha.companion.resetView" variant="stacked" />
+              <T k="gacha.companion.resetView" />
             </button>
           </div>
         </footer>

@@ -40,12 +40,12 @@ export default function Podcasts() {
   };
   return (
     <div className="mx-auto w-full max-w-3xl space-y-6 p-4 md:p-6">
-      <header className="space-y-2"><h1 className="flex items-center gap-3 text-3xl font-semibold tracking-tight"><Headphones className="shrink-0" /><T k="listening.podcast.title" variant="stacked" /></h1><p className="text-muted-foreground"><T k="listening.podcast.subtitle" /></p></header>
+      <header className="space-y-2"><h1 className="flex items-center gap-3 text-3xl font-semibold tracking-tight"><Headphones className="shrink-0" /><T k="listening.podcast.title" /></h1><p className="text-muted-foreground"><T k="listening.podcast.subtitle" /></p></header>
       <form onSubmit={(event) => void load(event)} className="space-y-2">
         <label htmlFor="podcast-url" className="text-sm font-medium"><T k="listening.podcast.urlLabel" /></label>
         <div className="flex flex-col gap-3 sm:flex-row">
           <input id="podcast-url" type="url" required maxLength={2048} value={url} onChange={(event) => setUrl(event.target.value)} placeholder="https://podcasts.apple.com/…?i=…" className="input input-bordered min-h-11 w-full min-w-0 flex-1" />
-          <button type="submit" disabled={loading || !url.trim()} className="btn btn-primary min-h-11 shrink-0">{loading ? <T k="listening.podcast.loadingButton" variant="stacked" /> : <T k="listening.podcast.load" variant="stacked" />}</button>
+          <button type="submit" disabled={loading || !url.trim()} className="btn btn-primary min-h-11 shrink-0">{loading ? <T k="listening.podcast.loadingButton" /> : <T k="listening.podcast.load" />}</button>
         </div>
         <p className="text-xs text-muted-foreground"><T k="listening.podcast.urlHint" /></p>
       </form>

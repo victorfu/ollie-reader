@@ -42,7 +42,7 @@ function LegacyResult({ homework, onBack }: { homework: LegacyHomework; onBack: 
       </ul>
       <div className="flex justify-center">
         <button type="button" onClick={onBack} className="btn btn-primary min-h-11 active:scale-[0.98]">
-          <T k="practice.word.backHome" variant="stacked" />
+          <T k="practice.word.backHome" />
         </button>
       </div>
     </div>
@@ -106,7 +106,7 @@ export default function WordPracticePage() {
         onClick={() => void wordPractice.reload()}
         className="btn btn-primary min-h-11 active:scale-[0.98]"
       >
-        <T k="practice.word.reload" variant="stacked" />
+        <T k="practice.word.reload" />
       </button>
     );
   } else if (viewing) {
@@ -172,7 +172,7 @@ export default function WordPracticePage() {
         <div className="space-y-2">
           <h1 className="flex items-center gap-3 text-3xl font-semibold tracking-tight">
             <SpellCheck className="shrink-0" aria-hidden="true" />
-            <T k="practice.word.title" variant="stacked" />
+            <T k="practice.word.title" />
           </h1>
           <p className="text-muted-foreground">
             <T k="practice.word.subtitle" />

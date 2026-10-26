@@ -109,7 +109,7 @@ export const PageTextArea = memo(
                 {isLoadingAudio ? (
                   <>
                     <span className="loading loading-spinner loading-xs"></span>
-                    <T k="reader.speech.generating" variant="stacked" />
+                    <T k="reader.speech.generating" />
                   </>
                 ) : (
                   <>
@@ -133,7 +133,7 @@ export const PageTextArea = memo(
                         d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
                       />
                     </svg>
-                    <T k="reader.page.readAloud" variant="stacked" />
+                    <T k="reader.page.readAloud" />
                   </>
                 )}
               </button>

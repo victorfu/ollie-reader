@@ -74,7 +74,7 @@ export const UploadArea = memo(
           {selectedFile ? (
             <span className="truncate max-w-32">{selectedFile.name}</span>
           ) : (
-            <T k="reader.upload.button" variant="stacked" />
+            <T k="reader.upload.button" />
           )}
         </label>
       </div>
@@ -87,7 +87,7 @@ export const UploadArea = memo(
         onClick={onOpenBookingDrawer}
         aria-label={t("reader.booking.open")}
       >
-        <T k="reader.booking.button" variant="stacked" />
+        <T k="reader.booking.button" />
       </button>
     );
 

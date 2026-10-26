@@ -11,7 +11,6 @@ interface PracticeTextProps {
   inflection?: InflectionKind;
   /** Names of params shown in bold (the word being learned). */
   bold?: string[];
-  variant?: "inline" | "stacked";
 }
 
 const PLACEHOLDER = /\{(\w+)\}/;
@@ -26,7 +25,6 @@ export function PracticeText({
   params = {},
   inflection,
   bold = [],
-  variant = "inline",
 }: PracticeTextProps) {
   const { t, tZh, showHints } = useLanguage();
   const withLabel = (translate: typeof t): MessageParams =>
@@ -54,17 +52,6 @@ export function PracticeText({
   }
 
   if (!showHints || hint === text) return <>{content}</>;
-
-  if (variant === "stacked") {
-    return (
-      <span className="inline-flex min-w-0 flex-col leading-tight">
-        <span className="break-words">{content}</span>
-        <span lang="zh-Hant-TW" className="break-words text-[0.72em] font-normal opacity-70">
-          {hint}
-        </span>
-      </span>
-    );
-  }
 
   return <HintText hint={hint}>{content}</HintText>;
 }

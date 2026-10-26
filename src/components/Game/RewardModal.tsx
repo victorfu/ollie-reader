@@ -98,7 +98,6 @@ export function RewardModal({ reward, onClaim }: RewardModalProps) {
                   ? "adventure.reward.bossTitle"
                   : "adventure.reward.stageTitle"
               }
-              variant="stacked"
             />
           </motion.h2>
 
@@ -160,7 +159,7 @@ export function RewardModal({ reward, onClaim }: RewardModalProps) {
             >
               <PartyPopper className="h-6 w-6" strokeWidth={2} aria-hidden="true" />
               <h3 className="text-xl font-bold text-warning mt-2">
-                <T k="adventure.reward.levelUp" variant="stacked" />
+                <T k="adventure.reward.levelUp" />
               </h3>
               <p className="text-lg font-medium">
                 <T
@@ -180,7 +179,7 @@ export function RewardModal({ reward, onClaim }: RewardModalProps) {
               className="mt-4 badge badge-warning badge-lg gap-2"
             >
               <Flame className="h-4 w-4" strokeWidth={2} aria-hidden="true" />
-              <T k="adventure.reward.newCombo" variant="stacked" />
+              <T k="adventure.reward.newCombo" />
             </motion.div>
           )}
 
@@ -194,7 +193,7 @@ export function RewardModal({ reward, onClaim }: RewardModalProps) {
             onClick={onClaim}
             className="btn btn-primary btn-lg w-full mt-6 shadow-elevated active:scale-[0.98]"
           >
-            <T k="adventure.reward.continue" variant="stacked" />
+            <T k="adventure.reward.continue" />
           </motion.button>
         </div>
       </motion.div>

@@ -86,14 +86,14 @@ export function WordAdventure() {
             aria-hidden="true"
           />
           <h2 className="text-lg font-semibold text-error mb-2">
-            <T k="adventure.loadFailed" variant="stacked" />
+            <T k="adventure.loadFailed" />
           </h2>
           <p className="text-muted-foreground mb-4">{error}</p>
           <button
             onClick={() => window.location.reload()}
             className="btn btn-error btn-sm active:scale-[0.98]"
           >
-            <T k="adventure.reload" variant="stacked" />
+            <T k="adventure.reload" />
           </button>
         </div>
       </div>
@@ -134,9 +134,9 @@ export function WordAdventure() {
               className="btn btn-error btn-sm min-h-11 shrink-0"
             >
               {isSettling ? (
-                <T k="adventure.settling" variant="stacked" />
+                <T k="adventure.settling" />
               ) : (
-                <T k="adventure.retrySettlement" variant="stacked" />
+                <T k="adventure.retrySettlement" />
               )}
             </button>
           ) : (
@@ -145,7 +145,7 @@ export function WordAdventure() {
               onClick={clearTokenSyncError}
               className="btn btn-ghost btn-sm min-h-11 shrink-0"
             >
-              <T k="adventure.gotIt" variant="stacked" />
+              <T k="adventure.gotIt" />
             </button>
           )}
         </div>

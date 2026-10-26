@@ -59,7 +59,7 @@ export const BookingRecordsDrawer = memo(
         >
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-xl font-semibold text-base-content">
-              <T k="reader.booking.title" variant="stacked" />
+              <T k="reader.booking.title" />
             </h2>
             <button
               className="btn btn-ghost btn-sm btn-circle text-base-content/60 hover:bg-black/5 dark:hover:bg-white/10"
@@ -87,7 +87,7 @@ export const BookingRecordsDrawer = memo(
                 className="btn btn-sm bg-base-100 border border-border-hairline shadow-sm hover:bg-base-200 active:scale-[0.98] transition-all duration-200"
                 onClick={onRetry}
               >
-                <T k="reader.booking.reload" variant="stacked" />
+                <T k="reader.booking.reload" />
               </button>
             </div>
           ) : bookingRecords.length === 0 ? (
@@ -99,7 +99,7 @@ export const BookingRecordsDrawer = memo(
                 className="btn btn-sm bg-base-100 border border-border-hairline shadow-sm hover:bg-base-200 active:scale-[0.98] transition-all duration-200"
                 onClick={onRetry}
               >
-                <T k="reader.booking.reload" variant="stacked" />
+                <T k="reader.booking.reload" />
               </button>
             </div>
           ) : (
@@ -128,12 +128,11 @@ export const BookingRecordsDrawer = memo(
                       <T
                         k="reader.booking.teacher"
                         params={{ name: record.TeacherName }}
-                        variant="stacked"
                       />
                     </span>
                     {loadingCourseId === record.id && (
                       <span className="text-primary text-sm mt-1">
-                        <T k="reader.booking.loadingCourse" variant="stacked" />
+                        <T k="reader.booking.loadingCourse" />
                       </span>
                     )}
                   </button>

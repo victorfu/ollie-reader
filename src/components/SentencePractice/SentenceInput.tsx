@@ -80,7 +80,7 @@ export const SentenceInput = ({
                 d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
               />
             </svg>
-            <T k="practice.sentence.inputTitle" variant="stacked" />
+            <T k="practice.sentence.inputTitle" />
           </h2>
           <button
             type="button"
@@ -135,7 +135,7 @@ export const SentenceInput = ({
             {isProcessing ? (
               <>
                 <span className="loading loading-spinner loading-sm"></span>
-                <T k="practice.sentence.processing" variant="stacked" />
+                <T k="practice.sentence.processing" />
               </>
             ) : (
               <>
@@ -153,7 +153,7 @@ export const SentenceInput = ({
                     d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129"
                   />
                 </svg>
-                <T k="practice.sentence.splitAndTranslate" variant="stacked" />
+                <T k="practice.sentence.splitAndTranslate" />
               </>
             )}
           </button>

@@ -70,7 +70,7 @@ export function ParentSettings({
   return (
     <div>
       <h3 className="text-lg font-semibold mb-3">
-        <T k="practice.settings.title" variant="stacked" />
+        <T k="practice.settings.title" />
       </h3>
       <p className="text-sm text-muted-foreground mb-4">
         <T k="practice.settings.description" />
@@ -144,7 +144,7 @@ export function ParentSettings({
             onClick={() => void save()}
             className="btn btn-primary min-h-11 active:scale-[0.98]"
           >
-            <T k="practice.settings.save" variant="stacked" />
+            <T k="practice.settings.save" />
           </button>
           {hasActive && (
             <button
@@ -153,7 +153,7 @@ export function ParentSettings({
               onClick={() => setConfirming(true)}
               className="btn btn-ghost min-h-11 text-error active:scale-[0.98]"
             >
-              <T k="practice.settings.abandon" variant="stacked" />
+              <T k="practice.settings.abandon" />
             </button>
           )}
           <button
@@ -162,7 +162,7 @@ export function ParentSettings({
             onClick={() => setConfirmingReset(true)}
             className="btn btn-ghost min-h-11 text-error active:scale-[0.98]"
           >
-            <T k="practice.settings.reset" variant="stacked" />
+            <T k="practice.settings.reset" />
           </button>
         </div>
       </div>
@@ -170,9 +170,9 @@ export function ParentSettings({
       {hasActive && (
         <ConfirmModal
           isOpen={confirming}
-          title={<T k="practice.settings.abandon" variant="stacked" />}
+          title={<T k="practice.settings.abandon" />}
           message={<T k="practice.settings.abandonMessage" />}
-          confirmText={<T k="practice.settings.abandonConfirm" variant="stacked" />}
+          confirmText={<T k="practice.settings.abandonConfirm" />}
           isLoading={abandoning}
           onConfirm={() => void confirmAbandon()}
           onCancel={() => setConfirming(false)}
@@ -181,9 +181,9 @@ export function ParentSettings({
 
       <ConfirmModal
         isOpen={confirmingReset}
-        title={<T k="practice.settings.reset" variant="stacked" />}
+        title={<T k="practice.settings.reset" />}
         message={<T k="practice.settings.resetMessage" />}
-        confirmText={<T k="practice.settings.resetConfirm" variant="stacked" />}
+        confirmText={<T k="practice.settings.resetConfirm" />}
         isLoading={resetting}
         onConfirm={() => void confirmReset()}
         onCancel={() => setConfirmingReset(false)}

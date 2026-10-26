@@ -135,7 +135,7 @@ export function ShowSubtitlesPage() {
       {seasons.length > 0 && (
         <div className="surface-card p-4 sm:p-5 md:p-6">
           <h2 className="text-lg font-semibold mb-3">
-            <T k="listening.show.chooseSeason" variant="stacked" />
+            <T k="listening.show.chooseSeason" />
           </h2>
           <SeasonSelector
             seasonNumbers={seasons.map((s) => s.number)}
@@ -172,7 +172,7 @@ export function ShowSubtitlesPage() {
                     d="M15 19l-7-7 7-7"
                   />
                 </svg>
-                <T k="listening.show.backToEpisodes" variant="stacked" />
+                <T k="listening.show.backToEpisodes" />
               </button>
               <TranscriptViewer
                 episode={selectedEpisode}
@@ -187,7 +187,6 @@ export function ShowSubtitlesPage() {
                 <T
                   k="listening.show.seasonEpisodes"
                   params={{ season: selectedSeason }}
-                  variant="stacked"
                 />
               </h2>
               <EpisodeList

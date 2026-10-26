@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
+import { Coins } from "lucide-react";
 import type { DefLanguage, PlayerProgress } from "../../types/game";
 import { COIN_REWARDS } from "../../services/economyService";
 import { getGameTabTargetName } from "../../utils/gameTabs";
@@ -90,7 +91,7 @@ export function AdventureHome({
         <div className="card-body items-center text-center">
           {/* 標題 */}
           <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
-            ✨ <T k="adventure.home.title" variant="stacked" /> ✨
+            ✨ <T k="adventure.home.title" /> ✨
           </h1>
           <p className="text-muted-foreground text-sm">
             <T k="adventure.home.subtitle" />
@@ -122,7 +123,7 @@ export function AdventureHome({
             {/* 扭蛋代幣與連勝 */}
             <div className="flex items-center justify-center gap-2 mt-3">
               <span className="badge badge-soft badge-warning gap-1 font-semibold">
-                🪙{" "}
+                <Coins className="h-4 w-4" strokeWidth={2} aria-hidden="true" />
                 <T k="adventure.home.coins" params={{ coins: progress.coins }} />
               </span>
               {progress.streakDays > 0 && (
@@ -193,10 +194,11 @@ export function AdventureHome({
                           : "text-muted-foreground hover:bg-black/5 dark:hover:bg-white/10"
                       }`}
                     >
-                      <T k={label} variant="stacked" />
+                      <T k={label} />
                       {value === "en" && (
-                        <span className="text-xs font-semibold">
-                          🪙×{COIN_REWARDS.englishModeMultiplier}
+                        <span className="inline-flex items-center text-xs font-semibold">
+                          <Coins className="h-3.5 w-3.5" strokeWidth={2} aria-hidden="true" />
+                          ×{COIN_REWARDS.englishModeMultiplier}
                         </span>
                       )}
                     </button>
@@ -225,7 +227,7 @@ export function AdventureHome({
               className="btn btn-primary btn-lg w-full gap-2 shadow-elevated active:scale-[0.98]"
             >
               <span className="text-xl">🗺️</span>
-              <T k="adventure.start" variant="stacked" />
+              <T k="adventure.start" />
             </motion.button>
 
             <motion.button
@@ -235,7 +237,7 @@ export function AdventureHome({
               className="btn btn-outline btn-accent w-full gap-1"
             >
               <span className="text-lg">🏅</span>
-              <T k="adventure.home.achievements" variant="stacked" />
+              <T k="adventure.home.achievements" />
               <span className="badge badge-accent badge-xs">
                 {unlockedAchievements}/{ACHIEVEMENTS.length}
               </span>
@@ -247,7 +249,7 @@ export function AdventureHome({
               className="btn btn-soft btn-warning w-full gap-2 hover:text-white"
             >
               <span className="text-lg">🎀</span>
-              <T k="adventure.home.gacha" variant="stacked" />
+              <T k="adventure.home.gacha" />
             </a>
           </div>
         </div>

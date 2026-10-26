@@ -5,7 +5,6 @@ import { T } from "./T";
 const LANGUAGE_OPTIONS = [
   { id: "zh-TW", label: "settings.language.zh" },
   { id: "en", label: "settings.language.en" },
-  { id: "en-hint", label: "settings.language.enHint" },
 ] as const satisfies readonly { id: LanguageMode; label: MessageKey }[];
 
 interface LanguagePickerProps {
@@ -13,7 +12,7 @@ interface LanguagePickerProps {
   size?: "sm" | "md";
 }
 
-/** Segmented control for the three language modes. */
+/** Segmented control for the language modes. */
 export function LanguagePicker({ size = "md" }: LanguagePickerProps) {
   const { mode, setMode, t } = useLanguage();
   const sizeClass = size === "sm" ? "h-7 px-2.5 text-xs" : "h-9 px-4 text-sm";
@@ -38,7 +37,7 @@ export function LanguagePicker({ size = "md" }: LanguagePickerProps) {
                 : "text-muted-foreground hover:text-base-content"
             }`}
           >
-            <T k={opt.label} variant="stacked" />
+            <T k={opt.label} />
           </button>
         );
       })}

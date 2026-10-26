@@ -78,7 +78,7 @@ export function SidebarNav({
           className={`${rowClass(active)} ${collapsed ? "" : "pr-10"}`}
         >
           <Icon className="size-5 shrink-0" strokeWidth={1.75} aria-hidden="true" />
-          {!collapsed && <T k={item.labelKey} variant="stacked" />}
+          {!collapsed && <T k={item.labelKey} />}
         </Link>
         {!collapsed && (
           <button
@@ -114,7 +114,7 @@ export function SidebarNav({
             {!collapsed && (
               <>
                 <span className="flex min-w-0 flex-1 text-left">
-                  <T k="nav.more" variant="stacked" />
+                  <T k="nav.more" />
                 </span>
                 <ChevronDown
                   className={`size-4 shrink-0 transition-transform duration-200 ${

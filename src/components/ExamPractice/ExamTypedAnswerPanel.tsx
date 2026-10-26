@@ -137,7 +137,7 @@ export function ExamTypedAnswerPanel({
               className="btn btn-ghost btn-sm min-h-[44px] gap-1 rounded-full text-muted-foreground"
             >
               <RotateCcw size={14} strokeWidth={2} />
-              <T k="exams.typed.clear" variant="stacked" />
+              <T k="exams.typed.clear" />
             </button>
           </div>
           <p className="text-xs text-muted-foreground">
@@ -154,7 +154,7 @@ export function ExamTypedAnswerPanel({
             className="btn btn-outline min-h-[48px] w-full gap-2 rounded-xl text-accent"
           >
             <Volume2 size={20} strokeWidth={2} />
-            <T k="exams.typed.playAudio" variant="stacked" />
+            <T k="exams.typed.playAudio" />
           </button>
         ) : (
           <p className="rounded-lg border border-border-hairline bg-accent-tint p-3 text-sm">
@@ -210,7 +210,7 @@ export function ExamTypedAnswerPanel({
           className="btn btn-primary min-h-[48px] gap-1.5 rounded-xl px-5"
         >
           <Send size={16} strokeWidth={2} />
-          <T k="exams.typed.submit" variant="stacked" />
+          <T k="exams.typed.submit" />
         </button>
       </div>
 

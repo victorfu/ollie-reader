@@ -67,7 +67,7 @@ export default function AuthScreen() {
                 fill="#EA4335"
               />
             </svg>
-            <T k="auth.signInWithGoogle" variant="stacked" />
+            <T k="auth.signInWithGoogle" />
           </button>
 
           {/* Footer hint */}

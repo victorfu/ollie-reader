@@ -2149,7 +2149,7 @@ export default function BunnyJumper({ onExit }: BunnyJumperProps) {
           className="absolute left-6 top-6 z-20 rounded-full bg-white/90 px-4 py-2 text-sm font-semibold text-slate-800 shadow-lg backdrop-blur transition hover:-translate-y-0.5 hover:shadow-xl"
           type="button"
         >
-          ← <T k="arcade.common.backToGames" variant="stacked" />
+          ← <T k="arcade.common.backToGames" />
         </button>
       )}
       {gameState === GameState.Playing && (
@@ -2158,7 +2158,7 @@ export default function BunnyJumper({ onExit }: BunnyJumperProps) {
           className="absolute right-6 top-6 z-20 rounded-full bg-white/90 px-4 py-2 text-sm font-semibold text-slate-800 shadow-lg backdrop-blur transition hover:-translate-y-0.5 hover:shadow-xl"
           type="button"
         >
-          ⏸ <T k="arcade.common.pause" variant="stacked" />
+          ⏸ <T k="arcade.common.pause" />
         </button>
       )}
       <div
@@ -2362,7 +2362,7 @@ export default function BunnyJumper({ onExit }: BunnyJumperProps) {
                   fontFamily: "system-ui, -apple-system, sans-serif",
                 }}
               >
-                <T k="arcade.bunny.title" variant="stacked" />
+                <T k="arcade.bunny.title" />
               </h1>
 
               {/* 副標題 */}
@@ -2406,7 +2406,7 @@ export default function BunnyJumper({ onExit }: BunnyJumperProps) {
                     "0 8px 24px rgba(255, 107, 157, 0.4)";
                 }}
               >
-                ▶ <T k="arcade.common.startGame" variant="stacked" />
+                ▶ <T k="arcade.common.startGame" />
               </button>
 
               {/* 最高分 */}
@@ -2507,7 +2507,7 @@ export default function BunnyJumper({ onExit }: BunnyJumperProps) {
                   fontFamily: "system-ui, -apple-system, sans-serif",
                 }}
               >
-                <T k="arcade.common.paused" variant="stacked" />
+                <T k="arcade.common.paused" />
               </h2>
               <p
                 style={{
@@ -2539,7 +2539,7 @@ export default function BunnyJumper({ onExit }: BunnyJumperProps) {
                     fontFamily: "system-ui, -apple-system, sans-serif",
                   }}
                 >
-                  ▶ <T k="arcade.common.resume" variant="stacked" />
+                  ▶ <T k="arcade.common.resume" />
                 </button>
                 <button
                   onClick={handleRestart}
@@ -2556,7 +2556,7 @@ export default function BunnyJumper({ onExit }: BunnyJumperProps) {
                     fontFamily: "system-ui, -apple-system, sans-serif",
                   }}
                 >
-                  🔄 <T k="arcade.common.restart" variant="stacked" />
+                  🔄 <T k="arcade.common.restart" />
                 </button>
                 <button
                   onClick={handleMenu}
@@ -2573,7 +2573,7 @@ export default function BunnyJumper({ onExit }: BunnyJumperProps) {
                     fontFamily: "system-ui, -apple-system, sans-serif",
                   }}
                 >
-                  🏠 <T k="arcade.common.mainMenu" variant="stacked" />
+                  🏠 <T k="arcade.common.mainMenu" />
                 </button>
               </div>
             </div>
@@ -2610,7 +2610,6 @@ export default function BunnyJumper({ onExit }: BunnyJumperProps) {
               >
                 <T
                   k={isNewBest ? "arcade.bunny.newRecord" : "arcade.bunny.gameOver"}
-                  variant="stacked"
                 />
               </h2>
               {isNewBest && (
@@ -2628,7 +2627,7 @@ export default function BunnyJumper({ onExit }: BunnyJumperProps) {
                     fontFamily: "system-ui, -apple-system, sans-serif",
                   }}
                 >
-                  👑 <T k="arcade.bunny.newBest" variant="stacked" />
+                  👑 <T k="arcade.bunny.newBest" />
                 </div>
               )}
 
@@ -2702,7 +2701,7 @@ export default function BunnyJumper({ onExit }: BunnyJumperProps) {
                     e.currentTarget.style.transform = "translateY(0)";
                   }}
                 >
-                  🔄 <T k="arcade.common.playAgain" variant="stacked" />
+                  🔄 <T k="arcade.common.playAgain" />
                 </button>
                 <button
                   onClick={handleMenu}
@@ -2729,7 +2728,7 @@ export default function BunnyJumper({ onExit }: BunnyJumperProps) {
                     e.currentTarget.style.transform = "translateY(0)";
                   }}
                 >
-                  🏠 <T k="arcade.common.mainMenu" variant="stacked" />
+                  🏠 <T k="arcade.common.mainMenu" />
                 </button>
               </div>
             </div>

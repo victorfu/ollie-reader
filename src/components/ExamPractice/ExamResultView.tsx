@@ -113,7 +113,6 @@ export function ExamResultView({
             <T
               k="exams.result.retryWrong"
               params={{ n: result.wrong.length }}
-              variant="stacked"
             />
           </button>
         )}
@@ -121,14 +120,14 @@ export function ExamResultView({
           onClick={onRestart}
           className="btn btn-outline min-h-[48px] flex-1 rounded-xl"
         >
-          <T k="exams.result.restart" variant="stacked" />
+          <T k="exams.result.restart" />
         </button>
         <button
           onClick={onExit}
           className="btn btn-ghost min-h-[48px] flex-1 gap-1.5 rounded-xl"
         >
           <Home size={18} strokeWidth={2} />
-          <T k="exams.result.backToList" variant="stacked" />
+          <T k="exams.result.backToList" />
         </button>
       </div>
 
@@ -139,7 +138,6 @@ export function ExamResultView({
             <T
               k="exams.result.review"
               params={{ n: result.wrong.length }}
-              variant="stacked"
             />
           </h3>
           {result.wrong.map((question, index) => {

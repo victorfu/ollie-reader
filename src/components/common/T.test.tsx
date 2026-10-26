@@ -34,83 +34,33 @@ describe("<T>", () => {
     expect(document.documentElement.lang).toBe("zh-Hant-TW");
   });
 
-  it("renders plain English in English mode", () => {
-    render("en", <T k="settings.title" />);
-    expect(container.textContent).toBe("Settings");
-    expect(container.querySelector("[data-tip]")).toBeNull();
+  it("renders English with the Chinese as a hover tooltip in English mode", () => {
+    render("en", <T k="settings.theme.title" />);
+    const hint = container.querySelector<HTMLElement>("[title]")!;
+    expect(hint.title).toBe("外觀主題");
+    expect(container.textContent).toBe("Theme");
     expect(document.documentElement.lang).toBe("en");
+  });
+
+  it("has no tooltip in Chinese mode", () => {
+    render("zh-TW", <T k="settings.theme.title" />);
+    expect(container.querySelector("[title]")).toBeNull();
+  });
+
+  it("skips the tooltip when both languages read the same", () => {
+    render("en", <T k="settings.language.en" />);
+    expect(container.textContent).toBe("English");
+    expect(container.querySelector("[title]")).toBeNull();
+  });
+
+  it("reads the retired hint mode as English", () => {
+    localStorage.setItem(LANGUAGE_STORAGE_KEY, "en-hint");
+    act(() => root.render(<LanguageProvider><T k="settings.title" /></LanguageProvider>));
+    expect(container.textContent).toBe("Settings");
   });
 
   it("works without a provider (keeps Chinese)", () => {
     act(() => root.render(<T k="settings.title" />));
     expect(container.textContent).toBe("設定");
-  });
-
-  describe("English + Chinese hints mode", () => {
-    it("inline: underlined English whose tooltip opens on tap and closes outside", () => {
-      render("en-hint", <T k="settings.theme.title" />);
-      const hint = container.querySelector<HTMLElement>("[data-tip]")!;
-      expect(hint.dataset.tip).toBe("外觀主題");
-      expect(hint.textContent).toContain("Theme");
-      expect(hint.classList.contains("tooltip-open")).toBe(false);
-
-      act(() => hint.click());
-      expect(hint.classList.contains("tooltip-open")).toBe(true);
-      expect(hint.getAttribute("aria-expanded")).toBe("true");
-
-      act(() => {
-        document.body.dispatchEvent(new Event("pointerdown", { bubbles: true }));
-      });
-      expect(hint.classList.contains("tooltip-open")).toBe(false);
-    });
-
-    it("inline: Escape closes an open hint", () => {
-      render("en-hint", <T k="settings.theme.title" />);
-      const hint = container.querySelector<HTMLElement>("[data-tip]")!;
-      act(() => hint.click());
-      act(() => {
-        hint.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
-      });
-      expect(hint.classList.contains("tooltip-open")).toBe(false);
-    });
-
-    it("stacked: shows the Chinese under the English without a tooltip", () => {
-      render("en-hint", <T k="settings.title" variant="stacked" />);
-      expect(container.querySelector("[data-tip]")).toBeNull();
-      expect(container.textContent).toBe("Settings設定");
-      expect(container.querySelector('[lang="zh-Hant-TW"]')?.textContent).toBe("設定");
-    });
-
-    it("inline: tapping a hint inside a <label> does not pick the option", () => {
-      render(
-        "en-hint",
-        <label>
-          <input type="radio" name="opt" />
-          <T k="settings.tts.browserDesc" />
-        </label>,
-      );
-      const hint = container.querySelector<HTMLElement>("[data-tip]")!;
-      act(() => hint.click());
-      expect(container.querySelector<HTMLInputElement>("input")!.checked).toBe(false);
-      expect(hint.classList.contains("tooltip-open")).toBe(true);
-    });
-
-    it("inline: a hint that slipped into a button never swallows the button's click", () => {
-      let clicks = 0;
-      render(
-        "en-hint",
-        <button type="button" onClick={() => clicks++}>
-          <T k="settings.theme.title" />
-        </button>,
-      );
-      act(() => container.querySelector<HTMLElement>("[data-tip]")!.click());
-      expect(clicks).toBe(1);
-    });
-
-    it("skips the hint when both languages read the same", () => {
-      render("en-hint", <T k="settings.language.en" />);
-      expect(container.textContent).toBe("English");
-      expect(container.querySelector("[data-tip]")).toBeNull();
-    });
   });
 });

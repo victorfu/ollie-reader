@@ -95,10 +95,9 @@ export const en: Record<MessageKey, string> = {
 
   "settings.language.title": "Language",
   "settings.language.description":
-    "Choose the interface language. “English＋中文提示” shows English; tap any underlined text to see the Chinese.",
+    "Choose the interface language. In English, hover over any text to see the Chinese.",
   "settings.language.zh": "繁體中文",
   "settings.language.en": "English",
-  "settings.language.enHint": "English＋中文提示",
 
   "settings.tts.title": "Voice",
   "settings.tts.description": "Choose the text-to-speech service",

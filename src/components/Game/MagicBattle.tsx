@@ -85,7 +85,7 @@ export function MagicBattle() {
           </motion.div>
 
           <h1 className="text-3xl sm:text-5xl lg:text-6xl font-semibold tracking-tight mb-3 bg-gradient-to-r from-primary via-secondary to-accent text-transparent bg-clip-text">
-            <T k="adventure.magic.title" variant="stacked" />
+            <T k="adventure.magic.title" />
           </h1>
           <p className="text-base sm:text-lg lg:text-xl text-muted-foreground mb-8 max-w-md mx-auto leading-relaxed">
             <T k="adventure.magic.subtitle" />
@@ -99,7 +99,7 @@ export function MagicBattle() {
           >
             <span className="flex items-center gap-3">
               <span>🎀</span>
-              <T k="adventure.start" variant="stacked" />
+              <T k="adventure.start" />
               <motion.span
                 animate={{ x: [0, 5, 0] }}
                 transition={{ repeat: Infinity, duration: 1 }}

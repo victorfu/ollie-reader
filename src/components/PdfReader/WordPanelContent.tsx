@@ -390,7 +390,7 @@ export const WordPanelContent = memo(
           <div className="flex items-center gap-2 min-w-0">
             <BookMarkedIcon className="w-4 h-4 text-accent shrink-0" />
             <span className="font-semibold text-base truncate">
-              <T k="reader.vocab.title" variant="stacked" />
+              <T k="reader.vocab.title" />
             </span>
             {activeCount > 0 && (
               <span className="badge badge-xs badge-accent shrink-0">
@@ -424,7 +424,7 @@ export const WordPanelContent = memo(
                 onClick={onDismissAll}
                 className="btn btn-ghost btn-xs hover:bg-black/5 dark:hover:bg-white/10"
               >
-                <T k="reader.clearAll" variant="stacked" />
+                <T k="reader.clearAll" />
               </button>
             )}
             {/* Docked ⇄ floating mode toggle — hidden where docking cannot
@@ -500,7 +500,6 @@ export const WordPanelContent = memo(
                 <T
                   k="reader.panel.lookupAndAdd"
                   params={{ word: trimmedQuery }}
-                  variant="stacked"
                 />
               </span>
               <ReturnIcon className="w-3.5 h-3.5 shrink-0 opacity-60" />

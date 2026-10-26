@@ -54,7 +54,7 @@ function LookSection({ word, onDone }: { word: HomeworkWord; onDone: () => void 
   return (
     <section className="space-y-4">
       <Heading>
-        <T k="practice.page.lookTitle" variant="stacked" />
+        <T k="practice.page.lookTitle" />
       </Heading>
       <ul className="space-y-3">
         {word.definitions.map((d, i) => (
@@ -87,7 +87,7 @@ function LookSection({ word, onDone }: { word: HomeworkWord; onDone: () => void 
         onClick={onDone}
         className="btn btn-primary min-h-11 active:scale-[0.98]"
       >
-        <T k="practice.page.lookDone" variant="stacked" />
+        <T k="practice.page.lookDone" />
       </button>
     </section>
   );
@@ -111,7 +111,7 @@ function RecallSection({ word, onDone }: { word: HomeworkWord; onDone: () => voi
   return (
     <section className="space-y-4">
       <Heading>
-        <T k="practice.page.recallTitle" variant="stacked" />
+        <T k="practice.page.recallTitle" />
       </Heading>
       <div className="flex items-center gap-2">
         <SpeakButton text={word.word} size="md" />
@@ -187,7 +187,6 @@ function FormSection({
             k="practice.page.formTitle"
             params={{ word: word.word }}
             inflection={inflection.kind}
-            variant="stacked"
           />
         </Heading>
         <div className="flex flex-wrap items-center gap-3">
@@ -217,7 +216,6 @@ function FormSection({
           k="practice.page.formRecallTitle"
           params={{ word: word.word }}
           inflection={inflection.kind}
-          variant="stacked"
         />
       </Heading>
       <AnswerInput
@@ -286,7 +284,7 @@ function WriteSection({
         onClick={submit}
         className="btn btn-primary min-h-11 active:scale-[0.98]"
       >
-        <T k="practice.page.done" variant="stacked" />
+        <T k="practice.page.done" />
       </button>
     </section>
   );
@@ -362,7 +360,7 @@ export function WordPage({ word, progress, index, total, onChange }: WordPagePro
       {section === "copy" && (
         <section className="space-y-3">
           <Heading>
-            <T k="practice.page.copyTitle" params={{ count: COPY_TARGET }} variant="stacked" />
+            <T k="practice.page.copyTitle" params={{ count: COPY_TARGET }} />
           </Heading>
           <CopyBoxes
             word={word.word}
@@ -385,7 +383,7 @@ export function WordPage({ word, progress, index, total, onChange }: WordPagePro
 
       {section === "sentence" && (
         <WriteSection
-          title={<T k="practice.page.sentenceTitle" params={{ word: target }} variant="stacked" />}
+          title={<T k="practice.page.sentenceTitle" params={{ word: target }} />}
           label={<T k="practice.page.sentenceLabel" />}
           check={(text) => {
             const key = sentenceHint(checkSentence(text, target));

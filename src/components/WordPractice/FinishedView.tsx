@@ -103,7 +103,7 @@ export function FinishedView({
       <div className="flex flex-col items-center gap-2 text-center">
         <PartyPopper className="size-10 text-accent" strokeWidth={1.5} aria-hidden="true" />
         <h2 className="text-2xl font-semibold">
-          <T k="practice.finished.title" variant="stacked" />
+          <T k="practice.finished.title" />
         </h2>
         <p className="text-lg">
           {result.total === 0 ? (
@@ -119,7 +119,7 @@ export function FinishedView({
       {homework.newWords.length > 0 && (
         <section className="space-y-3">
           <h3 className="text-base font-semibold">
-            <T k="practice.finished.sentencesTitle" variant="stacked" />
+            <T k="practice.finished.sentencesTitle" />
           </h3>
           {canReview && reviewState === "reviewing" && (
             <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -137,7 +137,6 @@ export function FinishedView({
               <button type="button" onClick={onReview} className="btn btn-outline btn-sm min-h-11">
                 <T
                   k={reviewState === "failed" ? "practice.finished.reviewAgain" : "practice.finished.review"}
-                  variant="stacked"
                 />
               </button>
             </div>
@@ -173,7 +172,7 @@ export function FinishedView({
       {corrected.length > 0 && (
         <section className="space-y-3">
           <h3 className="text-base font-semibold">
-            <T k="practice.finished.wrongTitle" variant="stacked" />
+            <T k="practice.finished.wrongTitle" />
           </h3>
           <ul className="space-y-2">
             {corrected.map(({ key, spelling, base, formKind, answer }) => (
@@ -205,11 +204,11 @@ export function FinishedView({
 
       <div className="flex flex-wrap justify-center gap-2">
         <button type="button" onClick={onBack} className="btn btn-primary min-h-11 active:scale-[0.98]">
-          <T k="practice.word.backHome" variant="stacked" />
+          <T k="practice.word.backHome" />
         </button>
         {onAgain && (
           <button type="button" onClick={onAgain} className="btn btn-outline min-h-11 active:scale-[0.98]">
-            <T k="practice.finished.again" variant="stacked" />
+            <T k="practice.finished.again" />
           </button>
         )}
       </div>

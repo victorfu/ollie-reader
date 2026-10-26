@@ -97,10 +97,9 @@ export const zhTW = {
 
   "settings.language.title": "介面語言",
   "settings.language.description":
-    "選擇介面顯示的語言。「English＋中文提示」以英文為主，點一下有底線的字就能看中文。",
+    "選擇介面顯示的語言。選 English 時，滑鼠移到文字上就能看中文。",
   "settings.language.zh": "繁體中文",
   "settings.language.en": "English",
-  "settings.language.enHint": "English＋中文提示",
 
   "settings.tts.title": "語音模式選擇",
   "settings.tts.description": "選擇文字轉語音的服務",

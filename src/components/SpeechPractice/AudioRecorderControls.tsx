@@ -71,7 +71,7 @@ export function AudioRecorderControls({
   return (
     <div className="space-y-4">
       <h3 className="text-lg font-semibold flex items-center gap-2">
-        🎙️ <T k="listening.recorder.title" variant="stacked" />
+        🎙️ <T k="listening.recorder.title" />
       </h3>
 
       {error && (
@@ -119,7 +119,7 @@ export function AudioRecorderControls({
                 <path d="M12 15c1.66 0 3-1.34 3-3V6c0-1.66-1.34-3-3-3S9 4.34 9 6v6c0 1.66 1.34 3 3 3z" />
                 <path d="M17 12c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V22h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z" />
               </svg>
-              <T k="listening.recorder.start" variant="stacked" />
+              <T k="listening.recorder.start" />
             </button>
           )}
 
@@ -139,7 +139,7 @@ export function AudioRecorderControls({
                   >
                     <path d="M8 5v14l11-7z" />
                   </svg>
-                  <T k="listening.recorder.resume" variant="stacked" />
+                  <T k="listening.recorder.resume" />
                 </button>
               ) : (
                 <button
@@ -155,7 +155,7 @@ export function AudioRecorderControls({
                   >
                     <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
                   </svg>
-                  <T k="listening.pause" variant="stacked" />
+                  <T k="listening.pause" />
                 </button>
               )}
 
@@ -172,7 +172,7 @@ export function AudioRecorderControls({
                 >
                   <path d="M6 6h12v12H6z" />
                 </svg>
-                <T k="listening.recorder.stop" variant="stacked" />
+                <T k="listening.recorder.stop" />
               </button>
             </>
           )}
@@ -193,7 +193,7 @@ export function AudioRecorderControls({
               >
                 <path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z" />
               </svg>
-              <T k="listening.recorder.redo" variant="stacked" />
+              <T k="listening.recorder.redo" />
             </button>
           )}
         </div>

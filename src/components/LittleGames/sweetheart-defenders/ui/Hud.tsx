@@ -119,7 +119,6 @@ export function Hud({
             <T
               k="defenders.hud.startWave"
               params={{ n: hud.waveNumber }}
-              variant="stacked"
             />
             {/* 秒數固定寬度：19s → 9s 少一位數時，整顆按鈕才不會每秒抖動。 */}
             <span className="ml-1.5 inline-block w-7 text-left tabular-nums opacity-80">

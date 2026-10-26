@@ -104,7 +104,7 @@ export function HomeworkBook({
           className="btn btn-primary btn-lg min-h-14 active:scale-[0.98]"
         >
           {submitting && <span className="loading loading-spinner loading-sm" aria-hidden="true" />}
-          <T k="practice.book.handIn" variant="stacked" />
+          <T k="practice.book.handIn" />
         </button>
       </div>
     );
@@ -125,7 +125,7 @@ export function HomeworkBook({
           onClick={onRest}
           className="btn btn-ghost btn-sm min-h-11 active:scale-[0.98]"
         >
-          <T k="practice.book.rest" variant="stacked" />
+          <T k="practice.book.rest" />
         </button>
       </div>
 

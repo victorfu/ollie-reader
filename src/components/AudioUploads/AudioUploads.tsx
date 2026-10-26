@@ -90,7 +90,7 @@ export function AudioUploads() {
         handleFileSelect(file);
       } else {
         setToastMessage({
-          message: <T k="listening.audio.uploadAudioFile" variant="stacked" />,
+          message: <T k="listening.audio.uploadAudioFile" />,
           type: "error",
         });
       }
@@ -191,7 +191,7 @@ export function AudioUploads() {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight flex items-center gap-2">
-              🎵 <T k="listening.audio.title" variant="stacked" />
+              🎵 <T k="listening.audio.title" />
             </h1>
             <p className="text-muted-foreground mt-1">
               <T k="listening.audio.subtitle" />
@@ -272,9 +272,9 @@ export function AudioUploads() {
                 </div>
                 <h3 className="text-lg font-semibold mb-2">
                   {isDragging ? (
-                    <T k="listening.audio.dropToUpload" variant="stacked" />
+                    <T k="listening.audio.dropToUpload" />
                   ) : (
-                    <T k="listening.audio.dragHere" variant="stacked" />
+                    <T k="listening.audio.dragHere" />
                   )}
                 </h3>
                 <p className="text-muted-foreground text-sm mb-4">
@@ -301,7 +301,7 @@ export function AudioUploads() {
                       d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"
                     />
                   </svg>
-                  <T k="listening.audio.chooseFile" variant="stacked" />
+                  <T k="listening.audio.chooseFile" />
                 </label>
               </div>
             ) : (
@@ -391,7 +391,7 @@ export function AudioUploads() {
                   {uploading ? (
                     <>
                       <span className="loading loading-spinner loading-sm" />
-                      <T k="listening.audio.uploading" variant="stacked" />
+                      <T k="listening.audio.uploading" />
                     </>
                   ) : (
                     <>
@@ -409,7 +409,7 @@ export function AudioUploads() {
                           d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"
                         />
                       </svg>
-                      <T k="listening.audio.upload" variant="stacked" />
+                      <T k="listening.audio.upload" />
                     </>
                   )}
                 </button>
@@ -443,12 +443,12 @@ export function AudioUploads() {
       {/* Delete Confirmation Modal */}
       <ConfirmModal
         isOpen={deleteTarget !== null}
-        title={<T k="listening.audio.deleteTitle" variant="stacked" />}
+        title={<T k="listening.audio.deleteTitle" />}
         message={<T k="listening.audio.deleteMessage" />}
         onConfirm={confirmDelete}
         onCancel={cancelDelete}
-        confirmText={<T k="listening.delete" variant="stacked" />}
-        cancelText={<T k="common.cancel" variant="stacked" />}
+        confirmText={<T k="listening.delete" />}
+        cancelText={<T k="common.cancel" />}
         confirmVariant="error"
         isLoading={isDeleting}
       />

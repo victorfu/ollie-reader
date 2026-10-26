@@ -43,7 +43,7 @@ export function ResultDialog({
         </p>
 
         <h2 className="mt-2 text-xl font-semibold tracking-tight text-slate-900">
-          <T k={title.key} params={title.params} variant="stacked" />
+          <T k={title.key} params={title.params} />
         </h2>
         <p className="mt-1 text-sm text-slate-500">
           <T k={detail.key} params={detail.params} />
@@ -114,7 +114,6 @@ export function ResultDialog({
                     ? "defenders.result.playAgain"
                     : "defenders.result.retry"
               }
-              variant="stacked"
             />
           </button>
           <button
@@ -123,7 +122,7 @@ export function ResultDialog({
             disabled={isSettling}
             className="min-h-11 rounded-[10px] border border-black/5 bg-white px-4 text-sm font-medium text-slate-600 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            <T k="defenders.result.menu" variant="stacked" />
+            <T k="defenders.result.menu" />
           </button>
         </div>
       </div>

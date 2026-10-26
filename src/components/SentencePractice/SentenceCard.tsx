@@ -169,7 +169,7 @@ export const SentenceCard = ({
                     className="btn btn-ghost btn-sm active:scale-[0.98]"
                     disabled={isUpdating}
                   >
-                    <T k="practice.sentence.cancel" variant="stacked" />
+                    <T k="practice.sentence.cancel" />
                   </button>
                   <button
                     type="button"
@@ -180,10 +180,10 @@ export const SentenceCard = ({
                     {isUpdating ? (
                       <>
                         <span className="loading loading-spinner loading-xs"></span>
-                        <T k="practice.sentence.updating" variant="stacked" />
+                        <T k="practice.sentence.updating" />
                       </>
                     ) : (
-                      <T k="practice.sentence.save" variant="stacked" />
+                      <T k="practice.sentence.save" />
                     )}
                   </button>
                 </div>

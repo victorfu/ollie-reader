@@ -402,8 +402,8 @@ export const VocabularyBook = () => {
     setToastMessage({
       message:
         item.kind === "word"
-          ? <T k="reader.vocab.wordExists" params={{ word: item.word.word }} variant="stacked" />
-          : <T k="reader.vocab.sentenceExists" variant="stacked" />,
+          ? <T k="reader.vocab.wordExists" params={{ word: item.word.word }} />
+          : <T k="reader.vocab.sentenceExists" />,
       type: "info",
     });
   };
@@ -414,7 +414,7 @@ export const VocabularyBook = () => {
 
     if (CJK_PATTERN.test(trimmed) || !stripEdgePunctuation(trimmed)) {
       setToastMessage({
-        message: <T k="reader.vocab.englishOnly" variant="stacked" />,
+        message: <T k="reader.vocab.englishOnly" />,
         type: "info",
       });
       return;
@@ -487,14 +487,14 @@ export const VocabularyBook = () => {
     if (item.kind === "word") {
       setToastMessage({
         message: (
-          <T k="reader.vocab.wordAdded" params={{ word: item.word.word }} variant="stacked" />
+          <T k="reader.vocab.wordAdded" params={{ word: item.word.word }} />
         ),
         type: "success",
       });
       void loadVocabulary(FEED_FILTERS);
     } else {
       setToastMessage({
-        message: <T k="reader.vocab.sentenceAdded" variant="stacked" />,
+        message: <T k="reader.vocab.sentenceAdded" />,
         type: "success",
       });
       void loadSentences();
@@ -525,7 +525,7 @@ export const VocabularyBook = () => {
       const response = await addWord(word);
       if (response.success) {
         setToastMessage({
-          message: <T k="reader.vocab.wordAdded" params={{ word }} variant="stacked" />,
+          message: <T k="reader.vocab.wordAdded" params={{ word }} />,
           type: "success",
         });
         void loadVocabulary(FEED_FILTERS);
@@ -533,14 +533,14 @@ export const VocabularyBook = () => {
       }
       if (response.message === "Word already in vocabulary") {
         setToastMessage({
-          message: <T k="reader.vocab.wordExists" params={{ word }} variant="stacked" />,
+          message: <T k="reader.vocab.wordExists" params={{ word }} />,
           type: "info",
         });
         return { success: true, existed: true };
       }
       setToastMessage({
         message: response.message || (
-          <T k="reader.vocab.addFailed" variant="stacked" />
+          <T k="reader.vocab.addFailed" />
         ),
         type: "error",
       });
@@ -588,7 +588,6 @@ export const VocabularyBook = () => {
                 ? "reader.vocab.wordDeleted"
                 : "reader.vocab.sentenceDeleted"
             }
-            variant="stacked"
           />
         ),
         type: "success",
@@ -596,7 +595,7 @@ export const VocabularyBook = () => {
     } catch (error) {
       console.error("Error deleting item:", error);
       setToastMessage({
-        message: <T k="reader.vocab.deleteFailed" variant="stacked" />,
+        message: <T k="reader.vocab.deleteFailed" />,
         type: "error",
       });
       return;
@@ -842,7 +841,7 @@ export const VocabularyBook = () => {
                   {isQuerying ? (
                     <span className="loading loading-spinner loading-xs" />
                   ) : (
-                    <T k="reader.vocab.add" variant="stacked" />
+                    <T k="reader.vocab.add" />
                   )}
                 </button>
               </form>
@@ -867,7 +866,7 @@ export const VocabularyBook = () => {
                   onClick={() => setTypeFilter(value)}
                   aria-pressed={typeFilter === value}
                 >
-                  <T k={label} variant="stacked" />
+                  <T k={label} />
                 </button>
               ))}
             </div>
@@ -901,7 +900,7 @@ export const VocabularyBook = () => {
               <div className="space-y-1">
                 <h2 className="flex items-center justify-between gap-2 px-2 pb-1 text-xs font-semibold text-muted-foreground">
                   <span>
-                    <T k="reader.vocab.searchResults" variant="stacked" />
+                    <T k="reader.vocab.searchResults" />
                   </span>
                   <span className="flex items-center gap-1 font-normal">
                     {isSearching && (
@@ -941,7 +940,6 @@ export const VocabularyBook = () => {
                             <T
                               k="reader.vocab.lookupAndAddText"
                               params={{ text: typedText }}
-                              variant="stacked"
                             />
                           </span>
                         )}
@@ -1040,7 +1038,6 @@ export const VocabularyBook = () => {
                 ? "reader.vocab.deleteSentenceTitle"
                 : "reader.vocab.deleteWordTitle"
             }
-            variant="stacked"
           />
         }
         message={
@@ -1054,7 +1051,7 @@ export const VocabularyBook = () => {
         }
         onConfirm={confirmDelete}
         onCancel={() => setPendingDelete(null)}
-        confirmText={<T k="reader.vocab.delete" variant="stacked" />}
+        confirmText={<T k="reader.vocab.delete" />}
         confirmVariant="error"
         isLoading={isDeleting}
       />

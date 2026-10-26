@@ -7,10 +7,10 @@ export type { MessageKey };
 export type Language = "zh-TW" | "en";
 
 /**
- * What the user picked in Settings. "en-hint" renders English but keeps the
- * Chinese one tap away, so Ollie can get used to the English interface.
+ * What the user picked in Settings. English mode keeps the Chinese one hover
+ * away (a tooltip), so Ollie can get used to the English interface.
  */
-export type LanguageMode = "zh-TW" | "en" | "en-hint";
+export type LanguageMode = Language;
 
 /**
  * A param that is itself a dictionary entry. It is translated into the same
@@ -34,10 +34,6 @@ const DICTIONARIES: Record<Language, Record<MessageKey, string>> = {
   "zh-TW": zhTW,
   en,
 };
-
-/** The language actually displayed for a mode. */
-export const languageForMode = (mode: LanguageMode): Language =>
-  mode === "zh-TW" ? "zh-TW" : "en";
 
 /**
  * Look up `key` in `language`, substituting `{name}` placeholders. Falls back

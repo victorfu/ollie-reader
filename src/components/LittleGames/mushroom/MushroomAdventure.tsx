@@ -1318,7 +1318,7 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
       return (
         <Overlay>
           <h2 className="text-4xl font-bold text-emerald-800 mb-2">
-            <T k="arcade.mushroom.title" variant="stacked" />
+            <T k="arcade.mushroom.title" />
           </h2>
           <p className="text-slate-700 mb-2">
             <T k="arcade.mushroom.tagline" />
@@ -1333,13 +1333,13 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
                   onClick={() => startGame(TUTORIAL_INDEX)}
                   className={BTN_PRIMARY}
                 >
-                  🎓 <T k="arcade.common.tutorialFirst" variant="stacked" />
+                  🎓 <T k="arcade.common.tutorialFirst" />
                 </button>
                 <button
                   onClick={() => startGame()}
                   className={BTN_SECONDARY}
                 >
-                  <T k="arcade.common.skipTutorial" variant="stacked" />
+                  <T k="arcade.common.skipTutorial" />
                 </button>
               </>
             ) : hasProgress ? (
@@ -1351,14 +1351,13 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
                   <T
                     k="arcade.mushroom.continue"
                     params={{ level: progress.highestUnlocked + 1 }}
-                    variant="stacked"
                   />
                 </button>
                 <button
                   onClick={() => startGame()}
                   className={BTN_SECONDARY}
                 >
-                  <T k="arcade.mushroom.fromLevel1" variant="stacked" />
+                  <T k="arcade.mushroom.fromLevel1" />
                 </button>
               </>
             ) : (
@@ -1366,7 +1365,7 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
                 onClick={() => startGame()}
                 className={BTN_PRIMARY}
               >
-                <T k="arcade.common.startGame" variant="stacked" />
+                <T k="arcade.common.startGame" />
               </button>
             )}
             {progress.tutorialDone && (
@@ -1374,14 +1373,14 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
                 onClick={() => startGame(TUTORIAL_INDEX)}
                 className={BTN_SECONDARY}
               >
-                🎓 <T k="arcade.common.tutorial" variant="stacked" />
+                🎓 <T k="arcade.common.tutorial" />
               </button>
             )}
             <button
               onClick={() => setGameState("settings")}
               className={BTN_SECONDARY}
             >
-              ⚙️ <T k="arcade.mushroom.settings" variant="stacked" />
+              ⚙️ <T k="arcade.mushroom.settings" />
             </button>
           </div>
           {hasProgress && (
@@ -1456,7 +1455,7 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
       return (
         <Overlay>
           <h2 className="text-4xl font-bold text-emerald-800 mb-2">
-            <T k="arcade.mushroom.win" variant="stacked" />
+            <T k="arcade.mushroom.win" />
           </h2>
           <p className="text-slate-700 mb-2">
             <T k="arcade.mushroom.totalScore" params={{ score }} />
@@ -1469,14 +1468,14 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
               onClick={() => startGame()}
               className={BTN_PRIMARY}
             >
-              <T k="arcade.common.playAgain" variant="stacked" />
+              <T k="arcade.common.playAgain" />
             </button>
             {onExit && (
               <button
                 onClick={onExit}
                 className={BTN_OUTLINE}
               >
-                <T k="arcade.common.backToMenu" variant="stacked" />
+                <T k="arcade.common.backToMenu" />
               </button>
             )}
           </div>
@@ -1488,7 +1487,7 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
       return (
         <Overlay>
           <h2 className="text-4xl font-bold text-rose-500 mb-2">
-            <T k="arcade.mushroom.dead" variant="stacked" />
+            <T k="arcade.mushroom.dead" />
           </h2>
           <p className="text-slate-700 mb-1">
             <T k="arcade.mushroom.deadCheer" />
@@ -1507,7 +1506,6 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
               <T
                 k="arcade.mushroom.retryLevel"
                 params={{ level: levelIndex + 1 }}
-                variant="stacked"
               />
             </button>
             {onExit && (
@@ -1515,7 +1513,7 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
                 onClick={onExit}
                 className={BTN_OUTLINE}
               >
-                <T k="arcade.common.backToMenu" variant="stacked" />
+                <T k="arcade.common.backToMenu" />
               </button>
             )}
           </div>
@@ -1540,7 +1538,7 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
           onClick={onExit}
           className="absolute left-6 top-6 z-20 rounded-full bg-white/90 px-4 py-2 text-sm font-semibold text-slate-900 shadow-lg backdrop-blur transition hover:-translate-y-0.5 hover:shadow-xl"
         >
-          ← <T k="arcade.common.backToGames" variant="stacked" />
+          ← <T k="arcade.common.backToGames" />
         </button>
       )}
       {gameState === "playing" && (
@@ -1548,7 +1546,7 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
           onClick={pauseGame}
           className="absolute right-6 top-6 z-20 rounded-full bg-white/90 px-4 py-2 text-sm font-semibold text-slate-900 shadow-lg backdrop-blur transition hover:-translate-y-0.5 hover:shadow-xl"
         >
-          ⏸ <T k="arcade.common.pause" variant="stacked" />
+          ⏸ <T k="arcade.common.pause" />
         </button>
       )}
       <div

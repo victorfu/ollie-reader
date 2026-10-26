@@ -57,7 +57,7 @@ export function AudioUploadEditModal({
     <dialog className="modal modal-bottom sm:modal-middle modal-open">
       <div className="modal-box rounded-2xl border border-border-hairline shadow-floating">
         <h3 className="text-lg font-semibold mb-4">
-          <T k="listening.audio.editTitle" variant="stacked" />
+          <T k="listening.audio.editTitle" />
         </h3>
 
         <form onSubmit={handleSubmit}>
@@ -108,7 +108,7 @@ export function AudioUploadEditModal({
               onClick={handleClose}
               disabled={isSaving}
             >
-              <T k="common.cancel" variant="stacked" />
+              <T k="common.cancel" />
             </button>
             <button
               type="submit"
@@ -118,10 +118,10 @@ export function AudioUploadEditModal({
               {isSaving ? (
                 <>
                   <span className="loading loading-spinner loading-sm" />
-                  <T k="listening.saving" variant="stacked" />
+                  <T k="listening.saving" />
                 </>
               ) : (
-                <T k="listening.audio.save" variant="stacked" />
+                <T k="listening.audio.save" />
               )}
             </button>
           </div>

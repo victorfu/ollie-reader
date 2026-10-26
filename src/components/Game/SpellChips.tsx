@@ -100,14 +100,14 @@ export function SpellChips({ letters, disabled, onSubmit }: SpellChipsProps) {
             className="btn btn-ghost btn-sm gap-1 rounded-full min-h-11 px-5 disabled:opacity-40"
           >
             <RotateCcw className="h-4 w-4" strokeWidth={2} aria-hidden="true" />
-            <T k="adventure.spell.clear" variant="stacked" />
+            <T k="adventure.spell.clear" />
           </button>
           <button
             onClick={() => onSubmit(attempt)}
             disabled={!isFull}
             className="btn btn-primary btn-sm gap-1 rounded-full min-h-11 px-6 disabled:opacity-40 active:scale-[0.98]"
           >
-            <T k="adventure.spell.done" variant="stacked" />
+            <T k="adventure.spell.done" />
             <Check className="h-4 w-4" strokeWidth={2.5} aria-hidden="true" />
           </button>
         </div>

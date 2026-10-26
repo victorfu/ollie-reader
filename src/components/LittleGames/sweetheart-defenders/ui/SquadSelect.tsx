@@ -97,12 +97,12 @@ export function SquadSelect({
         className="absolute left-4 top-4 z-20 flex min-h-11 items-center gap-1.5 rounded-full bg-white/90 px-4 py-2 text-sm font-semibold text-slate-900 shadow-lg backdrop-blur transition hover:-translate-y-0.5 hover:shadow-xl sm:left-6 sm:top-6"
       >
         <ArrowLeft size={16} strokeWidth={2} aria-hidden="true" />
-        <T k="defenders.squad.back" variant="stacked" />
+        <T k="defenders.squad.back" />
       </button>
 
       <header className="mt-10 flex flex-col items-center sm:mt-2">
         <h1 className="text-3xl font-semibold tracking-tight text-slate-900">
-          <T k="defenders.squad.heading" variant="stacked" />
+          <T k="defenders.squad.heading" />
         </h1>
         <p className="mt-1 text-sm text-slate-600">
           {levelName}
@@ -280,7 +280,6 @@ export function SquadSelect({
                         ? "defenders.squad.teamFull"
                         : "defenders.squad.add"
                   }
-                  variant="stacked"
                 />
               </button>
             </div>
@@ -300,7 +299,7 @@ export function SquadSelect({
             className="flex min-h-11 items-center gap-1 rounded-[10px] border border-black/5 bg-white px-3 text-sm font-medium text-slate-600 shadow-sm transition hover:bg-slate-50 disabled:opacity-45"
           >
             <Sparkles size={15} strokeWidth={2} aria-hidden="true" />
-            <T k="defenders.squad.recommend" variant="stacked" />
+            <T k="defenders.squad.recommend" />
           </button>
           <button
             type="button"
@@ -309,7 +308,7 @@ export function SquadSelect({
             className="flex min-h-11 items-center gap-1 rounded-[10px] border border-black/5 bg-white px-3 text-sm font-medium text-slate-600 shadow-sm transition hover:bg-slate-50 disabled:opacity-45"
           >
             <Eraser size={15} strokeWidth={2} aria-hidden="true" />
-            <T k="defenders.squad.clear" variant="stacked" />
+            <T k="defenders.squad.clear" />
           </button>
           <button
             type="button"
@@ -321,7 +320,6 @@ export function SquadSelect({
             <T
               k="defenders.squad.go"
               params={{ count: squadIds.length, max: MAX_SQUAD_SIZE }}
-              variant="stacked"
             />
           </button>
         </div>

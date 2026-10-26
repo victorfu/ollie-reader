@@ -33,20 +33,20 @@ export function PauseOverlay({
   return (
     <Overlay>
       <h2 className="text-4xl font-bold text-emerald-800 mb-2">
-        <T k="arcade.common.paused" variant="stacked" />
+        <T k="arcade.common.paused" />
       </h2>
       <p className="text-slate-600 mb-5 text-base">
         <T k="arcade.common.pausedHint" />
       </p>
       <div className="flex gap-3 justify-center flex-wrap">
         <button onClick={onResume} className={BTN_PRIMARY}>
-          ▶ <T k="arcade.common.resume" variant="stacked" />
+          ▶ <T k="arcade.common.resume" />
         </button>
         <button onClick={onRestart} className={BTN_SECONDARY}>
-          ↻ <T k="arcade.mushroom.restartLevel" variant="stacked" />
+          ↻ <T k="arcade.mushroom.restartLevel" />
         </button>
         <button onClick={onMenu} className={BTN_OUTLINE}>
-          <T k="arcade.common.backToMenu" variant="stacked" />
+          <T k="arcade.common.backToMenu" />
         </button>
       </div>
     </Overlay>
@@ -63,17 +63,17 @@ export function TutorialCompleteOverlay({
   return (
     <Overlay>
       <h2 className="text-4xl font-bold text-emerald-800 mb-2">
-        🎉 <T k="arcade.common.tutorialDone" variant="stacked" />
+        🎉 <T k="arcade.common.tutorialDone" />
       </h2>
       <p className="text-slate-700 mb-5 text-base">
         <T k="arcade.mushroom.tutorialDoneBody" />
       </p>
       <div className="flex gap-3 justify-center flex-wrap">
         <button onClick={onStart} className={BTN_PRIMARY}>
-          <T k="arcade.mushroom.startLevel1" variant="stacked" />
+          <T k="arcade.mushroom.startLevel1" />
         </button>
         <button onClick={onMenu} className={BTN_OUTLINE}>
-          <T k="arcade.common.backToMenu" variant="stacked" />
+          <T k="arcade.common.backToMenu" />
         </button>
       </div>
     </Overlay>
@@ -109,7 +109,7 @@ export function SettingsOverlay({
     <div className="absolute inset-0 flex items-center justify-center bg-slate-900/30 backdrop-blur">
       <div className="rounded-3xl bg-white/95 border border-white/60 shadow-2xl px-6 py-6 max-w-md w-full mx-4">
         <h2 className="text-2xl font-bold text-emerald-800 mb-4 text-center">
-          ⚙️ <T k="arcade.mushroom.settings.title" variant="stacked" />
+          ⚙️ <T k="arcade.mushroom.settings.title" />
         </h2>
 
         {/* 難度滑桿 */}
@@ -239,13 +239,13 @@ export function SettingsOverlay({
             onClick={onCancel}
             className="flex-1 min-h-11 py-2.5 rounded-full bg-slate-100 text-slate-700 font-semibold hover:bg-slate-200 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
           >
-            <T k="arcade.mushroom.settings.cancel" variant="stacked" />
+            <T k="arcade.mushroom.settings.cancel" />
           </button>
           <button
             onClick={() => onSave(localSettings)}
             className="flex-1 min-h-11 py-2.5 rounded-full bg-emerald-500 text-white font-semibold hover:bg-emerald-600 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
           >
-            <T k="arcade.mushroom.settings.save" variant="stacked" />
+            <T k="arcade.mushroom.settings.save" />
           </button>
         </div>
       </div>

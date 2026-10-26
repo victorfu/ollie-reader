@@ -441,7 +441,7 @@ export const PdfViewer = memo(
         <div className="sticky top-0 z-10 flex shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-2 rounded-t-xl border-b border-border-hairline bg-base-200/90 px-3 py-2 backdrop-blur-md">
           {headerActions ?? (
             <span className="text-sm font-medium text-base-content">
-              <T k="reader.viewer.title" variant="stacked" />
+              <T k="reader.viewer.title" />
             </span>
           )}
           <span className="hidden text-xs text-base-content/55 sm:inline">

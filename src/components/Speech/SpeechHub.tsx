@@ -26,7 +26,7 @@ export function SpeechHub() {
                 }`
               }
             >
-              {tab.emoji} <T k={tab.labelKey} variant="stacked" />
+              {tab.emoji} <T k={tab.labelKey} />
             </NavLink>
           ))}
         </div>

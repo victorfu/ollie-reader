@@ -206,7 +206,7 @@ export function AudioUploadList({
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold flex items-center gap-2">
-            🎧 <T k="listening.audio.myAudio" variant="stacked" />
+            🎧 <T k="listening.audio.myAudio" />
           </h2>
           <span className="text-sm text-muted-foreground">
             <T k="listening.audio.fileCount" params={{ count: uploads.length }} />

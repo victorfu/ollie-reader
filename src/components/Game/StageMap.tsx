@@ -97,7 +97,7 @@ export function StageMap({
             </button>
             <div className="flex-1">
               <h1 className="text-lg font-semibold tracking-tight">
-                <T k="adventure.map.title" variant="stacked" />
+                <T k="adventure.map.title" />
               </h1>
               <p className="text-sm text-muted-foreground">
                 <T k="adventure.map.subtitle" />
@@ -362,7 +362,6 @@ export function StageMap({
                             <T
                               k="adventure.map.requiredLevel"
                               params={{ level: stage.requiredLevel }}
-                              variant="stacked"
                             />
                           </div>
                         )}

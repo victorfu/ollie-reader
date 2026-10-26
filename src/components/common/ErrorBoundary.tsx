@@ -3,25 +3,15 @@ import { logger } from "../../utils/logger";
 import { isChunkLoadError } from "../../utils/chunkErrors";
 import { reloadOnceForStaleChunk } from "../../utils/lazyWithReload";
 import { readStoredLanguageMode } from "../../i18n/storage";
-import { languageForMode, translate, type MessageKey } from "../../i18n/translate";
+import { translate, type MessageKey } from "../../i18n/translate";
 
 /**
  * The boundary sits above LanguageProvider (the provider itself may be what
  * crashed), so it reads the stored mode directly and shows plain text in the
- * display language, with the Chinese underneath in hint mode.
+ * display language.
  */
-function boundaryText(key: MessageKey): ReactNode {
-  const mode = readStoredLanguageMode();
-  const text = translate(languageForMode(mode), key);
-  if (mode !== "en-hint") return text;
-  return (
-    <>
-      {text}
-      <span lang="zh-Hant-TW" className="block text-[0.72em] font-normal opacity-70">
-        {translate("zh-TW", key)}
-      </span>
-    </>
-  );
+function boundaryText(key: MessageKey): string {
+  return translate(readStoredLanguageMode(), key);
 }
 
 interface Props {
@@ -70,7 +60,7 @@ export class ErrorBoundary extends Component<Props, State> {
           <div className="min-h-screen bg-background flex items-center justify-center">
             <span
               className="loading loading-spinner loading-lg text-primary"
-              aria-label={translate(languageForMode(readStoredLanguageMode()), "error.reloading")}
+              aria-label={translate(readStoredLanguageMode(), "error.reloading")}
             />
           </div>
         );

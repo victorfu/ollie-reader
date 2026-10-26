@@ -88,7 +88,7 @@ export function GachaCollection({
             id="gacha-collection-title"
             className="text-2xl font-bold tracking-tight sm:text-3xl"
           >
-            <T k="gacha.collection.title" variant="stacked" />
+            <T k="gacha.collection.title" />
           </h2>
           <p className="mt-1 max-w-lg text-sm leading-6 text-muted-foreground">
             <T k="gacha.collection.intro" />
@@ -162,7 +162,7 @@ export function GachaCollection({
             className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-[9px] border border-sky-400/30 bg-background/85 px-4 font-semibold text-foreground shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
           >
             <RotateCcw className="size-4" strokeWidth={1.8} aria-hidden="true" />
-            <T k="gacha.collection.backToMachine" variant="stacked" />
+            <T k="gacha.collection.backToMachine" />
           </button>
         </div>
       ) : null}
@@ -320,7 +320,7 @@ export function GachaCollection({
             <div className="flex items-center gap-2 text-error">
               <Trash2 className="size-5" strokeWidth={1.8} aria-hidden="true" />
               <h3 id="gacha-reset-title" className="font-bold">
-                <T k="gacha.collection.manageTitle" variant="stacked" />
+                <T k="gacha.collection.manageTitle" />
               </h3>
             </div>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
@@ -339,7 +339,7 @@ export function GachaCollection({
             className="btn btn-error min-h-11 shrink-0 rounded-[9px] px-5 disabled:cursor-not-allowed"
           >
             <Trash2 className="size-4" strokeWidth={1.8} aria-hidden="true" />
-            <T k="gacha.reset.confirm" variant="stacked" />
+            <T k="gacha.reset.confirm" />
           </button>
         </div>
       </section>

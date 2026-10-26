@@ -248,7 +248,7 @@ function AccountMenu({
               strokeWidth={1.75}
               aria-hidden="true"
             />
-            <T k="nav.settings" variant="stacked" />
+            <T k="nav.settings" />
           </Link>
           <button
             type="button"
@@ -264,7 +264,7 @@ function AccountMenu({
               strokeWidth={1.75}
               aria-hidden="true"
             />
-            <T k="nav.signOut" variant="stacked" />
+            <T k="nav.signOut" />
           </button>
         </div>
       )}
@@ -596,7 +596,7 @@ function AppContent() {
             {/* Desktop: current page title */}
             <h1 className="hidden truncate text-base font-semibold tracking-tight lg:block">
               {currentLabelKey ? (
-                <T k={currentLabelKey} variant="stacked" />
+                <T k={currentLabelKey} />
               ) : (
                 "Ollie Reader"
               )}
@@ -676,7 +676,7 @@ function AppContent() {
                   className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-base-content transition-colors duration-200 hover:bg-accent-tint hover:text-accent active:scale-[0.98]"
                 >
                   <SettingsIcon className="size-5 shrink-0" strokeWidth={1.75} aria-hidden="true" />
-                  <T k="nav.settings" variant="stacked" />
+                  <T k="nav.settings" />
                 </Link>
                 <button
                   type="button"
@@ -687,7 +687,7 @@ function AppContent() {
                   className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-error transition-colors duration-200 hover:bg-error/10 active:scale-[0.98]"
                 >
                   <LogOut className="size-5 shrink-0" strokeWidth={1.75} aria-hidden="true" />
-                  <T k="nav.signOut" variant="stacked" />
+                  <T k="nav.signOut" />
                 </button>
               </div>
 

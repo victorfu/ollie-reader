@@ -36,7 +36,7 @@ export function ExamSubjectSwitcher({
                   : "text-muted-foreground hover:bg-accent/10"
               }`}
             >
-              <T k={SUBJECT_KEYS[tab]} variant="stacked" />
+              <T k={SUBJECT_KEYS[tab]} />
             </button>
           );
         })}

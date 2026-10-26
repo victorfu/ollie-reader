@@ -237,7 +237,7 @@ export const SentencePractice = () => {
     if (!result.success) {
       setToastMessage({
         message: result.message || (
-          <T k="practice.sentence.reorderFailed" variant="stacked" />
+          <T k="practice.sentence.reorderFailed" />
         ),
         type: "error",
       });
@@ -250,14 +250,14 @@ export const SentencePractice = () => {
     if (result.success) {
       setToastMessage({
         message: result.message || (
-          <T k="practice.sentence.success" variant="stacked" />
+          <T k="practice.sentence.success" />
         ),
         type: "success",
       });
     } else {
       setToastMessage({
         message: result.message || (
-          <T k="practice.sentence.processFailed" variant="stacked" />
+          <T k="practice.sentence.processFailed" />
         ),
         type: "error",
       });
@@ -271,13 +271,13 @@ export const SentencePractice = () => {
 
     if (result.success) {
       setToastMessage({
-        message: <T k="practice.sentence.updated" variant="stacked" />,
+        message: <T k="practice.sentence.updated" />,
         type: "success",
       });
     } else {
       setToastMessage({
         message: result.message || (
-          <T k="practice.sentence.updateFailed" variant="stacked" />
+          <T k="practice.sentence.updateFailed" />
         ),
         type: "error",
       });
@@ -291,13 +291,13 @@ export const SentencePractice = () => {
 
     if (result.success) {
       setToastMessage({
-        message: <T k="practice.sentence.deleted" variant="stacked" />,
+        message: <T k="practice.sentence.deleted" />,
         type: "info",
       });
     } else {
       setToastMessage({
         message: result.message || (
-          <T k="practice.sentence.deleteFailed" variant="stacked" />
+          <T k="practice.sentence.deleteFailed" />
         ),
         type: "error",
       });
@@ -313,13 +313,13 @@ export const SentencePractice = () => {
 
     if (result.success) {
       setToastMessage({
-        message: <T k="practice.sentence.cleared" variant="stacked" />,
+        message: <T k="practice.sentence.cleared" />,
         type: "info",
       });
     } else {
       setToastMessage({
         message: result.message || (
-          <T k="practice.sentence.clearFailed" variant="stacked" />
+          <T k="practice.sentence.clearFailed" />
         ),
         type: "error",
       });
@@ -342,7 +342,7 @@ export const SentencePractice = () => {
         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
             <div className="flex-1 min-w-0">
               <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight flex items-center gap-2">
-                ✍️ <T k="practice.sentence.title" variant="stacked" />
+                ✍️ <T k="practice.sentence.title" />
               </h1>
               <p className="text-muted-foreground mt-1">
                 <T k="practice.sentence.subtitle" />
@@ -381,7 +381,7 @@ export const SentencePractice = () => {
                     navigator.clipboard.writeText(allSentences).then(() => {
                       setToastMessage({
                         message: (
-                          <T k="practice.sentence.copiedAll" variant="stacked" />
+                          <T k="practice.sentence.copiedAll" />
                         ),
                         type: "success",
                       });
@@ -406,7 +406,7 @@ export const SentencePractice = () => {
                     />
                   </svg>
                   <span className="hidden sm:inline">
-                    <T k="practice.sentence.copyAll" variant="stacked" />
+                    <T k="practice.sentence.copyAll" />
                   </span>
                 </button>
                 <button
@@ -450,7 +450,7 @@ export const SentencePractice = () => {
                         />
                       </svg>
                       <span className="hidden sm:inline">
-                        <T k="practice.sentence.stopPlaying" variant="stacked" />
+                        <T k="practice.sentence.stopPlaying" />
                       </span>
                     </>
                   ) : (
@@ -476,7 +476,7 @@ export const SentencePractice = () => {
                         />
                       </svg>
                       <span className="hidden sm:inline">
-                        <T k="practice.sentence.playAll" variant="stacked" />
+                        <T k="practice.sentence.playAll" />
                       </span>
                     </>
                   )}
@@ -504,7 +504,7 @@ export const SentencePractice = () => {
                     />
                   </svg>
                   <span className="hidden sm:inline">
-                    <T k="practice.sentence.clearAll" variant="stacked" />
+                    <T k="practice.sentence.clearAll" />
                   </span>
                 </button>
               </div>
@@ -534,7 +534,7 @@ export const SentencePractice = () => {
                 d="M12 4v16m8-8H4"
               />
             </svg>
-            <T k="practice.sentence.add" variant="stacked" />
+            <T k="practice.sentence.add" />
           </button>
         </div>
       )}
@@ -618,10 +618,10 @@ export const SentencePractice = () => {
                   {isLoadingMore ? (
                     <>
                       <span className="loading loading-spinner loading-sm"></span>
-                      <T k="practice.sentence.loadingMore" variant="stacked" />
+                      <T k="practice.sentence.loadingMore" />
                     </>
                   ) : (
-                    <T k="practice.sentence.loadMore" variant="stacked" />
+                    <T k="practice.sentence.loadMore" />
                   )}
                 </button>
               </div>
@@ -633,7 +633,7 @@ export const SentencePractice = () => {
       {/* Clear All Confirm Modal */}
       <ConfirmModal
         isOpen={clearTargetSpeechId !== null}
-        title={<T k="practice.sentence.clearTitle" variant="stacked" />}
+        title={<T k="practice.sentence.clearTitle" />}
         message={(() => {
           const name = speeches.find(
             (speech) => speech.id === clearTargetSpeechId,
@@ -644,8 +644,8 @@ export const SentencePractice = () => {
             <T k="practice.sentence.clearMessageUnnamed" />
           );
         })()}
-        confirmText={<T k="practice.sentence.clearAll" variant="stacked" />}
-        cancelText={<T k="practice.sentence.cancel" variant="stacked" />}
+        confirmText={<T k="practice.sentence.clearAll" />}
+        cancelText={<T k="practice.sentence.cancel" />}
         confirmVariant="error"
         onConfirm={handleClearAll}
         onCancel={() => setClearTargetSpeechId(null)}

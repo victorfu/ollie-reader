@@ -46,7 +46,6 @@ export function GameResult({
       >
         <T
           k={isVictory ? "adventure.magic.victoryTitle" : "adventure.magic.defeatTitle"}
-          variant="stacked"
         />
       </h2>
 
@@ -113,7 +112,7 @@ export function GameResult({
           onClick={onRestart}
           className="w-full py-3 sm:py-4 text-lg sm:text-xl font-bold text-white bg-gradient-to-r from-primary via-secondary to-accent rounded-2xl shadow-elevated hover:shadow-floating transition-shadow active:scale-[0.98]"
         >
-          🎀 <T k="adventure.magic.playAgain" variant="stacked" />
+          🎀 <T k="adventure.magic.playAgain" />
         </motion.button>
         <motion.button
           whileHover={{ scale: 1.02 }}
@@ -121,7 +120,7 @@ export function GameResult({
           onClick={onQuit}
           className="w-full py-3 text-base sm:text-lg font-medium text-muted-foreground hover:text-foreground hover:bg-base-200/60 rounded-2xl transition-colors"
         >
-          <T k="adventure.magic.menu" variant="stacked" />
+          <T k="adventure.magic.menu" />
         </motion.button>
       </div>
     </motion.div>

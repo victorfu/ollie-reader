@@ -38,7 +38,7 @@ export function DailyBonusModal({
             🎁
           </motion.span>
           <h2 className="text-2xl font-semibold tracking-tight mt-2">
-            <T k="adventure.daily.title" variant="stacked" />
+            <T k="adventure.daily.title" />
           </h2>
           {bonus.streakDays > 1 && (
             <div className="badge badge-error badge-lg gap-1 mt-1">
@@ -75,7 +75,6 @@ export function DailyBonusModal({
                     ? "adventure.daily.retry"
                     : "adventure.daily.claim"
               }
-              variant="stacked"
             />
           </motion.button>
         </div>

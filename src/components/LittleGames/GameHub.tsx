@@ -3,6 +3,7 @@ import { getBestScore } from "./lib/game-utils";
 import { GACHA_CHARACTER_IDS } from "./gacha-machine/gachaTypes";
 import { openGameTab } from "../../utils/gameTabs";
 import { T } from "../common/T";
+import { HintText } from "../common/HintText";
 import { useLanguage } from "../../hooks/useLanguage";
 import { msg, type MessageKey, type MessageParams } from "../../i18n/translate";
 
@@ -160,10 +161,6 @@ export default function GameHub() {
     openGameTab(to);
   }, []);
 
-  // English-named cards show their Chinese name underneath in Chinese mode
-  // (the original design) and as the hint in "English + Chinese hints" mode.
-  const showChineseName = language === "zh-TW" || showHints;
-
   return (
     <div className="mx-auto w-full max-w-6xl">
       <header className="mb-4">
@@ -171,7 +168,7 @@ export default function GameHub() {
           Ollie Little Games
         </p>
         <h1 className="mt-1 text-3xl font-semibold tracking-tight">
-          <T k="arcade.hub.title" variant="stacked" />
+          <T k="arcade.hub.title" />
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
           <T k="arcade.hub.subtitle" />
@@ -191,7 +188,7 @@ export default function GameHub() {
               <div className="flex flex-wrap items-center justify-end gap-1.5">
                 {card.inDevelopment && (
                   <span className="rounded-full bg-warning/15 px-2.5 py-1 text-xs font-semibold text-warning">
-                    <T k="arcade.hub.inDevelopment" variant="stacked" />
+                    <T k="arcade.hub.inDevelopment" />
                   </span>
                 )}
                 <span className="rounded-full bg-accent-tint px-2.5 py-1 text-xs font-semibold text-accent">
@@ -200,9 +197,14 @@ export default function GameHub() {
               </div>
             </div>
             <h2 className="mt-2 text-base font-semibold tracking-tight">
-              {card.titleEn ?? <T k={card.title} variant="stacked" />}
+              {card.titleEn ? (
+                showHints ? <HintText hint={tZh(card.title)}>{card.titleEn}</HintText> : card.titleEn
+              ) : (
+                <T k={card.title} />
+              )}
             </h2>
-            {card.titleEn && showChineseName && (
+            {/* English-named cards show their Chinese name underneath in Chinese mode. */}
+            {card.titleEn && language === "zh-TW" && (
               <p
                 lang="zh-Hant-TW"
                 className="text-sm font-medium text-muted-foreground"
@@ -232,7 +234,7 @@ export default function GameHub() {
                     onClick={() => openGame(card.secondaryAction!.to)}
                     className="btn btn-outline btn-sm min-h-11 rounded-[6px]"
                   >
-                    <T k={card.secondaryAction.label} variant="stacked" />
+                    <T k={card.secondaryAction.label} />
                   </button>
                 )}
                 <button
@@ -242,7 +244,6 @@ export default function GameHub() {
                 >
                   <T
                     k={card.primaryLabel ?? "arcade.hub.play"}
-                    variant="stacked"
                   />
                 </button>
               </div>

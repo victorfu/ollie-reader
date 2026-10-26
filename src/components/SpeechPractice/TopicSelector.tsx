@@ -35,7 +35,7 @@ export function TopicSelector({
   return (
     <div className="space-y-4">
       <h2 className="text-lg font-semibold">
-        🎯 <T k="listening.speech.chooseTopic" variant="stacked" />
+        🎯 <T k="listening.speech.chooseTopic" />
       </h2>
 
       {/* Topic Grid */}
@@ -100,7 +100,7 @@ export function TopicSelector({
                       >
                         <path d="M8 5v14l11-7z" />
                       </svg>
-                      <T k="listening.speech.start" variant="stacked" />
+                      <T k="listening.speech.start" />
                     </button>
                     <button
                       type="button"
@@ -121,9 +121,9 @@ export function TopicSelector({
                         <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
                       </svg>
                       {hasScript ? (
-                        <T k="listening.speech.editScript" variant="stacked" />
+                        <T k="listening.speech.editScript" />
                       ) : (
-                        <T k="listening.speech.makeScript" variant="stacked" />
+                        <T k="listening.speech.makeScript" />
                       )}
                     </button>
                   </div>

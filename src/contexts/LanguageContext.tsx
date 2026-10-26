@@ -7,7 +7,6 @@ import {
 } from "react";
 import { LanguageContext } from "./LanguageContextType";
 import {
-  languageForMode,
   translate,
   type LanguageMode,
   type MessageKey,
@@ -20,7 +19,7 @@ import {
 
 export const LanguageProvider = ({ children }: { children: ReactNode }) => {
   const [mode, setModeState] = useState<LanguageMode>(readStoredLanguageMode);
-  const language = languageForMode(mode);
+  const language = mode;
 
   // Screen readers and the browser's hyphenation/fonts follow <html lang>.
   useEffect(() => {
@@ -48,7 +47,7 @@ export const LanguageProvider = ({ children }: { children: ReactNode }) => {
     () => ({
       mode,
       language,
-      showHints: mode === "en-hint",
+      showHints: language === "en",
       setMode,
       t,
       tZh,

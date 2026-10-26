@@ -88,7 +88,6 @@ export function AudioButton({
             )}
             <T
               k={soundOn ? "defenders.audio.on" : "defenders.audio.turnOn"}
-              variant="stacked"
             />
           </button>
 

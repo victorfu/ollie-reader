@@ -84,7 +84,7 @@ export const SpeechSwitcher = ({
         className="btn btn-sm btn-ghost gap-1 normal-case active:scale-[0.98]"
       >
         <span className="font-medium truncate max-w-[12rem]">
-          {current?.name || <T k="practice.speech.choose" variant="stacked" />}
+          {current?.name || <T k="practice.speech.choose" />}
         </span>
         <ChevronDown className="h-4 w-4" />
       </button>
@@ -183,7 +183,7 @@ export const SpeechSwitcher = ({
                 className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-accent-tint hover:text-accent"
               >
                 <Plus className="h-4 w-4" />
-                <T k="practice.speech.newBlank" variant="stacked" />
+                <T k="practice.speech.newBlank" />
               </button>
               {current && (
                 <button
@@ -192,7 +192,7 @@ export const SpeechSwitcher = ({
                   className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-accent-tint hover:text-accent"
                 >
                   <Copy className="h-4 w-4" />
-                  <T k="practice.speech.duplicate" variant="stacked" />
+                  <T k="practice.speech.duplicate" />
                 </button>
               )}
             </div>
@@ -202,15 +202,15 @@ export const SpeechSwitcher = ({
 
       <ConfirmModal
         isOpen={!!deletingId}
-        title={<T k="practice.speech.deleteTitle" variant="stacked" />}
+        title={<T k="practice.speech.deleteTitle" />}
         message={
           <T
             k="practice.speech.deleteMessage"
             params={{ name: speeches.find((s) => s.id === deletingId)?.name ?? "" }}
           />
         }
-        confirmText={<T k="practice.speech.deleteConfirm" variant="stacked" />}
-        cancelText={<T k="practice.speech.cancel" variant="stacked" />}
+        confirmText={<T k="practice.speech.deleteConfirm" />}
+        cancelText={<T k="practice.speech.cancel" />}
         confirmVariant="error"
         onConfirm={confirmDelete}
         onCancel={() => setDeletingId(null)}

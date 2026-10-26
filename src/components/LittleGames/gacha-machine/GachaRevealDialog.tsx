@@ -211,7 +211,7 @@ export function GachaRevealDialog({
               className="text-3xl font-bold tracking-tight text-foreground"
             >
               {isMiss ? (
-                <T k="gacha.reveal.emptyTitle" variant="stacked" />
+                <T k="gacha.reveal.emptyTitle" />
               ) : (
                 character?.name
               )}
@@ -241,14 +241,14 @@ export function GachaRevealDialog({
                 className="inline-flex min-h-11 items-center justify-center gap-2 rounded-[10px] border border-border-hairline bg-background px-4 text-sm font-semibold text-foreground shadow-sm transition-all hover:bg-muted active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
               >
                 <BookOpen className="size-4" strokeWidth={1.8} aria-hidden="true" />
-                <T k="gacha.reveal.viewCollection" variant="stacked" />
+                <T k="gacha.reveal.viewCollection" />
               </button>
               <button
                 type="button"
                 onClick={() => dialogRef.current?.close()}
                 className="btn btn-primary min-h-11 rounded-[10px] text-sm shadow-sm active:scale-[0.98]"
               >
-                <T k="gacha.reveal.again" variant="stacked" />
+                <T k="gacha.reveal.again" />
               </button>
             </div>
           </div>

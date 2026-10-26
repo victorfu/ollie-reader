@@ -11,8 +11,8 @@ export function PodcastTranscript({ words, time, onSeek }: { words: PodcastCapti
   return (
     <details className="rounded-lg border border-border-hairline">
       <summary className="flex min-h-11 cursor-pointer items-center justify-between gap-3 px-3 text-sm font-medium">
-        <T k="listening.captions.transcript" variant="stacked" />
-        <span className="text-xs font-normal text-muted-foreground"><T k="listening.captions.transcriptStats" params={{ count: words.length, time: formatPodcastTime(words[words.length - 1].end) }} variant="stacked" /></span>
+        <T k="listening.captions.transcript" />
+        <span className="text-xs font-normal text-muted-foreground"><T k="listening.captions.transcriptStats" params={{ count: words.length, time: formatPodcastTime(words[words.length - 1].end) }} /></span>
       </summary>
       <p lang="en" className="max-h-72 overflow-y-auto break-words border-t border-border-hairline p-3 leading-relaxed">
         {words.map((word, index) => (

@@ -18,7 +18,7 @@ export function HomeworkHistory({ history, onOpen }: HomeworkHistoryProps) {
   return (
     <section aria-labelledby={headingId} className="space-y-3">
       <h2 id={headingId} className="text-xl font-semibold">
-        <T k="practice.history.title" variant="stacked" />
+        <T k="practice.history.title" />
       </h2>
       {history.length === 0 ? (
         <p className="text-sm text-muted-foreground">

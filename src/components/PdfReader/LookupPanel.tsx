@@ -106,7 +106,7 @@ export const LookupPanel = memo(
             <div className="flex items-center gap-2">
               <BookOpenIcon className="w-4 h-4 text-accent" />
               <span className="font-semibold text-base">
-                <T k="reader.lookup.title" variant="stacked" />
+                <T k="reader.lookup.title" />
               </span>
               {activeCount > 0 && (
                 <span className="badge badge-xs badge-accent">
@@ -140,7 +140,7 @@ export const LookupPanel = memo(
                   onClick={onDismissAll}
                   className="btn btn-ghost btn-xs hover:bg-black/5 dark:hover:bg-white/10"
                 >
-                  <T k="reader.clearAll" variant="stacked" />
+                  <T k="reader.clearAll" />
                 </button>
               )}
               <button

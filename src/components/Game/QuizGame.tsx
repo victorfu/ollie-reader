@@ -61,7 +61,7 @@ export function QuizGame({
             className="btn btn-ghost btn-sm glass gap-1 rounded-full active:scale-[0.98]"
           >
             <X className="h-4 w-4" strokeWidth={2} aria-hidden="true" />
-            <T k="adventure.quiz.quit" variant="stacked" />
+            <T k="adventure.quiz.quit" />
           </button>
 
           <div className="flex items-center gap-2 sm:gap-4">

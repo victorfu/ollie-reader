@@ -125,7 +125,7 @@ export function PracticeHistory({
   return (
     <div className="space-y-4">
       <h2 className="text-lg font-semibold flex items-center gap-2">
-        📊 <T k="listening.speech.historyTitle" variant="stacked" />
+        📊 <T k="listening.speech.historyTitle" />
         <span className="badge badge-primary">{records.length}</span>
       </h2>
 
@@ -214,7 +214,7 @@ export function PracticeHistory({
                             void fetchAudioUrl(record.id!, record.recordingUrl!);
                           }}
                         >
-                          <T k="common.retry" variant="stacked" />
+                          <T k="common.retry" />
                         </button>
                       </div>
                     ) : audioUrls.has(record.id) ? (
@@ -279,9 +279,9 @@ export function PracticeHistory({
                           d="M9 5l7 7-7 7"
                         />
                       </svg>
-                      📄 <T k="listening.speech.viewScript" variant="stacked" />
+                      📄 <T k="listening.speech.viewScript" />
                       <span className="badge badge-ghost badge-xs">
-                        <T k="listening.charCount" params={{ count: record.script.length }} variant="stacked" />
+                        <T k="listening.charCount" params={{ count: record.script.length }} />
                       </span>
                     </button>
 
@@ -320,10 +320,10 @@ export function PracticeHistory({
             {isLoadingMore ? (
               <>
                 <span className="loading loading-spinner loading-sm" />
-                <T k="listening.loading" variant="stacked" />
+                <T k="listening.loading" />
               </>
             ) : (
-              <T k="listening.speech.loadMore" variant="stacked" />
+              <T k="listening.speech.loadMore" />
             )}
           </button>
         </div>

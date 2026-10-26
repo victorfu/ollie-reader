@@ -91,7 +91,7 @@ export function DictationStep({ homework, itemIndex, onChange }: DictationStepPr
         )}
         <button type="button" onClick={replay} className="btn btn-outline min-h-11 gap-2 active:scale-[0.98]">
           <Volume2 className="size-5 text-accent" strokeWidth={1.75} aria-hidden="true" />
-          <T k="practice.dictation.replay" variant="stacked" />
+          <T k="practice.dictation.replay" />
         </button>
       </div>
 
@@ -101,14 +101,14 @@ export function DictationStep({ homework, itemIndex, onChange }: DictationStepPr
           className="flex flex-wrap gap-2 rounded-[10px] border border-error/20 bg-error/10 px-4 py-3 text-sm text-error"
         >
           <button type="button" onClick={replay} className="btn btn-outline btn-sm min-h-11 active:scale-[0.98]">
-            <T k="practice.dictation.playFailed" variant="stacked" />
+            <T k="practice.dictation.playFailed" />
           </button>
           <button
             type="button"
             onClick={() => record({ answer: null, skipped: true })}
             className="btn btn-ghost btn-sm min-h-11 active:scale-[0.98]"
           >
-            <T k="practice.dictation.skip" variant="stacked" />
+            <T k="practice.dictation.skip" />
           </button>
         </div>
       )}
@@ -123,7 +123,7 @@ export function DictationStep({ homework, itemIndex, onChange }: DictationStepPr
           onClick={submit}
           className="btn btn-primary min-h-11 active:scale-[0.98]"
         >
-          <T k="practice.dictation.next" variant="stacked" />
+          <T k="practice.dictation.next" />
         </button>
       </div>
     </div>

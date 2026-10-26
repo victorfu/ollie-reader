@@ -1600,7 +1600,7 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
               Ollie Little Games
             </p>
             <h1 className="truncate text-base font-bold tracking-tight sm:text-xl">
-              <T k="gacha.title" variant="stacked" />
+              <T k="gacha.title" />
             </h1>
           </div>
         </div>
@@ -1621,10 +1621,10 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
           >
             <Gamepad2 className="size-4" strokeWidth={1.8} aria-hidden="true" />
             <span className="hidden sm:inline">
-              <T k="gacha.nav.machine" variant="stacked" />
+              <T k="gacha.nav.machine" />
             </span>
             <span className="sm:hidden">
-              <T k="gacha.nav.machineShort" variant="stacked" />
+              <T k="gacha.nav.machineShort" />
             </span>
           </button>
           <button
@@ -1639,7 +1639,7 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
             }`}
           >
             <BookOpen className="size-4" strokeWidth={1.8} aria-hidden="true" />
-            <T k="gacha.nav.collection" variant="stacked" />
+            <T k="gacha.nav.collection" />
             {unlockedCount > 0 ? (
               <span className="rounded-full bg-accent-tint px-1.5 py-0.5 text-[10px] font-bold text-accent">
                 {unlockedCount}
@@ -1674,7 +1674,7 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
                 <span aria-hidden="true">🎁</span>
               </div>
               <h2 className="mt-5 text-2xl font-bold tracking-tight">
-                <T k="gacha.signIn.title" variant="stacked" />
+                <T k="gacha.signIn.title" />
               </h2>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">
                 <T k="gacha.signIn.body" params={messageParams} />
@@ -1690,7 +1690,7 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
                 className="btn btn-primary mt-6 min-h-11 w-full rounded-[10px]"
               >
                 <LogIn className="size-4" strokeWidth={1.8} aria-hidden="true" />
-                <T k="gacha.signIn.google" variant="stacked" />
+                <T k="gacha.signIn.google" />
               </button>
             </section>
           </div>
@@ -1715,7 +1715,7 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
                     className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-[8px] bg-background/80 px-3 font-semibold text-foreground shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                   >
                     <RefreshCw className="size-4" strokeWidth={1.8} aria-hidden="true" />
-                    <T k="gacha.resync" variant="stacked" />
+                    <T k="gacha.resync" />
                   </button>
                 ) : null}
               </div>
@@ -1727,7 +1727,7 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
                     <WifiOff className="size-7" strokeWidth={1.7} aria-hidden="true" />
                   </div>
                   <h2 className="mt-4 text-xl font-bold tracking-tight">
-                    <T k="gacha.offlineEmpty.title" variant="stacked" />
+                    <T k="gacha.offlineEmpty.title" />
                   </h2>
                   <p className="mt-2 text-sm leading-6 text-muted-foreground">
                     <T k="gacha.offlineEmpty.body" />
@@ -1838,12 +1838,11 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
                       >
                         <CircleDollarSign className="size-4" strokeWidth={2} aria-hidden="true" />
                         {syncStatus === "loading" || syncStatus === "cache" ? (
-                          <T k="gacha.syncingButton" variant="stacked" />
+                          <T k="gacha.syncingButton" />
                         ) : (
                           <T
                             k="gacha.insertCoins"
                             params={messageParams}
-                            variant="stacked"
                           />
                         )}
                       </button>
@@ -1957,7 +1956,7 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
                     disabled={!canDraw || !hasEnoughCoins}
                     className="min-h-11 shrink-0 rounded-[8px] bg-background/80 px-3 font-semibold text-foreground shadow-sm disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                   >
-                    <T k="gacha.reinsert" variant="stacked" />
+                    <T k="gacha.reinsert" />
                   </button>
                 </div>
               ) : null}
@@ -1974,7 +1973,7 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
                     className="inline-flex min-h-11 shrink-0 items-center justify-center gap-1.5 rounded-[8px] bg-background/80 px-3 font-semibold text-foreground shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                   >
                     <span aria-hidden="true">🗺️</span>
-                    <T k="gacha.earnCoins" variant="stacked" />
+                    <T k="gacha.earnCoins" />
                   </a>
                 </div>
               ) : null}
@@ -1993,7 +1992,7 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
                     onClick={() => user && refreshCoinBalance(user.uid)}
                     className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-[8px] bg-background/80 px-3 font-semibold text-foreground shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                   >
-                    <T k="gacha.retry" variant="stacked" />
+                    <T k="gacha.retry" />
                   </button>
                 </div>
               ) : null}
@@ -2011,7 +2010,7 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
                 <div className="flex items-center gap-2">
                   <Info className="size-5 text-accent" strokeWidth={1.8} aria-hidden="true" />
                   <h2 className="text-lg font-bold tracking-tight">
-                    <T k="gacha.howTo.title" variant="stacked" />
+                    <T k="gacha.howTo.title" />
                   </h2>
                 </div>
                 <ol className="mt-4 space-y-3">
@@ -2051,7 +2050,7 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
                         </span>
                         <span className="min-w-0 pt-0.5">
                           <strong className="block text-sm font-bold text-foreground">
-                            <T k={title} params={messageParams} variant="stacked" />
+                            <T k={title} params={messageParams} />
                           </strong>
                           <span className="mt-0.5 block text-xs leading-5 text-muted-foreground">
                             <T
@@ -2066,7 +2065,7 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
                 </ol>
                 <div className="mt-5 border-t border-border-hairline pt-4">
                   <p className="text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">
-                    <T k="gacha.keyboard.title" variant="stacked" />
+                    <T k="gacha.keyboard.title" />
                   </p>
                   <p className="mt-2 text-xs leading-6 text-muted-foreground">
                     {showHints ? (
@@ -2082,7 +2081,7 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <p className="text-xs font-semibold text-muted-foreground">
-                      <T k="gacha.progress.title" variant="stacked" />
+                      <T k="gacha.progress.title" />
                     </p>
                     <p className="mt-1 text-2xl font-black tracking-tight">
                       {unlockedCount}
@@ -2120,7 +2119,7 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
                   className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[9px] border border-border-hairline bg-background px-4 text-sm font-semibold shadow-sm transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                 >
                   <BookOpen className="size-4" strokeWidth={1.8} aria-hidden="true" />
-                  <T k="gacha.viewCollection" variant="stacked" />
+                  <T k="gacha.viewCollection" />
                 </button>
               </section>
 
@@ -2151,7 +2150,7 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
                       className="mt-3 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[8px] bg-background/80 px-3 font-semibold text-foreground shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                     >
                       <RefreshCw className="size-4" strokeWidth={1.8} aria-hidden="true" />
-                      <T k="gacha.resync" variant="stacked" />
+                      <T k="gacha.resync" />
                     </button>
                   ) : null}
                 </div>
@@ -2178,15 +2177,15 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
       />
       <ConfirmModal
         isOpen={isResetConfirmOpen}
-        title={<T k="gacha.reset.title" variant="stacked" />}
+        title={<T k="gacha.reset.title" />}
         message={
           <T
             k="gacha.reset.message"
             params={{ count: GACHA_CHARACTERS.length }}
           />
         }
-        confirmText={<T k="gacha.reset.confirm" variant="stacked" />}
-        cancelText={<T k="gacha.reset.cancel" variant="stacked" />}
+        confirmText={<T k="gacha.reset.confirm" />}
+        cancelText={<T k="gacha.reset.cancel" />}
         confirmVariant="error"
         isLoading={isResettingCollection}
         confirmDisabled={!isOnline}

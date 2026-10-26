@@ -387,7 +387,7 @@ function PdfReader() {
             {isLoadingAudio ? (
               <>
                 <span className="loading loading-spinner loading-xs"></span>
-                <T k="reader.speech.generating" variant="stacked" />
+                <T k="reader.speech.generating" />
               </>
             ) : (
               <>
@@ -411,7 +411,7 @@ function PdfReader() {
                     d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"
                   />
                 </svg>
-                <T k="reader.speech.stop" variant="stacked" />
+                <T k="reader.speech.stop" />
               </>
             )}
           </button>

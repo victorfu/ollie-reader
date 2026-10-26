@@ -90,7 +90,7 @@ export function TitleScreen({
               className="flex min-h-11 items-center gap-1.5 rounded-full bg-white/90 px-3.5 text-sm font-semibold text-slate-900 shadow-sm backdrop-blur transition hover:-translate-y-0.5 hover:shadow-lg"
             >
               <ArrowLeft size={16} strokeWidth={2} aria-hidden="true" />
-              <T k="defenders.title.backToGames" variant="stacked" />
+              <T k="defenders.title.backToGames" />
             </button>
           )}
           <span className="flex items-center gap-2">
@@ -128,7 +128,7 @@ export function TitleScreen({
               className="shrink-0 text-[#ff6f9f]"
               aria-hidden="true"
             />
-            <T k="defenders.title" variant="stacked" />
+            <T k="defenders.title" />
           </h1>
         </div>
 
@@ -160,7 +160,7 @@ export function TitleScreen({
       <main className="flex-1 px-4 pb-8 pt-2 md:h-screen md:overflow-y-auto md:px-6 md:py-5">
         <div className="mx-auto w-full max-w-2xl">
           <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-            <T k="defenders.title.route" variant="stacked" />
+            <T k="defenders.title.route" />
           </p>
 
           <ol>
@@ -215,7 +215,6 @@ export function TitleScreen({
                         <span className="shrink-0 rounded-full bg-[#ff6f9f] px-3 py-1 text-xs font-semibold text-white">
                           <T
                             k={stars > 0 ? "defenders.title.replay" : "defenders.title.start"}
-                            variant="stacked"
                           />
                         </span>
                       ) : (
@@ -244,7 +243,6 @@ export function TitleScreen({
                                 slots: ACTUAL_SLOT_COUNTS.get(level.id) ?? 0,
                                 paths: level.paths.length,
                               }}
-                              variant="stacked"
                             />
                           </span>
 
@@ -256,7 +254,6 @@ export function TitleScreen({
                                   // 怪物名是內容、維持中文；只有分隔符號跟著語言。
                                   names: newEnemies.join(language === "zh-TW" ? "、" : ", "),
                                 }}
-                                variant="stacked"
                               />
                             </span>
                           )}
@@ -266,7 +263,6 @@ export function TitleScreen({
                               <T
                                 k="defenders.title.bestRecord"
                                 params={{ wave: record }}
-                                variant="stacked"
                               />
                             </span>
                           )}
@@ -276,7 +272,6 @@ export function TitleScreen({
                           <T
                             k="defenders.title.clearFirst"
                             params={{ name: LEVELS[index - 1].nameZh }}
-                            variant="stacked"
                           />
                         </span>
                       )}

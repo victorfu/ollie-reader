@@ -56,7 +56,7 @@ export function ExamQuestionImage({
             target="_blank"
             rel="noopener noreferrer"
           >
-            <T k="exams.image.openPaper" variant="stacked" />
+            <T k="exams.image.openPaper" />
           </a>
         )}
       </div>

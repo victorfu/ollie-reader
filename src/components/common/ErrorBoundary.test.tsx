@@ -48,9 +48,9 @@ describe("ErrorBoundary language", () => {
     expect(container.querySelector("h2")?.textContent).toBe("Something went wrong");
   });
 
-  it("adds the Chinese line in hint mode", () => {
+  it("treats the retired hint mode as English", () => {
     localStorage.setItem(LANGUAGE_STORAGE_KEY, "en-hint");
     renderCrash();
-    expect(container.querySelector("h2")?.textContent).toBe("Something went wrong發生錯誤");
+    expect(container.querySelector("h2")?.textContent).toBe("Something went wrong");
   });
 });

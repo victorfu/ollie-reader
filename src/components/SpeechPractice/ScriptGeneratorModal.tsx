@@ -90,7 +90,7 @@ export function ScriptGeneratorModal({
         <div className="flex justify-between items-start mb-4">
           <div>
             <h3 className="font-semibold text-lg flex items-center gap-2">
-              ✨ <T k="listening.script.title" variant="stacked" />
+              ✨ <T k="listening.script.title" />
             </h3>
             {topic && (
               <p className="text-sm text-muted-foreground mt-1">
@@ -139,7 +139,7 @@ export function ScriptGeneratorModal({
                 {isGenerating ? (
                   <>
                     <span className="loading loading-spinner loading-xs" />
-                    <T k="listening.script.generating" variant="stacked" />
+                    <T k="listening.script.generating" />
                   </>
                 ) : generatedScript ? (
                   <>
@@ -154,7 +154,7 @@ export function ScriptGeneratorModal({
                       <path d="M1 4v6h6" />
                       <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
                     </svg>
-                    <T k="listening.script.regenerate" variant="stacked" />
+                    <T k="listening.script.regenerate" />
                   </>
                 ) : (
                   <>
@@ -168,7 +168,7 @@ export function ScriptGeneratorModal({
                     >
                       <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
                     </svg>
-                    <T k="listening.script.generate" variant="stacked" />
+                    <T k="listening.script.generate" />
                   </>
                 )}
               </button>
@@ -236,7 +236,7 @@ export function ScriptGeneratorModal({
             onClick={onClose}
             disabled={isGenerating || isSaving}
           >
-            <T k="common.cancel" variant="stacked" />
+            <T k="common.cancel" />
           </button>
           <button
             type="button"
@@ -247,7 +247,7 @@ export function ScriptGeneratorModal({
             {isSaving ? (
               <>
                 <span className="loading loading-spinner loading-xs" />
-                <T k="listening.saving" variant="stacked" />
+                <T k="listening.saving" />
               </>
             ) : (
               <>
@@ -261,7 +261,7 @@ export function ScriptGeneratorModal({
                 >
                   <polyline points="20 6 9 17 4 12" />
                 </svg>
-                <T k="listening.script.save" variant="stacked" />
+                <T k="listening.script.save" />
               </>
             )}
           </button>

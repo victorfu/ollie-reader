@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { en } from "./en";
 import { zhTW } from "./zh-TW";
-import { interpolate, languageForMode, msg, translate } from "./translate";
+import { interpolate, msg, translate } from "./translate";
 
 describe("translate", () => {
   it("looks up the key in the requested language", () => {
@@ -31,11 +31,5 @@ describe("translate", () => {
     for (const value of [...Object.values(en), ...Object.values(zhTW)]) {
       expect(value.trim()).not.toBe("");
     }
-  });
-
-  it("maps every mode to the language it displays", () => {
-    expect(languageForMode("zh-TW")).toBe("zh-TW");
-    expect(languageForMode("en")).toBe("en");
-    expect(languageForMode("en-hint")).toBe("en");
   });
 });

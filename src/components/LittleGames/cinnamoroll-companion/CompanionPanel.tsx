@@ -58,7 +58,7 @@ export function CompanionPanel({ panel, view, shop, message, onClose, onAction, 
   const items = ACCESSORIES.filter((item) => filter === "all" || item.slot === filter);
   const filters = <div role="group" aria-label={t("gacha.companion.slotGroup")} className="mb-3 flex flex-wrap gap-1">
     {SLOT_FILTERS.map((id) =>
-      <button key={id} type="button" aria-pressed={filter === id} className={`btn min-h-11 ${filter === id ? "btn-primary" : "btn-ghost"}`} onClick={() => setFilter(id)}><T k={`gacha.companion.slot.${id}`} variant="stacked" /></button>)}
+      <button key={id} type="button" aria-pressed={filter === id} className={`btn min-h-11 ${filter === id ? "btn-primary" : "btn-ghost"}`} onClick={() => setFilter(id)}><T k={`gacha.companion.slot.${id}`} /></button>)}
   </div>;
   const status = shopStatus(shop);
   const canBuy = status === null && shop.buying === null;
@@ -66,12 +66,12 @@ export function CompanionPanel({ panel, view, shop, message, onClose, onAction, 
   return <dialog ref={dialog} onCancel={onClose} aria-labelledby="companion-panel-title"
     className="fixed inset-x-0 bottom-0 top-auto m-0 max-h-[45dvh] w-full max-w-none overflow-y-auto rounded-t-2xl border border-border-hairline bg-background p-4 text-foreground shadow-xl backdrop:bg-black/15 sm:mx-auto sm:max-w-lg sm:rounded-t-2xl">
     <div className="flex items-center justify-between gap-3">
-      <h2 id="companion-panel-title" className="text-lg font-semibold"><T k={TITLES[panel]} variant="stacked" /></h2>
+      <h2 id="companion-panel-title" className="text-lg font-semibold"><T k={TITLES[panel]} /></h2>
       <button type="button" onClick={onClose} aria-label={t("gacha.close")} className="btn btn-ghost min-h-11 min-w-11"><X size={20} /></button>
     </div>
     {panel === "actions" ? <div className="mt-3 grid grid-cols-3 gap-2">
-      <button type="button" className="btn btn-outline min-h-11" onClick={onPat}><T k="gacha.companion.pat" variant="stacked" /></button>
-      {ACTIONS.map(({ id }) => <button key={id} type="button" className="btn btn-outline min-h-11" onClick={() => onAction(id)}><T k={`gacha.companion.action.${id}`} variant="stacked" /></button>)}
+      <button type="button" className="btn btn-outline min-h-11" onClick={onPat}><T k="gacha.companion.pat" /></button>
+      {ACTIONS.map(({ id }) => <button key={id} type="button" className="btn btn-outline min-h-11" onClick={() => onAction(id)}><T k={`gacha.companion.action.${id}`} /></button>)}
     </div> : null}
     {panel === "outfit" ? <>
       <p className="mb-3 text-sm text-muted-foreground"><T k={shop.status === "guest" ? "gacha.companion.outfitGuestNote" : "gacha.companion.outfitNote"} /></p>
@@ -81,11 +81,11 @@ export function CompanionPanel({ panel, view, shop, message, onClose, onAction, 
           const shown = outfit[item.slot] === item.id;
           return <button key={item.id} type="button" aria-pressed={shown} onClick={() => onWear(item.id)}
             className={`btn h-auto min-h-14 flex-col gap-0.5 py-2 ${shown ? "btn-primary" : "btn-outline"}`}>
-            <span><T k={`gacha.companion.accessory.${item.id}`} variant="stacked" /></span><span className="text-xs"><T k={wearLabel(owned.has(item.id), shown)} variant="stacked" /></span>
+            <span><T k={`gacha.companion.accessory.${item.id}`} /></span><span className="text-xs"><T k={wearLabel(owned.has(item.id), shown)} /></span>
           </button>;
         })}
       </div>
-      <button type="button" className="btn btn-ghost mt-3 min-h-11" disabled={Object.keys(outfit).length === 0} onClick={onClear}><T k="gacha.companion.removeAll" variant="stacked" /></button>
+      <button type="button" className="btn btn-ghost mt-3 min-h-11" disabled={Object.keys(outfit).length === 0} onClick={onClear}><T k="gacha.companion.removeAll" /></button>
     </> : null}
     {panel === "shop" ? <>
       <p className="mb-2 text-sm text-muted-foreground"><T k="gacha.companion.shop.note" /></p>
@@ -94,7 +94,7 @@ export function CompanionPanel({ panel, view, shop, message, onClose, onAction, 
         <T k="gacha.companion.shop.balance" params={{ n: shop.balance }} />
       </p>}
       {status ? <p className="mb-2 text-sm text-muted-foreground"><T k={status} /></p> : null}
-      {shop.status === "error" ? <button type="button" className="btn btn-outline btn-sm mb-2 min-h-11" onClick={shop.retry}><T k="gacha.retry" variant="stacked" /></button> : null}
+      {shop.status === "error" ? <button type="button" className="btn btn-outline btn-sm mb-2 min-h-11" onClick={shop.retry}><T k="gacha.retry" /></button> : null}
       <p aria-live="polite" className="mb-2 min-h-5 text-sm font-medium">{message ? <T k={message} /> : null}</p>
       {filters}
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
@@ -105,13 +105,13 @@ export function CompanionPanel({ panel, view, shop, message, onClose, onAction, 
           return <div key={item.id} className="flex flex-col gap-1 rounded-[10px] border border-border-hairline p-2 shadow-sm">
             <button type="button" aria-pressed={shown} onClick={() => onWear(item.id)}
               className={`btn h-auto min-h-14 flex-col gap-0.5 py-2 ${shown ? "btn-primary" : "btn-ghost"}`}>
-              <span><T k={`gacha.companion.accessory.${item.id}`} variant="stacked" /></span>
-              <span className="text-xs"><T k={wearLabel(has, shown)} variant="stacked" /></span>
+              <span><T k={`gacha.companion.accessory.${item.id}`} /></span>
+              <span className="text-xs"><T k={wearLabel(has, shown)} /></span>
             </button>
             {has ? <p className="py-2 text-center text-xs font-medium text-success"><T k="gacha.companion.shop.owned" /></p> : <>
               <p className="text-center text-xs tabular-nums text-muted-foreground"><T k="gacha.companion.shop.price" params={{ n: item.price }} /></p>
               <button type="button" className="btn btn-primary btn-sm min-h-11" disabled={!canBuy || !affordable} onClick={() => onBuy(item.id)}>
-                <T k={shop.buying === item.id ? "gacha.companion.shop.buying" : status === null && !affordable ? "gacha.companion.shop.notEnough" : "gacha.companion.shop.buy"} variant="stacked" />
+                <T k={shop.buying === item.id ? "gacha.companion.shop.buying" : status === null && !affordable ? "gacha.companion.shop.notEnough" : "gacha.companion.shop.buy"} />
               </button>
             </>}
           </div>;

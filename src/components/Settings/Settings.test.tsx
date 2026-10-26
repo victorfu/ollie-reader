@@ -256,13 +256,8 @@ describe("Settings language", () => {
     expect(container.textContent).toContain("Theme");
     expect(container.textContent).not.toContain("外觀主題");
     expect(window.localStorage.getItem(LANGUAGE_STORAGE_KEY)).toBe("en");
-
-    clickButton("English＋中文提示");
-    const hint = container.querySelector<HTMLElement>(
-      '[data-tip="選擇介面的明暗模式"]',
-    );
-    expect(hint?.textContent).toContain("Choose light or dark mode");
-    expect(window.localStorage.getItem(LANGUAGE_STORAGE_KEY)).toBe("en-hint");
+    const hint = container.querySelector<HTMLElement>('[title="選擇介面的明暗模式"]');
+    expect(hint?.textContent).toBe("Choose light or dark mode");
 
     clickButton("繁體中文");
     expect(container.textContent).toContain("外觀主題");

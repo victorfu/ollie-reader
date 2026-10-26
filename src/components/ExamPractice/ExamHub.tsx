@@ -59,10 +59,10 @@ export function ExamHub({ paper, subject, onSelectSubject, onStart }: ExamHubPro
 
   const titleKey = paperTitleKey(paper);
 
-  /** 資料值標籤:有對應 key 就翻譯(stacked),否則原樣顯示。 */
+  /** 資料值標籤:有對應 key 就翻譯,否則原樣顯示。 */
   const pdfLinkLabel = (label: string) => {
     const key = pdfLabelKey(label);
-    return key ? <T k={key} variant="stacked" /> : label;
+    return key ? <T k={key} /> : label;
   };
 
   return (
@@ -73,7 +73,7 @@ export function ExamHub({ paper, subject, onSelectSubject, onStart }: ExamHubPro
       {/* 卷名 + 紙本連結 */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-xl font-semibold tracking-tight">
-          {titleKey ? <T k={titleKey} variant="stacked" /> : paper.title}
+          {titleKey ? <T k={titleKey} /> : paper.title}
         </h2>
         <div className="flex items-center gap-1">
           {paper.questionPdf && (
@@ -87,7 +87,7 @@ export function ExamHub({ paper, subject, onSelectSubject, onStart }: ExamHubPro
               {paper.questionPdfLabel ? (
                 pdfLinkLabel(paper.questionPdfLabel)
               ) : (
-                <T k="exams.pdf.questionPaper" variant="stacked" />
+                <T k="exams.pdf.questionPaper" />
               )}
             </a>
           )}
@@ -109,7 +109,7 @@ export function ExamHub({ paper, subject, onSelectSubject, onStart }: ExamHubPro
             className="btn btn-error btn-outline btn-sm min-h-[44px] gap-1.5 rounded-full"
           >
             <RotateCcw size={16} strokeWidth={1.75} />
-            <T k="exams.hub.resetProgress" variant="stacked" />
+            <T k="exams.hub.resetProgress" />
           </button>
         </div>
       </div>
@@ -131,7 +131,7 @@ export function ExamHub({ paper, subject, onSelectSubject, onStart }: ExamHubPro
                 <div>
                   <h3 className="text-base font-semibold">
                     {scopeKey ? (
-                      <T k={scopeKey} variant="stacked" />
+                      <T k={scopeKey} />
                     ) : (
                       scope.title
                     )}
@@ -177,7 +177,7 @@ export function ExamHub({ paper, subject, onSelectSubject, onStart }: ExamHubPro
                   className="btn btn-primary btn-sm min-h-[44px] flex-1 gap-1.5 rounded-lg"
                 >
                   <Play size={16} strokeWidth={2} />
-                  <T k="exams.hub.start" variant="stacked" />
+                  <T k="exams.hub.start" />
                 </button>
                 {retryCount > 0 && (
                   <button
@@ -188,7 +188,6 @@ export function ExamHub({ paper, subject, onSelectSubject, onStart }: ExamHubPro
                     <T
                       k="exams.hub.retryWrong"
                       params={{ n: retryCount }}
-                      variant="stacked"
                     />
                   </button>
                 )}

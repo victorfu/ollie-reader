@@ -35,7 +35,7 @@ export function ExamSectionResultView({
           className="btn btn-ghost btn-sm min-h-[44px] gap-1 rounded-full text-muted-foreground"
         >
           <X size={16} strokeWidth={2} />
-          <T k="exams.common.exit" variant="stacked" />
+          <T k="exams.common.exit" />
         </button>
       </div>
 
@@ -61,7 +61,7 @@ export function ExamSectionResultView({
           className="mt-1 text-xl font-semibold tracking-tight"
         >
           {sectionKey ? (
-            <T k={sectionKey} variant="stacked" />
+            <T k={sectionKey} />
           ) : (
             result.sectionLabel
           )}
@@ -94,7 +94,6 @@ export function ExamSectionResultView({
                 ? "exams.sectionResult.viewTotal"
                 : "exams.sectionResult.next"
             }
-            variant="stacked"
           />
           <ArrowRight size={18} strokeWidth={2} aria-hidden="true" />
         </button>

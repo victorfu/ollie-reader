@@ -28,7 +28,7 @@ export function WordPracticeSettings() {
           onClick={() => void wordPractice.reload()}
           className="btn btn-primary min-h-11 active:scale-[0.98]"
         >
-          <T k="practice.word.reload" variant="stacked" />
+          <T k="practice.word.reload" />
         </button>
       </div>
     );
