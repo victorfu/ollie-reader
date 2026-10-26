@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
-  CaptionSegment,
-  MAX_CHUNK_SECONDS,
+  MAX_UTTERANCE_SECONDS,
+  MIN_UTTERANCE_SECONDS,
+  PauseSegmenter,
   createCaptionDownsampler,
   delayFilling,
   heardTime,
@@ -69,33 +70,59 @@ describe("caption word timing", () => {
   });
 });
 
-describe("CaptionSegment", () => {
-  const drain = async (segment: CaptionSegment) => {
-    const sizes: number[] = [];
-    for await (const chunk of segment.chunks()) sizes.push(chunk.length);
-    return sizes;
+describe("PauseSegmenter", () => {
+  const RATE = 16_000;
+  /** Seconds of a 220 Hz tone at `level`, or silence at level 0. */
+  const tone = (seconds: number, level = 0.3) => Float32Array.from({ length: Math.round(seconds * RATE) }, (_, i) => level * Math.sin((2 * Math.PI * 220 * i) / RATE));
+  const concat = (...parts: Float32Array[]) => {
+    const out = new Float32Array(parts.reduce((n, p) => n + p.length, 0));
+    let at = 0;
+    for (const part of parts) { out.set(part, at); at += part.length; }
+    return out;
+  };
+  /** Feed in worklet-sized blocks, as playback does. */
+  const feed = (segmenter: PauseSegmenter, audio: Float32Array) => {
+    const out = [];
+    for (let i = 0; i < audio.length; i += 1365) out.push(...segmenter.push(audio.subarray(i, i + 1365)));
+    return out;
   };
 
-  it("batches short blocks into at least two seconds and flushes the tail on end", async () => {
-    const segment = new CaptionSegment(10, 1);
-    const result = drain(segment);
-    for (let i = 0; i < 5; i++) segment.push(new Float32Array(8_000));
-    segment.end();
-    expect(await result).toEqual([40_000]);
+  it("cuts at the first pause after the minimum length, keeping short phrases together", () => {
+    const segmenter = new PauseSegmenter();
+    // 1.2 s phrase, short pause (too early to cut), 1.6 s phrase, then a pause.
+    const utterances = feed(segmenter, concat(tone(1.2), tone(0.5, 0), tone(1.6), tone(0.6, 0), tone(1)));
+    expect(utterances).toHaveLength(1);
+    expect(utterances[0].start).toBe(0);
+    const length = utterances[0].samples.length / RATE;
+    expect(length).toBeGreaterThanOrEqual(MIN_UTTERANCE_SECONDS);
+    expect(length).toBeLessThan(3.8);
+    const tail = segmenter.flush()!;
+    expect(tail.start).toBeCloseTo(length, 5);
   });
 
-  it("caps each chunk to Whistle's batch limit when catching up", async () => {
-    const segment = new CaptionSegment(0, 1);
-    segment.push(new Float32Array(16_000 * 50));
-    expect(segment.backlogSeconds).toBe(50);
-    segment.end();
-    expect(await drain(segment)).toEqual([MAX_CHUNK_SECONDS * 16_000, MAX_CHUNK_SECONDS * 16_000, 10 * 16_000]);
+  it("forces a cut near the limit at the quietest moment when there is no pause", () => {
+    const segmenter = new PauseSegmenter();
+    // Continuous sound with a softer (not silent) dip around 5.2 s.
+    const utterances = feed(segmenter, concat(tone(5.2), tone(0.1, 0.12), tone(3)));
+    expect(utterances).toHaveLength(1);
+    const length = utterances[0].samples.length / RATE;
+    expect(length).toBeLessThanOrEqual(MAX_UTTERANCE_SECONDS);
+    expect(length).toBeGreaterThan(5.2);
+    expect(length).toBeLessThanOrEqual(5.3);
   });
 
-  it("ignores audio after it ends", async () => {
-    const segment = new CaptionSegment(0, 1);
-    segment.end();
-    segment.push(new Float32Array(16_000));
-    expect(await drain(segment)).toEqual([]);
+  it("skips pure silence but keeps the timeline", () => {
+    const segmenter = new PauseSegmenter();
+    expect(feed(segmenter, tone(4, 0))).toEqual([]);
+    feed(segmenter, tone(3));
+    const tail = segmenter.flush()!;
+    expect(tail.start).toBeGreaterThan(0);
+    expect(tail.start + tail.samples.length / RATE).toBeCloseTo(7, 1);
+  });
+
+  it("flushes nothing for a negligible tail", () => {
+    const segmenter = new PauseSegmenter();
+    feed(segmenter, tone(0.1));
+    expect(segmenter.flush()).toBeNull();
   });
 });
