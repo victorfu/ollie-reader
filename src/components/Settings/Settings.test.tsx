@@ -49,6 +49,10 @@ vi.mock("../../services/localBackend", () => ({
 }));
 
 import { Settings } from "./Settings";
+import {
+  LANGUAGE_STORAGE_KEY,
+  LanguageProvider,
+} from "../../contexts/LanguageContext";
 
 let container: HTMLDivElement;
 let root: Root;
@@ -228,5 +232,41 @@ describe("Settings speech modes", () => {
     if (!edgeRadio) throw new Error("edge engine radio not found");
     await act(async () => edgeRadio.click());
     expect(updateSettingMock).toHaveBeenCalledExactlyOnceWith("api");
+  });
+});
+
+describe("Settings language", () => {
+  function clickButton(label: string): void {
+    const button = [...container.querySelectorAll("button")].find(
+      (candidate) => candidate.textContent?.trim() === label,
+    );
+    if (!button) throw new Error(`button ${label} not found`);
+    act(() => button.click());
+  }
+
+  it("switches the interface language and remembers the choice", () => {
+    act(() =>
+      root.render(
+        <LanguageProvider>
+          <Settings />
+        </LanguageProvider>,
+      ),
+    );
+    expect(container.textContent).toContain("外觀主題");
+
+    clickButton("English");
+    expect(container.textContent).toContain("Theme");
+    expect(container.textContent).not.toContain("外觀主題");
+    expect(window.localStorage.getItem(LANGUAGE_STORAGE_KEY)).toBe("en");
+
+    clickButton("English＋中文提示");
+    const hint = container.querySelector<HTMLElement>(
+      '[data-tip="選擇介面的明暗模式"]',
+    );
+    expect(hint?.textContent).toContain("Choose light or dark mode");
+    expect(window.localStorage.getItem(LANGUAGE_STORAGE_KEY)).toBe("en-hint");
+
+    clickButton("繁體中文");
+    expect(container.textContent).toContain("外觀主題");
   });
 });

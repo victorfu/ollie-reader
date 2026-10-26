@@ -30,6 +30,7 @@ import { PdfProvider } from "./contexts/PdfContext";
 import { SpeechProvider } from "./contexts/SpeechContext";
 import { SettingsProvider } from "./contexts/SettingsContext";
 import { ThemeProvider } from "./contexts/ThemeContext";
+import { LanguageProvider } from "./contexts/LanguageContext";
 import { ThemeToggle } from "./components/common/ThemeToggle";
 import { useWarmServerOnRouteChange } from "./hooks/useWarmServer";
 import { ErrorBoundary } from "./components/common/ErrorBoundary";
@@ -763,9 +764,11 @@ function App() {
   return (
     <ErrorBoundary>
       <ThemeProvider>
-        <BrowserRouter>
-          <AppContent />
-        </BrowserRouter>
+        <LanguageProvider>
+          <BrowserRouter>
+            <AppContent />
+          </BrowserRouter>
+        </LanguageProvider>
       </ThemeProvider>
     </ErrorBoundary>
   );

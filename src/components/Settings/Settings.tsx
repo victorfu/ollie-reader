@@ -14,24 +14,33 @@ import { useGachaMissRate } from "../../hooks/useGachaMissRate";
 import { useShowAllGachaEntries } from "../../hooks/useShowAllGachaEntries";
 import { useAuth } from "../../hooks/useAuth";
 import { useTheme } from "../../hooks/useTheme";
+import { useLanguage } from "../../hooks/useLanguage";
 import { resetGameProgress } from "../../services/gameProgressService";
 import { ConfirmModal } from "../common/ConfirmModal";
 import { GlassCard } from "../common/GlassCard";
 import { Toast } from "../common/Toast";
+import { T } from "../common/T";
+import type { LanguageMode, MessageKey } from "../../i18n/translate";
 import type { TTSMode, ComputeMode } from "../../types/pdf";
 import { getComputeStatusSync, refreshComputeBase, type ComputeStatus } from "../../services/localBackend";
 
 const THEME_OPTIONS = [
-  { id: "light", label: "淺色", icon: Sun },
-  { id: "dark", label: "深色", icon: Moon },
-  { id: "system", label: "系統", icon: Monitor },
+  { id: "light", label: "settings.theme.light", icon: Sun },
+  { id: "dark", label: "settings.theme.dark", icon: Moon },
+  { id: "system", label: "settings.theme.system", icon: Monitor },
 ] as const;
 
+const LANGUAGE_OPTIONS = [
+  { id: "zh-TW", label: "settings.language.zh" },
+  { id: "en", label: "settings.language.en" },
+  { id: "en-hint", label: "settings.language.enHint" },
+] as const satisfies readonly { id: LanguageMode; label: MessageKey }[];
+
 const CATEGORIES = [
-  { id: "appearance", label: "外觀", icon: Palette },
-  { id: "audio", label: "語音", icon: Volume2 },
-  { id: "advanced", label: "進階", icon: SlidersHorizontal },
-  { id: "game", label: "遊戲", icon: Gamepad2 },
+  { id: "appearance", label: "settings.category.appearance", icon: Palette },
+  { id: "audio", label: "settings.category.audio", icon: Volume2 },
+  { id: "advanced", label: "settings.category.advanced", icon: SlidersHorizontal },
+  { id: "game", label: "settings.category.game", icon: Gamepad2 },
 ] as const;
 
 type CategoryId = (typeof CATEGORIES)[number]["id"];
@@ -39,6 +48,7 @@ type CategoryId = (typeof CATEGORIES)[number]["id"];
 export const Settings = () => {
   const { user } = useAuth();
   const { theme, setTheme } = useTheme();
+  const { mode: languageMode, setMode: setLanguageMode } = useLanguage();
   const { showAllGachaEntries, updateShowAllGachaEntries } =
     useShowAllGachaEntries();
   const { gachaMissRatePercent, updateGachaMissRatePercent } =
@@ -143,7 +153,7 @@ export const Settings = () => {
         <aside className="lg:sticky lg:top-[4.5rem] lg:w-56 lg:shrink-0">
           {/* Mobile: page heading */}
           <h1 className="mb-3 text-2xl font-semibold tracking-tight lg:hidden">
-            ⚙️ 設定
+            ⚙️ <T k="settings.title" variant="stacked" />
           </h1>
 
           {/* Mobile: horizontally scrollable segmented nav */}
@@ -158,14 +168,14 @@ export const Settings = () => {
                     type="button"
                     onClick={() => setActiveCategory(cat.id)}
                     aria-pressed={active}
-                    className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md px-3 text-sm font-medium transition-all active:scale-[0.98] ${
+                    className={`inline-flex min-h-9 shrink-0 items-center py-1 gap-1.5 rounded-md px-3 text-sm font-medium transition-all active:scale-[0.98] ${
                       active
                         ? "bg-accent text-white shadow-soft"
                         : "text-muted-foreground hover:bg-accent-tint hover:text-accent"
                     }`}
                   >
                     <Icon className="size-4" strokeWidth={1.75} aria-hidden="true" />
-                    <span>{cat.label}</span>
+                    <T k={cat.label} variant="stacked" />
                   </button>
                 );
               })}
@@ -175,7 +185,7 @@ export const Settings = () => {
           {/* Desktop: vertical sidebar nav */}
           <GlassCard className="hidden overflow-hidden lg:block">
             <div className="px-3 pb-1 pt-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground/70">
-              設定
+              <T k="settings.title" variant="stacked" />
             </div>
             <nav className="space-y-1 p-2 pt-1">
               {CATEGORIES.map((cat) => {
@@ -187,14 +197,14 @@ export const Settings = () => {
                     type="button"
                     onClick={() => setActiveCategory(cat.id)}
                     aria-current={active ? "page" : undefined}
-                    className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors duration-200 ${
+                    className={`flex w-full items-center gap-3 rounded-lg text-left px-3 py-2 text-sm font-medium transition-colors duration-200 ${
                       active
                         ? "bg-accent-tint text-accent"
                         : "text-base-content/70 hover:bg-accent-tint hover:text-accent"
                     }`}
                   >
                     <Icon className="size-5 shrink-0" strokeWidth={1.75} aria-hidden="true" />
-                    <span className="truncate">{cat.label}</span>
+                    <T k={cat.label} variant="stacked" />
                   </button>
                 );
               })}
@@ -215,9 +225,11 @@ export const Settings = () => {
               {/* Appearance / Theme */}
               {activeCategory === "appearance" && (
                 <div>
-                  <h3 className="text-lg font-semibold mb-3">外觀主題</h3>
+                  <h3 className="text-lg font-semibold mb-3">
+                    <T k="settings.theme.title" variant="stacked" />
+                  </h3>
                   <p className="text-sm text-muted-foreground mb-4">
-                    選擇介面的明暗模式
+                    <T k="settings.theme.description" />
                   </p>
 
                   <div className="inline-flex gap-1 rounded-lg bg-base-200 p-1">
@@ -230,14 +242,42 @@ export const Settings = () => {
                           type="button"
                           onClick={() => setTheme(opt.id)}
                           aria-pressed={active}
-                          className={`inline-flex h-9 items-center gap-2 rounded-md px-4 text-sm font-medium transition-colors active:scale-[0.98] ${
+                          className={`inline-flex min-h-9 items-center gap-2 rounded-md px-4 py-1 text-sm font-medium transition-colors active:scale-[0.98] ${
                             active
                               ? "bg-base-100 text-accent shadow-soft"
                               : "text-muted-foreground hover:text-base-content"
                           }`}
                         >
                           <Icon className="size-4" strokeWidth={1.75} aria-hidden="true" />
-                          {opt.label}
+                          <T k={opt.label} variant="stacked" />
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <h3 className="text-lg font-semibold mb-3 mt-8">
+                    <T k="settings.language.title" variant="stacked" />
+                  </h3>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    <T k="settings.language.description" />
+                  </p>
+
+                  <div className="inline-flex flex-wrap gap-1 rounded-lg bg-base-200 p-1">
+                    {LANGUAGE_OPTIONS.map((opt) => {
+                      const active = languageMode === opt.id;
+                      return (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          onClick={() => setLanguageMode(opt.id)}
+                          aria-pressed={active}
+                          className={`inline-flex h-9 items-center rounded-md px-4 text-sm font-medium transition-colors active:scale-[0.98] ${
+                            active
+                              ? "bg-base-100 text-accent shadow-soft"
+                              : "text-muted-foreground hover:text-base-content"
+                          }`}
+                        >
+                          <T k={opt.label} variant="stacked" />
                         </button>
                       );
                     })}
