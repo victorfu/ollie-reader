@@ -9,9 +9,11 @@ import {
   Timer,
   Volume2,
 } from "lucide-react";
-import type { QuizQuestion } from "../../types/game";
+import type { PartOfSpeech, QuizKind, QuizQuestion } from "../../types/game";
 import { playSound } from "../../services/gameService";
 import { SpellChips } from "./SpellChips";
+import { TypingAnswer } from "./TypingAnswer";
+import { holdsAfterCorrect } from "./quizQuestions";
 import { splitWordForms } from "../../utils/wordForms";
 import { useLanguage } from "../../hooks/useLanguage";
 import type { MessageKey } from "../../i18n/translate";
@@ -30,26 +32,70 @@ interface QuizCardProps {
   isLastStep?: boolean;
   isSettling?: boolean;
   onAnswer: (answer: number | string) => void;
-  /** 答錯／逾時、或句子填空作答後手動推進。其他題型答對由父層自動推進，不顯示按鈕 */
+  /** 答錯／逾時、或句子題作答後手動推進。其他題型答對由父層自動推進，不顯示按鈕 */
   onNext?: () => void;
   speak?: (text: string) => void;
 }
 
-// 聽力題與看圖題的題幹看不到英文單字，揭曉答案時要補上
-const HIDES_WORD: Record<string, boolean> = { listen: true, emoji: true };
+// 題幹看不到英文單字的題型，揭曉答案時要補上
+const HIDES_WORD: Partial<Record<QuizKind, boolean>> = {
+  listen: true,
+  emoji: true,
+  dictation: true,
+};
 
-// 各題型的小提示
-const PROMPT_HINT: Record<string, MessageKey> = {
+// 各題型的小提示（synonym 依 relation 另外決定）
+const PROMPT_HINT: Partial<Record<QuizKind, MessageKey>> = {
   meaning: "adventure.quiz.prompt.meaning",
   listen: "adventure.quiz.prompt.listen",
   reverse: "adventure.quiz.prompt.reverse",
   emoji: "adventure.quiz.prompt.emoji",
   spell: "adventure.quiz.prompt.spell",
   cloze: "adventure.quiz.prompt.cloze",
+  dictation: "adventure.quiz.prompt.dictation",
+  pos: "adventure.quiz.prompt.pos",
+  order: "adventure.quiz.prompt.order",
+  typing: "adventure.quiz.prompt.typing",
+  listenCloze: "adventure.quiz.prompt.listenCloze",
 };
 
+const POS_LABEL: Record<PartOfSpeech, MessageKey> = {
+  noun: "adventure.pos.noun",
+  verb: "adventure.pos.verb",
+  adjective: "adventure.pos.adjective",
+  adverb: "adventure.pos.adverb",
+};
+
+/** 選項的顯示文字（詞性題存的是詞性代號，要翻成「名詞 noun」） */
+function optionLabel(
+  question: Extract<QuizQuestion, { options: unknown }>,
+  index: number,
+  t: (key: MessageKey) => string,
+): string {
+  return question.kind === "pos"
+    ? t(POS_LABEL[question.options[index]])
+    : question.options[index];
+}
+
+/** 正確答案的顯示文字（答錯時揭曉用） */
+function answerText(
+  question: QuizQuestion,
+  t: (key: MessageKey) => string,
+): string {
+  switch (question.kind) {
+    case "spell":
+    case "dictation":
+    case "typing":
+      return question.word;
+    case "order":
+      return question.sentence;
+    default:
+      return optionLabel(question, question.correctIndex, t);
+  }
+}
+
 /**
- * 共用題目卡：時間條 + 依 kind 的題幹 + 作答區（選項 / 拼字）+ 結果回饋。
+ * 共用題目卡：時間條 + 依 kind 的題幹 + 作答區（選項 / 拼字 / 排序 / 打字）+ 結果回饋。
  * 不含生命/連擊/分數 HUD，讓 QuizGame 與 BossBattle 都能重用。
  * 父層請以 key={questionIndex} 掛載，確保每題狀態（拼字進度、自動唸）重置。
  */
@@ -68,30 +114,42 @@ export function QuizCard({
   speak,
 }: QuizCardProps) {
   const { t } = useLanguage();
-  const promptHint = PROMPT_HINT[question.kind];
-  // 句子填空答對也停住（父層不自動推進），和答錯一樣等玩家按「下一題」
+  const promptHint =
+    question.kind === "synonym"
+      ? question.relation === "same"
+        ? "adventure.quiz.prompt.synonym.same"
+        : "adventure.quiz.prompt.synonym.opposite"
+      : PROMPT_HINT[question.kind];
+  // 句子題答對也停住（父層不自動推進），和答錯一樣等玩家按「下一題」
   const waitsForNext =
-    lastAnswerCorrect === false || question.kind === "cloze";
+    lastAnswerCorrect === false || holdsAfterCorrect(question.kind);
+  // 揭曉時顯示完整例句的題型
+  const revealSentence =
+    question.kind === "cloze" ||
+    question.kind === "listenCloze" ||
+    question.kind === "order"
+      ? question
+      : null;
 
-  // 聽力題進場自動唸（StrictMode 以 ref 防雙念）
+  // 聽力類題型進場自動唸（StrictMode 以 ref 防雙念）
   const spokenIndexRef = useRef<number>(-1);
   useEffect(() => {
-    if (
-      question.kind === "listen" &&
-      speak &&
-      spokenIndexRef.current !== questionIndex
-    ) {
+    if (!speak || spokenIndexRef.current === questionIndex) return;
+    if (question.kind === "listen" || question.kind === "dictation") {
       spokenIndexRef.current = questionIndex;
       speak(question.word);
+    } else if (question.kind === "listenCloze") {
+      spokenIndexRef.current = questionIndex;
+      speak(question.sentence);
     }
   }, [question, questionIndex, speak]);
 
-  // 句子填空作答後自動唸完整句子一次
+  // 看字的句子題作答後自動唸完整句子一次（聽句填空進場已經唸過）
   const spokenSentenceIndexRef = useRef<number>(-1);
   useEffect(() => {
     if (
       isAnswered &&
-      question.kind === "cloze" &&
+      (question.kind === "cloze" || question.kind === "order") &&
       speak &&
       spokenSentenceIndexRef.current !== questionIndex
     ) {
@@ -116,6 +174,7 @@ export function QuizCard({
   }, [lastAnswerCorrect]);
 
   // 鍵盤：作答用 1-4（僅選項題）；停住等推進時用 Enter
+  const isOptionKind = "options" in question;
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
       if (isAnswered) {
@@ -123,14 +182,16 @@ export function QuizCard({
           onNext &&
           !isSettling &&
           waitsForNext &&
-          e.key === "Enter"
+          e.key === "Enter" &&
+          // 按住 Enter 送出答案時的自動重複，不能直接跳過揭曉畫面
+          !e.repeat
         ) {
           e.preventDefault();
           onNext();
         }
         return;
       }
-      if (question.kind === "spell") return;
+      if (!isOptionKind) return;
       const map: Record<string, number> = { "1": 0, "2": 1, "3": 2, "4": 3 };
       if (map[e.key] !== undefined) onAnswer(map[e.key]);
     },
@@ -138,7 +199,7 @@ export function QuizCard({
       isAnswered,
       isSettling,
       waitsForNext,
-      question.kind,
+      isOptionKind,
       onAnswer,
       onNext,
     ],
@@ -150,6 +211,16 @@ export function QuizCard({
 
   const timerColor =
     timeLeft <= 3 ? "bg-error" : timeLeft <= 5 ? "bg-warning" : "bg-primary";
+
+  const listenButton = (text: string, label: MessageKey) => (
+    <button
+      onClick={() => speak?.(text)}
+      className="btn btn-primary gap-2 rounded-full text-lg min-h-14 px-8 active:scale-95"
+    >
+      <Volume2 className="h-5 w-5" strokeWidth={2} aria-hidden="true" />
+      <T k={label} />
+    </button>
+  );
 
   return (
     <div className="card glass rounded-2xl shadow-floating w-full max-w-lg">
@@ -197,15 +268,8 @@ export function QuizCard({
           {question.kind === "emoji" && (
             <div className="text-7xl mb-2">{question.prompt}</div>
           )}
-          {question.kind === "listen" && (
-            <button
-              onClick={() => speak?.(question.word)}
-              className="btn btn-primary gap-2 rounded-full text-lg min-h-14 px-8 active:scale-95"
-            >
-              <Volume2 className="h-5 w-5" strokeWidth={2} aria-hidden="true" />
-              <T k="adventure.quiz.listenAgain" />
-            </button>
-          )}
+          {(question.kind === "listen" || question.kind === "dictation") &&
+            listenButton(question.word, "adventure.quiz.listenAgain")}
           {question.kind === "cloze" && (
             <>
               <h2 className="text-xl font-semibold leading-relaxed text-secondary mb-2">
@@ -214,9 +278,52 @@ export function QuizCard({
               <p className="text-base text-muted-foreground">{question.hint}</p>
             </>
           )}
-          {question.kind === "spell" && (
+          {question.kind === "listenCloze" && (
+            <>
+              <div className="mb-3">
+                {listenButton(question.sentence, "adventure.quiz.listenSentence")}
+              </div>
+              <h2 className="text-xl font-semibold leading-relaxed text-secondary mb-2">
+                {question.prompt}
+              </h2>
+            </>
+          )}
+          {(question.kind === "spell" || question.kind === "typing") && (
             <h2 className="text-2xl font-bold text-secondary mb-2">
               {question.hint}
+            </h2>
+          )}
+          {question.kind === "synonym" && (
+            <>
+              <h2 className="text-3xl font-bold text-primary mb-2">
+                {question.word}
+              </h2>
+              <span
+                className={`badge badge-lg ${
+                  question.relation === "same" ? "badge-info" : "badge-warning"
+                }`}
+              >
+                <T
+                  k={
+                    question.relation === "same"
+                      ? "adventure.synonym.same"
+                      : "adventure.synonym.opposite"
+                  }
+                />
+              </span>
+            </>
+          )}
+          {question.kind === "pos" && (
+            <>
+              <h2 className="text-3xl font-bold text-primary mb-2">
+                {question.word}
+              </h2>
+              <p className="text-base text-muted-foreground">{question.hint}</p>
+            </>
+          )}
+          {question.kind === "order" && question.translation && (
+            <h2 className="text-xl font-semibold leading-relaxed text-secondary mb-2">
+              {question.translation}
             </h2>
           )}
 
@@ -226,16 +333,29 @@ export function QuizCard({
         </div>
 
         {/* 作答區 */}
-        {question.kind === "spell" ? (
+        {"letters" in question ? (
           <SpellChips
             letters={question.letters}
             disabled={isAnswered}
             onSubmit={(attempt) => onAnswer(attempt)}
           />
+        ) : question.kind === "order" ? (
+          <SpellChips
+            letters={question.tokens}
+            variant="word"
+            disabled={isAnswered}
+            onSubmit={(attempt) => onAnswer(attempt)}
+          />
+        ) : question.kind === "typing" ? (
+          <TypingAnswer
+            disabled={isAnswered}
+            onSubmit={(attempt) => onAnswer(attempt)}
+          />
         ) : (
           <div className="grid grid-cols-1 gap-3">
-            {question.options.map((option, index) => {
+            {question.options.map((_, index) => {
               const isCorrect = index === question.correctIndex;
+              const label = optionLabel(question, index, t);
 
               let buttonClass =
                 "btn btn-outline w-full justify-start text-left h-auto rounded-xl py-4 px-4 active:scale-[0.98]";
@@ -262,7 +382,7 @@ export function QuizCard({
                   className={buttonClass}
                 >
                   <span className="badge badge-ghost mr-3">{index + 1}</span>
-                  <span className="flex-1">{option}</span>
+                  <span className="flex-1">{label}</span>
                   {isAnswered && isCorrect && (
                     <Check
                       className="h-5 w-5 shrink-0"
@@ -309,19 +429,14 @@ export function QuizCard({
                     <span>
                       <T
                         k="adventure.quiz.wrong"
-                        params={{
-                          answer:
-                            question.kind === "spell"
-                              ? question.word
-                              : question.options[question.correctIndex],
-                        }}
+                        params={{ answer: answerText(question, t) }}
                       />
                     </span>
                   </>
                 )}
               </span>
 
-              {/* 聽力／看圖題的題幹沒有英文單字，揭曉時補上並可再聽一次 */}
+              {/* 題幹沒有英文單字的題型，揭曉時補上並可再聽一次 */}
               {HIDES_WORD[question.kind] && (
                 <div className="mt-2 flex items-center justify-center gap-2">
                   <span className="text-xs opacity-70">
@@ -348,23 +463,31 @@ export function QuizCard({
                   )}
                 </div>
               )}
+              {/* 聽音拼字作答前看不到意思，揭曉時一起補上 */}
+              {question.kind === "dictation" && (
+                <p className="mt-1 text-sm text-base-content opacity-80">
+                  {question.hint}
+                </p>
+              )}
 
-              {/* 句子填空揭曉完整句子（答案字加粗）與翻譯，可再聽一次整句 */}
-              {question.kind === "cloze" && (
+              {/* 句子題揭曉完整句子（答案字加粗）與翻譯，可再聽一次整句 */}
+              {revealSentence && (
                 <div className="mt-2 space-y-1 text-base-content">
                   <p className="text-base leading-relaxed">
-                    {splitWordForms(question.sentence, question.word).map(
-                      (part, i) =>
-                        part.match ? (
-                          <strong key={i}>{part.text}</strong>
-                        ) : (
-                          <span key={i}>{part.text}</span>
-                        ),
+                    {splitWordForms(
+                      revealSentence.sentence,
+                      revealSentence.word,
+                    ).map((part, i) =>
+                      part.match ? (
+                        <strong key={i}>{part.text}</strong>
+                      ) : (
+                        <span key={i}>{part.text}</span>
+                      ),
                     )}
                     {speak && (
                       <button
                         type="button"
-                        onClick={() => speak(question.sentence)}
+                        onClick={() => speak(revealSentence.sentence)}
                         aria-label={t("adventure.quiz.listenSentence")}
                         className="btn btn-ghost btn-xs btn-circle pointer-coarse:size-11 ml-1 align-middle"
                       >
@@ -376,13 +499,17 @@ export function QuizCard({
                       </button>
                     )}
                   </p>
-                  {question.translation && (
-                    <p className="text-sm opacity-70">{question.translation}</p>
-                  )}
+                  {/* 排序題的翻譯已經是題幹，不重複 */}
+                  {revealSentence.translation &&
+                    revealSentence.kind !== "order" && (
+                      <p className="text-sm opacity-70">
+                        {revealSentence.translation}
+                      </p>
+                    )}
                 </div>
               )}
 
-              {/* 答錯（以及句子填空）不自動跳題：讓玩家看清答案，自己決定何時繼續 */}
+              {/* 答錯（以及句子題）不自動跳題：讓玩家看清答案，自己決定何時繼續 */}
               {onNext && waitsForNext && (
                 <button
                   type="button"

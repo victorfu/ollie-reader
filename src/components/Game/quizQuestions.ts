@@ -2,11 +2,16 @@ import type { GameWord } from "../../services/gameService";
 import type {
   ClozeQuestion,
   DefLanguage,
+  OrderQuestion,
+  PartOfSpeech,
+  PosQuestion,
   QuizKind,
   QuizQuestion,
   OptionQuestion,
   SpellQuestion,
   Stage,
+  SynonymQuestion,
+  TypingQuestion,
 } from "../../types/game";
 import { shuffleArray } from "../../utils/arrayUtils";
 import { redactWordForms, sentenceUsesWord } from "../../utils/wordForms";
@@ -24,6 +29,11 @@ const FALLBACK_WORDS = ["apple", "book", "cat", "dog"];
 const DEFAULT_EMOJI = "✨";
 // 四選一，單字池至少要湊得出 4 個同語言釋義才能用該語言出題
 export const MIN_DEF_POOL = 4;
+// 詞性題的選項固定這個順序
+export const POS_OPTIONS: PartOfSpeech[] = ["noun", "verb", "adjective", "adverb"];
+// 句子排序只用長度適中的例句：太短沒得排，太長在手機上排不完
+export const ORDER_MIN_TOKENS = 4;
+export const ORDER_MAX_TOKENS = 12;
 
 const normOpt = (s: string) => s.trim().toLowerCase();
 
@@ -85,6 +95,39 @@ function hasUsableExample(word: GameWord): boolean {
   return !new RegExp(`\\b${escaped}`, "i").test(
     redactWordForms(word.example, word.word),
   );
+}
+
+/** 例句拆成單字塊（標點黏在字上，排序時也是線索） */
+function sentenceTokens(sentence: string): string[] {
+  return sentence.trim().split(/\s+/).filter(Boolean);
+}
+
+/** 例句能不能出句子排序：要用到這個字，且長度在範圍內 */
+function hasOrderableExample(word: GameWord): boolean {
+  if (!word.example || !sentenceUsesWord(word.example, word.word)) return false;
+  const count = sentenceTokens(word.example).length;
+  return count >= ORDER_MIN_TOKENS && count <= ORDER_MAX_TOKENS;
+}
+
+/** 把例句的單字塊打散（盡量與原句順序不同） */
+export function scrambleTokens(tokens: string[]): string[] {
+  if (tokens.length <= 1) return [...tokens];
+  const original = tokens.join(" ");
+  let scrambled = shuffleArray(tokens);
+  let guard = 0;
+  while (scrambled.join(" ") === original && guard < 12) {
+    scrambled = shuffleArray(tokens);
+    guard++;
+  }
+  return scrambled;
+}
+
+/** 同反義題可考的關係 */
+function synonymRelations(word: GameWord): ("same" | "opposite")[] {
+  const relations: ("same" | "opposite")[] = [];
+  if (word.synonyms?.length) relations.push("same");
+  if (word.antonyms?.length) relations.push("opposite");
+  return relations;
 }
 
 /** 該語言是否有釋義可用（不做遮蔽，純粹判斷有無） */
@@ -167,6 +210,11 @@ function normalizeSpell(value: string): string {
   return value.trim().toLowerCase();
 }
 
+/** 句子排序比對：忽略大小寫與多餘空白 */
+function normalizeSentence(value: string): string {
+  return value.trim().replace(/\s+/g, " ").toLowerCase();
+}
+
 /** 建立單一題目（pool 已由 buildQuizQuestions 濾成 lang 可用的字） */
 function buildOne(
   kind: QuizKind,
@@ -180,17 +228,89 @@ function buildOne(
   const padLabel =
     lang === "en" ? (n: number) => `Option ${n}` : (n: number) => `選項 ${n}`;
 
-  if (kind === "spell") {
+  if (kind === "spell" || kind === "dictation") {
     const q: SpellQuestion = {
       ...base,
-      kind: "spell",
+      kind,
       letters: scrambleWord(word.word),
       hint: def,
     };
     return q;
   }
 
-  if (kind === "cloze") {
+  if (kind === "typing") {
+    const q: TypingQuestion = { ...base, kind: "typing", hint: def };
+    return q;
+  }
+
+  if (kind === "pos") {
+    // 呼叫端已確認有詞性（?? 只是型別上的保險）
+    const pos = word.pos ?? "noun";
+    const q: PosQuestion = {
+      ...base,
+      kind: "pos",
+      hint: def,
+      options: [...POS_OPTIONS],
+      correctIndex: POS_OPTIONS.indexOf(pos),
+    };
+    return q;
+  }
+
+  if (kind === "order") {
+    const sentence = (word.example ?? "").trim().replace(/\s+/g, " ");
+    const q: OrderQuestion = {
+      ...base,
+      kind: "order",
+      tokens: scrambleTokens(sentenceTokens(sentence)),
+      sentence,
+      translation: word.exampleZh,
+    };
+    return q;
+  }
+
+  if (kind === "synonym") {
+    // 呼叫端已確認至少有一種關係可考
+    const relation = shuffleArray(synonymRelations(word))[0] ?? "same";
+    const answers =
+      (relation === "same" ? word.synonyms : word.antonyms) ?? [];
+    const correct = shuffleArray(answers)[0] ?? word.word;
+    // 同反義資料常常只記一個方向（happy 記了 sad，glad 卻沒記 happy），
+    // 所以干擾項只取「另一種關係」的字：考同義就拿別的字的反義字，考反義就拿同義字；
+    // 其他單字本身也可能是近義字，不拿來當干擾項。
+    // 這個字本身、它的同反義字，以及把它列進清單的字（含同字重複的條目）都排除
+    const related = new Set(
+      [word.word, ...(word.synonyms ?? []), ...(word.antonyms ?? [])].map(
+        normOpt,
+      ),
+    );
+    const target = normOpt(word.word);
+    const candidates = pool
+      .filter(
+        (w) =>
+          normOpt(w.word) !== target &&
+          ![...(w.synonyms ?? []), ...(w.antonyms ?? [])]
+            .map(normOpt)
+            .includes(target),
+      )
+      .flatMap((w) => (relation === "same" ? w.antonyms : w.synonyms) ?? [])
+      .filter((c) => !related.has(normOpt(c)));
+    const { options, correctIndex } = makeOptions(
+      correct,
+      candidates,
+      FALLBACK_WORDS.filter((c) => !related.has(normOpt(c))),
+      padLabel,
+    );
+    const q: SynonymQuestion = {
+      ...base,
+      kind: "synonym",
+      relation,
+      options,
+      correctIndex,
+    };
+    return q;
+  }
+
+  if (kind === "cloze" || kind === "listenCloze") {
     // 呼叫端已確認例句用得到這個字（?? 只是型別上的保險）；選項是原形單字，不管句中字形
     const example = word.example ?? "";
     const { options, correctIndex } = makeOptions(
@@ -201,7 +321,7 @@ function buildOne(
     );
     const q: ClozeQuestion = {
       ...base,
-      kind: "cloze",
+      kind,
       prompt: redactWordForms(example, word.word),
       hint: def,
       options,
@@ -251,10 +371,17 @@ function buildOne(
   return q;
 }
 
+// 不支援語音時，要靠聽的題型改出不用聽的對應題型
+const NO_SPEECH_FALLBACK: Partial<Record<QuizKind, QuizKind>> = {
+  listen: "meaning",
+  dictation: "spell",
+  listenCloze: "cloze",
+};
+
 /**
  * 決定每一題的題型。
  * - 關卡未宣告 questionKinds → 全部 meaning（維持第一章原行為）
- * - speechSupported=false → listen 退回 meaning
+ * - speechSupported=false → 要聽的題型退回不用聽的（見 NO_SPEECH_FALLBACK）
  * - 循環套用宣告的題型清單，讓混合關卡分佈均勻
  */
 function resolveKinds(
@@ -267,7 +394,7 @@ function resolveKinds(
       ? stage.questionKinds
       : (["meaning"] as QuizKind[]);
   const usable = declared.map((k) =>
-    k === "listen" && !speechSupported ? "meaning" : k,
+    speechSupported ? k : (NO_SPEECH_FALLBACK[k] ?? k),
   );
   const result: QuizKind[] = [];
   for (let i = 0; i < count; i++) result.push(usable[i % usable.length]);
@@ -275,10 +402,35 @@ function resolveKinds(
 }
 
 /**
+ * 這個字缺資料、出不了該題型時改出的題型（回傳原題型 = 可以出）。
+ * 退回的題型都不需要額外資料（不會再遞迴退回），新增退回規則時要維持這點。
+ */
+function kindForWord(kind: QuizKind, word: GameWord): QuizKind {
+  switch (kind) {
+    // prepareGamePool 對沒有 emoji 的字塞了預設值，拿它出題無解
+    case "emoji":
+      return !word.emoji || word.emoji === DEFAULT_EMOJI ? "meaning" : kind;
+    // 沒有例句、例句裡認不出這個字（如只有所有格）、或挖空後會洩答 → 改出反向選字
+    case "cloze":
+      return hasUsableExample(word) ? kind : "reverse";
+    case "listenCloze":
+      return hasUsableExample(word) ? kind : "listen";
+    case "order":
+      return hasOrderableExample(word) ? kind : "spell";
+    case "synonym":
+      return synonymRelations(word).length > 0 ? kind : "reverse";
+    case "pos":
+      return word.pos ? kind : "meaning";
+    default:
+      return kind;
+  }
+}
+
+/**
  * 依關卡設定，從單字池建出一整份題目。
- * emoji 題若單字沒有可辨識的 emoji（或用了預設 ✨）自動退回 meaning，避免無解；
- * cloze 題沒有可用例句時退回 reverse。
+ * 單字缺該題型需要的資料（emoji、例句、同反義字、詞性）時改出其他題型，見 kindForWord。
  * defLanguage 決定整輪釋義語言，單字池會先濾成只剩該語言可用的字。
+ * wordOffset 讓中途重建的題目（多階段魔王換階段）接著用後面的字，不從頭重複。
  */
 export function buildQuizQuestions(
   pool: GameWord[],
@@ -287,6 +439,7 @@ export function buildQuizQuestions(
     speechSupported?: boolean;
     count?: number;
     defLanguage?: DefLanguage;
+    wordOffset?: number;
   },
 ): QuizQuestion[] {
   const speechSupported = opts?.speechSupported ?? true;
@@ -300,30 +453,37 @@ export function buildQuizQuestions(
 
   // 單字池不足時循環取用，確保題數足夠
   // （魔王題數 = bossHp + 3，不能少於 bossHp，否則永遠打不倒）
+  const offset = opts?.wordOffset ?? 0;
   return Array.from({ length: count }, (_, i) => {
-    const word = usable[i % usable.length];
-    let kind = kinds[i];
-    if (kind === "emoji" && (!word.emoji || word.emoji === DEFAULT_EMOJI)) {
-      kind = "meaning";
-    }
-    // 沒有例句、例句裡認不出這個字（如只有所有格）、或挖空後會洩答 → 改出反向選字
-    if (kind === "cloze" && !hasUsableExample(word)) {
-      kind = "reverse";
-    }
-    return buildOne(kind, word, usable, lang);
+    const word = usable[(i + offset) % usable.length];
+    return buildOne(kindForWord(kinds[i], word), word, usable, lang);
   });
 }
 
-/** 驗證作答是否正確（選項題用 index，拼字題用字串） */
+/** 驗證作答是否正確（選項題用 index，拼字／排序題用字串） */
 export function isQuestionCorrect(
   question: QuizQuestion,
   answer: number | string,
 ): boolean {
-  if (question.kind === "spell") {
-    return (
-      typeof answer === "string" &&
-      normalizeSpell(answer) === normalizeSpell(question.word)
-    );
+  switch (question.kind) {
+    case "spell":
+    case "dictation":
+    case "typing":
+      return (
+        typeof answer === "string" &&
+        normalizeSpell(answer) === normalizeSpell(question.word)
+      );
+    case "order":
+      return (
+        typeof answer === "string" &&
+        normalizeSentence(answer) === normalizeSentence(question.sentence)
+      );
+    default:
+      return typeof answer === "number" && answer === question.correctIndex;
   }
-  return typeof answer === "number" && answer === question.correctIndex;
+}
+
+/** 答完要停下來讓玩家讀完整句的題型 — 答對也不自動跳題 */
+export function holdsAfterCorrect(kind: QuizKind): boolean {
+  return kind === "cloze" || kind === "listenCloze" || kind === "order";
 }
