@@ -39,6 +39,10 @@ const TEST_STAGES = vi.hoisted(() => [
   },
   { id: "boss", name: "Boss", stageNumber: 3, isBoss: true,
     requiredLevel: 1, rewardExp: 100, questionCount: 20, bossHp: 15 },
+  // 第七章式魔王：兩階段（HP 4 → 剩 2 進第二階段）＋護盾
+  { id: "phase-boss", name: "Phase boss", stageNumber: 4, isBoss: true,
+    requiredLevel: 1, rewardExp: 100, questionCount: 20, bossHp: 4,
+    bossPhases: [["meaning"], ["reverse"]], bossShield: true },
 ]);
 
 vi.mock("./useAuth", () => ({ useAuth: mocks.useAuth }));
@@ -58,7 +62,10 @@ vi.mock("../services/gameProgressService", () => ({
 vi.mock("../services/gameService", () => ({
   prepareGamePool: mocks.prepareGamePool,
 }));
-vi.mock("../components/Game/quizQuestions", () => ({
+vi.mock("../components/Game/quizQuestions", async (importOriginal) => ({
+  holdsAfterCorrect: (
+    await importOriginal<typeof import("../components/Game/quizQuestions")>()
+  ).holdsAfterCorrect,
   buildQuizQuestions: mocks.buildQuizQuestions,
   isQuestionCorrect: (
     question: { correctIndex: number },
@@ -189,10 +196,14 @@ describe("useAdventure run ownership and settlement", () => {
       bonus: { eligible: false, coins: 0, streakDays: 0 },
     });
     mocks.buildQuizQuestions.mockImplementation(
-      (pool: GameWord[], _stage: unknown, options: { count: number }) =>
+      (
+        pool: GameWord[],
+        stage: { questionKinds?: string[] },
+        options: { count: number; wordOffset?: number },
+      ) =>
         Array.from({ length: options.count }, (_, index) => ({
-          kind: "meaning",
-          word: `${pool[0].word}-${index}`,
+          kind: stage.questionKinds?.[0] ?? "meaning",
+          word: `${pool[0].word}-${index + (options.wordOffset ?? 0)}`,
           prompt: pool[0].word,
           options: ["correct", "wrong", "other", "extra"],
           correctIndex: 0,
@@ -549,6 +560,61 @@ describe("useAdventure run ownership and settlement", () => {
     act(() => current.submitAnswer(0));
     await act(async () => { await vi.advanceTimersByTimeAsync(1500); });
     expect(mocks.saveProgressWithTokenReward).not.toHaveBeenCalled();
+  });
+
+  async function mountAtPhaseBoss() {
+    const atBoss = { ...initialProgress, currentStageIndex: 3 };
+    mocks.getOrCreateProgress.mockResolvedValue(atBoss);
+    mocks.fetchProgress.mockResolvedValue(atBoss);
+    await act(async () => {
+      root.render(<Probe />);
+    });
+    await start(3, "phase");
+  }
+
+  async function answerAndAdvance(answer: number) {
+    act(() => current.submitAnswer(answer));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_500);
+    });
+    if (current.quizState?.isAnswered) act(() => current.advanceQuestion());
+  }
+
+  it("rebuilds the remaining questions when the boss enters a new phase", async () => {
+    await mountAtPhaseBoss();
+    // HP 4 + buffer 3 + 護盾 1
+    expect(current.quizState?.questions).toHaveLength(8);
+    expect(current.bossState?.phaseCount).toBe(2);
+
+    await answerAndAdvance(0); // HP 3，仍在第一階段
+    expect(current.bossState?.phase).toBe(0);
+    act(() => current.submitAnswer(0)); // HP 2 → 第二階段
+    expect(current.bossState?.bossHp).toBe(2);
+    expect(current.bossState?.phase).toBe(1);
+    const questions = current.quizState?.questions ?? [];
+    expect(questions.map((q) => q.kind)).toEqual([
+      "meaning",
+      "meaning",
+      ...Array(6).fill("reverse"),
+    ]);
+    // 換階段後接著用後面的字，不從頭重複
+    expect(questions[2].word).toBe("phase-2");
+  });
+
+  it("raises a shield after two misses and the next right answer only breaks it", async () => {
+    await mountAtPhaseBoss();
+    await answerAndAdvance(1);
+    expect(current.bossState?.shielded).toBe(false);
+    act(() => current.submitAnswer(1));
+    expect(current.bossState?.shielded).toBe(true);
+    act(() => current.advanceQuestion());
+
+    act(() => current.submitAnswer(0));
+    expect(current.bossState).toMatchObject({
+      bossHp: 4,
+      shielded: false,
+      lastHit: "shield",
+    });
   });
 
   it("awards every combo achievement within a supported boss battle", async () => {

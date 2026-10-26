@@ -59,7 +59,7 @@ describe("buildQuizQuestions", () => {
     expect(qs).toHaveLength(4);
     expect(qs.every((q) => q.kind === "meaning")).toBe(true);
     qs.forEach((q, i) => {
-      if (q.kind === "spell") throw new Error("unexpected spell");
+      if (!("prompt" in q)) throw new Error("unexpected kind");
       expect(q.word).toBe(POOL[i].word);
       expect(q.prompt).toBe(POOL[i].word); // meaning 顯示英文字
       expect(q.options).toHaveLength(4);
@@ -87,7 +87,7 @@ describe("buildQuizQuestions", () => {
       { word: "c", def: "未知定義", emoji: "" },
     ];
     const q = buildQuizQuestions(pool, makeStage({ questionCount: 1 }))[0];
-    if (q.kind === "spell") throw new Error("unexpected spell");
+    if (!("prompt" in q)) throw new Error("unexpected kind");
     expect(q.options).toHaveLength(4);
     expect(new Set(q.options).size).toBe(4); // 無重複選項
     expect(q.options[q.correctIndex]).toBe("真的");
@@ -124,7 +124,7 @@ describe("buildQuizQuestions", () => {
     );
     expect(qs.every((q) => q.kind === "listen")).toBe(true);
     qs.forEach((q) => {
-      if (q.kind === "spell") throw new Error("unexpected spell");
+      if (!("prompt" in q)) throw new Error("unexpected kind");
       expect(q.prompt).toBe(""); // listen 不顯示文字
     });
   });
@@ -135,7 +135,7 @@ describe("buildQuizQuestions", () => {
       makeStage({ questionCount: 2, questionKinds: ["reverse"] }),
     );
     qs.forEach((q, i) => {
-      if (q.kind === "spell") throw new Error("unexpected spell");
+      if (!("prompt" in q)) throw new Error("unexpected kind");
       expect(q.kind).toBe("reverse");
       expect(q.prompt).toBe(POOL[i].def);
       expect(q.options[q.correctIndex]).toBe(POOL[i].word);
@@ -160,7 +160,7 @@ describe("buildQuizQuestions", () => {
       makeStage({ questionCount: 2, questionKinds: ["emoji"] }),
     );
     qs.forEach((q, i) => {
-      if (q.kind === "spell") throw new Error("unexpected spell");
+      if (!("prompt" in q)) throw new Error("unexpected kind");
       expect(q.kind).toBe("emoji");
       expect(q.prompt).toBe(POOL[i].emoji);
       expect(q.options[q.correctIndex]).toBe(POOL[i].def);
@@ -215,7 +215,7 @@ describe("英文釋義模式", () => {
     const chineseDefs = new Set(BILINGUAL_POOL.map((w) => w.def));
 
     qs.forEach((q, i) => {
-      if (q.kind === "spell") throw new Error("unexpected spell");
+      if (!("prompt" in q)) throw new Error("unexpected kind");
       expect(q.prompt).toBe(BILINGUAL_POOL[i].word);
       expect(q.options[q.correctIndex]).toBe(BILINGUAL_POOL[i].defEn);
       // 最重要的一條：整組選項不得混入中文，否則等於直接標出答案
@@ -236,7 +236,7 @@ describe("英文釋義模式", () => {
     const q = buildQuizQuestions(pool, makeStage({ questionCount: 1 }), {
       defLanguage: "en",
     })[0];
-    if (q.kind === "spell") throw new Error("unexpected spell");
+    if (!("prompt" in q)) throw new Error("unexpected kind");
     expect(q.options).toHaveLength(4);
     expect(new Set(q.options).size).toBe(4);
     expect(q.options[q.correctIndex]).toBe("actually true");
@@ -250,7 +250,7 @@ describe("英文釋義模式", () => {
       { defLanguage: "en" },
     );
     qs.forEach((q, i) => {
-      if (q.kind === "spell") throw new Error("unexpected spell");
+      if (!("prompt" in q)) throw new Error("unexpected kind");
       expect(q.prompt).toBe(BILINGUAL_POOL[i].defEn);
       expect(q.options[q.correctIndex]).toBe(BILINGUAL_POOL[i].word);
     });
@@ -308,7 +308,7 @@ describe("英文釋義模式", () => {
       ...POOL.slice(0, 3),
     ];
     const q = buildQuizQuestions(pool, makeStage({ questionCount: 1 }))[0];
-    if (q.kind === "spell") throw new Error("unexpected spell");
+    if (!("prompt" in q)) throw new Error("unexpected kind");
     expect(q.options[q.correctIndex]).not.toMatch(/sorts/i);
     expect(q.options[q.correctIndex]).toContain("____");
   });
@@ -316,7 +316,7 @@ describe("英文釋義模式", () => {
   it("leaves a pure Chinese def alone", () => {
     const qs = buildQuizQuestions(POOL, makeStage({ questionCount: 5 }));
     qs.forEach((q, i) => {
-      if (q.kind === "spell") throw new Error("unexpected spell");
+      if (!("prompt" in q)) throw new Error("unexpected kind");
       expect(q.options[q.correctIndex]).toBe(POOL[i].def);
     });
   });
@@ -328,7 +328,7 @@ describe("英文釋義模式", () => {
       { defLanguage: "zh" },
     );
     qs.forEach((q, i) => {
-      if (q.kind === "spell") throw new Error("unexpected spell");
+      if (!("prompt" in q)) throw new Error("unexpected kind");
       expect(q.options[q.correctIndex]).toBe(BILINGUAL_POOL[i].def);
     });
   });
@@ -349,7 +349,7 @@ describe("scrambleWord", () => {
 describe("isQuestionCorrect", () => {
   it("checks option index for choice questions", () => {
     const q = buildQuizQuestions(POOL, makeStage({ questionCount: 1 }))[0];
-    if (q.kind === "spell") throw new Error("unexpected spell");
+    if (!("prompt" in q)) throw new Error("unexpected kind");
     expect(isQuestionCorrect(q, q.correctIndex)).toBe(true);
     expect(isQuestionCorrect(q, (q.correctIndex + 1) % 4)).toBe(false);
     expect(isQuestionCorrect(q, "apple")).toBe(false); // 選項題不吃字串

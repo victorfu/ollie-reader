@@ -3,6 +3,7 @@ import { isGeminiRateLimitError } from "./geminiErrorPolicy";
 import type { VocabularyWord } from "../types/vocabulary";
 import { FALLBACK_GAME_WORDS } from "./gameWords";
 import { sentenceUsesWord } from "../utils/wordForms";
+import { singlePartOfSpeech } from "../utils/partOfSpeech";
 
 export { FALLBACK_GAME_WORDS } from "./gameWords";
 
@@ -112,6 +113,16 @@ export const generateGameWords = async (
   return FALLBACK_WORDS.slice(0, count);
 };
 
+// 生字本的同反義字可能有空字串或缺欄位（舊資料）
+const cleanWordList = (list: unknown): string[] | undefined => {
+  if (!Array.isArray(list)) return undefined;
+  const cleaned = list
+    .filter((s): s is string => typeof s === "string")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return cleaned.length > 0 ? cleaned : undefined;
+};
+
 export const prepareGamePool = async (
   userWords: VocabularyWord[],
   signal?: AbortSignal,
@@ -132,6 +143,9 @@ export const prepareGamePool = async (
       emoji: w.emoji || "✨",
       example: example?.sentence,
       exampleZh: example?.translation?.trim() || undefined,
+      pos: singlePartOfSpeech(w.definitions.map((d) => d.partOfSpeech)),
+      synonyms: cleanWordList(w.synonyms),
+      antonyms: cleanWordList(w.antonyms),
     };
   });
 
