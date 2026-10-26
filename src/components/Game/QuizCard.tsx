@@ -363,7 +363,7 @@ export function QuizCard({
                         type="button"
                         onClick={() => speak(question.sentence)}
                         aria-label={t("adventure.quiz.listenSentence")}
-                        className="btn btn-ghost btn-xs btn-circle ml-1 align-middle"
+                        className="btn btn-ghost btn-xs btn-circle pointer-coarse:size-11 ml-1 align-middle"
                       >
                         <Volume2
                           className="h-4 w-4"
