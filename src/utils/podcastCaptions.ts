@@ -100,6 +100,10 @@ export function visibleCaptionWords(words: PodcastCaptionWord[], time: number, c
 }
 
 const FRAME = CAPTION_SAMPLE_RATE / 50; // 20 ms
+/** Below this RMS (about -50 dBFS) a frame is silence however quiet the speech. */
+const SILENCE_FLOOR = 0.003;
+/** Pauses are judged against recent loudness, which halves in about 3 s. */
+const PEAK_DECAY = 0.995;
 /** A forced cut lands on the quietest frame within this window before the limit. */
 const FORCED_CUT_WINDOW = 1.5;
 
@@ -111,8 +115,9 @@ export interface CaptionUtterance {
 
 /**
  * Splits one continuous run of 16 kHz playback into utterances at pauses, so
- * each can be transcribed with word timestamps as soon as it ends. Silence is
- * judged against the recent loudness, which also copes with quiet beds.
+ * each can be transcribed with word timestamps as soon as it ends. Pauses are
+ * judged against recent loudness, which also copes with quiet beds; only
+ * near-digital silence is ever discarded, so quieter speech is never lost.
  */
 export class PauseSegmenter {
   #buffer = new Float32Array(0);
@@ -138,11 +143,11 @@ export class PauseSegmenter {
       let sum = 0;
       for (let i = from; i < from + FRAME; i++) sum += this.#buffer[i] * this.#buffer[i];
       const rms = Math.sqrt(sum / FRAME);
-      this.#peak = Math.max(rms, this.#peak * 0.9995);
-      const silent = rms < 0.003 || rms < this.#peak * 0.08;
+      this.#peak = Math.max(rms, this.#peak * PEAK_DECAY);
+      const pause = rms < SILENCE_FLOOR || rms < this.#peak * 0.08;
       this.#rms.push(rms);
-      this.#quietFrames = silent ? this.#quietFrames + 1 : 0;
-      if (!silent) this.#voiced = true;
+      this.#quietFrames = pause ? this.#quietFrames + 1 : 0;
+      if (rms >= SILENCE_FLOOR) this.#voiced = true;
       const length = this.#rms.length * FRAME / CAPTION_SAMPLE_RATE;
       if (length >= MIN_UTTERANCE_SECONDS && this.#quietFrames * FRAME >= PAUSE_SECONDS * CAPTION_SAMPLE_RATE) {
         this.#cut(this.#rms.length, done);
@@ -167,12 +172,12 @@ export class PauseSegmenter {
 
   #cut(frames: number, done: CaptionUtterance[]) {
     const size = Math.min(this.#buffer.length, frames * FRAME);
-    // Pure silence carries no words; skip it but keep the timeline.
+    // Silence carries no words; skip it but keep the timeline.
     if (this.#voiced) done.push({ start: this.#offset / CAPTION_SAMPLE_RATE, samples: this.#buffer.slice(0, size) });
     this.#buffer = this.#buffer.slice(size);
     this.#rms = this.#rms.slice(frames);
     this.#offset += size;
     this.#quietFrames = 0;
-    this.#voiced = this.#rms.some((rms) => rms >= 0.003 && rms >= this.#peak * 0.08);
+    this.#voiced = this.#rms.some((rms) => rms >= SILENCE_FLOOR);
   }
 }

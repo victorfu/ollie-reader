@@ -120,6 +120,19 @@ describe("PauseSegmenter", () => {
     expect(tail.start + tail.samples.length / RATE).toBeCloseTo(7, 1);
   });
 
+  it("keeps quieter speech that follows a loud passage", () => {
+    const segmenter = new PauseSegmenter();
+    const utterances = feed(segmenter, concat(tone(3, 0.7), tone(1, 0), tone(20, 0.02)));
+    const tail = segmenter.flush();
+    const kept = [...utterances, ...(tail ? [tail] : [])];
+    // Everything, including the 20 s quiet section, is still sent for transcription.
+    const covered = kept.reduce((total, u) => total + u.samples.length / RATE, 0);
+    expect(covered).toBeGreaterThan(23);
+    const last = kept.at(-1)!;
+    expect(last.start + last.samples.length / RATE).toBeGreaterThan(23.5);
+    expect(kept.every((u) => u.samples.length / RATE <= MAX_UTTERANCE_SECONDS + 0.5)).toBe(true);
+  });
+
   it("flushes nothing for a negligible tail", () => {
     const segmenter = new PauseSegmenter();
     feed(segmenter, tone(0.1));
