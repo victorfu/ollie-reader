@@ -69,6 +69,7 @@ export interface SpellQuestion extends BaseQuestion {
 export interface ClozeQuestion extends BaseQuestion {
   kind: "cloze";
   prompt: string; // 挖空後的例句
+  hint: string; // 該字的釋義（本輪語言）— 例句常有好幾個字說得通，作答前用它點出要的字
   options: string[]; // 4 個英文單字（原形）
   correctIndex: number;
   sentence: string; // 原句，答完揭曉用

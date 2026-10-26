@@ -322,6 +322,7 @@ describe("useAdventure run ownership and settlement", () => {
           kind: "cloze",
           word: `${pool[0].word}-${index}`,
           prompt: "I like _____.",
+          hint: "它",
           sentence: "I like it.",
           options: ["correct", "wrong", "other", "extra"],
           correctIndex: 0,

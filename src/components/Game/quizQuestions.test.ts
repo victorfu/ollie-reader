@@ -438,6 +438,24 @@ describe("cloze", () => {
     expect(qs.filter((q) => q.kind !== "cloze").map((q) => q.word)).toEqual([]);
   });
 
+  // 例句常常好幾個字都說得通，作答前用釋義點出要的是哪個字
+  it("gives the word's meaning as a hint", () => {
+    const q = questionFor("apple");
+    if (q.kind !== "cloze") throw new Error(`unexpected ${q.kind}`);
+    expect(q.hint).toBe("蘋果");
+  });
+
+  it("gives the hint in the round's definition language", () => {
+    const pool = BILINGUAL_POOL.map((w) =>
+      w.word === "apple" ? { ...w, example: "I eat an apple every day." } : w,
+    );
+    const q = buildQuizQuestions(pool, clozeStage(1), {
+      defLanguage: "en",
+    })[0];
+    if (q.kind !== "cloze") throw new Error(`unexpected ${q.kind}`);
+    expect(q.hint).toBe("a round red or green fruit");
+  });
+
   it("carries the translation", () => {
     const withZh = questionFor("apple");
     const without = questionFor("cat");

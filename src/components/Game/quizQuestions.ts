@@ -203,6 +203,7 @@ function buildOne(
       ...base,
       kind: "cloze",
       prompt: redactWordForms(example, word.word),
+      hint: def,
       options,
       correctIndex,
       sentence: example,

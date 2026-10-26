@@ -207,9 +207,12 @@ export function QuizCard({
             </button>
           )}
           {question.kind === "cloze" && (
-            <h2 className="text-xl font-semibold leading-relaxed text-secondary mb-2">
-              {question.prompt}
-            </h2>
+            <>
+              <h2 className="text-xl font-semibold leading-relaxed text-secondary mb-2">
+                {question.prompt}
+              </h2>
+              <p className="text-base text-muted-foreground">{question.hint}</p>
+            </>
           )}
           {question.kind === "spell" && (
             <h2 className="text-2xl font-bold text-secondary mb-2">
