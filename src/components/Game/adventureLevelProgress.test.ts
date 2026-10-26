@@ -34,14 +34,15 @@ describe("getAdventureLevelProgress", () => {
   });
 });
 
-describe("level cap 20", () => {
-  it("extends the table to level 20", () => {
-    expect(LEVEL_EXP_TABLE).toHaveLength(20);
-    expect(LEVEL_EXP_TABLE.slice(15)).toEqual([11000, 13000, 15200, 17600, 20200]);
+describe("level cap 40", () => {
+  it("extends the table to level 40", () => {
+    expect(LEVEL_EXP_TABLE).toHaveLength(40);
+    expect(LEVEL_EXP_TABLE.slice(15, 20)).toEqual([11000, 13000, 15200, 17600, 20200]);
+    expect(LEVEL_EXP_TABLE.at(-1)).toBe(136000);
   });
 
-  it("level 15 is no longer the top", () => {
-    expect(getAdventureLevelProgress(15, 12000).isMaxLevel).toBe(false);
-    expect(getAdventureLevelProgress(20, 20200).isMaxLevel).toBe(true);
+  it("level 20 is no longer the top", () => {
+    expect(getAdventureLevelProgress(20, 20200).isMaxLevel).toBe(false);
+    expect(getAdventureLevelProgress(40, 136000).isMaxLevel).toBe(true);
   });
 });

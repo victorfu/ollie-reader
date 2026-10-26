@@ -1,15 +1,14 @@
 import { useEffect } from "react";
-import { motion, useReducedMotion } from "framer-motion";
-import { Flame, Heart, Swords, X } from "lucide-react";
-import type { QuizState, Stage } from "../../types/game";
-import type { BossState } from "../../hooks/useAdventure";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { Flame, Heart, Shield, Swords, X } from "lucide-react";
+import type { BossState, QuizState, Stage } from "../../types/game";
 import { SceneBackground } from "./SceneBackground";
 import { QuizCard } from "./QuizCard";
 import { BossHpBar } from "./BossHpBar";
 import { useSpeechState } from "../../hooks/useSpeechState";
 import { useLanguage } from "../../hooks/useLanguage";
 import { T } from "../common/T";
-import { BOSS_EMOJI } from "../../constants/sceneThemes";
+import { bossEmojiFor, bossSceneId } from "../../constants/sceneThemes";
 
 interface BossBattleProps {
   stage: Stage;
@@ -53,18 +52,33 @@ export function BossBattle({
   }, [quizState.isAnswered, onTickTimer]);
 
   const defeated = bossState.bossHp <= 0;
-  const bossEmoji = defeated ? "💥" : BOSS_EMOJI[stage.id] ?? "👾";
+  const bossEmoji = defeated ? "💥" : bossEmojiFor(stage.id, bossState.phase);
+  const multiPhase = bossState.phaseCount > 1;
+
+  // 這題的攻擊讓魔王進入新階段：作答結果顯示期間跳出提示
+  const phaseUp =
+    quizState.isAnswered && bossState.enteredPhase && !defeated
+      ? bossState.phase
+      : null;
+
+  // 護盾提示：剛張開、或這題答對只打破了護盾
+  const shieldNotice =
+    quizState.isAnswered && bossState.lastHit === "shield"
+      ? "adventure.boss.shieldBroken"
+      : quizState.isAnswered && bossState.shielded
+        ? "adventure.boss.shieldUp"
+        : null;
 
   // 受擊動畫：答題後依 lastHit 決定魔王被打(晃動變亮) 或玩家被打(輕晃)
   const bossAnim =
     quizState.isAnswered && !reduce
-      ? bossState.lastHit === "boss"
+      ? bossState.lastHit === "boss" || bossState.lastHit === "shield"
         ? { x: [0, -8, 8, -5, 5, 0], filter: ["brightness(1)", "brightness(1.6)", "brightness(1)"] }
         : { rotate: [0, -4, 4, -2, 0] }
       : { y: [0, -6, 0] };
 
   return (
-    <SceneBackground stageId={stage.id}>
+    <SceneBackground stageId={bossSceneId(stage.id, bossState.phase)}>
       <div className="min-h-[calc(100vh-8rem)] flex flex-col p-4 sm:p-6">
         {/* 頂部狀態列 */}
         <div className="flex items-center justify-between mb-4 mt-10">
@@ -129,17 +143,69 @@ export function BossBattle({
             />
             <T k="adventure.boss.title" params={{ name: stage.name }} />
           </h2>
+          {(multiPhase || bossState.shielded) && (
+            <div className="flex items-center gap-2">
+              {multiPhase && (
+                <span className="badge badge-error badge-outline">
+                  <T
+                    k="adventure.boss.phase"
+                    params={{
+                      current: bossState.phase + 1,
+                      total: bossState.phaseCount,
+                    }}
+                  />
+                </span>
+              )}
+              {bossState.shielded && (
+                <span className="badge badge-info gap-1">
+                  <Shield className="h-3.5 w-3.5" strokeWidth={2} aria-hidden="true" />
+                  <T k="adventure.boss.shield" />
+                </span>
+              )}
+            </div>
+          )}
           <motion.div
+            key={bossState.phase}
             animate={bossAnim}
             transition={{
               duration: quizState.isAnswered ? 0.5 : 2,
               repeat: quizState.isAnswered ? 0 : Infinity,
             }}
-            className="text-7xl sm:text-8xl"
+            className={`text-7xl sm:text-8xl rounded-full ${
+              bossState.shielded
+                ? "ring-4 ring-info/60 ring-offset-4 ring-offset-transparent bg-info/10"
+                : ""
+            }`}
           >
             {bossEmoji}
           </motion.div>
           <BossHpBar hp={bossState.bossHp} maxHp={bossState.bossMaxHp} />
+          <AnimatePresence>
+            {phaseUp !== null && (
+              <motion.p
+                key={`phase-${phaseUp}`}
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0 }}
+                role="status"
+                className="glass rounded-full px-4 py-1.5 text-sm font-bold text-error shadow-elevated"
+              >
+                <T k="adventure.boss.phaseUp" params={{ phase: phaseUp + 1 }} />
+              </motion.p>
+            )}
+            {phaseUp === null && shieldNotice && (
+              <motion.p
+                key={shieldNotice}
+                initial={{ opacity: 0, y: -6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                role="status"
+                className="glass rounded-full px-4 py-1.5 text-sm font-bold text-info shadow-elevated"
+              >
+                <T k={shieldNotice} />
+              </motion.p>
+            )}
+          </AnimatePresence>
         </div>
 
         {/* 題目卡（每題重新掛載） */}

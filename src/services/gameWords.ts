@@ -1,3 +1,5 @@
+import type { PartOfSpeech } from "../types/game";
+
 export type GameWordSeed = {
   word: string;
   def: string;
@@ -5,6 +7,9 @@ export type GameWordSeed = {
   emoji: string;
   example: string; // 含該字的英文例句（句子填空用）
   exampleZh: string;
+  pos?: PartOfSpeech; // 詞性題用；常見多種詞性的字（如 experiment）不填，免得標準答案有爭議
+  synonyms: string[]; // 同反義題用（可空）
+  antonyms: string[];
 };
 
 export const FALLBACK_GAME_WORDS: readonly GameWordSeed[] = [
@@ -15,6 +20,9 @@ export const FALLBACK_GAME_WORDS: readonly GameWordSeed[] = [
     emoji: "✨",
     example: "The view from the mountain top was magnificent.",
     exampleZh: "從山頂看出去的景色非常壯麗。",
+    pos: "adjective",
+    synonyms: ["splendid", "wonderful"],
+    antonyms: ["ordinary", "plain"],
   },
   {
     word: "Perseverance",
@@ -23,6 +31,9 @@ export const FALLBACK_GAME_WORDS: readonly GameWordSeed[] = [
     emoji: "💪",
     example: "Her perseverance helped her finish the long race.",
     exampleZh: "她的毅力幫助她跑完了長距離賽跑。",
+    pos: "noun",
+    synonyms: ["persistence", "determination"],
+    antonyms: ["laziness"],
   },
   {
     word: "Hypothesis",
@@ -31,6 +42,9 @@ export const FALLBACK_GAME_WORDS: readonly GameWordSeed[] = [
     emoji: "🔬",
     example: "Our hypothesis was that plants grow faster in sunlight.",
     exampleZh: "我們的假設是植物在陽光下長得比較快。",
+    pos: "noun",
+    synonyms: ["theory", "guess"],
+    antonyms: [],
   },
   {
     word: "Consequence",
@@ -39,6 +53,9 @@ export const FALLBACK_GAME_WORDS: readonly GameWordSeed[] = [
     emoji: "➡️",
     example: "Missing the bus was a consequence of waking up late.",
     exampleZh: "錯過公車是晚起床的後果。",
+    pos: "noun",
+    synonyms: ["result", "outcome"],
+    antonyms: ["cause"],
   },
   {
     word: "Enthusiasm",
@@ -47,6 +64,9 @@ export const FALLBACK_GAME_WORDS: readonly GameWordSeed[] = [
     emoji: "🔥",
     example: "The kids showed great enthusiasm for the school trip.",
     exampleZh: "孩子們對校外教學充滿熱情。",
+    pos: "noun",
+    synonyms: ["excitement", "eagerness"],
+    antonyms: ["boredom"],
   },
   {
     word: "Mysterious",
@@ -55,6 +75,9 @@ export const FALLBACK_GAME_WORDS: readonly GameWordSeed[] = [
     emoji: "🔮",
     example: "We heard a mysterious sound coming from the attic.",
     exampleZh: "我們聽到閣樓傳來一個神秘的聲音。",
+    pos: "adjective",
+    synonyms: ["strange", "puzzling"],
+    antonyms: ["obvious"],
   },
   {
     word: "Distinguish",
@@ -63,6 +86,9 @@ export const FALLBACK_GAME_WORDS: readonly GameWordSeed[] = [
     emoji: "🔍",
     example: "Can you distinguish a frog from a toad?",
     exampleZh: "你分得出青蛙和蟾蜍嗎？",
+    pos: "verb",
+    synonyms: ["differentiate"],
+    antonyms: ["confuse"],
   },
   {
     word: "Accomplish",
@@ -71,6 +97,9 @@ export const FALLBACK_GAME_WORDS: readonly GameWordSeed[] = [
     emoji: "🎯",
     example: "We can accomplish a lot when we work together.",
     exampleZh: "我們一起合作就能完成很多事。",
+    pos: "verb",
+    synonyms: ["achieve", "complete"],
+    antonyms: ["fail"],
   },
   {
     word: "Significant",
@@ -79,6 +108,9 @@ export const FALLBACK_GAME_WORDS: readonly GameWordSeed[] = [
     emoji: "⭐",
     example: "Reading every day made a significant difference to my English.",
     exampleZh: "每天閱讀讓我的英文有了顯著的進步。",
+    pos: "adjective",
+    synonyms: ["important", "meaningful"],
+    antonyms: ["minor", "unimportant"],
   },
   {
     word: "Opportunity",
@@ -87,6 +119,9 @@ export const FALLBACK_GAME_WORDS: readonly GameWordSeed[] = [
     emoji: "🚪",
     example: "The science fair is a great opportunity to share ideas.",
     exampleZh: "科學展是分享想法的好機會。",
+    pos: "noun",
+    synonyms: ["chance"],
+    antonyms: [],
   },
   {
     word: "Experiment",
@@ -95,6 +130,8 @@ export const FALLBACK_GAME_WORDS: readonly GameWordSeed[] = [
     emoji: "🧪",
     example: "We did an experiment to see how ice melts.",
     exampleZh: "我們做了一個實驗，看看冰是怎麼融化的。",
+    synonyms: ["test", "trial"],
+    antonyms: [],
   },
   {
     word: "Environment",
@@ -103,6 +140,9 @@ export const FALLBACK_GAME_WORDS: readonly GameWordSeed[] = [
     emoji: "🌍",
     example: "We should keep our environment clean.",
     exampleZh: "我們應該保持環境整潔。",
+    pos: "noun",
+    synonyms: ["surroundings"],
+    antonyms: [],
   },
   {
     word: "Celebration",
@@ -111,6 +151,9 @@ export const FALLBACK_GAME_WORDS: readonly GameWordSeed[] = [
     emoji: "🎉",
     example: "The whole class joined the birthday celebration.",
     exampleZh: "全班都參加了生日慶祝會。",
+    pos: "noun",
+    synonyms: ["party", "festival"],
+    antonyms: [],
   },
   {
     word: "Imagination",
@@ -119,6 +162,9 @@ export const FALLBACK_GAME_WORDS: readonly GameWordSeed[] = [
     emoji: "💭",
     example: "You need a lot of imagination to write a good story.",
     exampleZh: "寫一個好故事需要很多想像力。",
+    pos: "noun",
+    synonyms: ["creativity"],
+    antonyms: [],
   },
   {
     word: "Temperature",
@@ -127,6 +173,9 @@ export const FALLBACK_GAME_WORDS: readonly GameWordSeed[] = [
     emoji: "🌡️",
     example: "The temperature dropped quickly after sunset.",
     exampleZh: "太陽下山後氣溫很快就下降了。",
+    pos: "noun",
+    synonyms: [],
+    antonyms: [],
   },
   {
     word: "Vocabulary",
@@ -135,6 +184,9 @@ export const FALLBACK_GAME_WORDS: readonly GameWordSeed[] = [
     emoji: "📚",
     example: "Reading books helps you build your vocabulary.",
     exampleZh: "讀書可以幫助你累積字彙。",
+    pos: "noun",
+    synonyms: ["words"],
+    antonyms: [],
   },
   {
     word: "Adventure",
@@ -143,6 +195,9 @@ export const FALLBACK_GAME_WORDS: readonly GameWordSeed[] = [
     emoji: "🗺️",
     example: "Our trip to the island was a real adventure.",
     exampleZh: "我們去島上的旅行真是一場冒險。",
+    pos: "noun",
+    synonyms: ["journey", "quest"],
+    antonyms: [],
   },
   {
     word: "Communicate",
@@ -151,6 +206,9 @@ export const FALLBACK_GAME_WORDS: readonly GameWordSeed[] = [
     emoji: "💬",
     example: "Dolphins communicate with each other using sounds.",
     exampleZh: "海豚用聲音彼此溝通。",
+    pos: "verb",
+    synonyms: ["talk"],
+    antonyms: [],
   },
   {
     word: "Concentrate",
@@ -159,6 +217,9 @@ export const FALLBACK_GAME_WORDS: readonly GameWordSeed[] = [
     emoji: "🎯",
     example: "It is hard to concentrate when the room is noisy.",
     exampleZh: "房間很吵的時候很難專心。",
+    pos: "verb",
+    synonyms: ["focus"],
+    antonyms: [],
   },
   {
     word: "Appreciate",
@@ -167,5 +228,8 @@ export const FALLBACK_GAME_WORDS: readonly GameWordSeed[] = [
     emoji: "💝",
     example: "I really appreciate your help with my homework.",
     exampleZh: "我真的很感謝你幫我寫功課。",
+    pos: "verb",
+    synonyms: ["value"],
+    antonyms: [],
   },
 ];

@@ -22,6 +22,7 @@ import {
 import { prepareGamePool, type GameWord } from "../services/gameService";
 import {
   buildQuizQuestions,
+  holdsAfterCorrect,
   isQuestionCorrect,
   resolveDefLanguage,
 } from "../components/Game/quizQuestions";
@@ -32,7 +33,12 @@ import type {
   Stage,
   GameReward,
   DefLanguage,
+  BossState,
 } from "../types/game";
+import {
+  initialBossState,
+  nextBossState,
+} from "../components/Game/bossMechanics";
 import type { VocabularyWord } from "../types/vocabulary";
 import {
   coinMultiplierForDefLanguage,
@@ -44,11 +50,13 @@ import {
 export const QUIZ_TIME_LIMIT = 60; // 每題 60 秒
 const QUIZ_MAX_LIVES = 3; // 3 條命
 const BOSS_QUESTION_BUFFER = 3; // 魔王題數 = bossHp + buffer（一次失誤不會變不可過）
+// 護盾魔王多一題：破盾那題答對不扣血
+const SHIELD_QUESTION_BUFFER = 1;
 
-export interface BossState {
-  bossHp: number;
-  bossMaxHp: number;
-  lastHit: "player" | "boss" | null; // 最近一次是誰被打（給 UI 做 shake）
+/** 該階段的題型組合（單一階段魔王沿用 questionKinds） */
+function stageForBossPhase(stage: Stage, phase: number): Stage {
+  const kinds = stage.bossPhases?.[phase];
+  return kinds ? { ...stage, questionKinds: kinds } : stage;
 }
 
 interface UseAdventureReturn {
@@ -139,6 +147,9 @@ export function useAdventure(): UseAdventureReturn {
 
   // 題目池
   const wordPoolRef = useRef<GameWord[]>([]);
+  // 多階段魔王換階段時要用同一關、同一語音設定重建後面的題目
+  const activeStageRef = useRef<Stage | null>(null);
+  const speechSupportedRef = useRef(true);
 
   // 本輪快問快答累積的扭蛋代幣（每題答對即累加，關卡結束一次寫入）
   const coinsEarnedRef = useRef<number>(0);
@@ -448,8 +459,12 @@ export function useAdventure(): UseAdventureReturn {
         // 魔王關題數 = bossHp + buffer，確保一次失誤不會變不可過
         const bossHp = stage.bossHp ?? 5;
         const questionCount = stage.isBoss
-          ? bossHp + BOSS_QUESTION_BUFFER
+          ? bossHp +
+            BOSS_QUESTION_BUFFER +
+            (stage.bossShield ? SHIELD_QUESTION_BUFFER : 0)
           : stage.questionCount;
+        activeStageRef.current = stage;
+        speechSupportedRef.current = speechSupported;
 
         // 本輪釋義語言：英文釋義不足就整輪退回中文（並且不發英文模式加成）
         const effectiveDefLanguage = resolveDefLanguage(
@@ -461,8 +476,8 @@ export function useAdventure(): UseAdventureReturn {
           preferredDefLanguage === "en" && effectiveDefLanguage === "zh",
         );
 
-        // 依關卡題型組合建題
-        const questions = buildQuizQuestions(wordPool, stage, {
+        // 依關卡題型組合建題（多階段魔王先用第一階段的題型）
+        const questions = buildQuizQuestions(wordPool, stageForBossPhase(stage, 0), {
           speechSupported,
           count: questionCount,
           defLanguage: effectiveDefLanguage,
@@ -486,7 +501,7 @@ export function useAdventure(): UseAdventureReturn {
         // 魔王關：初始化魔王血量並切到魔王畫面
         if (stage.isBoss) {
           bossHpRef.current = bossHp;
-          setBossSnapshot({ bossHp, bossMaxHp: bossHp, lastHit: null });
+          setBossSnapshot(initialBossState(stage, bossHp));
           setGameView("boss");
         } else {
           bossHpRef.current = 0;
@@ -824,32 +839,54 @@ export function useAdventure(): UseAdventureReturn {
       const currentQuestion = current.questions[current.currentIndex];
       const isCorrect = isQuestionCorrect(currentQuestion, answer);
 
-      const inBoss = bossStateRef.current !== null;
+      const newCombo = isCorrect ? current.combo + 1 : 0;
 
       // 答對即累積扭蛋代幣 — 以題號 ref 防止快速連點重複發放
       if (isCorrect) {
         coinsEarnedRef.current += coinsForAnswer(
-          current.combo + 1,
+          newCombo,
           coinMultiplierForDefLanguage(activeDefLanguageRef.current),
         );
-        // 魔王扣血（連擊 ≥3 爆擊 -2）
-        if (inBoss) {
-          const crit = current.combo + 1 >= 3;
-          const newHp = Math.max(0, bossHpRef.current - (crit ? 2 : 1));
-          bossHpRef.current = newHp;
-          const boss = bossStateRef.current;
-          if (boss) {
-            setBossSnapshot({ ...boss, bossHp: newHp, lastHit: "boss" });
-          }
-        }
-      } else if (inBoss) {
-        const boss = bossStateRef.current;
-        if (boss) setBossSnapshot({ ...boss, lastHit: "player" });
       }
 
-      const newCombo = isCorrect ? current.combo + 1 : 0;
+      // 魔王：扣血（連擊 ≥3 爆擊 -2）、護盾、換階段
+      let questions = current.questions;
+      const boss = bossStateRef.current;
+      const stage = activeStageRef.current;
+      if (boss) {
+        const next = nextBossState(
+          boss,
+          isCorrect,
+          newCombo,
+          stage?.bossShield === true,
+        );
+        bossHpRef.current = next.bossHp;
+        setBossSnapshot(next);
+        // 進入新階段：後面的題目改用新階段的題型重建，接著用後面的字
+        if (stage && next.phase > boss.phase) {
+          const start = current.currentIndex + 1;
+          const remaining = questions.length - start;
+          if (remaining > 0) {
+            questions = [
+              ...questions.slice(0, start),
+              ...buildQuizQuestions(
+                wordPoolRef.current,
+                stageForBossPhase(stage, next.phase),
+                {
+                  speechSupported: speechSupportedRef.current,
+                  count: remaining,
+                  defLanguage: activeDefLanguageRef.current,
+                  wordOffset: start,
+                },
+              ),
+            ];
+          }
+        }
+      }
+
       setQuizSnapshot({
         ...current,
+        questions,
         score: current.score + (isCorrect ? 100 + current.combo * 10 : 0),
         combo: newCombo,
         maxCombo: Math.max(current.maxCombo, newCombo),
@@ -860,7 +897,7 @@ export function useAdventure(): UseAdventureReturn {
 
       // 答對才自動進下一題；答錯停在原地，讓玩家看清正確答案後自己按「下一題」
       // 句子填空答對也停下來 — 要留時間讀完整句子、翻譯，聽完整句
-      if (isCorrect && currentQuestion.kind !== "cloze") {
+      if (isCorrect && !holdsAfterCorrect(currentQuestion.kind)) {
         const runId = runIdRef.current;
         const timeoutId = setTimeout(() => {
           timeoutRefs.current.delete(timeoutId);
@@ -895,9 +932,13 @@ export function useAdventure(): UseAdventureReturn {
       return;
     }
 
-    // 時間到
+    // 時間到（對魔王來說等於答錯：會累計連錯、可能張護盾）
     const boss = bossStateRef.current;
-    if (boss) setBossSnapshot({ ...boss, lastHit: "player" });
+    if (boss) {
+      setBossSnapshot(
+        nextBossState(boss, false, 0, activeStageRef.current?.bossShield === true),
+      );
+    }
     answeredQuestionIndexRef.current = current.currentIndex;
     setQuizSnapshot({
       ...current,

@@ -5,6 +5,8 @@ import { isAbortError } from "../utils/errorUtils";
 import { logger } from "../utils/logger";
 import { normalizeExamples } from "../utils/normalizeExamples";
 import type { SentenceKeyWord } from "../types/sentenceTranslation";
+import type { PartOfSpeech } from "../types/game";
+import { normalizePartOfSpeech } from "../utils/partOfSpeech";
 import { generateGeminiContent } from "./geminiClient";
 import { isGeminiRateLimitError } from "./geminiErrorPolicy";
 
@@ -52,6 +54,9 @@ export interface GameWord {
   emoji: string;
   example?: string; // 含該字的英文例句（句子填空用，可能缺）
   exampleZh?: string; // 例句的中文翻譯（可能缺）
+  pos?: PartOfSpeech; // 詞性（詞性題用；多詞性或認不出時缺）
+  synonyms?: string[]; // 同義字（同反義題用，可能缺）
+  antonyms?: string[]; // 反義字（同反義題用，可能缺）
 }
 
 /**
@@ -409,6 +414,14 @@ export async function generateSpeechScript(
 const optionalText = (value: unknown): string | undefined =>
   typeof value === "string" && value.trim() ? value.trim() : undefined;
 
+const textList = (value: unknown): string[] | undefined => {
+  if (!Array.isArray(value)) return undefined;
+  const list = value
+    .map(optionalText)
+    .filter((item): item is string => item !== undefined);
+  return list.length > 0 ? list : undefined;
+};
+
 export async function generateGameWords(
   count: number = 10,
   signal?: AbortSignal,
@@ -427,11 +440,15 @@ export async function generateGameWords(
       - "example": One short, simple English sentence (8-15 words) a 12-year-old can read.
         It MUST contain the target word (an inflected form like "ran" or "dogs" is fine).
       - "exampleZh": The Traditional Chinese translation of "example".
+      - "pos": The part of speech: one of "noun", "verb", "adjective", "adverb".
+        Leave "pos" out if the word is commonly used as more than one part of speech (e.g. "test" is a noun and a verb).
+      - "synonyms": 1-2 simple single-word synonyms (array of strings, may be empty).
+      - "antonyms": 0-2 simple single-word antonyms (array of strings, may be empty).
 
       Example format:
       [
-        {"word": "Magnificent", "def": "壯麗的", "defEn": "extremely beautiful or impressive to look at", "emoji": "✨", "example": "The view from the mountain top was magnificent.", "exampleZh": "從山頂看出去的景色非常壯麗。"},
-        {"word": "Persevere", "def": "堅持不懈", "defEn": "to keep trying to do something even when it is hard", "emoji": "💪", "example": "She persevered and finally solved the puzzle.", "exampleZh": "她堅持不懈，終於解開了謎題。"}
+        {"word": "Magnificent", "def": "壯麗的", "defEn": "extremely beautiful or impressive to look at", "emoji": "✨", "example": "The view from the mountain top was magnificent.", "exampleZh": "從山頂看出去的景色非常壯麗。", "pos": "adjective", "synonyms": ["splendid"], "antonyms": ["ordinary"]},
+        {"word": "Persevere", "def": "堅持不懈", "defEn": "to keep trying to do something even when it is hard", "emoji": "💪", "example": "She persevered and finally solved the puzzle.", "exampleZh": "她堅持不懈，終於解開了謎題。", "pos": "verb", "synonyms": ["persist"], "antonyms": ["quit"]}
       ]
 
       Do not include markdown formatting like \`\`\`json. Just the raw JSON string.
@@ -465,6 +482,10 @@ export async function generateGameWords(
           // 缺例句不丟掉整個字，句子填空會自動改出其他題型
           example: optionalText(w.example),
           exampleZh: optionalText(w.exampleZh),
+          // 缺詞性／同反義字一樣保留，對應題型會自動改出其他題型
+          pos: normalizePartOfSpeech(w.pos),
+          synonyms: textList(w.synonyms),
+          antonyms: textList(w.antonyms),
         }))
         .filter((w) => w.word && w.def);
 

@@ -2,9 +2,13 @@ import type { PlayerProgress } from "../types/game";
 import { STAGES } from "../services/gameProgressService";
 import { CHAPTERS } from "./chapters";
 
-// 第二章打完 = 走到第三章第一關
-const CHAPTER3_START =
-  CHAPTERS.find((c) => c.id === "ch3")?.firstStageIndex ?? STAGES.length;
+// 第 N 章打完 = 走到下一章第一關；最後一章打完 = 走過全部關卡
+function chapterCleared(chapterId: string) {
+  const index = CHAPTERS.findIndex((c) => c.id === chapterId);
+  const next = CHAPTERS[index + 1];
+  const end = next ? next.firstStageIndex : STAGES.length;
+  return (p: PlayerProgress) => p.currentStageIndex >= end;
+}
 
 // Achievement definitions
 export interface Achievement {
@@ -53,9 +57,41 @@ export const ACHIEVEMENTS: Achievement[] = [
   {
     id: "level-20",
     name: "單字傳奇",
-    description: "達到最高等級 20",
+    description: "達到等級 20",
     icon: "🏆",
     requirement: (p) => p.level >= 20,
+    rarity: "rainbow",
+  },
+  {
+    id: "level-25",
+    name: "魔法學者",
+    description: "達到等級 25",
+    icon: "🪄",
+    requirement: (p) => p.level >= 25,
+    rarity: "rainbow",
+  },
+  {
+    id: "level-30",
+    name: "極光探險家",
+    description: "達到等級 30",
+    icon: "🌌",
+    requirement: (p) => p.level >= 30,
+    rarity: "rainbow",
+  },
+  {
+    id: "level-35",
+    name: "恐龍博士",
+    description: "達到等級 35",
+    icon: "🦖",
+    requirement: (p) => p.level >= 35,
+    rarity: "rainbow",
+  },
+  {
+    id: "level-40",
+    name: "宇宙單字王",
+    description: "達到最高等級 40",
+    icon: "🚀",
+    requirement: (p) => p.level >= 40,
     rarity: "rainbow",
   },
 
@@ -136,7 +172,7 @@ export const ACHIEVEMENTS: Achievement[] = [
     name: "星夢傳說",
     description: "通關雲頂星夢國",
     icon: "🍬",
-    requirement: (p) => p.currentStageIndex >= CHAPTER3_START,
+    requirement: chapterCleared("ch2"),
     rarity: "gold",
   },
   {
@@ -144,7 +180,39 @@ export const ACHIEVEMENTS: Achievement[] = [
     name: "海底傳說",
     description: "通關珊瑚海底王國",
     icon: "🐋",
-    requirement: (p) => p.currentStageIndex >= STAGES.length,
+    requirement: chapterCleared("ch3"),
+    rarity: "rainbow",
+  },
+  {
+    id: "chapter4-clear",
+    name: "魔法傳說",
+    description: "通關魔法星辰學院",
+    icon: "🐉",
+    requirement: chapterCleared("ch4"),
+    rarity: "rainbow",
+  },
+  {
+    id: "chapter5-clear",
+    name: "冰雪傳說",
+    description: "通關極光冰雪王國",
+    icon: "🧊",
+    requirement: chapterCleared("ch5"),
+    rarity: "rainbow",
+  },
+  {
+    id: "chapter6-clear",
+    name: "恐龍傳說",
+    description: "通關恐龍火山島",
+    icon: "🌋",
+    requirement: chapterCleared("ch6"),
+    rarity: "rainbow",
+  },
+  {
+    id: "chapter7-clear",
+    name: "銀河傳說",
+    description: "通關銀河終點站，完成全部冒險",
+    icon: "👑",
+    requirement: chapterCleared("ch7"),
     rarity: "rainbow",
   },
   {
