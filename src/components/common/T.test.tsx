@@ -95,6 +95,18 @@ describe("<T>", () => {
       expect(hint.classList.contains("tooltip-open")).toBe(true);
     });
 
+    it("inline: a hint that slipped into a button never swallows the button's click", () => {
+      let clicks = 0;
+      render(
+        "en-hint",
+        <button type="button" onClick={() => clicks++}>
+          <T k="settings.theme.title" />
+        </button>,
+      );
+      act(() => container.querySelector<HTMLElement>("[data-tip]")!.click());
+      expect(clicks).toBe(1);
+    });
+
     it("skips the hint when both languages read the same", () => {
       render("en-hint", <T k="settings.language.en" />);
       expect(container.textContent).toBe("English");

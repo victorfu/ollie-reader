@@ -281,7 +281,7 @@ export function PracticeHistory({
                       </svg>
                       📄 <T k="listening.speech.viewScript" variant="stacked" />
                       <span className="badge badge-ghost badge-xs">
-                        <T k="listening.charCount" params={{ count: record.script.length }} />
+                        <T k="listening.charCount" params={{ count: record.script.length }} variant="stacked" />
                       </span>
                     </button>
 

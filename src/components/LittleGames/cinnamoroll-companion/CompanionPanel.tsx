@@ -45,7 +45,7 @@ export function CompanionPanel({ panel, outfit, onClose, onAction, onPat, onPrev
         {ACCESSORIES.filter((item) => filter === "all" || item.slot === filter).map((item) => <button key={item.id} type="button"
           aria-pressed={outfit[item.slot] === item.id} onClick={() => onPreview(item.id)}
           className={`btn h-auto min-h-14 flex-col gap-0.5 py-2 ${outfit[item.slot] === item.id ? "btn-primary" : "btn-outline"}`}>
-          <span><T k={`gacha.companion.accessory.${item.id}`} variant="stacked" /></span><span className="text-xs"><T k={outfit[item.slot] === item.id ? "gacha.companion.wearing" : "gacha.companion.tryOn"} /></span>
+          <span><T k={`gacha.companion.accessory.${item.id}`} variant="stacked" /></span><span className="text-xs"><T k={outfit[item.slot] === item.id ? "gacha.companion.wearing" : "gacha.companion.tryOn"} variant="stacked" /></span>
         </button>)}
       </div>
       <button type="button" className="btn btn-ghost mt-3 min-h-11" disabled={Object.keys(outfit).length === 0} onClick={onClear}><T k="gacha.companion.removeAll" variant="stacked" /></button>

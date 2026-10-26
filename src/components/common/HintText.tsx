@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
+/** Controls whose own click must never be swallowed by a hint inside them. */
+const INTERACTIVE_ANCESTOR = 'button, a[href], summary, [role="button"], [role="link"], [role="tab"]';
+
 interface HintTextProps {
   /** The Chinese meaning shown in the tooltip. */
   hint: string;
@@ -11,8 +14,9 @@ interface HintTextProps {
  * (desktop) or on tap (touch, where hover never fires). Tapping again, tapping
  * elsewhere, or pressing Escape closes it.
  *
- * Not for text inside buttons or links: the tap would also trigger them. Use
- * the stacked `<T variant="stacked">` there instead.
+ * Not for text inside buttons or links: use the stacked `<T variant="stacked">`
+ * there. If one slips in anyway, the tap is left to the control (the action
+ * still runs; the hint shows on hover only) rather than swallowed.
  */
 export function HintText({ hint, children }: HintTextProps) {
   const [open, setOpen] = useState(false);
@@ -35,6 +39,9 @@ export function HintText({ hint, children }: HintTextProps) {
       aria-expanded={open}
       data-tip={hint}
       onClick={(event) => {
+        if (event.currentTarget.parentElement?.closest(INTERACTIVE_ANCESTOR)) {
+          return;
+        }
         // Inside a <label> or row, a tap to read the hint must not also pick
         // the option or open the row.
         event.preventDefault();
