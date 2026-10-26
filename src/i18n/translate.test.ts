@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { en } from "./en";
 import { zhTW } from "./zh-TW";
-import { interpolate, languageForMode, translate } from "./translate";
+import { interpolate, languageForMode, msg, translate } from "./translate";
 
 describe("translate", () => {
   it("looks up the key in the requested language", () => {
@@ -13,6 +13,12 @@ describe("translate", () => {
     expect(interpolate("{count} words for {name}", { count: 3, name: "Ollie" }))
       .toBe("3 words for Ollie");
     expect(interpolate("Hi {missing}", { name: "Ollie" })).toBe("Hi {missing}");
+  });
+
+  it("translates a msg() param into the same language as the sentence", () => {
+    const params = { label: msg("nav.vocabulary") };
+    expect(translate("en", "nav.moveToMoreLabel", params)).toBe("Move “Word Book” to More");
+    expect(translate("zh-TW", "nav.moveToMoreLabel", params)).toBe("把「生詞本」移到更多");
   });
 
   it("falls back to the key when no dictionary has it", () => {

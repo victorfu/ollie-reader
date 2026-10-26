@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import type { AudioUpload } from "../../types/audioUpload";
 import { Toast } from "../common/Toast";
+import { T } from "../common/T";
+import { useLanguage } from "../../hooks/useLanguage";
 
 interface AudioUploadListProps {
   uploads: AudioUpload[];
@@ -21,11 +23,12 @@ export function AudioUploadList({
   onRefreshUrl,
   onLoadUrl,
 }: AudioUploadListProps) {
+  const { t, language } = useLanguage();
   const [audioErrors, setAudioErrors] = useState<Set<string>>(new Set());
   const [loadingUrls, setLoadingUrls] = useState<Set<string>>(new Set());
   const [activeId, setActiveId] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [showLoadError, setShowLoadError] = useState(false);
   const audioRefs = useRef<Map<string, HTMLAudioElement>>(new Map());
   const activeIdRef = useRef<string | null>(null);
   const playRequestRef = useRef(0);
@@ -54,7 +57,7 @@ export function AudioUploadList({
   };
 
   const formatDate = (date: Date): string => {
-    return new Date(date).toLocaleDateString("zh-TW", {
+    return new Date(date).toLocaleDateString(language === "en" ? "en-US" : "zh-TW", {
       month: "short",
       day: "numeric",
       hour: "2-digit",
@@ -112,7 +115,7 @@ export function AudioUploadList({
         activeIdRef.current = null;
         setActiveId(null);
         setAudioErrors((prev) => new Set(prev).add(uploadId));
-        setErrorMessage("音訊載入失敗，請點擊重試按鈕");
+        setShowLoadError(true);
         return;
       }
       setTimeout(() => {
@@ -155,7 +158,9 @@ export function AudioUploadList({
     return (
       <div className="flex flex-col items-center justify-center py-12">
         <span className="loading loading-spinner loading-lg text-primary mb-4" />
-        <p className="text-muted-foreground">載入音訊列表...</p>
+        <p className="text-muted-foreground">
+          <T k="listening.audio.loadingList" />
+        </p>
       </div>
     );
   }
@@ -179,9 +184,11 @@ export function AudioUploadList({
             />
           </svg>
         </div>
-        <h3 className="text-xl font-semibold mb-2">還沒有上傳的音訊</h3>
+        <h3 className="text-xl font-semibold mb-2">
+          <T k="listening.audio.empty" />
+        </h3>
         <p className="text-muted-foreground max-w-sm mx-auto">
-          拖放音訊檔案或點擊上方的「選擇檔案」按鈕開始上傳
+          <T k="listening.audio.emptyHint" />
         </p>
       </div>
     );
@@ -189,20 +196,20 @@ export function AudioUploadList({
 
   return (
     <>
-      {errorMessage && (
+      {showLoadError && (
         <Toast
-          message={errorMessage}
+          message={<T k="listening.audio.loadFailedRetry" />}
           type="error"
-          onClose={() => setErrorMessage(null)}
+          onClose={() => setShowLoadError(false)}
         />
       )}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold flex items-center gap-2">
-            🎧 我的音訊
+            🎧 <T k="listening.audio.myAudio" variant="stacked" />
           </h2>
           <span className="text-sm text-muted-foreground">
-            共 {uploads.length} 個檔案
+            <T k="listening.audio.fileCount" params={{ count: uploads.length }} />
           </span>
         </div>
 
@@ -235,7 +242,8 @@ export function AudioUploadList({
                           onClick={() =>
                             upload.id && handleRetry(upload.id, upload.audioUrl)
                           }
-                          title="重試載入"
+                          title={t("listening.audio.retryLoad")}
+                          aria-label={t("listening.audio.retryLoad")}
                         >
                           <svg
                             xmlns="http://www.w3.org/2000/svg"
@@ -268,7 +276,12 @@ export function AudioUploadList({
                             upload.id &&
                             handlePlayPause(upload.id, upload.audioUrl)
                           }
-                          title={isCurrentPlaying ? "暫停" : "播放"}
+                          title={
+                            isCurrentPlaying ? t("listening.pause") : t("listening.play")
+                          }
+                          aria-label={
+                            isCurrentPlaying ? t("listening.pause") : t("listening.play")
+                          }
                         >
                           {isCurrentPlaying ? (
                             <svg
@@ -320,7 +333,8 @@ export function AudioUploadList({
                         type="button"
                         className="btn btn-ghost btn-sm btn-circle"
                         onClick={() => onEdit(upload)}
-                        title="編輯"
+                        title={t("listening.audio.edit")}
+                        aria-label={t("listening.audio.edit")}
                       >
                         <svg
                           xmlns="http://www.w3.org/2000/svg"
@@ -343,7 +357,8 @@ export function AudioUploadList({
                         onClick={() =>
                           upload.id && onDelete(upload.id, upload.audioUrl)
                         }
-                        title="刪除"
+                        title={t("listening.delete")}
+                        aria-label={t("listening.delete")}
                       >
                         <svg
                           xmlns="http://www.w3.org/2000/svg"
@@ -392,7 +407,7 @@ export function AudioUploadList({
                           handleAudioError(upload.id!, upload.audioUrl)
                         }
                       >
-                        您的瀏覽器不支援音訊播放
+                        {t("listening.audioUnsupported")}
                       </audio>
                     </div>
                   )}

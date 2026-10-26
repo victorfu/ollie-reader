@@ -3,6 +3,7 @@ import { Languages } from "lucide-react";
 import type { SentenceTranslation } from "../../types/sentenceTranslation";
 import { TrashIcon } from "../icons";
 import { SpeakButton } from "../common/SpeakButton";
+import { useLanguage } from "../../hooks/useLanguage";
 import {
   ROW_ACTIONS_CLASS,
   ROW_DELETE_CLASS,
@@ -23,6 +24,7 @@ export const SentenceRow = ({
   onSelect,
   onDelete,
 }: SentenceRowProps) => {
+  const { t } = useLanguage();
   return (
     <motion.div
       layout
@@ -61,13 +63,13 @@ export const SentenceRow = ({
       {/* Action buttons — siblings of the selector, not descendants.
           Always visible on touch screens; revealed on hover with a mouse. */}
       <span className={ROW_ACTIONS_CLASS}>
-        <SpeakButton text={sentence.english} label="朗讀句子" />
+        <SpeakButton text={sentence.english} label={t("reader.sentence.speak")} />
         <button
           type="button"
           onClick={onDelete}
           className={ROW_DELETE_CLASS}
-          title="刪除句子"
-          aria-label="刪除句子"
+          title={t("reader.vocab.deleteSentenceTitle")}
+          aria-label={t("reader.vocab.deleteSentenceTitle")}
         >
           <TrashIcon className={ROW_DELETE_ICON_CLASS} />
         </button>

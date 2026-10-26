@@ -1,4 +1,6 @@
 import { useRef, useEffect } from "react";
+import { T } from "../common/T";
+import { useLanguage } from "../../hooks/useLanguage";
 
 interface AudioRecorderControlsProps {
   isRecording: boolean;
@@ -27,6 +29,7 @@ export function AudioRecorderControls({
   onResumeRecording,
   onResetRecording,
 }: AudioRecorderControlsProps) {
+  const { t } = useLanguage();
   const audioRef = useRef<HTMLAudioElement>(null);
 
   const formatTime = (seconds: number): string => {
@@ -58,7 +61,9 @@ export function AudioRecorderControls({
             d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
           />
         </svg>
-        <span>您的瀏覽器不支援錄音功能</span>
+        <span>
+          <T k="listening.recorder.unsupported" />
+        </span>
       </div>
     );
   }
@@ -66,7 +71,7 @@ export function AudioRecorderControls({
   return (
     <div className="space-y-4">
       <h3 className="text-lg font-semibold flex items-center gap-2">
-        🎙️ 錄音功能
+        🎙️ <T k="listening.recorder.title" variant="stacked" />
       </h3>
 
       {error && (
@@ -88,7 +93,11 @@ export function AudioRecorderControls({
               {formatTime(recordingTime)}
             </span>
             <span className="text-sm text-muted-foreground">
-              {isPaused ? "(暫停)" : "錄音中..."}
+              {isPaused ? (
+                <T k="listening.recorder.pausedShort" />
+              ) : (
+                <T k="listening.recorder.recording" />
+              )}
             </span>
           </div>
         )}
@@ -110,7 +119,7 @@ export function AudioRecorderControls({
                 <path d="M12 15c1.66 0 3-1.34 3-3V6c0-1.66-1.34-3-3-3S9 4.34 9 6v6c0 1.66 1.34 3 3 3z" />
                 <path d="M17 12c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V22h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z" />
               </svg>
-              開始錄音
+              <T k="listening.recorder.start" variant="stacked" />
             </button>
           )}
 
@@ -130,7 +139,7 @@ export function AudioRecorderControls({
                   >
                     <path d="M8 5v14l11-7z" />
                   </svg>
-                  繼續錄音
+                  <T k="listening.recorder.resume" variant="stacked" />
                 </button>
               ) : (
                 <button
@@ -146,7 +155,7 @@ export function AudioRecorderControls({
                   >
                     <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
                   </svg>
-                  暫停
+                  <T k="listening.pause" variant="stacked" />
                 </button>
               )}
 
@@ -163,7 +172,7 @@ export function AudioRecorderControls({
                 >
                   <path d="M6 6h12v12H6z" />
                 </svg>
-                停止錄音
+                <T k="listening.recorder.stop" variant="stacked" />
               </button>
             </>
           )}
@@ -184,7 +193,7 @@ export function AudioRecorderControls({
               >
                 <path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z" />
               </svg>
-              重新錄音
+              <T k="listening.recorder.redo" variant="stacked" />
             </button>
           )}
         </div>
@@ -194,7 +203,7 @@ export function AudioRecorderControls({
           <div className="w-full max-w-md">
             <audio ref={audioRef} controls className="w-full" preload="metadata">
               <source src={audioUrl} type="audio/webm" />
-              您的瀏覽器不支援音訊播放
+              {t("listening.audioUnsupported")}
             </audio>
           </div>
         )}

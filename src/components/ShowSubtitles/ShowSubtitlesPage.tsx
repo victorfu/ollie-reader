@@ -15,8 +15,11 @@ import { TranscriptViewer } from "./TranscriptViewer";
 import { SelectionToolbar } from "../PdfReader/SelectionToolbar";
 import { LookupPanel } from "../PdfReader/LookupPanel";
 import { ToastContainer } from "../common/ToastContainer";
+import { T } from "../common/T";
+import { useLanguage } from "../../hooks/useLanguage";
 
 export function ShowSubtitlesPage() {
+  const { t } = useLanguage();
   const {
     seasons,
     selectedSeason,
@@ -62,9 +65,9 @@ export function ShowSubtitlesPage() {
     const result = startLookup(word, { sourceContext: trimmedText });
 
     if (result === "duplicate") {
-      addToast(`「${word}」正在查詢中`, "info");
+      addToast(t("listening.show.lookupInProgress", { word }), "info");
     } else if (result === "max_reached") {
-      addToast("待處理查詢數量已達上限", "error");
+      addToast(t("listening.show.lookupLimit"), "error");
     }
 
     clearSelection();
@@ -78,9 +81,9 @@ export function ShowSubtitlesPage() {
     const result = startLookup(trimmed);
 
     if (result === "duplicate") {
-      addToast(`「${trimmed}」正在查詢中`, "info");
+      addToast(t("listening.show.lookupInProgress", { word: trimmed }), "info");
     } else if (result === "max_reached") {
-      addToast("待處理查詢數量已達上限", "error");
+      addToast(t("listening.show.lookupLimit"), "error");
     }
   };
 
@@ -91,9 +94,9 @@ export function ShowSubtitlesPage() {
     const result = startTranslation(trimmedText, createTranslateFn(user));
 
     if (result === "duplicate") {
-      addToast("此句子正在翻譯中", "info");
+      addToast(t("listening.show.translating"), "info");
     } else if (result === "max_reached") {
-      addToast("待處理查詢數量已達上限", "error");
+      addToast(t("listening.show.lookupLimit"), "error");
     }
 
     clearSelection();
@@ -109,15 +112,20 @@ export function ShowSubtitlesPage() {
               Gabby's Dollhouse
             </h1>
             <p className="text-muted-foreground mt-1">
-              觀看影集字幕，學習日常英文對話
+              <T k="listening.show.subtitle" />
             </p>
           </div>
           <div className="flex items-center gap-2">
             <div className="badge badge-lg badge-outline gap-1">
-              {seasons.length} 季
+              <T k="listening.show.seasonCount" params={{ count: seasons.length }} />
             </div>
             <div className="badge badge-lg badge-outline gap-1">
-              {seasons.reduce((sum, s) => sum + s.episodes.length, 0)} 集
+              <T
+                k="listening.show.episodeCount"
+                params={{
+                  count: seasons.reduce((sum, s) => sum + s.episodes.length, 0),
+                }}
+              />
             </div>
           </div>
         </div>
@@ -126,7 +134,9 @@ export function ShowSubtitlesPage() {
       {/* Season Selector */}
       {seasons.length > 0 && (
         <div className="surface-card p-4 sm:p-5 md:p-6">
-          <h2 className="text-lg font-semibold mb-3">選擇季數</h2>
+          <h2 className="text-lg font-semibold mb-3">
+            <T k="listening.show.chooseSeason" variant="stacked" />
+          </h2>
           <SeasonSelector
             seasonNumbers={seasons.map((s) => s.number)}
             selectedSeason={selectedSeason}
@@ -146,7 +156,7 @@ export function ShowSubtitlesPage() {
                 type="button"
                 className="btn btn-ghost btn-sm gap-1 self-start mb-3 -ml-2 active:scale-[0.98]"
                 onClick={clearTranscript}
-                aria-label="返回集數列表"
+                aria-label={t("listening.show.backToEpisodes")}
               >
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
@@ -162,7 +172,7 @@ export function ShowSubtitlesPage() {
                     d="M15 19l-7-7 7-7"
                   />
                 </svg>
-                返回集數列表
+                <T k="listening.show.backToEpisodes" variant="stacked" />
               </button>
               <TranscriptViewer
                 episode={selectedEpisode}
@@ -174,7 +184,11 @@ export function ShowSubtitlesPage() {
           ) : (
             <>
               <h2 className="text-lg font-semibold mb-3">
-                Season {selectedSeason} 集數
+                <T
+                  k="listening.show.seasonEpisodes"
+                  params={{ season: selectedSeason }}
+                  variant="stacked"
+                />
               </h2>
               <EpisodeList
                 episodes={currentSeasonEpisodes}

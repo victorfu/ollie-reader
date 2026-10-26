@@ -3,6 +3,7 @@ import { BookOpen, Coins } from "lucide-react";
 import { HOMEWORK_REWARDS } from "../../services/economyService";
 import type { Homework, PracticeSettings } from "../../types/wordPractice";
 import { currentPosition } from "../../utils/homeworkFlow";
+import { T } from "../common/T";
 
 interface TodayCardProps {
   settings: PracticeSettings;
@@ -16,29 +17,42 @@ interface TodayCardProps {
   onContinue: () => void;
 }
 
-function coinHint({ firstToday, days }: { firstToday: boolean; days: number }): string {
-  const parts = ["寫完可以拿到代幣"];
-  if (firstToday) {
-    parts.push(`今天第一份 +${HOMEWORK_REWARDS.firstToday}`);
-    if (days >= 2) {
-      const streak = Math.min((days - 1) * HOMEWORK_REWARDS.streakStep, HOMEWORK_REWARDS.streakCap);
-      parts.push(`連續第 ${days} 天 +${streak}`);
-    }
-  }
-  return parts.join("・");
+function CoinHint({ firstToday, days }: { firstToday: boolean; days: number }) {
+  const streak = Math.min((days - 1) * HOMEWORK_REWARDS.streakStep, HOMEWORK_REWARDS.streakCap);
+  return (
+    <span>
+      <T k="practice.today.coins" />
+      {firstToday && (
+        <>
+          ・<T k="practice.today.coinsFirst" params={{ coins: HOMEWORK_REWARDS.firstToday }} />
+          {days >= 2 && (
+            <>
+              ・<T k="practice.today.coinsStreak" params={{ days, coins: streak }} />
+            </>
+          )}
+        </>
+      )}
+    </span>
+  );
 }
 
-function continueLabel(homework: Homework): string {
+function ContinueLabel({ homework }: { homework: Homework }) {
   const position = currentPosition(homework);
   switch (position.phase) {
     case "page":
-      return `繼續寫功課（第 ${position.wordIndex + 1} / ${homework.newWords.length} 個字）`;
+      return (
+        <T
+          k="practice.today.continuePage"
+          params={{ current: position.wordIndex + 1, total: homework.newWords.length }}
+          variant="stacked"
+        />
+      );
     case "dictation":
-      return "繼續寫功課（聽寫）";
+      return <T k="practice.today.continueDictation" variant="stacked" />;
     case "correction":
-      return "繼續寫功課（訂正）";
+      return <T k="practice.today.continueCorrection" variant="stacked" />;
     case "submit":
-      return "繼續寫功課（交作業）";
+      return <T k="practice.today.continueSubmit" variant="stacked" />;
   }
 }
 
@@ -62,13 +76,13 @@ export function TodayCard({
       <div className="flex items-center gap-3">
         <BookOpen className="size-6 shrink-0 text-accent" strokeWidth={1.75} aria-hidden="true" />
         <h2 id={headingId} className="text-xl font-semibold">
-          {active ? "進行中的功課" : "今天的功課"}
+          <T k={active ? "practice.today.titleActive" : "practice.today.title"} variant="stacked" />
         </h2>
       </div>
 
       <p className="flex items-center gap-2 text-sm text-muted-foreground">
         <Coins className="size-4 shrink-0 text-warning" strokeWidth={1.75} aria-hidden="true" />
-        {coinHint(homeworkStreak)}
+        <CoinHint {...homeworkStreak} />
       </p>
 
       {active ? (
@@ -78,12 +92,15 @@ export function TodayCard({
           onClick={onContinue}
           className="btn btn-primary btn-lg min-h-14 w-full active:scale-[0.98]"
         >
-          {continueLabel(active)}
+          <ContinueLabel homework={active} />
         </button>
       ) : (
         <>
           <p className="text-lg">
-            {settings.newWordCount} 個新字・{reviewDueCount} 個複習字
+            <T
+              k="practice.today.counts"
+              params={{ newCount: settings.newWordCount, reviewCount: reviewDueCount }}
+            />
           </p>
           <button
             type="button"
@@ -92,7 +109,7 @@ export function TodayCard({
             className="btn btn-primary btn-lg min-h-14 w-full active:scale-[0.98]"
           >
             {starting && <span className="loading loading-spinner loading-sm" aria-hidden="true" />}
-            開始寫功課
+            <T k="practice.today.start" variant="stacked" />
           </button>
         </>
       )}

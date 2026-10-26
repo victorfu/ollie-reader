@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, type ReactNode } from "react";
 import type {
   AudioUpload,
   AudioUploadUpdateInput,
@@ -12,14 +12,17 @@ import { AudioUploadList } from "./AudioUploadList";
 import { AudioUploadEditModal } from "./AudioUploadEditModal";
 import { Toast } from "../common/Toast";
 import { ConfirmModal } from "../common/ConfirmModal";
+import { T } from "../common/T";
+import { useLanguage } from "../../hooks/useLanguage";
 
 export function AudioUploads() {
+  const { t } = useLanguage();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [title, setTitle] = useState("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [toastMessage, setToastMessage] = useState<{
-    message: string;
+    message: ReactNode;
     type: "success" | "error" | "info";
   } | null>(null);
 
@@ -86,7 +89,10 @@ export function AudioUploads() {
       ) {
         handleFileSelect(file);
       } else {
-        setToastMessage({ message: "請上傳音訊檔案", type: "error" });
+        setToastMessage({
+          message: <T k="listening.audio.uploadAudioFile" variant="stacked" />,
+          type: "error",
+        });
       }
     },
     [handleFileSelect],
@@ -185,10 +191,10 @@ export function AudioUploads() {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight flex items-center gap-2">
-              🎵 音訊庫
+              🎵 <T k="listening.audio.title" variant="stacked" />
             </h1>
             <p className="text-muted-foreground mt-1">
-              上傳、管理和播放你的音訊檔案
+              <T k="listening.audio.subtitle" />
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -207,7 +213,7 @@ export function AudioUploads() {
                     d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"
                   />
                 </svg>
-                {uploads.length} 個音訊
+                <T k="listening.audio.count" params={{ count: uploads.length }} />
               </div>
           </div>
         </div>
@@ -265,11 +271,17 @@ export function AudioUploads() {
                   </svg>
                 </div>
                 <h3 className="text-lg font-semibold mb-2">
-                  {isDragging ? "放開以上傳檔案" : "拖放音訊檔案到這裡"}
+                  {isDragging ? (
+                    <T k="listening.audio.dropToUpload" variant="stacked" />
+                  ) : (
+                    <T k="listening.audio.dragHere" variant="stacked" />
+                  )}
                 </h3>
                 <p className="text-muted-foreground text-sm mb-4">
-                  支援 MP3, WAV, M4A, WebM, OGG, AAC, MP4（最大 {MAX_UPLOAD_SIZE_MB}
-                  MB）
+                  <T
+                    k="listening.audio.supportedFormats"
+                    params={{ size: MAX_UPLOAD_SIZE_MB }}
+                  />
                 </p>
                 <label
                   htmlFor="audio-file"
@@ -289,7 +301,7 @@ export function AudioUploads() {
                       d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"
                     />
                   </svg>
-                  選擇檔案
+                  <T k="listening.audio.chooseFile" variant="stacked" />
                 </label>
               </div>
             ) : (
@@ -330,7 +342,8 @@ export function AudioUploads() {
                       className="btn btn-ghost btn-sm btn-circle"
                       onClick={handleClearSelection}
                       disabled={uploading}
-                      title="移除檔案"
+                      title={t("listening.audio.removeFile")}
+                      aria-label={t("listening.audio.removeFile")}
                     >
                       <svg
                         xmlns="http://www.w3.org/2000/svg"
@@ -353,7 +366,9 @@ export function AudioUploads() {
                 {/* Title Input */}
                 <div className="form-control mb-4">
                   <label className="label" htmlFor="audio-title">
-                    <span className="label-text font-medium">音訊標題</span>
+                    <span className="label-text font-medium">
+                      <T k="listening.audio.titleLabel" />
+                    </span>
                   </label>
                   <input
                     id="audio-title"
@@ -361,7 +376,7 @@ export function AudioUploads() {
                     className="input input-bordered w-full focus:input-primary h-11"
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
-                    placeholder="輸入音訊標題"
+                    placeholder={t("listening.audio.titlePlaceholder")}
                     disabled={uploading}
                   />
                 </div>
@@ -376,7 +391,7 @@ export function AudioUploads() {
                   {uploading ? (
                     <>
                       <span className="loading loading-spinner loading-sm" />
-                      上傳中...
+                      <T k="listening.audio.uploading" variant="stacked" />
                     </>
                   ) : (
                     <>
@@ -394,7 +409,7 @@ export function AudioUploads() {
                           d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"
                         />
                       </svg>
-                      上傳音訊
+                      <T k="listening.audio.upload" variant="stacked" />
                     </>
                   )}
                 </button>
@@ -428,12 +443,12 @@ export function AudioUploads() {
       {/* Delete Confirmation Modal */}
       <ConfirmModal
         isOpen={deleteTarget !== null}
-        title="刪除音訊"
-        message="確定要刪除這個音訊嗎？此操作無法復原。"
+        title={<T k="listening.audio.deleteTitle" variant="stacked" />}
+        message={<T k="listening.audio.deleteMessage" />}
         onConfirm={confirmDelete}
         onCancel={cancelDelete}
-        confirmText="刪除"
-        cancelText="取消"
+        confirmText={<T k="listening.delete" variant="stacked" />}
+        cancelText={<T k="common.cancel" variant="stacked" />}
         confirmVariant="error"
         isLoading={isDeleting}
       />

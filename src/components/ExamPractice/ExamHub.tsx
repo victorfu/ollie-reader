@@ -10,12 +10,21 @@ import type {
   ExamTab,
 } from "../../types/exam";
 import { findQuestionsByIds, listScopes } from "../../data/exams";
+import { useLanguage } from "../../hooks/useLanguage";
 import { ConfirmModal } from "../common/ConfirmModal";
+import { T } from "../common/T";
 import { ExamSubjectSwitcher } from "./ExamSubjectSwitcher";
 import {
   clearSubjectProgress,
   readScopeProgress,
 } from "./examProgressStorage";
+import {
+  paperTitle,
+  paperTitleKey,
+  pdfLabelKey,
+  scopeSubtitleMessage,
+  scopeTitleKey,
+} from "./examUi";
 
 interface ExamHubProps {
   paper: ExamPaper;
@@ -31,7 +40,9 @@ interface ScopeEntry {
 }
 
 export function ExamHub({ paper, subject, onSelectSubject, onStart }: ExamHubProps) {
+  const { t } = useLanguage();
   const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
+  const title = paperTitle(paper, t);
   const entries: ScopeEntry[] = listScopes(paper).map((scope) => {
     const progress = readScopeProgress(subject, scope.id);
     const retryCount = progress
@@ -46,6 +57,14 @@ export function ExamHub({ paper, subject, onSelectSubject, onStart }: ExamHubPro
     setIsResetConfirmOpen(false);
   };
 
+  const titleKey = paperTitleKey(paper);
+
+  /** 資料值標籤:有對應 key 就翻譯(stacked),否則原樣顯示。 */
+  const pdfLinkLabel = (label: string) => {
+    const key = pdfLabelKey(label);
+    return key ? <T k={key} variant="stacked" /> : label;
+  };
+
   return (
     <div className="flex flex-col gap-5">
       {/* 科別切換 */}
@@ -53,7 +72,9 @@ export function ExamHub({ paper, subject, onSelectSubject, onStart }: ExamHubPro
 
       {/* 卷名 + 紙本連結 */}
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-xl font-semibold tracking-tight">{paper.title}</h2>
+        <h2 className="text-xl font-semibold tracking-tight">
+          {titleKey ? <T k={titleKey} variant="stacked" /> : paper.title}
+        </h2>
         <div className="flex items-center gap-1">
           {paper.questionPdf && (
             <a
@@ -63,7 +84,11 @@ export function ExamHub({ paper, subject, onSelectSubject, onStart }: ExamHubPro
               className="btn btn-ghost btn-sm min-h-[44px] gap-1.5 rounded-full"
             >
               <FileText size={16} strokeWidth={1.75} />
-              {paper.questionPdfLabel ?? "題目卷"}
+              {paper.questionPdfLabel ? (
+                pdfLinkLabel(paper.questionPdfLabel)
+              ) : (
+                <T k="exams.pdf.questionPaper" variant="stacked" />
+              )}
             </a>
           )}
           {paper.answerPdf && paper.answerPdfLabel && (
@@ -74,7 +99,7 @@ export function ExamHub({ paper, subject, onSelectSubject, onStart }: ExamHubPro
               className="btn btn-ghost btn-sm min-h-[44px] gap-1.5 rounded-full"
             >
               <NotebookPen size={16} strokeWidth={1.75} />
-              {paper.answerPdfLabel}
+              {pdfLinkLabel(paper.answerPdfLabel)}
             </a>
           )}
           <button
@@ -84,7 +109,7 @@ export function ExamHub({ paper, subject, onSelectSubject, onStart }: ExamHubPro
             className="btn btn-error btn-outline btn-sm min-h-[44px] gap-1.5 rounded-full"
           >
             <RotateCcw size={16} strokeWidth={1.75} />
-            重設進度
+            <T k="exams.hub.resetProgress" variant="stacked" />
           </button>
         </div>
       </div>
@@ -93,6 +118,10 @@ export function ExamHub({ paper, subject, onSelectSubject, onStart }: ExamHubPro
       <div className="grid gap-3 sm:grid-cols-2">
         {entries.map(({ scope, progress, retryCount }) => {
           const hasBest = progress !== null && progress.bestTotal > 0;
+          const scopeKey = scopeTitleKey(scope.id);
+          const subtitle = scope.subtitle
+            ? scopeSubtitleMessage(scope.subtitle)
+            : null;
           return (
             <article
               key={scope.id}
@@ -100,27 +129,45 @@ export function ExamHub({ paper, subject, onSelectSubject, onStart }: ExamHubPro
             >
               <div className="flex items-start justify-between gap-2">
                 <div>
-                  <h3 className="text-base font-semibold">{scope.title}</h3>
+                  <h3 className="text-base font-semibold">
+                    {scopeKey ? (
+                      <T k={scopeKey} variant="stacked" />
+                    ) : (
+                      scope.title
+                    )}
+                  </h3>
                   <p className="text-xs text-muted-foreground">
-                    {scope.subtitle ?? `共 ${scope.questionCount} 題`}
+                    {subtitle ? (
+                      <T k={subtitle.k} params={subtitle.params} />
+                    ) : (
+                      (scope.subtitle ?? (
+                        <T
+                          k="exams.hub.totalQuestions"
+                          params={{ n: scope.questionCount }}
+                        />
+                      ))
+                    )}
                   </p>
                 </div>
-                <span className="rounded-full bg-accent-tint px-2.5 py-1 text-xs font-semibold text-accent">
-                  {scope.questionCount} 題
+                <span className="shrink-0 rounded-full bg-accent-tint px-2.5 py-1 text-xs font-semibold text-accent">
+                  <T
+                    k="exams.hub.questionCount"
+                    params={{ n: scope.questionCount }}
+                  />
                 </span>
               </div>
 
               <p className="text-sm text-muted-foreground">
                 {hasBest ? (
                   <>
-                    最佳成績{" "}
+                    <T k="exams.hub.bestScore" />{" "}
                     <span className="font-semibold text-foreground">
                       {progress.bestScore} / {progress.bestTotal}
                     </span>
                     {progress.bestScore === progress.bestTotal && " 🏆"}
                   </>
                 ) : (
-                  "尚未挑戰"
+                  <T k="exams.hub.notTried" />
                 )}
               </p>
 
@@ -130,7 +177,7 @@ export function ExamHub({ paper, subject, onSelectSubject, onStart }: ExamHubPro
                   className="btn btn-primary btn-sm min-h-[44px] flex-1 gap-1.5 rounded-lg"
                 >
                   <Play size={16} strokeWidth={2} />
-                  開始練習
+                  <T k="exams.hub.start" variant="stacked" />
                 </button>
                 {retryCount > 0 && (
                   <button
@@ -138,7 +185,11 @@ export function ExamHub({ paper, subject, onSelectSubject, onStart }: ExamHubPro
                     className="btn btn-outline btn-sm min-h-[44px] flex-1 gap-1.5 rounded-lg"
                   >
                     <RotateCcw size={16} strokeWidth={2} />
-                    錯題重練（{retryCount}）
+                    <T
+                      k="exams.hub.retryWrong"
+                      params={{ n: retryCount }}
+                      variant="stacked"
+                    />
                   </button>
                 )}
               </div>
@@ -148,16 +199,21 @@ export function ExamHub({ paper, subject, onSelectSubject, onStart }: ExamHubPro
       </div>
 
       <p className="text-center text-xs text-muted-foreground">
-        答完每一題會立即顯示對錯{paper.subject === "math" ? "" : "與解析"}
-        ，可以重複練習到全對為止！
+        <T
+          k={
+            paper.subject === "math"
+              ? "exams.hub.footerNoExplanation"
+              : "exams.hub.footer"
+          }
+        />
       </p>
 
       <ConfirmModal
         isOpen={isResetConfirmOpen}
-        title={`重設${paper.title}進度？`}
-        message={`將清除${paper.title}所有區段與完整測驗的最佳成績、最近成績及錯題紀錄；其他科目不受影響，且無法復原。`}
-        confirmText="重設進度"
-        cancelText="取消"
+        title={t("exams.hub.resetTitle", { title })}
+        message={t("exams.hub.resetMessage", { title })}
+        confirmText={t("exams.hub.resetConfirm")}
+        cancelText={t("common.cancel")}
         confirmVariant="error"
         onConfirm={handleResetProgress}
         onCancel={() => setIsResetConfirmOpen(false)}

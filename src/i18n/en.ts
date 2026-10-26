@@ -1,4 +1,9 @@
 import type { MessageKey } from "./zh-TW";
+import { readerEn } from "./messages/reader";
+import { practiceEn } from "./messages/practice";
+import { listeningEn } from "./messages/listening";
+import { examsEn } from "./messages/exams";
+
 
 /** English dictionary. Typed against the zh-TW keys so a missing entry fails tsc. */
 export const en: Record<MessageKey, string> = {
@@ -131,4 +136,9 @@ export const en: Record<MessageKey, string> = {
   "settings.game.resetConfirmMessage": "This clears all level progress, ranks and gacha tokens. It can’t be undone, but your word book won’t be affected.",
   "settings.saving": "Saving…",
   "settings.saved": "Settings saved",
+
+  ...readerEn,
+  ...practiceEn,
+  ...listeningEn,
+  ...examsEn,
 };

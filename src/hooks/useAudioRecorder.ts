@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from "react";
+import { useLanguage } from "./useLanguage";
 
 function stopMediaStream(stream: MediaStream | null): void {
   stream?.getTracks().forEach((track) => track.stop());
@@ -22,6 +23,7 @@ interface UseAudioRecorderResult {
 }
 
 export function useAudioRecorder(): UseAudioRecorderResult {
+  const { t } = useLanguage();
   const [isRecording, setIsRecording] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
@@ -68,7 +70,7 @@ export function useAudioRecorder(): UseAudioRecorderResult {
 
   const startRecording = useCallback(async (): Promise<boolean> => {
     if (!isSupported) {
-      setError("您的瀏覽器不支援錄音功能");
+      setError(t("listening.recorder.unsupported"));
       return false;
     }
     // The state update is asynchronous, so use a ref to reject a second click
@@ -148,11 +150,11 @@ export function useAudioRecorder(): UseAudioRecorderResult {
       stopTimer();
       console.error("Failed to start recording:", err);
       if (err instanceof DOMException && err.name === "NotAllowedError") {
-        setError("麥克風權限被拒絕，請允許麥克風權限後重試");
+        setError(t("listening.recorder.error.denied"));
       } else if (err instanceof DOMException && err.name === "NotFoundError") {
-        setError("找不到麥克風裝置");
+        setError(t("listening.recorder.error.notFound"));
       } else {
-        setError("無法開始錄音，請檢查麥克風設定");
+        setError(t("listening.recorder.error.startFailed"));
       }
       return false;
     } finally {
@@ -161,7 +163,7 @@ export function useAudioRecorder(): UseAudioRecorderResult {
         if (mountedRef.current) setIsStarting(false);
       }
     }
-  }, [isSupported, revokeAudioUrl, startTimer, stopTimer]);
+  }, [isSupported, revokeAudioUrl, startTimer, stopTimer, t]);
 
   const stopRecording = useCallback(() => {
     const mediaRecorder = mediaRecorderRef.current;

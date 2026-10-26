@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { X, ZoomIn } from "lucide-react";
+import { useLanguage } from "../../hooks/useLanguage";
+import { T } from "../common/T";
 
 interface ExamQuestionImageProps {
   /** /exams/images/ 下的檔名,如 "math-q25.png"。 */
@@ -22,9 +24,11 @@ export function ExamQuestionImage({
   image,
   number,
   questionPdf,
-  alt = `第 ${number} 題附圖`,
+  alt: altProp,
   className = "",
 }: ExamQuestionImageProps) {
+  const { t } = useLanguage();
+  const alt = altProp ?? t("exams.image.alt", { n: number });
   const [failedImage, setFailedImage] = useState<string | null>(null);
   const [isZoomOpen, setIsZoomOpen] = useState(false);
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -44,20 +48,17 @@ export function ExamQuestionImage({
   if (failed) {
     return (
       <div className="rounded-lg border border-border-hairline bg-accent-tint p-3 text-sm text-muted-foreground">
-        圖片載入失敗，請對照
-        {questionPdf ? (
+        <T k="exams.image.failed" params={{ n: number }} />
+        {questionPdf && (
           <a
-            className="link mx-1 text-accent"
+            className="link ml-1 text-accent"
             href={encodeURI(questionPdf)}
             target="_blank"
             rel="noopener noreferrer"
           >
-            題目卷
+            <T k="exams.image.openPaper" variant="stacked" />
           </a>
-        ) : (
-          "題目卷"
         )}
-        第 {number} 題。
       </div>
     );
   }
@@ -69,7 +70,7 @@ export function ExamQuestionImage({
       <button
         type="button"
         onClick={() => setIsZoomOpen(true)}
-        aria-label={`放大附圖：${alt}`}
+        aria-label={t("exams.image.zoomAria", { alt })}
         className={`relative block w-full cursor-zoom-in rounded-lg border border-border-hairline bg-white p-2 transition-all active:scale-[0.99] ${className}`}
       >
         <img
@@ -97,7 +98,7 @@ export function ExamQuestionImage({
           <button
             type="button"
             onClick={() => setIsZoomOpen(false)}
-            aria-label="關閉放大檢視"
+            aria-label={t("exams.image.closeZoom")}
             className="btn btn-circle btn-sm absolute right-2 top-2 border-none bg-black/45 text-white hover:bg-black/60"
           >
             <X size={16} strokeWidth={2} />
@@ -105,7 +106,7 @@ export function ExamQuestionImage({
         </div>
         <form method="dialog" className="modal-backdrop">
           <button type="button" onClick={() => setIsZoomOpen(false)}>
-            close
+            {t("common.close")}
           </button>
         </form>
       </dialog>

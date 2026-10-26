@@ -9,12 +9,14 @@ import {
   WordPanelContent,
   type WordPanelSharedProps,
 } from "./WordPanelContent";
+import { useLanguage } from "../../hooks/useLanguage";
 
 /**
  * Docked shell: a right-hand rail that is a flex sibling of the PDF viewer box,
  * so it stays put while the PDF scrolls inside its own container.
  */
 export const WordPanelDock = memo((props: WordPanelSharedProps) => {
+  const { t } = useLanguage();
   const [width, setWidth] = useState<number>(readVocabularyDockWidth);
   const [isResizing, setIsResizing] = useState(false);
   // Holds the in-flight drag's end handler so unmounting mid-drag still
@@ -73,7 +75,7 @@ export const WordPanelDock = memo((props: WordPanelSharedProps) => {
   return (
     <aside
       data-testid="vocab-dock"
-      aria-label="生詞本"
+      aria-label={t("reader.vocab.title")}
       style={{ width }}
       className="relative hidden shrink-0 flex-col overflow-hidden rounded-xl border border-border-hairline bg-base-100 shadow-elevated lg:flex"
     >

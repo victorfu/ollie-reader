@@ -3,12 +3,15 @@ import { useSpeechState } from "../../hooks/useSpeechState";
 import type { HomeworkWord, WordPageProgress } from "../../types/wordPractice";
 import { isAnswerCorrect } from "../../utils/answerMatch";
 import { checkSentence, COPY_TARGET, nextSection, pageSection, sentenceWord } from "../../utils/homeworkFlow";
-import { INFLECTION_LABEL, INFLECTION_USE, inflectionRule } from "../../utils/inflection";
+import { INFLECTION_USE, inflectionRule } from "../../utils/inflection";
+import type { MessageKey } from "../../i18n/translate";
 import { redactWordForms } from "../../utils/wordForms";
 import { SpeakButton } from "../common/SpeakButton";
 import { AnswerInput } from "./AnswerInput";
 import { CopyBoxes } from "./CopyBoxes";
 import { SpellingDiff } from "./SpellingDiff";
+import { PracticeText } from "./PracticeText";
+import { T } from "../common/T";
 
 interface WordPageProps {
   word: HomeworkWord;
@@ -20,10 +23,11 @@ interface WordPageProps {
 
 const SECTION_RANK = { look: 0, copy: 1, recall: 2, form: 3, sentence: 4, done: 5 } as const;
 
-function sentenceHint(result: ReturnType<typeof checkSentence>, word: string): string {
-  if (result === "missingWord") return `要用到「${word}」喔`;
-  if (result === "tooShort") return "句子至少要 4 個英文字";
-  return "";
+/** The message key for why a sentence is not accepted, or null when it is fine. */
+function sentenceHint(result: ReturnType<typeof checkSentence>): MessageKey | null {
+  if (result === "missingWord") return "practice.page.sentenceMissingWord";
+  if (result === "tooShort") return "practice.page.sentenceTooShort";
+  return null;
 }
 
 function tidy(text: string): string {
@@ -49,7 +53,9 @@ function LookSection({ word, onDone }: { word: HomeworkWord; onDone: () => void 
 
   return (
     <section className="space-y-4">
-      <Heading>看一看、聽一聽</Heading>
+      <Heading>
+        <T k="practice.page.lookTitle" variant="stacked" />
+      </Heading>
       <ul className="space-y-3">
         {word.definitions.map((d, i) => (
           <li key={i} className="space-y-0.5">
@@ -68,8 +74,11 @@ function LookSection({ word, onDone }: { word: HomeworkWord; onDone: () => void 
       )}
       {word.inflection && (
         <p className="rounded-[10px] bg-accent-tint px-4 py-3 text-sm">
-          書裡看到的是 <strong>{word.inflection.form}</strong>，它是 <strong>{word.word}</strong> 的
-          {INFLECTION_LABEL[word.inflection.kind]}。先學 {word.word}，等一下再學 {word.inflection.form}。
+          <PracticeText
+            k="practice.page.seenInBook"
+            params={{ form: word.inflection.form, word: word.word }}
+            inflection={word.inflection.kind}
+          />
         </p>
       )}
       <button
@@ -78,7 +87,7 @@ function LookSection({ word, onDone }: { word: HomeworkWord; onDone: () => void 
         onClick={onDone}
         className="btn btn-primary min-h-11 active:scale-[0.98]"
       >
-        看完了
+        <T k="practice.page.lookDone" variant="stacked" />
       </button>
     </section>
   );
@@ -101,7 +110,9 @@ function RecallSection({ word, onDone }: { word: HomeworkWord; onDone: () => voi
 
   return (
     <section className="space-y-4">
-      <Heading>不看單字，聽發音打出來</Heading>
+      <Heading>
+        <T k="practice.page.recallTitle" variant="stacked" />
+      </Heading>
       <div className="flex items-center gap-2">
         <SpeakButton text={word.word} size="md" />
       </div>
@@ -110,7 +121,7 @@ function RecallSection({ word, onDone }: { word: HomeworkWord; onDone: () => voi
         value={typed}
         onChange={setTyped}
         onSubmit={check}
-        label="把單字打出來"
+        label={<T k="practice.page.recallLabel" />}
       />
       {missed !== null && (
         <div
@@ -118,7 +129,7 @@ function RecallSection({ word, onDone }: { word: HomeworkWord; onDone: () => voi
           className="space-y-2 rounded-[10px] border border-border-hairline bg-background px-4 py-3"
         >
           <p className="text-sm text-muted-foreground">
-            正確拼法是 <strong className="text-foreground">{word.word}</strong>，再打一次：
+            <PracticeText k="practice.page.recallMissed" params={{ word: word.word }} bold={["word"]} />
           </p>
           <SpellingDiff input={missed} expected={word.word} />
         </div>
@@ -157,7 +168,6 @@ function FormSection({
   const [typed, setTyped] = useState("");
   const [missed, setMissed] = useState<string | null>(null);
   const [attempts, setAttempts] = useState(0);
-  const label = INFLECTION_LABEL[inflection.kind];
 
   const check = () => {
     if (isAnswerCorrect(typed, inflection.form)) {
@@ -173,17 +183,28 @@ function FormSection({
     return (
       <section className="space-y-4">
         <Heading>
-          變化形：{word.word} 的{label}
+          <PracticeText
+            k="practice.page.formTitle"
+            params={{ word: word.word }}
+            inflection={inflection.kind}
+            variant="stacked"
+          />
         </Heading>
         <div className="flex flex-wrap items-center gap-3">
           <p className="text-2xl font-semibold">{inflection.form}</p>
           <SpeakButton text={inflection.form} size="md" />
         </div>
         <ul className="space-y-1 rounded-[10px] border border-border-hairline bg-background px-4 py-3 text-sm">
-          <li>怎麼變：{inflectionRule(word.word, inflection.form)}</li>
-          <li>什麼時候用：{INFLECTION_USE[inflection.kind]}</li>
+          <li>
+            <T k="practice.page.formHow" params={{ rule: inflectionRule(word.word, inflection.form) }} />
+          </li>
+          <li>
+            <T k="practice.page.formWhen" params={{ use: INFLECTION_USE[inflection.kind] }} />
+          </li>
         </ul>
-        <p className="text-sm text-muted-foreground">照著打一遍：</p>
+        <p className="text-sm text-muted-foreground">
+          <T k="practice.page.formCopy" />
+        </p>
         <CopyBoxes word={inflection.form} done={0} target={1} onCorrect={() => setLearned(true)} />
       </section>
     );
@@ -192,14 +213,21 @@ function FormSection({
   return (
     <section className="space-y-4">
       <Heading>
-        不看答案，打出 {word.word} 的{label}
+        <PracticeText
+          k="practice.page.formRecallTitle"
+          params={{ word: word.word }}
+          inflection={inflection.kind}
+          variant="stacked"
+        />
       </Heading>
       <AnswerInput
         key={attempts}
         value={typed}
         onChange={setTyped}
         onSubmit={check}
-        label={`${word.word} 的${label}`}
+        label={
+          <PracticeText k="practice.page.formRecallLabel" params={{ word: word.word }} inflection={inflection.kind} />
+        }
       />
       {missed !== null && (
         <div
@@ -207,7 +235,7 @@ function FormSection({
           className="space-y-2 rounded-[10px] border border-border-hairline bg-background px-4 py-3"
         >
           <p className="text-sm text-muted-foreground">
-            正確答案是 <strong className="text-foreground">{inflection.form}</strong>，再打一次：
+            <PracticeText k="practice.page.formMissed" params={{ form: inflection.form }} bold={["form"]} />
           </p>
           <SpellingDiff input={missed} expected={inflection.form} />
         </div>
@@ -222,19 +250,19 @@ function WriteSection({
   check,
   onAccept,
 }: {
-  title: string;
-  label: string;
-  /** Returns the Chinese reason the text is not accepted, or "" when it is fine. */
-  check: (text: string) => string;
+  title: ReactNode;
+  label: ReactNode;
+  /** Returns the reason the text is not accepted (a message key and its params), or null when it is fine. */
+  check: (text: string) => { key: MessageKey; params?: Record<string, string> } | null;
   onAccept: (text: string) => void;
 }) {
   const [typed, setTyped] = useState("");
-  const [hint, setHint] = useState("");
+  const [hint, setHint] = useState<ReturnType<typeof check>>(null);
 
   const submit = () => {
     const message = check(typed);
     setHint(message);
-    if (message === "") onAccept(tidy(typed));
+    if (message === null) onAccept(tidy(typed));
   };
 
   return (
@@ -244,13 +272,13 @@ function WriteSection({
         value={typed}
         onChange={(value) => {
           setTyped(value);
-          setHint("");
+          setHint(null);
         }}
         onSubmit={submit}
         label={label}
       />
       <p role="status" className="min-h-6 text-sm text-error">
-        {hint}
+        {hint && <T k={hint.key} params={hint.params} />}
       </p>
       <button
         type="button"
@@ -258,7 +286,7 @@ function WriteSection({
         onClick={submit}
         className="btn btn-primary min-h-11 active:scale-[0.98]"
       >
-        好了
+        <T k="practice.page.done" variant="stacked" />
       </button>
     </section>
   );
@@ -283,7 +311,7 @@ export function WordPage({ word, progress, index, total, onChange }: WordPagePro
     <article className="space-y-5">
       <header className="space-y-1">
         <p className="text-sm tabular-nums text-muted-foreground">
-          第 {index + 1} / {total} 個字
+          <T k="practice.page.counter" params={{ current: index + 1, total }} />
         </p>
         {section === "recall" ? (
           <h2 className="text-3xl font-semibold tracking-tight">?</h2>
@@ -302,16 +330,29 @@ export function WordPage({ word, progress, index, total, onChange }: WordPagePro
 
       {rank > 0 && (
         <ul className="space-y-1">
-          <Summary>✓ 看字</Summary>
-          {rank > SECTION_RANK.copy && <Summary>✓ 抄寫 {COPY_TARGET} 遍</Summary>}
-          {rank > SECTION_RANK.recall && <Summary>✓ 默寫</Summary>}
+          <Summary>
+            ✓ <T k="practice.page.doneLook" />
+          </Summary>
+          {rank > SECTION_RANK.copy && (
+            <Summary>
+              ✓ <T k="practice.page.doneCopy" params={{ count: COPY_TARGET }} />
+            </Summary>
+          )}
+          {rank > SECTION_RANK.recall && (
+            <Summary>
+              ✓ <T k="practice.page.doneRecall" />
+            </Summary>
+          )}
           {rank > SECTION_RANK.form && inflection && (
             <Summary>
-              ✓ 變化形：{inflection.form}（{INFLECTION_LABEL[inflection.kind]}）
+              ✓{" "}
+              <PracticeText k="practice.page.doneForm" params={{ form: inflection.form }} inflection={inflection.kind} />
             </Summary>
           )}
           {rank > SECTION_RANK.sentence && progress.sentence && (
-            <Summary>✓ 造句：{progress.sentence}</Summary>
+            <Summary>
+              ✓ <T k="practice.page.doneSentence" params={{ sentence: progress.sentence }} />
+            </Summary>
           )}
         </ul>
       )}
@@ -320,7 +361,9 @@ export function WordPage({ word, progress, index, total, onChange }: WordPagePro
 
       {section === "copy" && (
         <section className="space-y-3">
-          <Heading>照著打 {COPY_TARGET} 遍</Heading>
+          <Heading>
+            <T k="practice.page.copyTitle" params={{ count: COPY_TARGET }} variant="stacked" />
+          </Heading>
           <CopyBoxes
             word={word.word}
             done={progress.copies}
@@ -342,9 +385,12 @@ export function WordPage({ word, progress, index, total, onChange }: WordPagePro
 
       {section === "sentence" && (
         <WriteSection
-          title={`造句：用 ${target} 寫一個完整的句子`}
-          label="你的句子"
-          check={(text) => sentenceHint(checkSentence(text, target), target)}
+          title={<T k="practice.page.sentenceTitle" params={{ word: target }} variant="stacked" />}
+          label={<T k="practice.page.sentenceLabel" />}
+          check={(text) => {
+            const key = sentenceHint(checkSentence(text, target));
+            return key ? { key, params: { word: target } } : null;
+          }}
           onAccept={(text) => advance({ sentence: text })}
         />
       )}

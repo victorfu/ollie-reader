@@ -1,5 +1,7 @@
 import { useEffect, useRef } from "react";
 import type { SpeechPracticeTopic } from "../../types/speechPractice";
+import { T } from "../common/T";
+import { useLanguage } from "../../hooks/useLanguage";
 
 interface ScriptGeneratorModalProps {
   isOpen: boolean;
@@ -30,6 +32,7 @@ export function ScriptGeneratorModal({
   onUseScript,
   onClose,
 }: ScriptGeneratorModalProps) {
+  const { t } = useLanguage();
   const modalRef = useRef<HTMLDialogElement>(null);
   const submissionInFlightRef = useRef(false);
 
@@ -87,11 +90,11 @@ export function ScriptGeneratorModal({
         <div className="flex justify-between items-start mb-4">
           <div>
             <h3 className="font-semibold text-lg flex items-center gap-2">
-              ✨ AI 講稿生成器
+              ✨ <T k="listening.script.title" variant="stacked" />
             </h3>
             {topic && (
               <p className="text-sm text-muted-foreground mt-1">
-                主題：{topic.titleChinese}
+                <T k="listening.script.topic" params={{ topic: topic.titleChinese }} />
               </p>
             )}
           </div>
@@ -100,6 +103,7 @@ export function ScriptGeneratorModal({
             className="btn btn-sm btn-circle btn-ghost"
             onClick={onClose}
             disabled={isGenerating || isSaving}
+            aria-label={t("common.close")}
           >
             ✕
           </button>
@@ -110,12 +114,16 @@ export function ScriptGeneratorModal({
           {/* Prompt Section */}
           <div className="space-y-2">
             <label className="flex items-center gap-2 text-sm font-medium">
-              <span>📝 生成指令（Prompt）</span>
-              <span className="badge badge-ghost badge-sm">可編輯</span>
+              <span>
+                📝 <T k="listening.script.promptLabel" />
+              </span>
+              <span className="badge badge-ghost badge-sm">
+                <T k="listening.script.editable" />
+              </span>
             </label>
             <textarea
               className="textarea textarea-bordered w-full text-sm"
-              placeholder="輸入生成講稿的指令..."
+              placeholder={t("listening.script.promptPlaceholder")}
               value={prompt}
               onChange={(e) => onPromptChange(e.target.value)}
               rows={6}
@@ -131,7 +139,7 @@ export function ScriptGeneratorModal({
                 {isGenerating ? (
                   <>
                     <span className="loading loading-spinner loading-xs" />
-                    生成中...
+                    <T k="listening.script.generating" variant="stacked" />
                   </>
                 ) : generatedScript ? (
                   <>
@@ -146,7 +154,7 @@ export function ScriptGeneratorModal({
                       <path d="M1 4v6h6" />
                       <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
                     </svg>
-                    重新生成
+                    <T k="listening.script.regenerate" variant="stacked" />
                   </>
                 ) : (
                   <>
@@ -160,7 +168,7 @@ export function ScriptGeneratorModal({
                     >
                       <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
                     </svg>
-                    生成講稿
+                    <T k="listening.script.generate" variant="stacked" />
                   </>
                 )}
               </button>
@@ -189,18 +197,24 @@ export function ScriptGeneratorModal({
           {/* Script Section - Always visible for direct editing */}
           <div className="space-y-2">
             <label className="flex items-center gap-2 text-sm font-medium">
-              <span>📄 講稿內容</span>
-              <span className="badge badge-ghost badge-sm">可編輯</span>
+              <span>
+                📄 <T k="listening.script.contentLabel" />
+              </span>
+              <span className="badge badge-ghost badge-sm">
+                <T k="listening.script.editable" />
+              </span>
             </label>
             {isGenerating ? (
               <div className="bg-base-200 rounded-xl border border-border-hairline p-8 flex flex-col items-center justify-center gap-3">
                 <span className="loading loading-dots loading-lg text-primary" />
-                <p className="text-muted-foreground">AI 正在努力撰寫講稿...</p>
+                <p className="text-muted-foreground">
+                  <T k="listening.script.writing" />
+                </p>
               </div>
             ) : (
               <textarea
                 className="textarea textarea-bordered w-full text-sm leading-relaxed"
-                placeholder="可直接輸入或編輯講稿內容，或使用上方 AI 生成..."
+                placeholder={t("listening.script.contentPlaceholder")}
                 value={generatedScript}
                 onChange={(e) => onScriptChange(e.target.value)}
                 rows={12}
@@ -209,7 +223,7 @@ export function ScriptGeneratorModal({
             )}
             {!isGenerating && (
               <p className="text-xs text-muted-foreground">
-                💡 提示：你可以直接編輯講稿，或使用 AI 生成後再修改
+                💡 <T k="listening.script.tip" />
               </p>
             )}
           </div>
@@ -222,7 +236,7 @@ export function ScriptGeneratorModal({
             onClick={onClose}
             disabled={isGenerating || isSaving}
           >
-            取消
+            <T k="common.cancel" variant="stacked" />
           </button>
           <button
             type="button"
@@ -233,7 +247,7 @@ export function ScriptGeneratorModal({
             {isSaving ? (
               <>
                 <span className="loading loading-spinner loading-xs" />
-                儲存中...
+                <T k="listening.saving" variant="stacked" />
               </>
             ) : (
               <>
@@ -247,7 +261,7 @@ export function ScriptGeneratorModal({
                 >
                   <polyline points="20 6 9 17 4 12" />
                 </svg>
-                儲存講稿
+                <T k="listening.script.save" variant="stacked" />
               </>
             )}
           </button>

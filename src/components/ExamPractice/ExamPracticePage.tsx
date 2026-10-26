@@ -7,6 +7,7 @@ import type {
   ExamTab,
 } from "../../types/exam";
 import { useExamQuiz } from "../../hooks/useExamQuiz";
+import { useLanguage } from "../../hooks/useLanguage";
 import { ConfirmModal } from "../common/ConfirmModal";
 import { ExamHub } from "./ExamHub";
 import { ExamQuizView } from "./ExamQuizView";
@@ -33,6 +34,7 @@ const pageVariants = {
  */
 export default function ExamPracticePage() {
   const shouldReduceMotion = useReducedMotion();
+  const { t } = useLanguage();
   const [searchParams, setSearchParams] = useSearchParams();
   const rawSubject = searchParams.get("subject");
   const urlSubject = examTabFromParam(rawSubject);
@@ -259,6 +261,7 @@ export default function ExamPracticePage() {
               <ExamResultView
                 paper={quiz.paper}
                 result={quiz.result}
+                scopeId={quiz.session.scopeId}
                 scopeLabel={quiz.session.scopeLabel}
                 onRetryWrong={handleRetryWrong}
                 onRestart={handleRestart}
@@ -270,10 +273,10 @@ export default function ExamPracticePage() {
 
       <ConfirmModal
         isOpen={pendingExit !== null}
-        title="離開目前的練習？"
-        message="這次的作答進度不會保存喔。"
-        confirmText="離開"
-        cancelText="繼續作答"
+        title={t("exams.exit.title")}
+        message={t("exams.exit.message")}
+        confirmText={t("exams.exit.confirm")}
+        cancelText={t("exams.exit.cancel")}
         confirmVariant="error"
         onConfirm={() => {
           pendingExit?.();

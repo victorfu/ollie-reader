@@ -1,6 +1,7 @@
 import { CORRECTION_TARGET, dictationAnswer, findDictationItem } from "../../utils/homeworkFlow";
 import type { Homework } from "../../types/wordPractice";
 import { CopyBoxes } from "./CopyBoxes";
+import { T } from "../common/T";
 
 interface CorrectionStepProps {
   homework: Homework;
@@ -18,7 +19,9 @@ export function CorrectionStep({ homework, itemId, onChange }: CorrectionStepPro
 
   return (
     <div className="space-y-4">
-      <p className="text-sm font-medium text-muted-foreground">訂正：照著打 {CORRECTION_TARGET} 遍</p>
+      <p className="text-sm font-medium text-muted-foreground">
+        <T k="practice.correction.title" params={{ count: CORRECTION_TARGET }} />
+      </p>
       <p className="text-center text-3xl font-semibold">{answer}</p>
       <CopyBoxes
         word={answer}

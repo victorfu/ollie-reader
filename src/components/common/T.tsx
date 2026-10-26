@@ -25,10 +25,10 @@ export function T({ k, params, variant = "inline" }: TProps) {
   if (variant === "stacked") {
     return (
       <span className="inline-flex min-w-0 flex-col leading-tight">
-        <span className="truncate">{text}</span>
+        <span className="break-words">{text}</span>
         <span
           lang="zh-Hant-TW"
-          className="truncate text-[0.72em] font-normal opacity-70"
+          className="break-words text-[0.72em] font-normal opacity-70"
         >
           {hint}
         </span>

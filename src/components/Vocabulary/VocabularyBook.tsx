@@ -19,6 +19,9 @@ import type { SentenceTranslation } from "../../types/sentenceTranslation";
 import { WordDetail } from "./WordDetail";
 import { Toast } from "../common/Toast";
 import { ConfirmModal } from "../common/ConfirmModal";
+import { T } from "../common/T";
+import { useLanguage } from "../../hooks/useLanguage";
+import type { MessageKey, MessageParams } from "../../i18n/translate";
 
 import { VocabularyRow } from "./VocabularyRow";
 import { WordDetailPanel } from "./WordDetailPanel";
@@ -59,26 +62,26 @@ const REMOTE_WORD_SEARCH_LIMIT = 50;
 // Han + kana + hangul — the smart query only handles English input.
 const CJK_PATTERN = /\p{Script=Han}|[぀-ヿ가-힯]/u;
 
-const LOOKUP_FAILED_MESSAGE = "查詢失敗，請稍後再試";
-const ENGLISH_ONLY_MESSAGE = "請輸入英文單字或句子喔！";
+type Translate = (key: MessageKey, params?: MessageParams) => string;
 
 // The hint already says how to retry, so a message's own "請稍後再試" and
 // final punctuation would read twice ("查詢失敗，請稍後再試，按 Enter…").
-const RETRY_LATER_SUFFIX = /[，,\s]*請稍後再試[\s。.!！]*$/u;
+const RETRY_LATER_SUFFIX =
+  /[，,.\s]*(?:請稍後再試|please try again later)[\s。.!！]*$/iu;
 const TRAILING_PUNCTUATION = /[\s.,;:!?。，、；：！？…]+$/u;
 
-const toRetryHint = (message: string): string => {
+const toRetryHint = (message: string, t: Translate): string => {
   const reason =
     message
       .replace(RETRY_LATER_SUFFIX, "")
-      .replace(TRAILING_PUNCTUATION, "") || "查詢失敗";
-  return `${reason}，按 Enter 再試一次`;
+      .replace(TRAILING_PUNCTUATION, "") || t("reader.lookup.lookupFailed");
+  return t("reader.vocab.retryHint", { reason });
 };
 
-const TYPE_FILTERS: Array<{ value: FeedTypeFilter; label: string }> = [
-  { value: "all", label: "全部" },
-  { value: "words", label: "單字" },
-  { value: "sentences", label: "句子" },
+const TYPE_FILTERS: Array<{ value: FeedTypeFilter; label: MessageKey }> = [
+  { value: "all", label: "reader.vocab.filter.all" },
+  { value: "words", label: "reader.vocab.filter.words" },
+  { value: "sentences", label: "reader.vocab.filter.sentences" },
 ];
 
 const wordItem = (word: VocabularyWord): FeedItem => ({ kind: "word", word });
@@ -136,6 +139,8 @@ function settleQueryFocus(
 }
 
 export const VocabularyBook = () => {
+  const { t } = useLanguage();
+  const LOOKUP_FAILED_MESSAGE = t("reader.vocab.lookupFailedRetry");
   const {
     words,
     loading,
@@ -194,7 +199,7 @@ export const VocabularyBook = () => {
   const canAdd = queryKey !== "" && isEnglishQuery;
 
   const [toastMessage, setToastMessage] = useState<{
-    message: string;
+    message: ReactNode;
     type: "success" | "error" | "info";
   } | null>(null);
   const [pendingDelete, setPendingDelete] = useState<{
@@ -388,7 +393,7 @@ export const VocabularyBook = () => {
       result.keyWords,
     );
     if (signal.aborted) return { status: "aborted" };
-    if (!saved) return failed("儲存句子失敗，請稍後再試");
+    if (!saved) return failed(t("reader.vocab.saveSentenceFailed"));
     return { status: "added", item: sentenceItem(saved) };
   };
 
@@ -397,8 +402,8 @@ export const VocabularyBook = () => {
     setToastMessage({
       message:
         item.kind === "word"
-          ? `「${item.word.word}」已經在生詞本裡了`
-          : "句子已存在翻譯本",
+          ? <T k="reader.vocab.wordExists" params={{ word: item.word.word }} variant="stacked" />
+          : <T k="reader.vocab.sentenceExists" variant="stacked" />,
       type: "info",
     });
   };
@@ -408,7 +413,10 @@ export const VocabularyBook = () => {
     if (!trimmed || isSubmittingRef.current) return;
 
     if (CJK_PATTERN.test(trimmed) || !stripEdgePunctuation(trimmed)) {
-      setToastMessage({ message: ENGLISH_ONLY_MESSAGE, type: "info" });
+      setToastMessage({
+        message: <T k="reader.vocab.englishOnly" variant="stacked" />,
+        type: "info",
+      });
       return;
     }
 
@@ -478,12 +486,17 @@ export const VocabularyBook = () => {
     changeQuery("");
     if (item.kind === "word") {
       setToastMessage({
-        message: `「${item.word.word}」已加入生詞本！`,
+        message: (
+          <T k="reader.vocab.wordAdded" params={{ word: item.word.word }} variant="stacked" />
+        ),
         type: "success",
       });
       void loadVocabulary(FEED_FILTERS);
     } else {
-      setToastMessage({ message: "句子已加入翻譯本", type: "success" });
+      setToastMessage({
+        message: <T k="reader.vocab.sentenceAdded" variant="stacked" />,
+        type: "success",
+      });
       void loadSentences();
     }
   };
@@ -512,7 +525,7 @@ export const VocabularyBook = () => {
       const response = await addWord(word);
       if (response.success) {
         setToastMessage({
-          message: `「${word}」已加入生詞本！`,
+          message: <T k="reader.vocab.wordAdded" params={{ word }} variant="stacked" />,
           type: "success",
         });
         void loadVocabulary(FEED_FILTERS);
@@ -520,13 +533,15 @@ export const VocabularyBook = () => {
       }
       if (response.message === "Word already in vocabulary") {
         setToastMessage({
-          message: `「${word}」已經在生詞本裡了`,
+          message: <T k="reader.vocab.wordExists" params={{ word }} variant="stacked" />,
           type: "info",
         });
         return { success: true, existed: true };
       }
       setToastMessage({
-        message: response.message || "加入失敗",
+        message: response.message || (
+          <T k="reader.vocab.addFailed" variant="stacked" />
+        ),
         type: "error",
       });
       return { success: false, message: response.message };
@@ -566,12 +581,24 @@ export const VocabularyBook = () => {
         setSelected(null);
       }
       setToastMessage({
-        message: pendingDelete.kind === "word" ? "單字已刪除" : "句子已刪除",
+        message: (
+          <T
+            k={
+              pendingDelete.kind === "word"
+                ? "reader.vocab.wordDeleted"
+                : "reader.vocab.sentenceDeleted"
+            }
+            variant="stacked"
+          />
+        ),
         type: "success",
       });
     } catch (error) {
       console.error("Error deleting item:", error);
-      setToastMessage({ message: "刪除失敗，請稍後再試", type: "error" });
+      setToastMessage({
+        message: <T k="reader.vocab.deleteFailed" variant="stacked" />,
+        type: "error",
+      });
       return;
     } finally {
       setIsDeleting(false);
@@ -635,12 +662,12 @@ export const VocabularyBook = () => {
 
   const typedText = stripEdgePunctuation(query);
 
-  const emptyCopy =
+  const emptyCopyKey: MessageKey =
     typeFilter === "sentences"
-      ? "還沒有翻譯過的句子。輸入英文句子，或在閱讀器中選取句子並點擊翻譯。"
+      ? "reader.vocab.empty.sentences"
       : typeFilter === "words"
-        ? "還沒有收藏的單字。輸入英文單字，或在閱讀 PDF 時選取單字加入生詞本。"
-        : "還沒有收藏的內容。輸入英文單字或句子，或在閱讀 PDF 時選取文字加入。";
+        ? "reader.vocab.empty.words"
+        : "reader.vocab.empty.all";
 
   // What Enter will do with the current text, so it never reads as a filter.
   const renderQueryStatus = (): ReactNode => {
@@ -649,7 +676,7 @@ export const VocabularyBook = () => {
         <>
           <span className="loading loading-spinner loading-xs shrink-0 text-accent" />
           <span className="truncate text-accent">
-            正在查詢並加入「{pendingText}」…
+            <T k="reader.vocab.status.pending" params={{ text: pendingText }} />
           </span>
         </>
       );
@@ -658,37 +685,45 @@ export const VocabularyBook = () => {
       return (
         <>
           <CircleAlert className="size-3.5 shrink-0 text-error" aria-hidden="true" />
-          <span className="truncate text-error">{toRetryHint(submitError)}</span>
+          <span className="truncate text-error">{toRetryHint(submitError, t)}</span>
         </>
       );
     }
     if (!isSearchActive) {
       return (
         <span className="truncate">
-          輸入即可搜尋收藏；按 Enter 查詢並加入生詞本
+          <T k="reader.vocab.status.idle" />
         </span>
       );
     }
     if (!isEnglishQuery) {
       return (
         <span className="truncate">
-          可搜尋已收藏的中文翻譯；要加入請輸入英文
+          <T k="reader.vocab.status.chinese" />
         </span>
       );
     }
     if (!canAdd) {
-      return <span className="truncate">請輸入英文單字或句子</span>;
+      return (
+        <span className="truncate">
+          <T k="reader.vocab.status.needEnglish" />
+        </span>
+      );
     }
     if (exactMatch) {
       return (
         <>
           <CircleCheck className="size-3.5 shrink-0 text-success" aria-hidden="true" />
           <span className="truncate">
-            已在生詞本，按 Enter 開啟「
-            {exactMatch.kind === "word"
-              ? exactMatch.word.word
-              : exactMatch.sentence.english}
-            」
+            <T
+              k="reader.vocab.status.exists"
+              params={{
+                text:
+                  exactMatch.kind === "word"
+                    ? exactMatch.word.word
+                    : exactMatch.sentence.english,
+              }}
+            />
           </span>
         </>
       );
@@ -696,7 +731,9 @@ export const VocabularyBook = () => {
     return (
       <>
         <CornerDownLeft className="size-3.5 shrink-0" aria-hidden="true" />
-        <span className="truncate">按 Enter 查詢並加入「{typedText}」</span>
+        <span className="truncate">
+          <T k="reader.vocab.status.enterToAdd" params={{ text: typedText }} />
+        </span>
       </>
     );
   };
@@ -765,8 +802,8 @@ export const VocabularyBook = () => {
                     // A search field, not a login form: keeps iOS from offering
                     // passwords, addresses and cards above the keyboard.
                     type="search"
-                    placeholder="搜尋或加入單字、句子"
-                    aria-label="搜尋或加入單字、句子"
+                    placeholder={t("reader.vocab.inputPlaceholder")}
+                    aria-label={t("reader.vocab.inputPlaceholder")}
                     aria-describedby={smartQueryStatusId}
                     className={`${toolbarFieldClass} w-full pl-9 [&::-webkit-search-cancel-button]:appearance-none ${query ? "pr-11" : ""}`}
                     value={query}
@@ -788,8 +825,8 @@ export const VocabularyBook = () => {
                         changeQuery("");
                         smartQueryInputRef.current?.focus();
                       }}
-                      aria-label="清除輸入"
-                      title="清除輸入"
+                      aria-label={t("reader.vocab.clearInput")}
+                      title={t("reader.vocab.clearInput")}
                     >
                       <X className="size-4" strokeWidth={1.75} aria-hidden="true" />
                     </button>
@@ -799,13 +836,13 @@ export const VocabularyBook = () => {
                   type="submit"
                   className={toolbarPrimaryButtonClass}
                   disabled={isQuerying || !canAdd}
-                  aria-label="查詢並加入生詞本"
-                  title="查詢並加入生詞本（Enter）"
+                  aria-label={t("reader.vocab.addLabel")}
+                  title={t("reader.vocab.addTitle")}
                 >
                   {isQuerying ? (
                     <span className="loading loading-spinner loading-xs" />
                   ) : (
-                    "加入"
+                    <T k="reader.vocab.add" variant="stacked" />
                   )}
                 </button>
               </form>
@@ -830,7 +867,7 @@ export const VocabularyBook = () => {
                   onClick={() => setTypeFilter(value)}
                   aria-pressed={typeFilter === value}
                 >
-                  {label}
+                  <T k={label} variant="stacked" />
                 </button>
               ))}
             </div>
@@ -853,7 +890,9 @@ export const VocabularyBook = () => {
                 <div className="mb-2 text-4xl">
                   {typeFilter === "sentences" ? "📝" : "📖"}
                 </div>
-                <p className="text-sm text-muted-foreground">{emptyCopy}</p>
+                <p className="text-sm text-muted-foreground">
+                  <T k={emptyCopyKey} />
+                </p>
               </div>
             )}
 
@@ -861,12 +900,21 @@ export const VocabularyBook = () => {
             {!isInitialLoading && showingSearch && (
               <div className="space-y-1">
                 <h2 className="flex items-center justify-between gap-2 px-2 pb-1 text-xs font-semibold text-muted-foreground">
-                  <span>已收藏的搜尋結果</span>
+                  <span>
+                    <T k="reader.vocab.searchResults" variant="stacked" />
+                  </span>
                   <span className="flex items-center gap-1 font-normal">
                     {isSearching && (
                       <span className="loading loading-spinner loading-xs" />
                     )}
-                    {isSearching ? "搜尋收藏中" : `${displayItems.length} 筆`}
+                    {isSearching ? (
+                      <T k="reader.vocab.searchingSaved" />
+                    ) : (
+                      <T
+                        k="reader.vocab.resultCount"
+                        params={{ count: displayItems.length }}
+                      />
+                    )}
                   </span>
                 </h2>
                 {displayItems.length > 0 ? (
@@ -877,7 +925,7 @@ export const VocabularyBook = () => {
                   <div className="rounded-xl surface-card p-6 text-center">
                     <div className="mb-2 text-3xl">🔍</div>
                     <p className="text-sm text-muted-foreground">
-                      收藏裡沒有符合「{query.trim()}」的內容
+                      <T k="reader.vocab.noMatch" params={{ query: query.trim() }} />
                     </p>
                     {canAdd && (
                       <button
@@ -890,7 +938,11 @@ export const VocabularyBook = () => {
                           <span className="loading loading-spinner loading-xs" />
                         ) : (
                           <span className="truncate">
-                            查詢並加入「{typedText}」
+                            <T
+                              k="reader.vocab.lookupAndAddText"
+                              params={{ text: typedText }}
+                              variant="stacked"
+                            />
                           </span>
                         )}
                       </button>
@@ -950,7 +1002,9 @@ export const VocabularyBook = () => {
           ) : (
             <div className="flex h-full flex-col items-center justify-center text-center text-muted-foreground">
               <div className="mb-3 text-5xl">📖</div>
-              <p className="text-sm">選擇一個項目以查看詳情</p>
+              <p className="text-sm">
+                <T k="reader.vocab.selectItem" />
+              </p>
             </div>
           )}
         </section>
@@ -979,16 +1033,28 @@ export const VocabularyBook = () => {
       {/* Delete confirmation */}
       <ConfirmModal
         isOpen={pendingDelete !== null}
-        title={pendingDelete?.kind === "sentence" ? "刪除句子" : "刪除單字"}
+        title={
+          <T
+            k={
+              pendingDelete?.kind === "sentence"
+                ? "reader.vocab.deleteSentenceTitle"
+                : "reader.vocab.deleteWordTitle"
+            }
+            variant="stacked"
+          />
+        }
         message={
-          pendingDelete?.kind === "sentence"
-            ? "確定要刪除這個句子嗎？此操作無法復原。"
-            : "確定要刪除這個單字嗎？此操作無法復原。"
+          <T
+            k={
+              pendingDelete?.kind === "sentence"
+                ? "reader.vocab.deleteSentenceConfirm"
+                : "reader.vocab.deleteWordConfirm"
+            }
+          />
         }
         onConfirm={confirmDelete}
         onCancel={() => setPendingDelete(null)}
-        confirmText="刪除"
-        cancelText="取消"
+        confirmText={<T k="reader.vocab.delete" variant="stacked" />}
         confirmVariant="error"
         isLoading={isDeleting}
       />

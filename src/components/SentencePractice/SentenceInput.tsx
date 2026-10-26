@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef } from "react";
+import { useLanguage } from "../../hooks/useLanguage";
+import { T } from "../common/T";
 
 interface SentenceInputProps {
   onSubmit: (text: string) => Promise<boolean>;
@@ -13,6 +15,7 @@ export const SentenceInput = ({
   isOpen,
   onClose,
 }: SentenceInputProps) => {
+  const { t } = useLanguage();
   const [text, setText] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const latestTextRef = useRef("");
@@ -77,14 +80,15 @@ export const SentenceInput = ({
                 d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
               />
             </svg>
-            輸入英文文字
+            <T k="practice.sentence.inputTitle" variant="stacked" />
           </h2>
           <button
             type="button"
             onClick={onClose}
             disabled={isProcessing}
             className="btn btn-ghost btn-sm btn-circle active:scale-[0.98]"
-            title="關閉"
+            title={t("practice.sentence.close")}
+            aria-label={t("practice.sentence.close")}
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -103,7 +107,7 @@ export const SentenceInput = ({
           </button>
         </div>
         <p className="text-sm text-muted-foreground mb-2">
-          貼上英文段落或句子，系統會自動分句並翻譯成中文
+          <T k="practice.sentence.inputHint" />
         </p>
         <textarea
           ref={textareaRef}
@@ -114,13 +118,13 @@ export const SentenceInput = ({
             setText(e.target.value);
           }}
           onKeyDown={handleKeyDown}
-          placeholder="在這裡貼上或輸入英文文字..."
+          placeholder={t("practice.sentence.inputPlaceholder")}
           className="textarea textarea-bordered w-full h-32 text-base"
           disabled={isProcessing}
         />
         <div className="flex flex-wrap gap-2 justify-between items-center mt-3">
           <span className="text-xs text-muted-foreground">
-            按 Ctrl + Enter 快速提交，Esc 關閉
+            <T k="practice.sentence.inputShortcuts" />
           </span>
           <button
             type="button"
@@ -131,7 +135,7 @@ export const SentenceInput = ({
             {isProcessing ? (
               <>
                 <span className="loading loading-spinner loading-sm"></span>
-                處理中...
+                <T k="practice.sentence.processing" variant="stacked" />
               </>
             ) : (
               <>
@@ -149,7 +153,7 @@ export const SentenceInput = ({
                     d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129"
                   />
                 </svg>
-                分句並翻譯
+                <T k="practice.sentence.splitAndTranslate" variant="stacked" />
               </>
             )}
           </button>

@@ -2,6 +2,8 @@ import { useState } from "react";
 import { Check, Plus } from "lucide-react";
 import type { SentenceTranslation } from "../../types/sentenceTranslation";
 import { SpeakButton } from "../common/SpeakButton";
+import { T } from "../common/T";
+import { useLanguage } from "../../hooks/useLanguage";
 
 export interface SentenceDetailPanelProps {
   sentence: SentenceTranslation;
@@ -15,6 +17,7 @@ export const SentenceDetailPanel = ({
   sentence,
   onAddKeyWord,
 }: SentenceDetailPanelProps) => {
+  const { t } = useLanguage();
   // addWord aborts any previous in-flight AI request, so chip adds are
   // serialized: while one is pending all chips are disabled.
   const [pendingWord, setPendingWord] = useState<string | null>(null);
@@ -44,14 +47,16 @@ export const SentenceDetailPanel = ({
             <h2 className="text-3xl sm:text-4xl font-semibold tracking-tight">
               {sentence.english}
             </h2>
-            <SpeakButton text={sentence.english} label="朗讀句子" size="md" />
+            <SpeakButton text={sentence.english} label={t("reader.sentence.speak")} size="md" />
           </div>
         </div>
       </div>
 
       {/* Translation */}
       <div className="mb-6">
-        <h3 className="mb-3 text-lg font-semibold">🌐 中文翻譯</h3>
+        <h3 className="mb-3 text-lg font-semibold">
+          🌐 <T k="reader.sentence.translation" variant="stacked" />
+        </h3>
         <p className="border-l-4 border-accent pl-4 text-base leading-relaxed">
           {sentence.chinese}
         </p>
@@ -60,9 +65,11 @@ export const SentenceDetailPanel = ({
       {/* Key words */}
       {keyWords.length > 0 && (
         <div className="mb-6">
-          <h3 className="mb-1 text-lg font-semibold">⭐ 重點單字</h3>
+          <h3 className="mb-1 text-lg font-semibold">
+            ⭐ <T k="reader.sentence.keyWords" variant="stacked" />
+          </h3>
           <p className="mb-3 text-xs text-muted-foreground">
-            點一下把單字加入生詞本
+            <T k="reader.sentence.keyWordsHint" />
           </p>
           <div className="flex flex-wrap gap-2">
             {keyWords.map((keyWord) => {
@@ -79,7 +86,11 @@ export const SentenceDetailPanel = ({
                       ? "border-success/40 bg-success/10 text-success"
                       : "border-border-hairline bg-background/70 hover:border-accent/50 hover:bg-accent-tint disabled:opacity-60"
                   }`}
-                  title={added ? "已在生詞本" : `把 ${keyWord.word} 加入生詞本`}
+                  title={
+                    added
+                      ? t("reader.sentence.inWordBook")
+                      : t("reader.sentence.addKeyWord", { word: keyWord.word })
+                  }
                 >
                   {isPending ? (
                     <span className="loading loading-spinner loading-xs" />
@@ -104,7 +115,9 @@ export const SentenceDetailPanel = ({
       {/* Stats */}
       <div className="stats surface-card w-full rounded-xl">
         <div className="stat">
-          <div className="stat-title">加入時間</div>
+          <div className="stat-title">
+            <T k="reader.addedAt" />
+          </div>
           <div className="stat-value text-lg">
             {new Date(sentence.createdAt).toLocaleString("zh-TW", {
               year: "numeric",

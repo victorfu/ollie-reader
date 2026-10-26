@@ -1,10 +1,12 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { generateSpeechScript } from "../services/aiService";
 import { isAbortError } from "../utils/errorUtils";
+import { useLanguage } from "./useLanguage";
 import type { SpeechPracticeTopic, ScriptState } from "../types/speechPractice";
 import { getDefaultScriptPrompt } from "../types/speechPractice";
 
 export function useScriptGenerator(topic: SpeechPracticeTopic | null) {
+  const { t } = useLanguage();
   const [state, setState] = useState<ScriptState>({
     prompt: topic ? getDefaultScriptPrompt(topic) : "",
     generatedScript: "",
@@ -65,7 +67,7 @@ export function useScriptGenerator(topic: SpeechPracticeTopic | null) {
           setState((prev) => ({
             ...prev,
             isGenerating: false,
-            error: "產生講稿時發生錯誤，請稍後再試",
+            error: t("listening.script.error"),
           }));
         }
       } catch (err) {
@@ -81,12 +83,12 @@ export function useScriptGenerator(topic: SpeechPracticeTopic | null) {
             error:
               err instanceof Error
                 ? err.message
-                : "產生講稿時發生錯誤，請稍後再試",
+                : t("listening.script.error"),
           }));
         }
       }
     },
-    [state.prompt],
+    [state.prompt, t],
   );
 
   const setPrompt = useCallback((prompt: string) => {

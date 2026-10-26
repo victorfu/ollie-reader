@@ -5,13 +5,15 @@ import { ArrowRight, Check, Flag, X } from "lucide-react";
 import type { ExamPaper, ExamQuizSession } from "../../types/exam";
 import { FULL_SCOPE_ID, isTextQuestion } from "../../types/exam";
 import { playSound } from "../../services/gameService";
+import { useLanguage } from "../../hooks/useLanguage";
 import { useSpeechState } from "../../hooks/useSpeechState";
 import { SpeakerButton } from "../common/SpeakerButton";
+import { T } from "../common/T";
 import { ExamRichText } from "./ExamRichText";
 import { ExamQuestionImage } from "./ExamQuestionImage";
 import { ExamTypedAnswerPanel } from "./ExamTypedAnswerPanel";
 import { isEndOfSection, isLastQuestion, optionCountOf } from "./examSession";
-import { CIRCLED_NUMBERS, questionLabel } from "./examUi";
+import { CIRCLED_NUMBERS, questionLabel, scopeTitleKey } from "./examUi";
 
 interface ExamQuizViewProps {
   autoAdvanceOnCorrect: boolean;
@@ -55,6 +57,8 @@ export function ExamQuizView({
   onExit,
 }: ExamQuizViewProps) {
   const shouldReduceMotion = useReducedMotion();
+  const { t } = useLanguage();
+  const scopeKey = scopeTitleKey(session.scopeId);
   const { speak, speechSupported } = useSpeechState();
   const questionCardRef = useRef<HTMLDivElement>(null);
   const actionsRef = useRef<HTMLDivElement>(null);
@@ -210,15 +214,19 @@ export function ExamQuizView({
           className="btn btn-ghost btn-sm min-h-[44px] shrink-0 gap-1 rounded-full text-muted-foreground"
         >
           <X size={16} strokeWidth={2} />
-          離開
+          <T k="exams.common.exit" variant="stacked" />
         </button>
         <div className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground">
           <span className="truncate font-medium text-foreground">
-            {session.scopeLabel}
+            {scopeKey ? (
+              <T k={scopeKey} variant="stacked" />
+            ) : (
+              session.scopeLabel
+            )}
           </span>
           {session.mode === "retry" && (
             <span className="badge badge-warning badge-sm shrink-0">
-              錯題重練
+              <T k="exams.common.redoMistakes" />
             </span>
           )}
           <span className="shrink-0">
@@ -231,7 +239,10 @@ export function ExamQuizView({
       <div
         className="h-2 w-full overflow-hidden rounded-full bg-base-300"
         role="progressbar"
-        aria-label={`練習進度：第 ${session.currentIndex + 1} 題，共 ${session.questions.length} 題`}
+        aria-label={t("exams.quiz.progressAria", {
+          n: session.currentIndex + 1,
+          total: session.questions.length,
+        })}
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={Math.round(progressPercentage)}
@@ -256,7 +267,10 @@ export function ExamQuizView({
       >
         <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
           <Flag size={14} strokeWidth={1.75} />
-          原卷 {questionLabel(paper, question)}
+          <T
+            k="exams.question.original"
+            params={{ label: questionLabel(paper, question, t) }}
+          />
         </div>
 
         <div className="flex items-start justify-between gap-2">
@@ -267,7 +281,7 @@ export function ExamQuizView({
             <SpeakerButton
               text={stemAudioText}
               speak={speak}
-              label="播放題目語音"
+              label={t("exams.quiz.playQuestion")}
               className="shrink-0"
             />
           )}
@@ -313,14 +327,14 @@ export function ExamQuizView({
             const optionLabel =
               optionText ??
               choiceQuestion.imageOptionLabels?.[index] ??
-              `圖片中的選項 ${CIRCLED_NUMBERS[index]}`;
-            const answerState = session.isAnswered
+              t("exams.quiz.imageOption", { mark: CIRCLED_NUMBERS[index] });
+            const optionAriaKey = session.isAnswered
               ? isCorrect
-                ? "，正確答案"
+                ? "exams.quiz.optionAriaCorrect"
                 : isChosen
-                  ? "，你的答案，答錯"
-                  : ""
-              : "";
+                  ? "exams.quiz.optionAriaWrong"
+                  : "exams.quiz.optionAria"
+              : "exams.quiz.optionAria";
 
             let buttonClass =
               "btn btn-outline h-auto min-h-[44px] w-full justify-start rounded-xl px-4 py-3 text-left font-normal active:scale-[0.98]";
@@ -348,7 +362,10 @@ export function ExamQuizView({
                 }
                 onClick={() => onSubmitAnswer(index)}
                 disabled={session.isAnswered}
-                aria-label={`${CIRCLED_NUMBERS[index]} ${optionLabel}${answerState}`}
+                aria-label={t(optionAriaKey, {
+                  mark: CIRCLED_NUMBERS[index],
+                  label: optionLabel,
+                })}
                 className={buttonClass}
               >
                 {choiceQuestion.imageContainsOptions ? (
@@ -392,26 +409,47 @@ export function ExamQuizView({
                   session.lastAnswerCorrect ? "text-success" : "text-error"
                 }`}
               >
-                {session.lastAnswerCorrect
-                  ? "🎉 答對了！"
-                  : textQuestion
-                    ? "😅 答錯了"
-                    : `😅 答錯了，正確答案是 ${CIRCLED_NUMBERS[choiceQuestion?.answerIndex ?? 0]}`}
+                {session.lastAnswerCorrect ? (
+                  <>
+                    🎉 <T k="exams.quiz.correct" />
+                  </>
+                ) : textQuestion ? (
+                  <>
+                    😅 <T k="exams.quiz.wrong" />
+                  </>
+                ) : (
+                  <>
+                    😅{" "}
+                    <T
+                      k="exams.quiz.wrongWithAnswer"
+                      params={{
+                        mark: CIRCLED_NUMBERS[choiceQuestion?.answerIndex ?? 0],
+                      }}
+                    />
+                  </>
+                )}
               </p>
               {textQuestion && (
                 <div className="mt-2 flex flex-col gap-1 border-t border-border-hairline pt-2 text-sm leading-relaxed">
                   {!session.lastAnswerCorrect && typeof chosen === "string" && (
-                    <p className="text-error">你的答案：{chosen}</p>
+                    <p className="text-error">
+                      <T k="exams.answer.yours" />
+                      {chosen}
+                    </p>
                   )}
                   <p className="text-foreground/80">
-                    <span className="font-semibold">標準答案：</span>
+                    <span className="font-semibold">
+                      <T k="exams.answer.standard" />
+                    </span>
                     {textQuestion.acceptedAnswers[0]}
                   </p>
                 </div>
               )}
               {question.explanation && (
                 <p className="mt-2 border-t border-border-hairline pt-2 text-sm leading-relaxed text-foreground/80">
-                  <span className="font-semibold">解析：</span>
+                  <span className="font-semibold">
+                    <T k="exams.answer.explanation" />
+                  </span>
                   <ExamRichText text={question.explanation} />
                 </p>
               )}
@@ -431,7 +469,9 @@ export function ExamQuizView({
               }}
               className="checkbox checkbox-primary checkbox-sm"
             />
-            <span>答對時自動下一題</span>
+            <span>
+              <T k="exams.quiz.autoAdvance" />
+            </span>
           </label>
 
           {session.isAnswered && (
@@ -439,11 +479,16 @@ export function ExamQuizView({
               onClick={handleNext}
               className="btn btn-primary min-h-[48px] w-full gap-1.5 rounded-xl"
             >
-              {showsSectionResultNext
-                ? "查看區段統計"
-                : atLastQuestion
-                  ? "完成練習"
-                  : "下一題"}
+              <T
+                k={
+                  showsSectionResultNext
+                    ? "exams.quiz.viewSection"
+                    : atLastQuestion
+                      ? "exams.quiz.finish"
+                      : "exams.quiz.next"
+                }
+                variant="stacked"
+              />
               <ArrowRight size={18} strokeWidth={2} />
             </button>
           )}
@@ -452,9 +497,11 @@ export function ExamQuizView({
 
       {/* 鍵盤快捷提示只對「主要指標是滑鼠/觸控板」的裝置顯示,觸控裝置上是噪音 */}
       <p className="hidden text-center text-xs text-muted-foreground pointer-fine:block">
-        {textQuestion
-          ? "輸入答案後按 Enter 或「送出」作答，作答後按 Enter 前往下一題"
-          : `可使用數字鍵 1-${optionCount} 作答，Enter 前往下一題`}
+        {textQuestion ? (
+          <T k="exams.quiz.shortcutTyped" />
+        ) : (
+          <T k="exams.quiz.shortcutChoice" params={{ n: optionCount }} />
+        )}
       </p>
     </div>
   );

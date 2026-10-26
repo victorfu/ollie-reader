@@ -1,4 +1,5 @@
 import type { Episode, Transcript } from "../../types/showSubtitles";
+import { T } from "../common/T";
 
 interface TranscriptViewerProps {
   episode: Episode;
@@ -17,7 +18,9 @@ export function TranscriptViewer({
     return (
       <div className="flex flex-col items-center justify-center py-16">
         <span className="loading loading-spinner loading-lg text-primary mb-4" />
-        <p className="text-muted-foreground text-sm">載入字幕中...</p>
+        <p className="text-muted-foreground text-sm">
+          <T k="listening.show.loadingSubtitles" />
+        </p>
       </div>
     );
   }
@@ -49,7 +52,9 @@ export function TranscriptViewer({
   if (!transcript || transcript.lines.length === 0) {
     return (
       <div className="text-center py-16">
-        <p className="text-muted-foreground">沒有字幕資料</p>
+        <p className="text-muted-foreground">
+          <T k="listening.show.noSubtitles" />
+        </p>
       </div>
     );
   }

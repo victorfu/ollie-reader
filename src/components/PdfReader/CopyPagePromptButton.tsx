@@ -1,6 +1,7 @@
 import { Check, Copy, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Tooltip } from "../common/Tooltip";
+import { useLanguage } from "../../hooks/useLanguage";
 import {
   buildPageAssistantPrompt,
   copyTextWithFallback,
@@ -17,6 +18,7 @@ export function CopyPagePromptButton({
   pageNumber,
   text,
 }: CopyPagePromptButtonProps) {
+  const { t } = useLanguage();
   const [copyState, setCopyState] = useState<CopyState>("idle");
   const prompt = useMemo(
     () => buildPageAssistantPrompt({ pageNumber, text }),
@@ -27,10 +29,10 @@ export function CopyPagePromptButton({
   // and the outcome of a copy has to be legible from the icon alone.
   const label =
     copyState === "copied"
-      ? "已複製"
+      ? t("reader.copyPrompt.copied")
       : copyState === "error"
-        ? "複製失敗"
-        : "複製 AI 學習提示";
+        ? t("reader.copyPrompt.failed")
+        : t("reader.copyPrompt.label");
 
   const resetCopyState = (nextState: CopyState) => {
     setCopyState(nextState);
@@ -52,9 +54,9 @@ export function CopyPagePromptButton({
     <div className="flex max-w-full flex-wrap items-center justify-end gap-1.5">
       <span className="sr-only" role="status" aria-live="polite">
         {copyState === "copied"
-          ? `Page ${pageNumber} 的 AI 學習提示已複製`
+          ? t("reader.copyPrompt.copiedStatus", { page: pageNumber })
           : copyState === "error"
-            ? `Page ${pageNumber} 的 AI 學習提示複製失敗`
+            ? t("reader.copyPrompt.failedStatus", { page: pageNumber })
             : ""}
       </span>
       <Tooltip content={label} position="bottom">
@@ -63,7 +65,7 @@ export function CopyPagePromptButton({
           onClick={copyPrompt}
           disabled={!hasText}
           className="inline-flex h-11 w-11 items-center justify-center rounded-md border border-success/30 bg-success/10 text-success transition-all duration-200 hover:bg-success/15 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:pointer-events-none disabled:opacity-50 sm:h-8 sm:w-8"
-          aria-label={`複製 Page ${pageNumber} 的 AI 學習提示`}
+          aria-label={t("reader.copyPrompt.ariaLabel", { page: pageNumber })}
         >
           {copyState === "copied" ? (
             <Check className="size-4" strokeWidth={1.8} />

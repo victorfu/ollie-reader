@@ -1,3 +1,8 @@
+import { readerZh } from "./messages/reader";
+import { practiceZh } from "./messages/practice";
+import { listeningZh } from "./messages/listening";
+import { examsZh } from "./messages/exams";
+
 /**
  * 繁體中文字典：所有介面文字的來源。
  * key 以「頁面.區塊.項目」命名；英文字典必須擁有完全相同的 key（由型別強制）。
@@ -133,6 +138,11 @@ export const zhTW = {
   "settings.game.resetConfirmMessage": "這將清除所有關卡進度、等級和扭蛋代幣。此操作無法復原，但生詞本不會受到影響。",
   "settings.saving": "儲存中…",
   "settings.saved": "設定已儲存",
+
+  ...readerZh,
+  ...practiceZh,
+  ...listeningZh,
+  ...examsZh,
 } as const;
 
 export type MessageKey = keyof typeof zhTW;

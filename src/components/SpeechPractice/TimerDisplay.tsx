@@ -1,3 +1,5 @@
+import { T } from "../common/T";
+
 interface TimerDisplayProps {
   time: number;
   suggestedTime: number;
@@ -55,18 +57,26 @@ export function TimerDisplay({
             {formatTime(time)}
           </span>
           {isRunning && isPaused && (
-            <span className="text-xs text-warning">暫停中</span>
+            <span className="text-xs text-warning">
+              <T k="listening.speech.paused" />
+            </span>
           )}
         </div>
       </div>
 
       <div className="text-sm text-muted-foreground">
-        建議時間：{formatTime(suggestedTime)}
+        <T
+          k="listening.speech.suggestedTime"
+          params={{ time: formatTime(suggestedTime) }}
+        />
       </div>
 
       {isOverTime && (
         <div className="text-sm text-error">
-          已超過建議時間 {formatTime(time - suggestedTime)}
+          <T
+            k="listening.speech.overTime"
+            params={{ time: formatTime(time - suggestedTime) }}
+          />
         </div>
       )}
     </div>

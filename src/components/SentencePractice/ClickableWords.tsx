@@ -1,5 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useSpeechState } from "../../hooks/useSpeechState";
+import { useLanguage } from "../../hooks/useLanguage";
+import { T } from "../common/T";
 import { isGeminiRateLimitError } from "../../services/geminiErrorPolicy";
 
 interface ClickableWordsProps {
@@ -15,6 +17,7 @@ export const ClickableWords = ({
   getWordDefinition,
 }: ClickableWordsProps) => {
   const { speak } = useSpeechState();
+  const { t } = useLanguage();
   const [activeWordIndex, setActiveWordIndex] = useState<number | null>(null);
   const [definition, setDefinition] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -72,7 +75,7 @@ export const ClickableWords = ({
         if (requestId !== lookupRequestIdRef.current) return;
         console.error("Failed to get definition:", error);
         setDefinition(
-          isGeminiRateLimitError(error) ? error.message : "無法取得解釋",
+          isGeminiRateLimitError(error) ? error.message : t("practice.sentence.noDefinition"),
         );
       } finally {
         if (requestId === lookupRequestIdRef.current) {
@@ -81,7 +84,7 @@ export const ClickableWords = ({
         }
       }
     },
-    [speak, getWordDefinition],
+    [speak, getWordDefinition, t],
   );
 
   const handleCloseDropdown = useCallback(() => {
@@ -150,6 +153,7 @@ export const ClickableWords = ({
                         type="button"
                         onClick={handleCloseDropdown}
                         className="btn btn-ghost btn-xs btn-circle active:scale-[0.98]"
+                        aria-label={t("practice.sentence.close")}
                       >
                         ✕
                       </button>
@@ -157,7 +161,7 @@ export const ClickableWords = ({
                     {isLoading ? (
                       <div className="flex items-center gap-2 text-sm text-muted-foreground">
                         <span className="loading loading-spinner loading-xs"></span>
-                        查詢中...
+                        <T k="practice.sentence.lookingUp" />
                       </div>
                     ) : definition ? (
                       <span className="text-sm text-foreground/90">
@@ -165,7 +169,7 @@ export const ClickableWords = ({
                       </span>
                     ) : (
                       <span className="text-sm text-muted-foreground">
-                        無法取得解釋
+                        <T k="practice.sentence.noDefinition" />
                       </span>
                     )}
                   </div>

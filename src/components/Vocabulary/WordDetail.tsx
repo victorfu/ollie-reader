@@ -1,5 +1,6 @@
 import { X } from "lucide-react";
 import { WordDetailPanel, type WordDetailPanelProps } from "./WordDetailPanel";
+import { useLanguage } from "../../hooks/useLanguage";
 
 interface WordDetailProps extends WordDetailPanelProps {
   onClose: () => void;
@@ -15,6 +16,7 @@ export const WordDetail = ({
   onTagEditorOpen,
   cefr,
 }: WordDetailProps) => {
+  const { t } = useLanguage();
   return (
     <div className="modal modal-open modal-bottom sm:modal-middle">
       <div className="modal-box max-w-3xl max-h-[90vh] overflow-y-auto rounded-2xl border border-border-hairline shadow-floating">
@@ -31,7 +33,7 @@ export const WordDetail = ({
               type="button"
               onClick={onClose}
               className="btn btn-ghost btn-circle size-11 min-h-11 shrink-0 p-0"
-              aria-label="關閉"
+              aria-label={t("common.close")}
             >
               <X className="size-6 shrink-0" aria-hidden="true" />
             </button>

@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useAuth } from "./useAuth";
+import { useLanguage } from "./useLanguage";
 import type { AudioUpload, AudioUploadUpdateInput } from "../types/audioUpload";
 import {
   MAX_UPLOAD_SIZE_BYTES,
@@ -59,6 +60,7 @@ export function useAudioUploads() {
   const [uploads, setUploads] = useState<AudioUpload[]>([]);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const { t } = useLanguage();
   const [error, setError] = useState<string | null>(null);
   const [audioUrls, setAudioUrls] = useState<Map<string, string>>(new Map());
   const audioUrlsRef = useRef<Map<string, string>>(audioUrls);
@@ -256,7 +258,7 @@ export function useAudioUploads() {
     ): Promise<{ success: boolean; message: string; uploadId?: string }> => {
       const uid = user?.uid;
       if (!uid) {
-        return { success: false, message: "請先登入" };
+        return { success: false, message: t("listening.signInFirst") };
       }
       const generation = ownerGenerationRef.current;
       let activeAudioPath: string | null = null;
@@ -266,17 +268,16 @@ export function useAudioUploads() {
       if (file.size > MAX_UPLOAD_SIZE_BYTES) {
         return {
           success: false,
-          message: `檔案過大，最大允許 ${MAX_UPLOAD_SIZE_MB}MB，目前大小 ${(
-            file.size /
-            1024 /
-            1024
-          ).toFixed(2)}MB`,
+          message: t("listening.audio.msg.tooLarge", {
+            max: MAX_UPLOAD_SIZE_MB,
+            size: (file.size / 1024 / 1024).toFixed(2),
+          }),
         };
       }
 
       // Validate title
       if (!title.trim()) {
-        return { success: false, message: "請輸入標題" };
+        return { success: false, message: t("listening.audio.msg.titleRequired") };
       }
 
       const uploadSequence = ++uploadSequenceRef.current;
@@ -294,7 +295,7 @@ export function useAudioUploads() {
         }
 
         if (!isCurrentOwner(uid, generation)) {
-          return { success: false, message: "帳號已切換，上傳已取消" };
+          return { success: false, message: t("listening.audio.msg.accountSwitched") };
         }
 
         // Generate a temporary ID for the upload path
@@ -307,7 +308,7 @@ export function useAudioUploads() {
         if (!operationLease) {
           return {
             success: false,
-            message: "另一個分頁正在處理相同的音訊路徑，請重試",
+            message: t("listening.audio.msg.pathBusy"),
           };
         }
         activeAudioPath = audioUrl;
@@ -324,7 +325,7 @@ export function useAudioUploads() {
           removeAudioUploadCleanup(uid, audioUrl, "orphaned-upload");
           return {
             success: false,
-            message: "瀏覽器無法安全記錄上傳狀態，尚未上傳音訊",
+            message: t("listening.audio.msg.uploadNotTracked"),
           };
         }
 
@@ -350,7 +351,7 @@ export function useAudioUploads() {
 
         if (!isCurrentOwner(uid, generation)) {
           makeCleanupReady();
-          return { success: false, message: "帳號已切換，上傳已取消" };
+          return { success: false, message: t("listening.audio.msg.accountSwitched") };
         }
 
         // Save metadata to Firestore through a non-offline-queued transaction.
@@ -384,7 +385,7 @@ export function useAudioUploads() {
           if (metadataExists) {
             removeAudioUploadCleanup(uid, audioUrl, "orphaned-upload");
             if (isCurrentOwner(uid, generation)) await loadUploads();
-            return { success: true, message: "音訊上傳成功" };
+            return { success: true, message: t("listening.audio.msg.uploaded") };
           }
 
           if (
@@ -409,10 +410,10 @@ export function useAudioUploads() {
         // Reload uploads
         if (isCurrentOwner(uid, generation)) await loadUploads();
 
-        return { success: true, message: "音訊上傳成功", uploadId };
+        return { success: true, message: t("listening.audio.msg.uploaded"), uploadId };
       } catch (err) {
         console.error("Failed to upload audio:", err);
-        const message = err instanceof Error ? err.message : "音訊上傳失敗";
+        const message = err instanceof Error ? err.message : t("listening.audio.msg.uploadFailed");
         if (isCurrentOwner(uid, generation)) setError(message);
         return { success: false, message };
       } finally {
@@ -428,7 +429,7 @@ export function useAudioUploads() {
         }
       }
     },
-    [isCurrentOwner, user?.uid, loadUploads],
+    [isCurrentOwner, user?.uid, loadUploads, t],
   );
 
   /**
@@ -441,14 +442,14 @@ export function useAudioUploads() {
     ): Promise<{ success: boolean; message: string }> => {
       const uid = user?.uid;
       if (!uid) {
-        return { success: false, message: "請先登入" };
+        return { success: false, message: t("listening.signInFirst") };
       }
       const generation = ownerGenerationRef.current;
 
       try {
         await updateAudioUploadService(uploadId, updates);
         if (!isCurrentOwner(uid, generation)) {
-          return { success: true, message: "更新成功" };
+          return { success: true, message: t("listening.audio.msg.updated") };
         }
 
         // Update local state
@@ -458,13 +459,13 @@ export function useAudioUploads() {
           ),
         );
 
-        return { success: true, message: "更新成功" };
+        return { success: true, message: t("listening.audio.msg.updated") };
       } catch (err) {
         console.error("Failed to update audio upload:", err);
-        return { success: false, message: "更新失敗" };
+        return { success: false, message: t("listening.audio.msg.updateFailed") };
       }
     },
-    [isCurrentOwner, user?.uid],
+    [isCurrentOwner, user?.uid, t],
   );
 
   /**
@@ -477,12 +478,12 @@ export function useAudioUploads() {
     ): Promise<{ success: boolean; message: string }> => {
       const uid = user?.uid;
       if (!uid) {
-        return { success: false, message: "請先登入" };
+        return { success: false, message: t("listening.signInFirst") };
       }
       const generation = ownerGenerationRef.current;
 
       if (!isOwnedAudioUploadPath(uid, audioUrl)) {
-        return { success: false, message: "音訊檔案路徑不屬於目前帳號" };
+        return { success: false, message: t("listening.audio.msg.notOwner") };
       }
 
       const cleanupRecorded = enqueueAudioUploadCleanup(uid, audioUrl, {
@@ -493,7 +494,7 @@ export function useAudioUploads() {
         removeAudioUploadCleanup(uid, audioUrl, "deleted-record");
         return {
           success: false,
-          message: "瀏覽器無法安全記錄刪除狀態，尚未刪除音訊",
+          message: t("listening.audio.msg.deleteNotTracked"),
         };
       }
 
@@ -542,13 +543,13 @@ export function useAudioUploads() {
             });
         }
 
-        return { success: true, message: "音訊已刪除" };
+        return { success: true, message: t("listening.audio.msg.deleted") };
       } catch (err) {
         console.error("Failed to delete audio upload:", err);
-        return { success: false, message: "刪除失敗" };
+        return { success: false, message: t("listening.audio.msg.deleteFailed") };
       }
     },
-    [isCurrentOwner, user?.uid],
+    [isCurrentOwner, user?.uid, t],
   );
 
   // Load uploads on mount

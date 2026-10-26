@@ -28,6 +28,8 @@ import {
   type TextItemLike,
 } from "../../utils/pdfTextLayerFit";
 import { Tooltip } from "../common/Tooltip";
+import { T } from "../common/T";
+import { useLanguage } from "../../hooks/useLanguage";
 import { CopyPagePromptButton } from "./CopyPagePromptButton";
 
 import "react-pdf/dist/Page/AnnotationLayer.css";
@@ -89,6 +91,7 @@ export const PdfViewer = memo(
     onScrollPositionChange,
     headerActions,
   }: PdfViewerProps) => {
+    const { t } = useLanguage();
     const containerRef = useRef<HTMLDivElement | null>(null);
     const measureRef = useRef<HTMLDivElement | null>(null);
     const pointerStartRef = useRef<PointerStart | null>(null);
@@ -438,11 +441,11 @@ export const PdfViewer = memo(
         <div className="sticky top-0 z-10 flex shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-2 rounded-t-xl border-b border-border-hairline bg-base-200/90 px-3 py-2 backdrop-blur-md">
           {headerActions ?? (
             <span className="text-sm font-medium text-base-content">
-              PDF 預覽
+              <T k="reader.viewer.title" variant="stacked" />
             </span>
           )}
           <span className="hidden text-xs text-base-content/55 sm:inline">
-            點擊單字，或拖曳選取片語與句子
+            <T k="reader.viewer.hint" />
           </span>
         </div>
         {/* `relative` is load-bearing, not decoration: a static scroll container
@@ -470,12 +473,16 @@ export const PdfViewer = memo(
               loading={
                 <div className="grid h-64 w-full place-items-center text-base-content/60">
                   <span className="loading loading-spinner loading-md text-primary" />
-                  <span className="mt-2 text-sm">載入 PDF 中...</span>
+                  <span className="mt-2 text-sm">
+                    <T k="reader.viewer.loading" />
+                  </span>
                 </div>
               }
               error={
                 <div className="m-3 rounded-lg border border-error/20 bg-error/10 px-4 py-3">
-                  <p className="text-sm text-error">PDF 載入失敗</p>
+                  <p className="text-sm text-error">
+                    <T k="reader.viewer.loadFailed" />
+                  </p>
                 </div>
               }
             >
@@ -502,7 +509,7 @@ export const PdfViewer = memo(
                               pageNumber={pageNumber}
                               text={pageText}
                             />
-                            <Tooltip content="朗讀此頁" position="bottom">
+                            <Tooltip content={t("reader.page.readAloud")} position="bottom">
                               <button
                                 type="button"
                                 onClick={() => onSpeak(pageText)}
@@ -510,7 +517,7 @@ export const PdfViewer = memo(
                                   !textAvailable || isLoadingAudio || isSpeaking
                                 }
                                 className="inline-flex h-11 w-11 items-center justify-center rounded-md bg-success/90 text-success-content shadow-sm transition-all duration-200 hover:bg-success active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:pointer-events-none disabled:opacity-50 sm:h-8 sm:w-8"
-                                aria-label={`朗讀第 ${pageNumber} 頁`}
+                                aria-label={t("reader.page.readAloudLabel", { page: pageNumber })}
                               >
                                 {isLoadingAudio ? (
                                   <span className="loading loading-spinner loading-xs" />

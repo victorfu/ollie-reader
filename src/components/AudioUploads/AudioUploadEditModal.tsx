@@ -3,6 +3,8 @@ import type {
   AudioUpload,
   AudioUploadUpdateInput,
 } from "../../types/audioUpload";
+import { T } from "../common/T";
+import { useLanguage } from "../../hooks/useLanguage";
 
 interface AudioUploadEditModalProps {
   isOpen: boolean;
@@ -19,6 +21,7 @@ export function AudioUploadEditModal({
   onSave,
   onClose,
 }: AudioUploadEditModalProps) {
+  const { t } = useLanguage();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [prevUpload, setPrevUpload] = useState(upload);
@@ -53,14 +56,18 @@ export function AudioUploadEditModal({
   return (
     <dialog className="modal modal-bottom sm:modal-middle modal-open">
       <div className="modal-box rounded-2xl border border-border-hairline shadow-floating">
-        <h3 className="text-lg font-semibold mb-4">編輯音訊資訊</h3>
+        <h3 className="text-lg font-semibold mb-4">
+          <T k="listening.audio.editTitle" variant="stacked" />
+        </h3>
 
         <form onSubmit={handleSubmit}>
           <div className="space-y-4">
             {/* Title Input */}
             <div className="form-control">
               <label className="label" htmlFor="edit-title">
-                <span className="label-text">標題 *</span>
+                <span className="label-text">
+                  <T k="listening.audio.editTitleLabel" />
+                </span>
               </label>
               <input
                 id="edit-title"
@@ -68,7 +75,7 @@ export function AudioUploadEditModal({
                 className="input input-bordered w-full h-11"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                placeholder="輸入音訊標題"
+                placeholder={t("listening.audio.titlePlaceholder")}
                 required
                 disabled={isSaving}
               />
@@ -77,14 +84,16 @@ export function AudioUploadEditModal({
             {/* Description Input */}
             <div className="form-control">
               <label className="label" htmlFor="edit-description">
-                <span className="label-text">描述（選填）</span>
+                <span className="label-text">
+                  <T k="listening.audio.descriptionLabel" />
+                </span>
               </label>
               <textarea
                 id="edit-description"
                 className="textarea textarea-bordered w-full"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="輸入音訊描述..."
+                placeholder={t("listening.audio.descriptionPlaceholder")}
                 rows={3}
                 disabled={isSaving}
               />
@@ -99,7 +108,7 @@ export function AudioUploadEditModal({
               onClick={handleClose}
               disabled={isSaving}
             >
-              取消
+              <T k="common.cancel" variant="stacked" />
             </button>
             <button
               type="submit"
@@ -109,10 +118,10 @@ export function AudioUploadEditModal({
               {isSaving ? (
                 <>
                   <span className="loading loading-spinner loading-sm" />
-                  儲存中...
+                  <T k="listening.saving" variant="stacked" />
                 </>
               ) : (
-                "儲存"
+                <T k="listening.audio.save" variant="stacked" />
               )}
             </button>
           </div>
