@@ -166,16 +166,6 @@ async function click(label: string) {
   await act(async () => getButton(label).click());
 }
 
-function openSettings() {
-  act(() => {
-    host.querySelector("details")!.open = true;
-  });
-}
-
-function openDialog(): HTMLDialogElement | null {
-  return host.querySelector<HTMLDialogElement>("dialog[open]");
-}
-
 beforeEach(() => {
   (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT =
     true;
@@ -215,7 +205,6 @@ describe("home", () => {
     expect(text()).toContain("今天的功課");
     expect(text()).toContain("5 個新字");
     expect(text()).toContain("3 個複習字");
-    expect(host.querySelector("details")?.open).toBe(false);
     await click("開始寫功課");
     expect(hook.current.start).toHaveBeenCalledTimes(1);
   });
@@ -296,59 +285,10 @@ describe("home", () => {
 });
 
 describe("parent settings", () => {
-  it("keeps abandon inside the parent settings, behind a confirmation", async () => {
+  it("lives on the settings page, not here", () => {
     hook.current = makeHook({ active: makeHomework() });
     render();
-
-    expect(host.querySelector("details")?.open).toBe(false);
-    openSettings();
-    expect(text()).toContain("家長設定");
-    expect(openDialog()).toBeNull();
-
-    await click("放棄這份功課");
-    expect(openDialog()?.textContent).toContain("放棄這份功課");
-    expect(hook.current.abandon).not.toHaveBeenCalled();
-
-    await act(async () => {
-      Array.from(openDialog()!.querySelectorAll("button"))
-        .find((button) => button.textContent === "放棄功課")!
-        .click();
-    });
-    expect(hook.current.abandon).toHaveBeenCalledTimes(1);
-  });
-
-  it("saves the changed settings", async () => {
-    render();
-    openSettings();
-
-    const select = host.querySelector<HTMLSelectElement>("select")!;
-    act(() => {
-      select.value = "8";
-      select.dispatchEvent(new Event("change", { bubbles: true }));
-    });
-    await click("儲存設定");
-
-    expect(hook.current.saveSettings).toHaveBeenCalledWith({ ...SETTINGS, newWordCount: 8 });
-  });
-
-  it("resets the progress only after a confirmation", async () => {
-    render();
-    openSettings();
-
-    await click("重設練習進度");
-    expect(openDialog()?.textContent).toContain("無法復原");
-    expect(hook.current.resetProgress).not.toHaveBeenCalled();
-
-    await act(async () => {
-      Array.from(openDialog()!.querySelectorAll("button"))
-        .find((button) => button.textContent === "重設進度")!
-        .click();
-    });
-    expect(hook.current.resetProgress).toHaveBeenCalledTimes(1);
-  });
-
-  it("has no abandon button when there is no homework in progress", () => {
-    render();
+    expect(text()).not.toContain("家長設定");
     expect(text()).not.toContain("放棄這份功課");
   });
 });

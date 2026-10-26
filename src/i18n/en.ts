@@ -56,6 +56,8 @@ export const en: Record<MessageKey, string> = {
   "speak.stop": "Stop",
   "speak.playText": "Play: {text}",
   "cefr.estimated": "CEFR estimate {level}",
+  "tokens.title": "Gacha tokens",
+  "tokens.balanceLabel": "{n} gacha tokens",
 
   "error.reloading": "Loading the latest version",
   "error.title": "Something went wrong",

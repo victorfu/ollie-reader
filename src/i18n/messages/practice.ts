@@ -41,6 +41,7 @@ export const practiceZh = {
 
   // Parent settings
   "practice.settings.title": "家長設定",
+  "practice.settings.description": "調整單字練習每份功課的份量與起始等級",
   "practice.settings.newWordCount": "每份新字數",
   "practice.settings.reviewLimit": "複習字上限",
   "practice.settings.startLevel": "起始等級",
@@ -263,6 +264,7 @@ export const practiceEn: Record<keyof typeof practiceZh, string> = {
 
   // Parent settings
   "practice.settings.title": "Parent Settings",
+  "practice.settings.description": "Set how many words each Word Practice homework has and which level it starts at",
   "practice.settings.newWordCount": "New words per homework",
   "practice.settings.reviewLimit": "Most review words",
   "practice.settings.startLevel": "Starting level",

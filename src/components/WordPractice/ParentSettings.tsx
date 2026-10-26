@@ -19,7 +19,7 @@ interface ParentSettingsProps {
 const NEW_WORD_COUNTS = Array.from({ length: 8 }, (_, i) => i + 3);
 const REVIEW_LIMITS = Array.from({ length: 21 }, (_, i) => i);
 
-/** Collapsed at the bottom of the page: the amounts, the start level, giving up a homework and starting over. */
+/** The word practice section of the settings page: the amounts, the start level, giving up a homework and starting over. */
 export function ParentSettings({
   settings,
   hasActive,
@@ -68,11 +68,14 @@ export function ParentSettings({
   };
 
   return (
-    <details className="rounded-xl border border-border-hairline bg-card shadow-sm">
-      <summary className="flex min-h-11 cursor-pointer items-center px-4 py-2 font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">
+    <div>
+      <h3 className="text-lg font-semibold mb-3">
         <T k="practice.settings.title" variant="stacked" />
-      </summary>
-      <div className="space-y-4 border-t border-border-hairline p-4">
+      </h3>
+      <p className="text-sm text-muted-foreground mb-4">
+        <T k="practice.settings.description" />
+      </p>
+      <div className="space-y-4">
         <div className="grid gap-4 sm:grid-cols-3">
           <div className="space-y-1">
             <label htmlFor={newCountId} className="text-sm font-medium">
@@ -185,6 +188,6 @@ export function ParentSettings({
         onConfirm={() => void confirmReset()}
         onCancel={() => setConfirmingReset(false)}
       />
-    </details>
+    </div>
   );
 }

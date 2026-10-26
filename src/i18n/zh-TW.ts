@@ -58,6 +58,8 @@ export const zhTW = {
   "speak.stop": "停止播放",
   "speak.playText": "播放：{text}",
   "cefr.estimated": "CEFR 估計 {level}",
+  "tokens.title": "扭蛋代幣",
+  "tokens.balanceLabel": "扭蛋代幣 {n}",
 
   "error.reloading": "正在載入最新版本",
   "error.title": "發生錯誤",

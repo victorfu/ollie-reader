@@ -7,7 +7,6 @@ import type { HistoryHomework, LegacyHomework } from "../../types/wordPractice";
 import { FinishedView } from "./FinishedView";
 import { HomeworkBook } from "./HomeworkBook";
 import { HomeworkHistory } from "./HomeworkHistory";
-import { ParentSettings } from "./ParentSettings";
 import { TodayCard } from "./TodayCard";
 import { formatHomeworkDate, formatHomeworkScore, isHomeworkBook } from "./homeworkFormat";
 import { T } from "../common/T";
@@ -154,15 +153,6 @@ export default function WordPracticePage() {
             const homework = history.find((candidate) => candidate.id === homeworkId);
             if (homework) setViewing({ homework, justFinished: false });
           }}
-        />
-        <ParentSettings
-          key={`${settings.newWordCount}/${settings.reviewLimit}/${settings.startLevel}`}
-          settings={settings}
-          hasActive={active !== null}
-          busy={starting || submitting}
-          onSave={wordPractice.saveSettings}
-          onAbandon={wordPractice.abandon}
-          onReset={wordPractice.resetProgress}
         />
       </>
     );
