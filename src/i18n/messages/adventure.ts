@@ -74,7 +74,8 @@ export const adventureZh = {
   "adventure.achievement.level-2": "達到等級 2",
   "adventure.achievement.level-5": "達到等級 5",
   "adventure.achievement.level-8": "達到等級 8",
-  "adventure.achievement.level-max": "達到最高等級 15",
+  "adventure.achievement.level-max": "達到等級 15",
+  "adventure.achievement.level-20": "達到最高等級 20",
   "adventure.achievement.quiz-10": "完成 10 次關卡",
   "adventure.achievement.quiz-50": "完成 50 次關卡",
   "adventure.achievement.quiz-100": "完成 100 次關卡",
@@ -84,6 +85,7 @@ export const adventureZh = {
   "adventure.achievement.boss-slayer": "第一次擊敗魔王",
   "adventure.achievement.boss-conqueror": "擊敗所有魔王",
   "adventure.achievement.chapter2-clear": "通關雲頂星夢國",
+  "adventure.achievement.chapter3-clear": "通關珊瑚海底王國",
   "adventure.achievement.streak-3": "連續登入 3 天",
 
   // Quiz / boss HUD
@@ -215,7 +217,8 @@ export const adventureEn: Record<keyof typeof adventureZh, string> = {
   "adventure.achievement.level-2": "Reach level 2",
   "adventure.achievement.level-5": "Reach level 5",
   "adventure.achievement.level-8": "Reach level 8",
-  "adventure.achievement.level-max": "Reach the top level, 15",
+  "adventure.achievement.level-max": "Reach level 15",
+  "adventure.achievement.level-20": "Reach the top level, 20",
   "adventure.achievement.quiz-10": "Clear 10 stages",
   "adventure.achievement.quiz-50": "Clear 50 stages",
   "adventure.achievement.quiz-100": "Clear 100 stages",
@@ -225,6 +228,7 @@ export const adventureEn: Record<keyof typeof adventureZh, string> = {
   "adventure.achievement.boss-slayer": "Beat a boss for the first time",
   "adventure.achievement.boss-conqueror": "Beat every boss",
   "adventure.achievement.chapter2-clear": "Clear all of Chapter 2",
+  "adventure.achievement.chapter3-clear": "Clear all of Chapter 3",
   "adventure.achievement.streak-3": "Play 3 days in a row",
 
   // Quiz / boss HUD

@@ -1,5 +1,10 @@
 import type { PlayerProgress } from "../types/game";
 import { STAGES } from "../services/gameProgressService";
+import { CHAPTERS } from "./chapters";
+
+// 第二章打完 = 走到第三章第一關
+const CHAPTER3_START =
+  CHAPTERS.find((c) => c.id === "ch3")?.firstStageIndex ?? STAGES.length;
 
 // Achievement definitions
 export interface Achievement {
@@ -40,9 +45,17 @@ export const ACHIEVEMENTS: Achievement[] = [
   {
     id: "level-max",
     name: "語言大師",
-    description: "達到最高等級 15",
+    description: "達到等級 15",
     icon: "💎",
     requirement: (p) => p.level >= 15,
+    rarity: "rainbow",
+  },
+  {
+    id: "level-20",
+    name: "單字傳奇",
+    description: "達到最高等級 20",
+    icon: "🏆",
+    requirement: (p) => p.level >= 20,
     rarity: "rainbow",
   },
 
@@ -123,8 +136,16 @@ export const ACHIEVEMENTS: Achievement[] = [
     name: "星夢傳說",
     description: "通關雲頂星夢國",
     icon: "🍬",
-    requirement: (p) => p.currentStageIndex >= STAGES.length,
+    requirement: (p) => p.currentStageIndex >= CHAPTER3_START,
     rarity: "gold",
+  },
+  {
+    id: "chapter3-clear",
+    name: "海底傳說",
+    description: "通關珊瑚海底王國",
+    icon: "🐋",
+    requirement: (p) => p.currentStageIndex >= STAGES.length,
+    rarity: "rainbow",
   },
   {
     id: "streak-3",

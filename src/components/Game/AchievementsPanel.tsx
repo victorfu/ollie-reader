@@ -15,6 +15,7 @@ const DESCRIPTION_KEYS: Record<string, MessageKey> = {
   "level-5": "adventure.achievement.level-5",
   "level-8": "adventure.achievement.level-8",
   "level-max": "adventure.achievement.level-max",
+  "level-20": "adventure.achievement.level-20",
   "quiz-10": "adventure.achievement.quiz-10",
   "quiz-50": "adventure.achievement.quiz-50",
   "quiz-100": "adventure.achievement.quiz-100",
@@ -24,6 +25,7 @@ const DESCRIPTION_KEYS: Record<string, MessageKey> = {
   "boss-slayer": "adventure.achievement.boss-slayer",
   "boss-conqueror": "adventure.achievement.boss-conqueror",
   "chapter2-clear": "adventure.achievement.chapter2-clear",
+  "chapter3-clear": "adventure.achievement.chapter3-clear",
   "streak-3": "adventure.achievement.streak-3",
 };
 
