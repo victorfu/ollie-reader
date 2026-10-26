@@ -317,6 +317,24 @@ export function redactWordForms(text: string, word: string, blank: string = CLOZ
   return matcher ? text.replace(matcher, () => blank) : text;
 }
 
+/**
+ * Cuts `text` into pieces, marking each form of `word` (a possessive's "'s"
+ * stays outside the mark), so the pieces join back into `text`.
+ */
+export function splitWordForms(text: string, word: string): { text: string; match: boolean }[] {
+  const matcher = matcherFor(word, true);
+  if (!matcher) return [{ text, match: false }];
+  const parts: { text: string; match: boolean }[] = [];
+  let last = 0;
+  for (const m of text.matchAll(matcher)) {
+    if (m.index > last) parts.push({ text: text.slice(last, m.index), match: false });
+    parts.push({ text: m[0], match: true });
+    last = m.index + m[0].length;
+  }
+  if (last < text.length) parts.push({ text: text.slice(last), match: false });
+  return parts;
+}
+
 export function sentenceUsesWord(sentence: string, word: string): boolean {
   return findWordForm(sentence, word) !== null;
 }

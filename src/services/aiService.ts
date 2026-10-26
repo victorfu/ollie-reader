@@ -50,6 +50,8 @@ export interface GameWord {
   def: string; // 中文優先的主要釋義（中文模式用）
   defEn?: string; // 英文釋義（英文模式用，可能缺）
   emoji: string;
+  example?: string; // 含該字的英文例句（句子填空用，可能缺）
+  exampleZh?: string; // 例句的中文翻譯（可能缺）
 }
 
 /**
