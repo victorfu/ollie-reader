@@ -144,7 +144,7 @@ describe("AuthProvider allowlist verification", () => {
       "offline-player",
     );
     expect(container.querySelector("[data-error]")?.textContent).toContain(
-      "目前離線",
+      "auth.error.offline",
     );
 
     setOnline(true);
@@ -176,7 +176,7 @@ describe("AuthProvider allowlist verification", () => {
       "signed-out",
     );
     expect(container.querySelector("[data-error]")?.textContent).toContain(
-      "無權限",
+      "auth.error.denied",
     );
   });
 });

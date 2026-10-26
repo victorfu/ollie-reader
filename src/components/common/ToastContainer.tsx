@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import type { ToastItem } from "../../hooks/useToastQueue";
+import { useLanguage } from "../../hooks/useLanguage";
 
 interface ToastContainerProps {
   toasts: ToastItem[];
@@ -24,6 +25,7 @@ interface ToastItemProps {
 }
 
 const ToastItemComponent = ({ toast, onRemove }: ToastItemProps) => {
+  const { t } = useLanguage();
   useEffect(() => {
     const timer = setTimeout(() => {
       onRemove(toast.id);
@@ -63,7 +65,7 @@ const ToastItemComponent = ({ toast, onRemove }: ToastItemProps) => {
         type="button"
         onClick={() => onRemove(toast.id)}
         className="btn btn-ghost btn-xs btn-circle opacity-70 hover:opacity-100 hover:bg-black/5 dark:hover:bg-white/10 transition-all duration-200"
-        aria-label="關閉"
+        aria-label={t("common.close")}
       >
         <svg
           xmlns="http://www.w3.org/2000/svg"

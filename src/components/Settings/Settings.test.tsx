@@ -49,10 +49,8 @@ vi.mock("../../services/localBackend", () => ({
 }));
 
 import { Settings } from "./Settings";
-import {
-  LANGUAGE_STORAGE_KEY,
-  LanguageProvider,
-} from "../../contexts/LanguageContext";
+import { LanguageProvider } from "../../contexts/LanguageContext";
+import { LANGUAGE_STORAGE_KEY } from "../../i18n/storage";
 
 let container: HTMLDivElement;
 let root: Root;

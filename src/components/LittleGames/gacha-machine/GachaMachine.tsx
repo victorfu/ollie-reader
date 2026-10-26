@@ -19,6 +19,7 @@ import {
 import { useSearchParams } from "react-router-dom";
 import { ConfirmModal } from "../../common/ConfirmModal";
 import { useAuth } from "../../../hooks/useAuth";
+import { useLanguage } from "../../../hooks/useLanguage";
 import { useGachaMissRate } from "../../../hooks/useGachaMissRate";
 import { useShowAllGachaEntries } from "../../../hooks/useShowAllGachaEntries";
 import { playSound } from "../../../services/gameService";
@@ -220,6 +221,7 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
   const { gachaMissRatePercent: missRatePercent } = useGachaMissRate();
   const { showAllGachaEntries } = useShowAllGachaEntries();
   const { user, loading: authLoading, authError, signInWithGoogle } = auth;
+  const { t } = useLanguage();
   const [searchParams, setSearchParams] = useSearchParams();
   const view: GachaView =
     searchParams.get("view") === "collection" ? "collection" : "machine";
@@ -1654,7 +1656,7 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
               </p>
               {authError ? (
                 <p className="mt-4 rounded-[10px] bg-error/10 px-3 py-2 text-sm text-error" role="alert">
-                  {authError}
+                  {t(authError)}
                 </p>
               ) : null}
               <button

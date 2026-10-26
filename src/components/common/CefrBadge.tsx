@@ -1,4 +1,5 @@
 import type { CefrInfo } from "../../types/wordPractice";
+import { useLanguage } from "../../hooks/useLanguage";
 
 interface CefrBadgeProps {
   info: CefrInfo;
@@ -12,11 +13,12 @@ const ESTIMATE_STYLE = "border border-dashed border-base-content/40 text-muted-f
 
 /** A small CEFR level pill: "B1" for a word-list level, "≈B1" for an AI estimate. */
 export const CefrBadge = ({ info }: CefrBadgeProps) => {
+  const { t } = useLanguage();
   const estimated = info.source === "ai";
   return (
     <span
       role="img"
-      aria-label={estimated ? `CEFR 估計 ${info.level}` : `CEFR ${info.level}`}
+      aria-label={estimated ? t("cefr.estimated", { level: info.level }) : `CEFR ${info.level}`}
       className={`inline-flex shrink-0 items-center whitespace-nowrap rounded-full px-1.5 text-[11px] font-semibold leading-4 tabular-nums ${
         estimated ? ESTIMATE_STYLE : LIST_STYLE
       }`}

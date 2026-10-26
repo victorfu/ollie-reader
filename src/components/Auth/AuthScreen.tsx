@@ -1,8 +1,12 @@
 import { BookOpen } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
+import { useLanguage } from "../../hooks/useLanguage";
+import { LanguagePicker } from "../common/LanguagePicker";
+import { T } from "../common/T";
 
 export default function AuthScreen() {
   const { signInWithGoogle, authError } = useAuth();
+  const { t } = useLanguage();
 
   const handleGoogleSignIn = () => {
     void signInWithGoogle();
@@ -23,7 +27,7 @@ export default function AuthScreen() {
                 Ollie Reader
               </h1>
               <p className="text-base text-muted-foreground">
-                上傳 PDF 文件，選取文字即可朗讀或翻譯
+                <T k="auth.tagline" />
               </p>
             </div>
           </div>
@@ -31,14 +35,14 @@ export default function AuthScreen() {
           {/* Error alert */}
           {authError && (
             <div className="rounded-lg border border-error/20 bg-error/10 px-4 py-3">
-              <p className="text-sm text-error">{authError}</p>
+              <p className="text-sm text-error">{t(authError)}</p>
             </div>
           )}
 
           {/* Sign in button - macOS secondary button style */}
           <button
             type="button"
-            className="flex h-11 w-full items-center justify-center gap-3 rounded-lg border border-border-hairline bg-base-100 px-4 text-sm font-medium text-base-content shadow-soft transition-all duration-200 hover:bg-base-200 active:scale-[0.98] active:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
+            className="flex min-h-11 w-full items-center justify-center gap-3 rounded-lg border border-border-hairline bg-base-100 px-4 text-sm font-medium text-base-content shadow-soft transition-all duration-200 hover:bg-base-200 active:scale-[0.98] active:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
             onClick={handleGoogleSignIn}
           >
             <svg
@@ -63,13 +67,18 @@ export default function AuthScreen() {
                 fill="#EA4335"
               />
             </svg>
-            使用 Google 登入
+            <T k="auth.signInWithGoogle" variant="stacked" />
           </button>
 
           {/* Footer hint */}
           <p className="text-center text-xs text-muted-foreground">
-            使用 Google 帳號登入即可開始使用
+            <T k="auth.hint" />
           </p>
+
+          {/* Language: the only place to change it before signing in */}
+          <div className="flex justify-center">
+            <LanguagePicker size="sm" />
+          </div>
         </div>
       </div>
     </div>

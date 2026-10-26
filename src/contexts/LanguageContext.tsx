@@ -13,23 +13,13 @@ import {
   type MessageKey,
   type MessageParams,
 } from "../i18n/translate";
-
-export const LANGUAGE_STORAGE_KEY = "ollie-language";
-
-const readStoredMode = (): LanguageMode => {
-  try {
-    const stored = localStorage.getItem(LANGUAGE_STORAGE_KEY);
-    if (stored === "zh-TW" || stored === "en" || stored === "en-hint") {
-      return stored;
-    }
-  } catch {
-    // localStorage unavailable
-  }
-  return "zh-TW";
-};
+import {
+  readStoredLanguageMode,
+  writeStoredLanguageMode,
+} from "../i18n/storage";
 
 export const LanguageProvider = ({ children }: { children: ReactNode }) => {
-  const [mode, setModeState] = useState<LanguageMode>(readStoredMode);
+  const [mode, setModeState] = useState<LanguageMode>(readStoredLanguageMode);
   const language = languageForMode(mode);
 
   // Screen readers and the browser's hyphenation/fonts follow <html lang>.
@@ -39,11 +29,7 @@ export const LanguageProvider = ({ children }: { children: ReactNode }) => {
 
   const setMode = useCallback((next: LanguageMode) => {
     setModeState(next);
-    try {
-      localStorage.setItem(LANGUAGE_STORAGE_KEY, next);
-    } catch {
-      // localStorage unavailable
-    }
+    writeStoredLanguageMode(next);
   }, []);
 
   const t = useCallback(

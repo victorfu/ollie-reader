@@ -34,7 +34,13 @@ export function HintText({ hint, children }: HintTextProps) {
       tabIndex={0}
       aria-expanded={open}
       data-tip={hint}
-      onClick={() => setOpen((v) => !v)}
+      onClick={(event) => {
+        // Inside a <label> or row, a tap to read the hint must not also pick
+        // the option or open the row.
+        event.preventDefault();
+        event.stopPropagation();
+        setOpen((v) => !v);
+      }}
       onKeyDown={(event) => {
         if (event.key === "Enter" || event.key === " ") {
           event.preventDefault();

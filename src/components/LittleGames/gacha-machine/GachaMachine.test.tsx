@@ -2,6 +2,7 @@ import { act, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { MessageKey } from "../../../i18n/translate";
 import {
   GACHA_MISS_RATE_STORAGE_KEY,
   SHOW_ALL_GACHA_ENTRIES_STORAGE_KEY,
@@ -16,7 +17,7 @@ import type {
 const authState = vi.hoisted(() => ({
   user: { uid: "player-1" } as { uid: string } | null,
   loading: false,
-  authError: null as string | null,
+  authError: null as MessageKey | null,
   signInWithGoogle: vi.fn(),
 }));
 const playSoundMock = vi.hoisted(() => vi.fn());

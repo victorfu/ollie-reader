@@ -1,10 +1,8 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import {
-  LANGUAGE_STORAGE_KEY,
-  LanguageProvider,
-} from "../../contexts/LanguageContext";
+import { LanguageProvider } from "../../contexts/LanguageContext";
+import { LANGUAGE_STORAGE_KEY } from "../../i18n/storage";
 import type { LanguageMode } from "../../i18n/translate";
 import { T } from "./T";
 
@@ -81,6 +79,20 @@ describe("<T>", () => {
       expect(container.querySelector("[data-tip]")).toBeNull();
       expect(container.textContent).toBe("Settings設定");
       expect(container.querySelector('[lang="zh-Hant-TW"]')?.textContent).toBe("設定");
+    });
+
+    it("inline: tapping a hint inside a <label> does not pick the option", () => {
+      render(
+        "en-hint",
+        <label>
+          <input type="radio" name="opt" />
+          <T k="settings.tts.browserDesc" />
+        </label>,
+      );
+      const hint = container.querySelector<HTMLElement>("[data-tip]")!;
+      act(() => hint.click());
+      expect(container.querySelector<HTMLInputElement>("input")!.checked).toBe(false);
+      expect(hint.classList.contains("tooltip-open")).toBe(true);
     });
 
     it("skips the hint when both languages read the same", () => {
