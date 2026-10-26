@@ -8,6 +8,7 @@ import {
   Eye,
   SlidersHorizontal,
   Gamepad2,
+  SpellCheck,
 } from "lucide-react";
 import { useSettings } from "../../hooks/useSettings";
 import { useGachaMissRate } from "../../hooks/useGachaMissRate";
@@ -17,6 +18,7 @@ import { useTheme } from "../../hooks/useTheme";
 import { resetGameProgress } from "../../services/gameProgressService";
 import { ConfirmModal } from "../common/ConfirmModal";
 import { GlassCard } from "../common/GlassCard";
+import { WordPracticeSettings } from "../WordPractice/WordPracticeSettings";
 import { Toast } from "../common/Toast";
 import type { TTSMode, ComputeMode } from "../../types/pdf";
 import { getComputeStatusSync, refreshComputeBase, type ComputeStatus } from "../../services/localBackend";
@@ -32,6 +34,7 @@ const CATEGORIES = [
   { id: "audio", label: "語音", icon: Volume2 },
   { id: "advanced", label: "進階", icon: SlidersHorizontal },
   { id: "game", label: "遊戲", icon: Gamepad2 },
+  { id: "wordPractice", label: "單字練習", icon: SpellCheck },
 ] as const;
 
 type CategoryId = (typeof CATEGORIES)[number]["id"];
@@ -498,6 +501,9 @@ export const Settings = () => {
                   </div>
                 </div>
               )}
+
+              {/* Word practice: the parent settings */}
+              {activeCategory === "wordPractice" && <WordPracticeSettings />}
             </div>
           </GlassCard>
         </div>
