@@ -5,6 +5,9 @@ import {
   summariseRun,
   type CampaignProgress,
 } from "./progress";
+import { translate, type MessageRef } from "../../../../i18n/translate";
+
+const zh = (ref: MessageRef) => translate("zh-TW", ref.key, ref.params);
 import type { BattleState } from "../types";
 
 function makeState(overrides: Partial<BattleState> = {}): BattleState {
@@ -59,8 +62,8 @@ describe("summariseRun", () => {
   it("celebrates a clear with the remaining cakes", () => {
     const summary = summariseRun(makeState({ cakes: 7, kills: 180 }), 15);
 
-    expect(summary.title).toContain("守住");
-    expect(summary.detail).toContain("7");
+    expect(zh(summary.title)).toContain("守住");
+    expect(zh(summary.detail)).toContain("7");
   });
 
   it("never says game over on a loss", () => {
@@ -69,8 +72,8 @@ describe("summariseRun", () => {
       15,
     );
 
-    expect(summary.title).toContain("第 12 波");
-    expect(`${summary.title}${summary.detail}`.toLowerCase()).not.toContain(
+    expect(zh(summary.title)).toContain("第 12 波");
+    expect(`${zh(summary.title)}${zh(summary.detail)}`.toLowerCase()).not.toContain(
       "game over",
     );
   });
@@ -81,7 +84,7 @@ describe("summariseRun", () => {
       15,
     );
 
-    expect(summary.detail).toContain("只差 2 波");
+    expect(zh(summary.detail)).toContain("只差 2 波");
   });
 });
 

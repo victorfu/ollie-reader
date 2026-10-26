@@ -12,6 +12,9 @@ import {
 import type { QuizQuestion } from "../../types/game";
 import { playSound } from "../../services/gameService";
 import { SpellChips } from "./SpellChips";
+import { useLanguage } from "../../hooks/useLanguage";
+import type { MessageKey } from "../../i18n/translate";
+import { T } from "../common/T";
 
 interface QuizCardProps {
   question: QuizQuestion;
@@ -34,12 +37,13 @@ interface QuizCardProps {
 // 聽力題與看圖題的題幹看不到英文單字，揭曉答案時要補上
 const HIDES_WORD: Record<string, boolean> = { listen: true, emoji: true };
 
-// 各選項題型的中文小提示
-const PROMPT_HINT: Record<string, string> = {
-  meaning: "這個單字是什麼意思？",
-  listen: "聽聽看，選出正確的意思！",
-  reverse: "這是哪個英文單字？",
-  emoji: "看圖猜猜看，這是什麼意思？",
+// 各題型的小提示
+const PROMPT_HINT: Record<string, MessageKey> = {
+  meaning: "adventure.quiz.prompt.meaning",
+  listen: "adventure.quiz.prompt.listen",
+  reverse: "adventure.quiz.prompt.reverse",
+  emoji: "adventure.quiz.prompt.emoji",
+  spell: "adventure.quiz.prompt.spell",
 };
 
 /**
@@ -61,6 +65,9 @@ export function QuizCard({
   onNext,
   speak,
 }: QuizCardProps) {
+  const { t } = useLanguage();
+  const promptHint = PROMPT_HINT[question.kind];
+
   // 聽力題進場自動唸（StrictMode 以 ref 防雙念）
   const spokenIndexRef = useRef<number>(-1);
   useEffect(() => {
@@ -132,7 +139,10 @@ export function QuizCard({
         <div className="w-full mb-4">
           <div className="flex items-center justify-between mb-1">
             <span className="text-sm text-muted-foreground">
-              第 {questionIndex + 1} / {totalQuestions} 題
+              <T
+                k="adventure.quiz.questionCount"
+                params={{ current: questionIndex + 1, total: totalQuestions }}
+              />
             </span>
             <span
               className={`inline-flex items-center gap-1.5 text-lg font-bold tabular-nums ${
@@ -174,7 +184,7 @@ export function QuizCard({
               className="btn btn-primary gap-2 rounded-full text-lg min-h-14 px-8 active:scale-95"
             >
               <Volume2 className="h-5 w-5" strokeWidth={2} aria-hidden="true" />
-              再聽一次
+              <T k="adventure.quiz.listenAgain" variant="stacked" />
             </button>
           )}
           {question.kind === "spell" && (
@@ -184,9 +194,7 @@ export function QuizCard({
           )}
 
           <p className="text-sm text-muted-foreground mt-2">
-            {question.kind === "spell"
-              ? "把字母排成正確的英文單字！"
-              : PROMPT_HINT[question.kind]}
+            {promptHint ? <T k={promptHint} /> : null}
           </p>
         </div>
 
@@ -262,7 +270,7 @@ export function QuizCard({
                       strokeWidth={2}
                       aria-hidden="true"
                     />
-                    答對了！太棒了！
+                    <T k="adventure.quiz.correct" />
                   </>
                 ) : (
                   <>
@@ -272,11 +280,15 @@ export function QuizCard({
                       aria-hidden="true"
                     />
                     <span>
-                      答錯了，正確答案是「
-                      {question.kind === "spell"
-                        ? question.word
-                        : question.options[question.correctIndex]}
-                      」
+                      <T
+                        k="adventure.quiz.wrong"
+                        params={{
+                          answer:
+                            question.kind === "spell"
+                              ? question.word
+                              : question.options[question.correctIndex],
+                        }}
+                      />
                     </span>
                   </>
                 )}
@@ -285,7 +297,9 @@ export function QuizCard({
               {/* 聽力／看圖題的題幹沒有英文單字，揭曉時補上並可再聽一次 */}
               {HIDES_WORD[question.kind] && (
                 <div className="mt-2 flex items-center justify-center gap-2">
-                  <span className="text-xs opacity-70">單字</span>
+                  <span className="text-xs opacity-70">
+                    <T k="adventure.quiz.word" />
+                  </span>
                   <span className="text-lg font-bold tracking-tight">
                     {question.word}
                   </span>
@@ -293,7 +307,9 @@ export function QuizCard({
                     <button
                       type="button"
                       onClick={() => speak(question.word)}
-                      aria-label={`再聽一次 ${question.word}`}
+                      aria-label={t("adventure.quiz.listenAgainWord", {
+                        word: question.word,
+                      })}
                       className="btn btn-ghost btn-xs btn-circle"
                     >
                       <Volume2
@@ -315,11 +331,16 @@ export function QuizCard({
                   autoFocus
                   className="btn btn-primary btn-sm mt-3 min-h-11 gap-1 px-5 active:scale-[0.98]"
                 >
-                  {isSettling
-                    ? "結算中..."
-                    : isLastStep
-                      ? "看結果"
-                      : "下一題"}
+                  <T
+                    k={
+                      isSettling
+                        ? "adventure.settling"
+                        : isLastStep
+                          ? "adventure.quiz.seeResults"
+                          : "adventure.quiz.next"
+                    }
+                    variant="stacked"
+                  />
                   <ArrowRight
                     className="h-4 w-4"
                     strokeWidth={2}

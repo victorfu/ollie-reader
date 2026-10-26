@@ -2,6 +2,10 @@ import { readerZh } from "./messages/reader";
 import { practiceZh } from "./messages/practice";
 import { listeningZh } from "./messages/listening";
 import { examsZh } from "./messages/exams";
+import { gachaZh } from "./messages/gacha";
+import { defendersZh } from "./messages/defenders";
+import { adventureZh } from "./messages/adventure";
+import { arcadeZh } from "./messages/arcade";
 
 /**
  * 繁體中文字典：所有介面文字的來源。
@@ -143,6 +147,10 @@ export const zhTW = {
   ...practiceZh,
   ...listeningZh,
   ...examsZh,
+  ...gachaZh,
+  ...defendersZh,
+  ...adventureZh,
+  ...arcadeZh,
 } as const;
 
 export type MessageKey = keyof typeof zhTW;

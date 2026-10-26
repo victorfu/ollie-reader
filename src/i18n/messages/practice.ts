@@ -246,7 +246,7 @@ export const practiceEn: Record<keyof typeof practiceZh, string> = {
   // Today card
   "practice.today.title": "Today’s Homework",
   "practice.today.titleActive": "Homework in Progress",
-  "practice.today.coins": "Finish it to earn coins",
+  "practice.today.coins": "Finish it to earn tokens",
   "practice.today.coinsFirst": "First one today +{coins}",
   "practice.today.coinsStreak": "Day {days} in a row +{coins}",
   "practice.today.counts": "{newCount} new words・{reviewCount} review words",
@@ -339,7 +339,7 @@ export const practiceEn: Record<keyof typeof practiceZh, string> = {
   "practice.finished.title": "All Done!",
   "practice.finished.score": "Dictation {correct} / {total}",
   "practice.finished.noScore": "No dictation score this time",
-  "practice.finished.coins": "You got {coins} coins!",
+  "practice.finished.coins": "You got {coins} tokens!",
   "practice.finished.reward.handIn": "Handed in",
   "practice.finished.reward.dictation": "{count} dictation words right",
   "practice.finished.reward.perfect": "Perfect dictation",

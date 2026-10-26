@@ -5,6 +5,7 @@ import type { GameReward } from "../../types/game";
 import { playSound } from "../../services/gameService";
 import { COIN_REWARDS } from "../../services/economyService";
 import { Coins, Flame, PartyPopper, Star } from "lucide-react";
+import { T } from "../common/T";
 
 interface RewardModalProps {
   reward: GameReward;
@@ -91,7 +92,14 @@ export function RewardModal({ reward, onClaim }: RewardModalProps) {
             transition={{ delay: 0.3 }}
             className="text-2xl font-semibold tracking-tight"
           >
-            {reward.isBossVictory ? "你打敗魔王了！" : "關卡完成！"}
+            <T
+              k={
+                reward.isBossVictory
+                  ? "adventure.reward.bossTitle"
+                  : "adventure.reward.stageTitle"
+              }
+              variant="stacked"
+            />
           </motion.h2>
 
           {/* 經驗值獎勵 */}
@@ -117,11 +125,17 @@ export function RewardModal({ reward, onClaim }: RewardModalProps) {
             >
               <Coins className="h-8 w-8 text-warning" strokeWidth={2} aria-hidden="true" />
               <span className="text-2xl font-bold text-warning">
-                +{reward.coinsGained} 扭蛋代幣
+                <T
+                  k="adventure.coinsGained"
+                  params={{ coins: reward.coinsGained }}
+                />
               </span>
               {reward.defLanguage === "en" && (
                 <span className="badge badge-soft badge-accent font-semibold">
-                  英文模式 ×{COIN_REWARDS.englishModeMultiplier}
+                  <T
+                    k="adventure.reward.englishBonus"
+                    params={{ multiplier: COIN_REWARDS.englishModeMultiplier }}
+                  />
                 </span>
               )}
             </motion.div>
@@ -132,7 +146,7 @@ export function RewardModal({ reward, onClaim }: RewardModalProps) {
               className="mt-3 w-full rounded-[10px] border border-error/25 bg-error/10 px-3 py-2 text-sm text-error"
               role="alert"
             >
-              扭蛋代幣尚未入帳，請確認連線後再挑戰一次。
+              <T k="adventure.reward.syncFailed" />
             </div>
           ) : null}
 
@@ -145,9 +159,14 @@ export function RewardModal({ reward, onClaim }: RewardModalProps) {
               className="mt-4 p-4 bg-gradient-to-r from-warning/20 to-warning/10 rounded-xl"
             >
               <PartyPopper className="h-6 w-6" strokeWidth={2} aria-hidden="true" />
-              <h3 className="text-xl font-bold text-warning mt-2">升級了！</h3>
+              <h3 className="text-xl font-bold text-warning mt-2">
+                <T k="adventure.reward.levelUp" variant="stacked" />
+              </h3>
               <p className="text-lg font-medium">
-                等級 {reward.newLevel - 1} → {reward.newLevel}
+                <T
+                  k="adventure.reward.levelChange"
+                  params={{ from: reward.newLevel - 1, to: reward.newLevel }}
+                />
               </p>
             </motion.div>
           )}
@@ -161,7 +180,7 @@ export function RewardModal({ reward, onClaim }: RewardModalProps) {
               className="mt-4 badge badge-warning badge-lg gap-2"
             >
               <Flame className="h-4 w-4" strokeWidth={2} aria-hidden="true" />
-              新連擊紀錄！
+              <T k="adventure.reward.newCombo" variant="stacked" />
             </motion.div>
           )}
 
@@ -175,7 +194,7 @@ export function RewardModal({ reward, onClaim }: RewardModalProps) {
             onClick={onClaim}
             className="btn btn-primary btn-lg w-full mt-6 shadow-elevated active:scale-[0.98]"
           >
-            太棒了！繼續冒險
+            <T k="adventure.reward.continue" variant="stacked" />
           </motion.button>
         </div>
       </motion.div>

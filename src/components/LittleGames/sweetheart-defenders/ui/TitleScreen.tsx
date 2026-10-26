@@ -13,6 +13,9 @@ import type { SyncStatus } from "../storage";
 import type { AudioControls } from "../useAudioSettings";
 import { AudioButton } from "./AudioControls";
 import { CharacterDex } from "./CharacterDex";
+import { useLanguage } from "../../../../hooks/useLanguage";
+import type { MessageKey } from "../../../../i18n/translate";
+import { T } from "../../../common/T";
 
 const ACTUAL_SLOT_COUNTS = new Map(
   LEVELS.map((level) => [
@@ -57,6 +60,7 @@ export function TitleScreen({
   onExit,
 }: Props) {
   const [dexOpen, setDexOpen] = useState(false);
+  const { t, language } = useLanguage();
   const nextLevelId = nextPlayableLevelId(levelStars);
   const clearedCount = LEVELS.filter(
     (level) => (levelStars[level.id] ?? 0) > 0,
@@ -86,7 +90,7 @@ export function TitleScreen({
               className="flex min-h-11 items-center gap-1.5 rounded-full bg-white/90 px-3.5 text-sm font-semibold text-slate-900 shadow-sm backdrop-blur transition hover:-translate-y-0.5 hover:shadow-lg"
             >
               <ArrowLeft size={16} strokeWidth={2} aria-hidden="true" />
-              回遊戲列表
+              <T k="defenders.title.backToGames" variant="stacked" />
             </button>
           )}
           <span className="flex items-center gap-2">
@@ -98,7 +102,10 @@ export function TitleScreen({
               }}
               aria-haspopup="dialog"
               aria-expanded={dexOpen}
-              aria-label={`角色圖鑑（已收集 ${availableIds.length} / ${CHARACTERS.length}）`}
+              aria-label={t("defenders.title.dexLabel", {
+                collected: availableIds.length,
+                total: CHARACTERS.length,
+              })}
               className="flex min-h-11 items-center justify-center rounded-[10px] border border-black/5 bg-white px-3 text-[#ff6f9f] shadow-sm transition hover:bg-slate-50"
             >
               <BookOpen size={18} strokeWidth={2} aria-hidden="true" />
@@ -108,9 +115,12 @@ export function TitleScreen({
         </div>
 
         <div>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-500">
-            Sweetheart Defenders
-          </p>
+          {/* 英文介面的標題本身就是英文名，這行小字只在中文介面出現，免得重複。 */}
+          {language === "zh-TW" && (
+            <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-500">
+              Sweetheart Defenders
+            </p>
+          )}
           <h1 className="mt-0.5 flex items-center gap-1.5 text-2xl font-semibold tracking-tight text-slate-900 lg:text-[1.75rem]">
             <CakeSlice
               size={26}
@@ -118,13 +128,15 @@ export function TitleScreen({
               className="shrink-0 text-[#ff6f9f]"
               aria-hidden="true"
             />
-            甜心防衛隊
+            <T k="defenders.title" variant="stacked" />
           </h1>
         </div>
 
         <div>
           <div className="flex items-baseline justify-between gap-2">
-            <span className="text-xs font-medium text-slate-600">闖關進度</span>
+            <span className="text-xs font-medium text-slate-600">
+              <T k="defenders.title.progress" />
+            </span>
             <span className="text-xs font-semibold tabular-nums text-slate-700">
               {clearedCount} / {LEVELS.length}
             </span>
@@ -148,7 +160,7 @@ export function TitleScreen({
       <main className="flex-1 px-4 pb-8 pt-2 md:h-screen md:overflow-y-auto md:px-6 md:py-5">
         <div className="mx-auto w-full max-w-2xl">
           <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-            闖關路線
+            <T k="defenders.title.route" variant="stacked" />
           </p>
 
           <ol>
@@ -201,14 +213,17 @@ export function TitleScreen({
 
                       {unlocked ? (
                         <span className="shrink-0 rounded-full bg-[#ff6f9f] px-3 py-1 text-xs font-semibold text-white">
-                          {stars > 0 ? "再挑戰" : "開始"}
+                          <T
+                            k={stars > 0 ? "defenders.title.replay" : "defenders.title.start"}
+                            variant="stacked"
+                          />
                         </span>
                       ) : (
                         <Lock
                           size={16}
                           strokeWidth={2}
                           className="shrink-0 text-slate-400"
-                          aria-label="尚未開放"
+                          aria-label={t("defenders.title.locked")}
                         />
                       )}
                     </span>
@@ -218,27 +233,51 @@ export function TitleScreen({
                       {unlocked ? (
                         <>
                           <span className="text-xs text-slate-500">
-                            {level.waves.length} 波 ·{" "}
-                            {ACTUAL_SLOT_COUNTS.get(level.id) ?? 0} 個塔位
-                            {level.paths.length > 1 &&
-                              ` · ${level.paths.length} 條路`}
+                            <T
+                              k={
+                                level.paths.length > 1
+                                  ? "defenders.title.levelInfoPaths"
+                                  : "defenders.title.levelInfo"
+                              }
+                              params={{
+                                waves: level.waves.length,
+                                slots: ACTUAL_SLOT_COUNTS.get(level.id) ?? 0,
+                                paths: level.paths.length,
+                              }}
+                              variant="stacked"
+                            />
                           </span>
 
                           {newEnemies.length > 0 && (
                             <span className="rounded-full bg-rose-50 px-2 py-0.5 text-[11px] font-medium text-rose-600">
-                              新怪物：{newEnemies.join("、")}
+                              <T
+                                k="defenders.title.newEnemies"
+                                params={{
+                                  // 怪物名是內容、維持中文；只有分隔符號跟著語言。
+                                  names: newEnemies.join(language === "zh-TW" ? "、" : ", "),
+                                }}
+                                variant="stacked"
+                              />
                             </span>
                           )}
 
                           {stars === 0 && record > 0 && (
                             <span className="text-[11px] font-medium text-slate-400">
-                              最佳紀錄：撐到第 {record} 波
+                              <T
+                                k="defenders.title.bestRecord"
+                                params={{ wave: record }}
+                                variant="stacked"
+                              />
                             </span>
                           )}
                         </>
                       ) : (
                         <span className="text-xs text-slate-400">
-                          先通關「{LEVELS[index - 1].nameZh}」
+                          <T
+                            k="defenders.title.clearFirst"
+                            params={{ name: LEVELS[index - 1].nameZh }}
+                            variant="stacked"
+                          />
                         </span>
                       )}
                     </span>
@@ -271,20 +310,21 @@ function SyncBadge({
   if (!isSignedIn) {
     return (
       <span className="mt-2 inline-block rounded-full bg-amber-100/80 px-2.5 py-1 text-[11px] font-medium text-amber-700">
-        未登入 · 進度只存在這台裝置
+        <T k="defenders.sync.local" />
       </span>
     );
   }
 
-  const label: Record<SyncStatus, string> = {
-    idle: "",
-    loading: "讀取雲端進度…",
-    saving: "儲存中…",
-    saved: "進度已存到雲端",
-    offline: "連不上雲端 · 進度先存在這台裝置",
+  const label: Record<SyncStatus, MessageKey | null> = {
+    idle: null,
+    loading: "defenders.sync.loading",
+    saving: "defenders.sync.saving",
+    saved: "defenders.sync.saved",
+    offline: "defenders.sync.offline",
   };
+  const labelKey = label[status];
 
-  if (!label[status]) return null;
+  if (!labelKey) return null;
 
   return (
     <span
@@ -294,7 +334,7 @@ function SyncBadge({
           : "bg-white/70 text-slate-500"
       }`}
     >
-      {label[status]}
+      <T k={labelKey} />
     </span>
   );
 }
@@ -310,6 +350,7 @@ function StageBadge({
   unlocked: boolean;
 }) {
   const cleared = stars > 0;
+  const { t } = useLanguage();
 
   return (
     <div className="z-10 flex w-10 shrink-0 flex-col items-center">
@@ -328,7 +369,7 @@ function StageBadge({
       {cleared && (
         <span
           className="mt-0.5 flex gap-px"
-          aria-label={`${stars} 顆星`}
+          aria-label={t("defenders.title.stars", { stars })}
         >
           {[0, 1, 2].map((index) => (
             <Star

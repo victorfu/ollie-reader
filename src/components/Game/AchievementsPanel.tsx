@@ -5,6 +5,27 @@ import {
   RARITY_STYLES,
   type Achievement,
 } from "../../constants/achievements";
+import { useLanguage } from "../../hooks/useLanguage";
+import type { MessageKey } from "../../i18n/translate";
+import { T } from "../common/T";
+
+// Plain-rule descriptions are UI text; achievement names stay as flavour.
+const DESCRIPTION_KEYS: Record<string, MessageKey> = {
+  "level-2": "adventure.achievement.level-2",
+  "level-5": "adventure.achievement.level-5",
+  "level-8": "adventure.achievement.level-8",
+  "level-max": "adventure.achievement.level-max",
+  "quiz-10": "adventure.achievement.quiz-10",
+  "quiz-50": "adventure.achievement.quiz-50",
+  "quiz-100": "adventure.achievement.quiz-100",
+  "combo-5": "adventure.achievement.combo-5",
+  "combo-10": "adventure.achievement.combo-10",
+  "combo-15": "adventure.achievement.combo-15",
+  "boss-slayer": "adventure.achievement.boss-slayer",
+  "boss-conqueror": "adventure.achievement.boss-conqueror",
+  "chapter2-clear": "adventure.achievement.chapter2-clear",
+  "streak-3": "adventure.achievement.streak-3",
+};
 
 interface AchievementBadgeProps {
   achievement: Achievement;
@@ -18,6 +39,7 @@ export function AchievementBadge({
   animate = true,
 }: AchievementBadgeProps) {
   const style = RARITY_STYLES[achievement.rarity];
+  const descriptionKey = DESCRIPTION_KEYS[achievement.id];
 
   return (
     <motion.div
@@ -48,7 +70,7 @@ export function AchievementBadge({
       {/* Description on hover */}
       {isUnlocked && (
         <p className="text-xs text-center text-muted-foreground mt-1">
-          {achievement.description}
+          {descriptionKey ? <T k={descriptionKey} /> : achievement.description}
         </p>
       )}
 
@@ -75,6 +97,7 @@ export function AchievementsPanel({
   progress,
   onClose,
 }: AchievementsPanelProps) {
+  const { t } = useLanguage();
   const unlockedCount = ACHIEVEMENTS.filter((a) =>
     a.requirement(progress),
   ).length;
@@ -96,13 +119,20 @@ export function AchievementsPanel({
           <div>
             <h2 className="text-lg font-semibold tracking-tight flex items-center gap-2">
               <span>🏅</span>
-              成就徽章
+              <T k="adventure.achievements.title" variant="stacked" />
             </h2>
             <p className="text-sm text-muted-foreground">
-              已解鎖 {unlockedCount}/{ACHIEVEMENTS.length}
+              <T
+                k="adventure.achievements.unlocked"
+                params={{ count: unlockedCount, total: ACHIEVEMENTS.length }}
+              />
             </p>
           </div>
-          <button onClick={onClose} className="btn btn-ghost btn-sm btn-circle active:scale-[0.98]">
+          <button
+            onClick={onClose}
+            aria-label={t("adventure.achievements.close")}
+            className="btn btn-ghost btn-sm btn-circle active:scale-[0.98]"
+          >
             ✕
           </button>
         </div>
@@ -137,7 +167,7 @@ export function AchievementsPanel({
         {/* Footer tip */}
         <div className="p-4 border-t border-border-hairline text-center">
           <p className="text-sm text-muted-foreground">
-            💡 繼續冒險解鎖更多成就！
+            💡 <T k="adventure.achievements.tip" />
           </p>
         </div>
       </motion.div>

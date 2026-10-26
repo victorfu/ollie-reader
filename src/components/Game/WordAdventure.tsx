@@ -11,6 +11,7 @@ import { QuizGame } from "./QuizGame";
 import { RewardModal } from "./RewardModal";
 import { DailyBonusModal } from "./DailyBonusModal";
 import { BossBattle } from "./BossBattle";
+import { T } from "../common/T";
 
 export function WordAdventure() {
   const {
@@ -66,7 +67,9 @@ export function WordAdventure() {
       <div className="min-h-[calc(100vh-8rem)] flex items-center justify-center">
         <div className="text-center">
           <span className="loading loading-spinner loading-lg text-primary" />
-          <p className="mt-4 text-muted-foreground">載入遊戲中...</p>
+          <p className="mt-4 text-muted-foreground">
+            <T k="adventure.loading" />
+          </p>
         </div>
       </div>
     );
@@ -82,13 +85,15 @@ export function WordAdventure() {
             strokeWidth={1.5}
             aria-hidden="true"
           />
-          <h2 className="text-lg font-semibold text-error mb-2">載入失敗</h2>
+          <h2 className="text-lg font-semibold text-error mb-2">
+            <T k="adventure.loadFailed" variant="stacked" />
+          </h2>
           <p className="text-muted-foreground mb-4">{error}</p>
           <button
             onClick={() => window.location.reload()}
             className="btn btn-error btn-sm active:scale-[0.98]"
           >
-            重新載入
+            <T k="adventure.reload" variant="stacked" />
           </button>
         </div>
       </div>
@@ -105,7 +110,9 @@ export function WordAdventure() {
             strokeWidth={1.5}
             aria-hidden="true"
           />
-          <p className="text-muted-foreground">請先登入以開始遊戲</p>
+          <p className="text-muted-foreground">
+            <T k="adventure.signInFirst" />
+          </p>
         </div>
       </div>
     );
@@ -126,7 +133,11 @@ export function WordAdventure() {
               disabled={isSettling}
               className="btn btn-error btn-sm min-h-11 shrink-0"
             >
-              {isSettling ? "結算中..." : "重試結算"}
+              {isSettling ? (
+                <T k="adventure.settling" variant="stacked" />
+              ) : (
+                <T k="adventure.retrySettlement" variant="stacked" />
+              )}
             </button>
           ) : (
             <button
@@ -134,7 +145,7 @@ export function WordAdventure() {
               onClick={clearTokenSyncError}
               className="btn btn-ghost btn-sm min-h-11 shrink-0"
             >
-              知道了
+              <T k="adventure.gotIt" variant="stacked" />
             </button>
           )}
         </div>
@@ -145,7 +156,7 @@ export function WordAdventure() {
           className="mx-auto mb-4 max-w-3xl rounded-[10px] border border-warning/25 bg-warning/10 px-4 py-3 text-sm text-warning"
           role="status"
         >
-          生字本的英文解釋不足，本輪改用中文題目，這次代幣不加倍。
+          <T k="adventure.defFallback" />
         </div>
       ) : null}
 

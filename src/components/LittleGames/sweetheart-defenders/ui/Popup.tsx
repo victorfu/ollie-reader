@@ -1,8 +1,12 @@
 import { useEffect, useId, type ReactNode } from "react";
 import { X } from "lucide-react";
+import { msg, type MessageKey } from "../../../../i18n/translate";
+import { useLanguage } from "../../../../hooks/useLanguage";
+import { T } from "../../../common/T";
 
 type Props = {
-  title: string;
+  /** 標題的字典 key */
+  titleKey: MessageKey;
   /** 標題底下那行小字，通常放進度或關卡名 */
   subtitle?: ReactNode;
   /** 主要內容。會自己捲，不用再包一層 overflow */
@@ -21,7 +25,7 @@ type Props = {
  * 的事，是最容易讓人覺得「這遊戲怪怪的」的那種小地方。
  */
 export function Popup({
-  title,
+  titleKey,
   subtitle,
   children,
   footer,
@@ -29,6 +33,7 @@ export function Popup({
   onClose,
 }: Props) {
   const titleId = useId();
+  const { t } = useLanguage();
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -43,7 +48,7 @@ export function Popup({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6">
       <button
         type="button"
-        aria-label={`關閉${title}`}
+        aria-label={t("defenders.popup.closeNamed", { title: msg(titleKey) })}
         onClick={onClose}
         className="absolute inset-0 cursor-default bg-black/25 backdrop-blur-sm"
       />
@@ -60,7 +65,7 @@ export function Popup({
               id={titleId}
               className="text-lg font-semibold tracking-tight text-slate-900"
             >
-              {title}
+              <T k={titleKey} variant="stacked" />
             </h2>
             {subtitle && (
               <p className="mt-0.5 text-xs text-slate-500">{subtitle}</p>
@@ -70,7 +75,7 @@ export function Popup({
           <button
             type="button"
             onClick={onClose}
-            aria-label="關閉"
+            aria-label={t("defenders.popup.close")}
             className="flex size-11 shrink-0 items-center justify-center rounded-full text-slate-500 transition hover:bg-black/5"
           >
             <X size={18} strokeWidth={2} aria-hidden="true" />

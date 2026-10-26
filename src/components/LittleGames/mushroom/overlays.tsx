@@ -1,5 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { type MushroomSettings } from "../lib/types";
+import { T } from "../../common/T";
+import type { MessageKey } from "../../../i18n/translate";
 
 // 兒童友善的大按鈕（≥44px 觸擊目標 + focus ring）
 export const BTN_PRIMARY =
@@ -30,19 +32,21 @@ export function PauseOverlay({
 }) {
   return (
     <Overlay>
-      <h2 className="text-4xl font-bold text-emerald-800 mb-2">暫停中</h2>
+      <h2 className="text-4xl font-bold text-emerald-800 mb-2">
+        <T k="arcade.common.paused" variant="stacked" />
+      </h2>
       <p className="text-slate-600 mb-5 text-base">
-        休息一下，準備好了再繼續！（按 Esc 也可以繼續）
+        <T k="arcade.common.pausedHint" />
       </p>
       <div className="flex gap-3 justify-center flex-wrap">
         <button onClick={onResume} className={BTN_PRIMARY}>
-          ▶ 繼續
+          ▶ <T k="arcade.common.resume" variant="stacked" />
         </button>
         <button onClick={onRestart} className={BTN_SECONDARY}>
-          ↻ 重新開始本關
+          ↻ <T k="arcade.mushroom.restartLevel" variant="stacked" />
         </button>
         <button onClick={onMenu} className={BTN_OUTLINE}>
-          回主選單
+          <T k="arcade.common.backToMenu" variant="stacked" />
         </button>
       </div>
     </Overlay>
@@ -59,17 +63,17 @@ export function TutorialCompleteOverlay({
   return (
     <Overlay>
       <h2 className="text-4xl font-bold text-emerald-800 mb-2">
-        🎉 教學完成！
+        🎉 <T k="arcade.common.tutorialDone" variant="stacked" />
       </h2>
       <p className="text-slate-700 mb-5 text-base">
-        你學會了移動、跳躍、踩蘑菇怪和吃道具，出發去冒險吧！
+        <T k="arcade.mushroom.tutorialDoneBody" />
       </p>
       <div className="flex gap-3 justify-center flex-wrap">
         <button onClick={onStart} className={BTN_PRIMARY}>
-          開始第 1 關
+          <T k="arcade.mushroom.startLevel1" variant="stacked" />
         </button>
         <button onClick={onMenu} className={BTN_OUTLINE}>
-          回主選單
+          <T k="arcade.common.backToMenu" variant="stacked" />
         </button>
       </div>
     </Overlay>
@@ -88,32 +92,32 @@ export function SettingsOverlay({
   const [localSettings, setLocalSettings] =
     useState<MushroomSettings>(settings);
 
-  const difficultyLabel = (value: number) => {
-    if (value <= 0.8) return "簡單";
-    if (value <= 1.1) return "普通";
-    if (value <= 1.3) return "困難";
-    return "地獄";
+  const difficultyLabel = (value: number): MessageKey => {
+    if (value <= 0.8) return "arcade.mushroom.settings.easy";
+    if (value <= 1.1) return "arcade.mushroom.settings.normal";
+    if (value <= 1.3) return "arcade.mushroom.settings.hard";
+    return "arcade.mushroom.settings.extreme";
   };
 
-  const enemyLabel = (value: number) => {
-    if (value <= 1) return "正常";
-    if (value <= 1.5) return "較多";
-    return "超多";
+  const enemyLabel = (value: number): MessageKey => {
+    if (value <= 1) return "arcade.mushroom.settings.enemiesNormal";
+    if (value <= 1.5) return "arcade.mushroom.settings.enemiesMore";
+    return "arcade.mushroom.settings.enemiesLots";
   };
 
   return (
     <div className="absolute inset-0 flex items-center justify-center bg-slate-900/30 backdrop-blur">
       <div className="rounded-3xl bg-white/95 border border-white/60 shadow-2xl px-6 py-6 max-w-md w-full mx-4">
         <h2 className="text-2xl font-bold text-emerald-800 mb-4 text-center">
-          ⚙️ 遊戲設定
+          ⚙️ <T k="arcade.mushroom.settings.title" variant="stacked" />
         </h2>
 
         {/* 難度滑桿 */}
         <div className="mb-4">
           <label className="block text-sm font-medium text-slate-700 mb-2">
-            遊戲難度：
+            <T k="arcade.mushroom.settings.difficulty" />
             <span className="text-emerald-600 font-bold">
-              {difficultyLabel(localSettings.difficultyScale)}
+              <T k={difficultyLabel(localSettings.difficultyScale)} />
             </span>
           </label>
           <input
@@ -131,19 +135,27 @@ export function SettingsOverlay({
             className="w-full h-2 bg-emerald-200 rounded-lg appearance-none cursor-pointer accent-emerald-500"
           />
           <div className="flex justify-between text-xs text-slate-500 mt-1">
-            <span>簡單</span>
-            <span>普通</span>
-            <span>困難</span>
-            <span>地獄</span>
+            <span>
+              <T k="arcade.mushroom.settings.easy" />
+            </span>
+            <span>
+              <T k="arcade.mushroom.settings.normal" />
+            </span>
+            <span>
+              <T k="arcade.mushroom.settings.hard" />
+            </span>
+            <span>
+              <T k="arcade.mushroom.settings.extreme" />
+            </span>
           </div>
         </div>
 
         {/* 敵人數量 */}
         <div className="mb-4">
           <label className="block text-sm font-medium text-slate-700 mb-2">
-            敵人數量：
+            <T k="arcade.mushroom.settings.enemies" />
             <span className="text-emerald-600 font-bold">
-              {enemyLabel(localSettings.enemyMultiplier)}
+              <T k={enemyLabel(localSettings.enemyMultiplier)} />
             </span>
           </label>
           <div className="flex gap-2">
@@ -168,7 +180,7 @@ export function SettingsOverlay({
         {/* 道具頻率 */}
         <div className="mb-4">
           <label className="block text-sm font-medium text-slate-700 mb-2">
-            道具頻率：
+            <T k="arcade.mushroom.settings.powerups" />
             <span className="text-emerald-600 font-bold">
               {(localSettings.powerupFrequency * 100).toFixed(0)}%
             </span>
@@ -198,7 +210,9 @@ export function SettingsOverlay({
         {/* 粒子特效開關 */}
         <div className="mb-6">
           <label className="flex items-center justify-between cursor-pointer">
-            <span className="text-sm font-medium text-slate-700">粒子特效</span>
+            <span className="text-sm font-medium text-slate-700">
+              <T k="arcade.mushroom.settings.particles" />
+            </span>
             <div className="relative">
               <input
                 type="checkbox"
@@ -215,7 +229,7 @@ export function SettingsOverlay({
             </div>
           </label>
           <p className="text-xs text-slate-500 mt-1">
-            開啟後踩敵人和收集道具會有爆炸粒子效果
+            <T k="arcade.mushroom.settings.particlesHint" />
           </p>
         </div>
 
@@ -225,13 +239,13 @@ export function SettingsOverlay({
             onClick={onCancel}
             className="flex-1 min-h-11 py-2.5 rounded-full bg-slate-100 text-slate-700 font-semibold hover:bg-slate-200 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
           >
-            取消
+            <T k="arcade.mushroom.settings.cancel" variant="stacked" />
           </button>
           <button
             onClick={() => onSave(localSettings)}
             className="flex-1 min-h-11 py-2.5 rounded-full bg-emerald-500 text-white font-semibold hover:bg-emerald-600 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
           >
-            儲存
+            <T k="arcade.mushroom.settings.save" variant="stacked" />
           </button>
         </div>
       </div>

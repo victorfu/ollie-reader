@@ -8,6 +8,9 @@ import {
   getChapterForStageIndex,
   type Chapter,
 } from "../../constants/chapters";
+import { useLanguage } from "../../hooks/useLanguage";
+import { msg } from "../../i18n/translate";
+import { T } from "../common/T";
 
 interface StageMapProps {
   stages: Stage[];
@@ -30,6 +33,7 @@ export function StageMap({
   onBack,
 }: StageMapProps) {
   const reduceMotion = useReducedMotion();
+  const { t } = useLanguage();
   const completedCount = stages.filter((_, i) => isStageCompleted(i)).length;
   const progressPercent = Math.round(
     (completedCount / (stages.length || 1)) * 100,
@@ -57,7 +61,10 @@ export function StageMap({
           <div className="h-px flex-1 bg-border-hairline" />
         </div>
         <p className="text-center text-xs text-muted-foreground mt-1">
-          {done} / {endIdx - chapter.firstStageIndex} 關完成
+          <T
+            k="adventure.map.chapterProgress"
+            params={{ done, total: endIdx - chapter.firstStageIndex }}
+          />
         </p>
       </div>
     );
@@ -73,7 +80,7 @@ export function StageMap({
             <button
               onClick={onBack}
               className="btn btn-circle btn-ghost btn-sm active:scale-[0.98]"
-              aria-label="返回"
+              aria-label={t("adventure.map.back")}
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -89,9 +96,11 @@ export function StageMap({
               </svg>
             </button>
             <div className="flex-1">
-              <h1 className="text-lg font-semibold tracking-tight">選擇關卡</h1>
+              <h1 className="text-lg font-semibold tracking-tight">
+                <T k="adventure.map.title" variant="stacked" />
+              </h1>
               <p className="text-sm text-muted-foreground">
-                挑戰關卡，賺扭蛋代幣抽人氣角色！
+                <T k="adventure.map.subtitle" />
               </p>
             </div>
             <div className="badge badge-primary badge-lg gap-1">
@@ -103,9 +112,14 @@ export function StageMap({
           {/* 進度條 */}
           <div className="surface-card rounded-2xl p-3">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-medium">冒險進度</span>
+              <span className="text-sm font-medium">
+                <T k="adventure.map.progress" />
+              </span>
               <span className="text-sm text-muted-foreground">
-                {completedCount} / {stages.length} 關卡
+                <T
+                  k="adventure.map.progressCount"
+                  params={{ done: completedCount, total: stages.length }}
+                />
               </span>
             </div>
             <div className="relative h-3 bg-base-300 rounded-full overflow-hidden">
@@ -117,11 +131,15 @@ export function StageMap({
               />
             </div>
             <div className="flex justify-between mt-1">
-              <span className="text-xs text-muted-foreground">開始</span>
+              <span className="text-xs text-muted-foreground">
+                <T k="adventure.map.progressStart" />
+              </span>
               <span className="text-xs font-medium text-primary">
                 {progressPercent}%
               </span>
-              <span className="text-xs text-muted-foreground">完成</span>
+              <span className="text-xs text-muted-foreground">
+                <T k="adventure.map.progressEnd" />
+              </span>
             </div>
           </div>
         </div>
@@ -155,7 +173,7 @@ export function StageMap({
               : null;
 
             if (chapterLocked) {
-              const prevName = stages[index - 1]?.name ?? "前一關";
+              const prevName = stages[index - 1]?.name;
               return (
                 <Fragment key={stage.id}>
                   {dividerNode}
@@ -166,7 +184,13 @@ export function StageMap({
                       aria-hidden="true"
                     />
                     <p className="mt-2 font-semibold">
-                      擊敗「{prevName}」解鎖{myChapter.name}！
+                      <T
+                        k="adventure.map.chapterLocked"
+                        params={{
+                          stage: prevName ?? msg("adventure.map.previousStage"),
+                          chapter: myChapter.name,
+                        }}
+                      />
                     </p>
                     <p className="text-xs text-muted-foreground mt-1">
                       {myChapter.subtitle}
@@ -285,7 +309,7 @@ export function StageMap({
                           </h3>
                           {isCurrent && (
                             <span className="badge badge-primary badge-xs shrink-0 whitespace-nowrap">
-                              當前
+                              {t("adventure.map.current")}
                             </span>
                           )}
                         </div>
@@ -309,13 +333,13 @@ export function StageMap({
                                 strokeWidth={2}
                                 aria-hidden="true"
                               />
-                              +
-                              {coinsForStageClear(
-                                stage.rewardCoins,
-                                stage.isBoss,
-                                coinMultiplier,
-                              )}{" "}
-                              代幣
+                              {t("adventure.map.coins", {
+                                coins: coinsForStageClear(
+                                  stage.rewardCoins,
+                                  stage.isBoss,
+                                  coinMultiplier,
+                                ),
+                              })}
                             </span>
                           )}
                         </div>
@@ -335,7 +359,11 @@ export function StageMap({
                                 clipRule="evenodd"
                               />
                             </svg>
-                            需要 Lv.{stage.requiredLevel} 解鎖
+                            <T
+                              k="adventure.map.requiredLevel"
+                              params={{ level: stage.requiredLevel }}
+                              variant="stacked"
+                            />
                           </div>
                         )}
                       </div>
@@ -391,7 +419,7 @@ export function StageMap({
               strokeWidth={2}
               aria-hidden="true"
             />
-            點擊可遊玩的關卡開始挑戰
+            <T k="adventure.map.hint" />
           </p>
         </div>
       </div>

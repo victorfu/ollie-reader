@@ -1,6 +1,7 @@
 import { motion } from "framer-motion";
 import { Coins, Flame } from "lucide-react";
 import type { DailyBonusResult } from "../../services/economyService";
+import { T } from "../common/T";
 
 interface DailyBonusModalProps {
   bonus: DailyBonusResult;
@@ -37,18 +38,18 @@ export function DailyBonusModal({
             🎁
           </motion.span>
           <h2 className="text-2xl font-semibold tracking-tight mt-2">
-            每天來玩獎勵！
+            <T k="adventure.daily.title" variant="stacked" />
           </h2>
           {bonus.streakDays > 1 && (
             <div className="badge badge-error badge-lg gap-1 mt-1">
               <Flame className="mr-1 inline h-3.5 w-3.5 align-[-2px]" strokeWidth={2} aria-hidden="true" />
-              連續登入 {bonus.streakDays} 天
+              <T k="adventure.daily.streak" params={{ days: bonus.streakDays }} />
             </div>
           )}
           <div className="flex items-center gap-2 mt-4">
             <Coins className="h-9 w-9 text-warning" strokeWidth={2} aria-hidden="true" />
             <span className="text-3xl font-bold text-warning">
-              +{bonus.coins} 扭蛋代幣
+              <T k="adventure.coinsGained" params={{ coins: bonus.coins }} />
             </span>
           </div>
           {error ? (
@@ -66,7 +67,16 @@ export function DailyBonusModal({
             disabled={isClaiming}
             className="btn btn-primary btn-lg w-full mt-6 active:scale-[0.98] disabled:cursor-not-allowed"
           >
-            {isClaiming ? "入帳中…" : error ? "重新領取" : "開心收下！"}
+            <T
+              k={
+                isClaiming
+                  ? "adventure.daily.claiming"
+                  : error
+                    ? "adventure.daily.retry"
+                    : "adventure.daily.claim"
+              }
+              variant="stacked"
+            />
           </motion.button>
         </div>
       </motion.div>

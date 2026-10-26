@@ -1,5 +1,6 @@
 import { motion } from "framer-motion";
 import type { GameStats, GameState } from "../../types/game";
+import { T } from "../common/T";
 
 interface GameResultProps {
   state: GameState;
@@ -43,35 +44,54 @@ export function GameResult({
             : "text-secondary"
         }`}
       >
-        {isVictory ? "太厲害了！" : "Ollie 累了..."}
+        <T
+          k={isVictory ? "adventure.magic.victoryTitle" : "adventure.magic.defeatTitle"}
+          variant="stacked"
+        />
       </h2>
 
       <p className="text-muted-foreground mb-6 text-base sm:text-lg">
-        {isVictory ? "你是最棒的小魔法師！✨" : "沒關係，我們再試一次吧！💖"}
+        {isVictory ? (
+          <>
+            <T k="adventure.magic.victoryText" />✨
+          </>
+        ) : (
+          <>
+            <T k="adventure.magic.defeatText" />💖
+          </>
+        )}
       </p>
 
       {/* Stats Grid */}
       <div className="grid grid-cols-2 gap-3 mb-6">
         <div className="surface-card p-3 sm:p-4 rounded-2xl">
-          <div className="text-xs sm:text-sm text-muted-foreground mb-1">總分</div>
+          <div className="text-xs sm:text-sm text-muted-foreground mb-1">
+            <T k="adventure.magic.score" />
+          </div>
           <div className="text-2xl sm:text-3xl font-bold text-foreground">
             {stats.score}
           </div>
         </div>
         <div className="surface-card p-3 sm:p-4 rounded-2xl">
-          <div className="text-xs sm:text-sm text-muted-foreground mb-1">最大連擊</div>
+          <div className="text-xs sm:text-sm text-muted-foreground mb-1">
+            <T k="adventure.magic.maxCombo" />
+          </div>
           <div className="text-2xl sm:text-3xl font-bold text-primary">
             💖 {stats.maxCombo}
           </div>
         </div>
         <div className="surface-card p-3 sm:p-4 rounded-2xl">
-          <div className="text-xs sm:text-sm text-muted-foreground mb-1">擊敗怪獸</div>
+          <div className="text-xs sm:text-sm text-muted-foreground mb-1">
+            <T k="adventure.magic.monsters" />
+          </div>
           <div className="text-2xl sm:text-3xl font-bold text-secondary">
             {stats.monstersDefeated}
           </div>
         </div>
         <div className="surface-card p-3 sm:p-4 rounded-2xl">
-          <div className="text-xs sm:text-sm text-muted-foreground mb-1">答對率</div>
+          <div className="text-xs sm:text-sm text-muted-foreground mb-1">
+            <T k="adventure.magic.accuracy" />
+          </div>
           <div className="text-2xl sm:text-3xl font-bold text-accent">
             {stats.correctAnswers + stats.wrongAnswers > 0
               ? Math.round(
@@ -93,7 +113,7 @@ export function GameResult({
           onClick={onRestart}
           className="w-full py-3 sm:py-4 text-lg sm:text-xl font-bold text-white bg-gradient-to-r from-primary via-secondary to-accent rounded-2xl shadow-elevated hover:shadow-floating transition-shadow active:scale-[0.98]"
         >
-          🎀 再玩一次
+          🎀 <T k="adventure.magic.playAgain" variant="stacked" />
         </motion.button>
         <motion.button
           whileHover={{ scale: 1.02 }}
@@ -101,7 +121,7 @@ export function GameResult({
           onClick={onQuit}
           className="w-full py-3 text-base sm:text-lg font-medium text-muted-foreground hover:text-foreground hover:bg-base-200/60 rounded-2xl transition-colors"
         >
-          返回主選單
+          <T k="adventure.magic.menu" variant="stacked" />
         </motion.button>
       </div>
     </motion.div>

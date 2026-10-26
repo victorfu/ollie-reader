@@ -1,13 +1,16 @@
 import { CakeSlice, Coins, Star, Trophy } from "lucide-react";
 import { starsForRun, summariseRun, type RunOutcome } from "../engine/progress";
 import { GACHA_DRAW_COST } from "../../gacha-machine/gachaLogic";
+import type { ReactNode } from "react";
+import { useLanguage } from "../../../../hooks/useLanguage";
+import { T } from "../../../common/T";
 
 type Props = {
   outcome: RunOutcome;
   /** 這一場賺到的扭蛋代幣；0 表示這關的獎勵早就領過了 */
   coinsEarned: number;
   isSettling: boolean;
-  settlementError: string | null;
+  settlementError: ReactNode;
   totalWaves: number;
   onRetry: () => void;
   onExit: () => void;
@@ -25,6 +28,7 @@ export function ResultDialog({
   const stars = starsForRun(outcome);
   const { title, detail } = summariseRun(outcome, totalWaves);
   const cleared = outcome.phase === "cleared";
+  const { t } = useLanguage();
 
   return (
     // z-40：結算視窗蓋住整個畫面，要壓在工具列 header（z-30）之上。
@@ -39,14 +43,16 @@ export function ResultDialog({
         </p>
 
         <h2 className="mt-2 text-xl font-semibold tracking-tight text-slate-900">
-          {title}
+          <T k={title.key} params={title.params} variant="stacked" />
         </h2>
-        <p className="mt-1 text-sm text-slate-500">{detail}</p>
+        <p className="mt-1 text-sm text-slate-500">
+          <T k={detail.key} params={detail.params} />
+        </p>
 
         {cleared && (
           <p
             className="mt-3 flex justify-center gap-1"
-            aria-label={`獲得 ${stars} 顆星`}
+            aria-label={t("defenders.result.stars", { stars })}
           >
             {[0, 1, 2].map((index) => (
               <Star
@@ -67,9 +73,12 @@ export function ResultDialog({
         {coinsEarned > 0 && (
           <p className="mt-3 flex items-center justify-center gap-1.5 rounded-[10px] bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-700">
             <Coins size={16} strokeWidth={2} aria-hidden="true" />
-            +{coinsEarned} 扭蛋代幣
+            <T k="defenders.result.coins" params={{ coins: coinsEarned }} />
             <span className="font-normal text-amber-600/80">
-              （可以抽 {Math.floor(coinsEarned / GACHA_DRAW_COST)} 次）
+              <T
+                k="defenders.result.draws"
+                params={{ n: Math.floor(coinsEarned / GACHA_DRAW_COST) }}
+              />
             </span>
           </p>
         )}
@@ -80,7 +89,7 @@ export function ResultDialog({
             className="mt-3 flex items-center justify-center gap-2 text-sm font-medium text-slate-600"
           >
             <span className="loading loading-spinner loading-sm" />
-            結算中...
+            <T k="defenders.result.settling" />
           </p>
         )}
 
@@ -97,11 +106,16 @@ export function ResultDialog({
             disabled={isSettling}
             className="min-h-11 rounded-[10px] bg-[#ff6f9f] px-4 text-sm font-semibold text-white shadow-sm transition hover:brightness-105 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {isSettling
-              ? "結算中..."
-              : cleared
-                ? "再玩一次"
-                : "再試一次"}
+            <T
+              k={
+                isSettling
+                  ? "defenders.result.settling"
+                  : cleared
+                    ? "defenders.result.playAgain"
+                    : "defenders.result.retry"
+              }
+              variant="stacked"
+            />
           </button>
           <button
             type="button"
@@ -109,7 +123,7 @@ export function ResultDialog({
             disabled={isSettling}
             className="min-h-11 rounded-[10px] border border-black/5 bg-white px-4 text-sm font-medium text-slate-600 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            回到選單
+            <T k="defenders.result.menu" variant="stacked" />
           </button>
         </div>
       </div>

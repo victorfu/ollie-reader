@@ -2,6 +2,7 @@ import { Heart } from "lucide-react";
 import { ARCHETYPE_BY_ELEMENT, ELEMENT_COLOR } from "../data/elements";
 import { TEAM_ULTIMATE, ULTIMATES } from "../data/ultimates";
 import type { TowerCharacter } from "../types";
+import { useLanguage } from "../../../../hooks/useLanguage";
 
 type Props = {
   /** 這一場帶進來的隊伍，照選隊順序 */
@@ -70,15 +71,21 @@ function TeamUltimateButton({
   onCast: () => void;
 }) {
   const ready = anyOnField && charge >= 1;
+  const { t } = useLanguage();
 
   return (
     <button
       type="button"
       onClick={onCast}
       disabled={!ready}
-      aria-label={`隊伍大絕招「${TEAM_ULTIMATE.nameZh}」${
-        ready ? "已就緒" : `充能 ${Math.round(charge * 100)}%`
-      }`}
+      aria-label={
+        ready
+          ? t("defenders.ult.teamReady", { name: TEAM_ULTIMATE.nameZh })
+          : t("defenders.ult.teamCharging", {
+              name: TEAM_ULTIMATE.nameZh,
+              percent: Math.round(charge * 100),
+            })
+      }
       title={`${TEAM_ULTIMATE.nameZh}：${TEAM_ULTIMATE.descZh}`}
       className={`relative flex size-14 shrink-0 items-center justify-center rounded-full border-2 transition sm:size-16 ${
         ready
@@ -129,6 +136,8 @@ function UltimateButton({
   const ultimate = ULTIMATES[archetype];
   const ready = onField && charge >= 1;
   const color = ELEMENT_COLOR[character.elements[0]];
+  const { t } = useLanguage();
+  const names = { character: character.nameZh, name: ultimate.nameZh };
 
   return (
     <button
@@ -136,9 +145,14 @@ function UltimateButton({
       onClick={onCast}
       disabled={!ready}
       aria-label={
-        onField
-          ? `${character.nameZh} 的絕招「${ultimate.nameZh}」${ready ? "已就緒" : `充能 ${Math.round(charge * 100)}%`}`
-          : `${character.nameZh} 還沒上場`
+        !onField
+          ? t("defenders.ult.notOnField", { character: character.nameZh })
+          : ready
+            ? t("defenders.ult.ready", names)
+            : t("defenders.ult.charging", {
+                ...names,
+                percent: Math.round(charge * 100),
+              })
       }
       title={`${ultimate.nameZh}：${ultimate.descZh}`}
       className={`relative flex size-14 shrink-0 items-center justify-center rounded-full border-2 transition sm:size-16 ${

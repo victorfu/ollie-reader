@@ -1,6 +1,8 @@
 import { useEffect, useId, useRef } from "react";
 import { motion } from "framer-motion";
 import { Check, Eye, X } from "lucide-react";
+import { useLanguage } from "../../../hooks/useLanguage";
+import { T } from "../../common/T";
 import type { GachaCharacter } from "./gachaTypes";
 
 interface GachaCollectionDialogProps {
@@ -22,6 +24,7 @@ export function GachaCollectionDialog({
   const titleId = useId();
   const descriptionId = useId();
   const isPreview = ownedCount <= 0;
+  const { t } = useLanguage();
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -78,7 +81,7 @@ export function GachaCollectionDialog({
             ref={closeButtonRef}
             type="button"
             onClick={() => dialogRef.current?.close()}
-            aria-label="關閉角色圖片"
+            aria-label={t("gacha.dialog.closeCharacter")}
             className="absolute right-3 top-3 z-20 inline-flex size-11 items-center justify-center rounded-full border border-border-hairline bg-background/80 text-foreground shadow-sm backdrop-blur-md transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
           >
             <X className="size-5" strokeWidth={1.8} aria-hidden="true" />
@@ -97,7 +100,7 @@ export function GachaCollectionDialog({
             </div>
             <motion.img
               src={character.imageUrl}
-              alt={`${character.name}角色圖片`}
+              alt={t("gacha.dialog.characterAlt", { name: character.name })}
               loading="eager"
               decoding="async"
               initial={reduceMotion ? false : { y: 14, scale: 0.9 }}
@@ -120,7 +123,11 @@ export function GachaCollectionDialog({
               ) : (
                 <Check className="size-4" strokeWidth={2} aria-hidden="true" />
               )}
-              {isPreview ? "完整圖鑑預覽" : `已遇見 ${ownedCount} 次`}
+              {isPreview ? (
+                <T k="gacha.dialog.previewBadge" />
+              ) : (
+                <T k="gacha.dialog.metCount" params={{ n: ownedCount }} />
+              )}
             </div>
             <h2 id={titleId} className="text-3xl font-bold tracking-tight">
               {character.name}
@@ -132,17 +139,19 @@ export function GachaCollectionDialog({
               id={descriptionId}
               className="mx-auto mt-3 max-w-md text-sm leading-6 text-muted-foreground"
             >
-              {isPreview
-                ? "這個角色尚未透過扭蛋解鎖；目前依照設定提供圖片預覽。"
-                : "這個角色已收錄在你的圖鑑中，可以隨時回來查看。"}
+              {isPreview ? (
+                <T k="gacha.dialog.previewBody" />
+              ) : (
+                <T k="gacha.dialog.ownedBody" />
+              )}
             </p>
           </div>
         </motion.div>
       ) : null}
 
       <form method="dialog" className="modal-backdrop">
-        <button type="submit" aria-label="關閉角色圖片">
-          關閉
+        <button type="submit" aria-label={t("gacha.dialog.closeCharacter")}>
+          {t("gacha.close")}
         </button>
       </form>
     </dialog>

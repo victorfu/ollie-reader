@@ -2,25 +2,17 @@ import { Candy, Crosshair, Swords } from "lucide-react";
 import {
   ARCHETYPE_BASE,
   ARCHETYPE_BY_ELEMENT,
-  ARCHETYPE_DESC_ZH,
-  ARCHETYPE_LABEL_ZH,
   ELEMENT_COLOR,
-  ELEMENT_LABEL_ZH,
 } from "../data/elements";
 import { DEFAULT_ROSTER_IDS } from "../data/characters";
-import { TRAIT_BASE, TRAIT_DESC_ZH, TRAIT_LABEL_ZH } from "../data/traits";
+import { TRAIT_BASE } from "../data/traits";
 import { getTowerStats, getTrait } from "../engine/combat";
 import { RARITY_TIERS } from "../constants";
 import { getPlaceCost } from "../engine/economy";
 import type { Rarity, TowerCharacter } from "../types";
-
-const RARITY_LABEL_ZH: Record<Rarity, string> = {
-  common: "普通",
-  uncommon: "少見",
-  rare: "稀有",
-  warden: "守護者",
-  mythling: "傳說",
-};
+import type { MessageKey } from "../../../../i18n/translate";
+import { useLanguage } from "../../../../hooks/useLanguage";
+import { T } from "../../../common/T";
 
 const RARITY_STYLE: Record<Rarity, string> = {
   common: "bg-slate-100 text-slate-600",
@@ -55,11 +47,12 @@ export function RangePips({ range }: { range: number }) {
   );
   // 站得最近的也至少亮一格，不然看起來像「打不到任何東西」。
   const filled = Math.max(1, Math.round(ratio * PIPS));
+  const { t } = useLanguage();
 
   return (
     <span
       className="flex items-center gap-0.5"
-      aria-label={`射程 ${filled} / ${PIPS}`}
+      aria-label={t("defenders.character.rangeAria", { n: filled, max: PIPS })}
     >
       {Array.from({ length: PIPS }, (_, index) => (
         <Crosshair
@@ -100,11 +93,12 @@ export function PowerMeter({ damage }: { damage: number }) {
   );
   // 有攻擊力就至少亮一把，不然低傷害的糖漿塔看起來像不會打人。
   const filled = damage <= 0 ? 0 : Math.max(1, Math.round(ratio * PIPS));
+  const { t } = useLanguage();
 
   return (
     <span
       className="flex items-center gap-0.5"
-      aria-label={`攻擊力 ${filled} / ${PIPS}`}
+      aria-label={t("defenders.character.powerAria", { n: filled, max: PIPS })}
     >
       {Array.from({ length: PIPS }, (_, index) => (
         <Swords
@@ -137,13 +131,14 @@ export function CharacterDetail({ character, unlocked = true }: Props) {
   const archetype = ARCHETYPE_BY_ELEMENT[element];
   const trait = getTrait(character);
   const stats = getTowerStats(character, 1);
+  const { t } = useLanguage();
 
   return (
     <section>
       <div className="flex items-start gap-4">
         <img
           src={character.sprite}
-          alt={unlocked ? character.name : "還沒收集到的角色"}
+          alt={unlocked ? character.name : t("defenders.character.unknownAlt")}
           className={`h-20 w-20 shrink-0 object-contain ${
             unlocked ? "" : "opacity-35 brightness-0"
           }`}
@@ -162,11 +157,17 @@ export function CharacterDetail({ character, unlocked = true }: Props) {
             <span
               className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${RARITY_STYLE[character.rarity]}`}
             >
-              {RARITY_LABEL_ZH[character.rarity]}
+              <T k={`defenders.rarity.${character.rarity}`} />
             </span>
             {unlocked && (
               <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-500">
-                {isDefault ? "預設班底" : "扭蛋抽到的"}
+                <T
+                  k={
+                    isDefault
+                      ? "defenders.character.starter"
+                      : "defenders.character.fromGacha"
+                  }
+                />
               </span>
             )}
           </div>
@@ -178,7 +179,8 @@ export function CharacterDetail({ character, unlocked = true }: Props) {
                   className="rounded-full px-2 py-0.5 text-[11px] font-semibold text-slate-800"
                   style={{ backgroundColor: ELEMENT_COLOR[element] }}
                 >
-                  {ELEMENT_LABEL_ZH[element]} · {ARCHETYPE_LABEL_ZH[archetype]}
+                  <T k={`defenders.element.${element}`} /> ·{" "}
+                  <T k={`defenders.archetype.${archetype}`} />
                 </span>
                 <span
                   className="rounded-full px-2 py-0.5 text-[11px] font-semibold text-slate-700 ring-1 ring-inset ring-black/5"
@@ -186,37 +188,41 @@ export function CharacterDetail({ character, unlocked = true }: Props) {
                     backgroundColor: `${ELEMENT_COLOR[character.elements[1] ?? element]}55`,
                   }}
                 >
-                  {TRAIT_LABEL_ZH[trait]}
+                  <T k={`defenders.trait.${trait}`} />
                 </span>
               </div>
 
               {/* 招式和特性分兩行寫清楚：一行是「平常怎麼打」，一行是「多了什麼」。 */}
               <p className="mt-2 text-sm leading-snug text-slate-600">
-                <span className="font-semibold text-slate-700">招式</span>
+                <span className="font-semibold text-slate-700">
+                  <T k="defenders.character.move" />
+                </span>
                 {" · "}
-                {ARCHETYPE_DESC_ZH[archetype]}
+                <T k={`defenders.archetypeDesc.${archetype}`} />
               </p>
               <p className="mt-1 text-sm leading-snug text-slate-600">
-                <span className="font-semibold text-slate-700">特性</span>
+                <span className="font-semibold text-slate-700">
+                  <T k="defenders.character.trait" />
+                </span>
                 {" · "}
-                {TRAIT_DESC_ZH[trait]}
+                <T k={`defenders.traitDesc.${trait}`} />
               </p>
 
               <dl className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
-                <Metric label="造價">
+                <Metric label="defenders.stat.cost">
                   <span className="flex items-center gap-0.5">
                     <Candy size={12} strokeWidth={2} aria-hidden="true" />
                     {getPlaceCost(character)}
                   </span>
                 </Metric>
-                <Metric label="射程">
+                <Metric label="defenders.stat.range">
                   <span className="flex items-center gap-1.5">
                     <RangePips range={stats.range} />
                     {Math.round(stats.range)}
                   </span>
                 </Metric>
                 {stats.damage > 0 && (
-                  <Metric label="攻擊">
+                  <Metric label="defenders.stat.attack">
                     <span className="flex items-center gap-1.5">
                       <PowerMeter damage={stats.damage} />
                       {stats.damage.toFixed(1)}
@@ -224,30 +230,30 @@ export function CharacterDetail({ character, unlocked = true }: Props) {
                   </Metric>
                 )}
                 {stats.cooldownMs > 0 && (
-                  <Metric label="間隔">
+                  <Metric label="defenders.stat.interval">
                     {(stats.cooldownMs / 1000).toFixed(2)}s
                   </Metric>
                 )}
                 {stats.splashRadius > 0 && (
-                  <Metric label="濺射">{Math.round(stats.splashRadius)}</Metric>
+                  <Metric label="defenders.stat.splash">{Math.round(stats.splashRadius)}</Metric>
                 )}
                 {stats.slowFactor > 0 && (
-                  <Metric label="減速">{percent(stats.slowFactor)}</Metric>
+                  <Metric label="defenders.stat.slow">{percent(stats.slowFactor)}</Metric>
                 )}
                 {stats.stunChance > 0 && (
-                  <Metric label="定身機率">{percent(stats.stunChance)}</Metric>
+                  <Metric label="defenders.stat.stun">{percent(stats.stunChance)}</Metric>
                 )}
                 {stats.armorPierce > 0 && (
-                  <Metric label="破甲">{percent(stats.armorPierce)}</Metric>
+                  <Metric label="defenders.stat.pierce">{percent(stats.armorPierce)}</Metric>
                 )}
                 {stats.cheerBonus > 0 && (
-                  <Metric label="夥伴加速">{percent(stats.cheerBonus)}</Metric>
+                  <Metric label="defenders.stat.cheer">{percent(stats.cheerBonus)}</Metric>
                 )}
               </dl>
             </>
           ) : (
             <p className="mt-2 text-sm text-slate-500">
-              去「人氣角色扭蛋機」抽抽看，抽到就能放上塔位。
+              <T k="defenders.character.lockedHint" />
             </p>
           )}
         </div>
@@ -264,12 +270,14 @@ function Metric({
   label,
   children,
 }: {
-  label: string;
+  label: MessageKey;
   children: React.ReactNode;
 }) {
   return (
     <div className="flex items-baseline gap-1">
-      <dt className="opacity-70">{label}</dt>
+      <dt className="opacity-70">
+        <T k={label} />
+      </dt>
       <dd className="font-semibold text-slate-600">{children}</dd>
     </div>
   );

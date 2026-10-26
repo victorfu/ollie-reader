@@ -1,10 +1,4 @@
-import {
-  ARCHETYPE_BY_ELEMENT,
-  ARCHETYPE_DESC_ZH,
-  ARCHETYPE_LABEL_ZH,
-  ELEMENT_LABEL_ZH,
-} from "../data/elements";
-import { TRAIT_DESC_ZH, TRAIT_LABEL_ZH } from "../data/traits";
+import { ARCHETYPE_BY_ELEMENT } from "../data/elements";
 import { getTowerStats, getTrait } from "../engine/combat";
 import { CharacterTags } from "./CharacterTags";
 import { getPlaceCost, getSellRefund, getUpgradeCost } from "../engine/economy";
@@ -16,6 +10,9 @@ import {
   type SpecPath,
 } from "../data/specialisations";
 import type { LiveTower, TowerCharacter, TowerLevel } from "../types";
+import type { MessageKey } from "../../../../i18n/translate";
+import { useLanguage } from "../../../../hooks/useLanguage";
+import { T } from "../../../common/T";
 
 /** TowerPanel 只需要知道塔的等級，不需要冷卻、傷害那些每幀都在動的欄位。 */
 type TowerSummary = Pick<
@@ -99,27 +96,29 @@ function PetDetails({
     <div className="mt-2 space-y-1.5 rounded-[10px] bg-slate-50/80 p-2">
       <p className="text-xs leading-snug text-slate-600">
         <span className="font-semibold text-slate-700">
-          {ARCHETYPE_LABEL_ZH[archetype]}
+          <T k={`defenders.archetype.${archetype}`} />
           {spec && ` · ${SPECIALISATIONS[archetype][spec].nameZh}`}
         </span>
         {" · "}
-        {ARCHETYPE_DESC_ZH[archetype]}
+        <T k={`defenders.archetypeDesc.${archetype}`} />
       </p>
       <p className="text-xs leading-snug text-slate-600">
         <span className="font-semibold text-slate-700">
-          {TRAIT_LABEL_ZH[trait]}
+          <T k={`defenders.trait.${trait}`} />
         </span>
         {" · "}
-        {TRAIT_DESC_ZH[trait]}
+        <T k={`defenders.traitDesc.${trait}`} />
       </p>
       <dl className="flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-slate-500">
-        <Metric label="屬性">{ELEMENT_LABEL_ZH[element]}</Metric>
-        <Metric label="射程">{Math.round(stats.range)}</Metric>
+        <Metric label="defenders.stat.element">
+          <T k={`defenders.element.${element}`} />
+        </Metric>
+        <Metric label="defenders.stat.range">{Math.round(stats.range)}</Metric>
         {stats.damage > 0 && (
-          <Metric label="攻擊">{stats.damage.toFixed(1)}</Metric>
+          <Metric label="defenders.stat.attack">{stats.damage.toFixed(1)}</Metric>
         )}
         {stats.cooldownMs > 0 && (
-          <Metric label="間隔">{(stats.cooldownMs / 1000).toFixed(2)}s</Metric>
+          <Metric label="defenders.stat.interval">{(stats.cooldownMs / 1000).toFixed(2)}s</Metric>
         )}
       </dl>
     </div>
@@ -130,12 +129,14 @@ function Metric({
   label,
   children,
 }: {
-  label: string;
+  label: MessageKey;
   children: React.ReactNode;
 }) {
   return (
     <div className="flex items-baseline gap-1">
-      <dt className="opacity-70">{label}</dt>
+      <dt className="opacity-70">
+        <T k={label} />
+      </dt>
       <dd className="font-semibold text-slate-600">{children}</dd>
     </div>
   );
@@ -162,14 +163,14 @@ function EmptySlot({
     <>
       <div className="mb-2 flex items-center justify-between gap-2">
         <p className="text-sm font-semibold text-slate-800">
-          {preview ? preview.nameZh : "選一隻角色站上這個位置"}
+          {preview ? preview.nameZh : <T k="defenders.tower.pick" />}
         </p>
         <button
           type="button"
           onClick={onClose}
           className="min-h-11 shrink-0 rounded-[8px] px-3 text-sm font-medium text-slate-500 transition hover:bg-black/5"
         >
-          取消
+          <T k="defenders.tower.cancel" variant="stacked" />
         </button>
       </div>
 
@@ -236,7 +237,15 @@ function EmptySlot({
             className="mt-2 min-h-11 w-full rounded-[10px] bg-[#ff6f9f] text-sm font-semibold text-white shadow-sm transition hover:brightness-105 active:scale-[0.99] disabled:opacity-45"
           >
             <span className="flex items-center justify-center gap-1">
-              {frosting < getPlaceCost(preview) ? "還差" : `放上 ${preview.nameZh}`}
+              {frosting < getPlaceCost(preview) ? (
+                <T k="defenders.tower.short" variant="stacked" />
+              ) : (
+                <T
+                  k="defenders.tower.place"
+                  params={{ name: preview.nameZh }}
+                  variant="stacked"
+                />
+              )}
               <Candy size={14} strokeWidth={2} aria-hidden="true" />
               {frosting < getPlaceCost(preview)
                 ? getPlaceCost(preview) - frosting
@@ -269,6 +278,7 @@ function OccupiedSlot({
   // 3 → 4 是分岔：不再是一顆「升級」，而是兩條路線二選一。
   const choosingSpec = tower.level === 3;
   const archetype = ARCHETYPE_BY_ELEMENT[pet.elements[0]];
+  const { t } = useLanguage();
 
   return (
     <>
@@ -293,7 +303,7 @@ function OccupiedSlot({
           type="button"
           onClick={onClose}
           className="flex min-h-11 shrink-0 items-center rounded-[8px] px-2 text-slate-500 transition hover:bg-black/5"
-          aria-label="關閉"
+          aria-label={t("defenders.popup.close")}
         >
           <X size={18} strokeWidth={2} aria-hidden="true" />
         </button>
@@ -304,7 +314,7 @@ function OccupiedSlot({
       {choosingSpec && (
         <div className="mt-2">
           <p className="mb-1 text-[11px] font-semibold text-slate-500">
-            選一條路走（選了就不能改）
+            <T k="defenders.tower.choosePath" />
           </p>
           <div className="flex gap-2">
             {SPEC_PATHS.map((path) => {
@@ -342,10 +352,10 @@ function OccupiedSlot({
           }`}
         >
           {maxed ? (
-            "已滿級"
+            <T k="defenders.tower.maxed" variant="stacked" />
           ) : (
             <span className="flex items-center justify-center gap-1">
-              升級
+              <T k="defenders.tower.upgrade" variant="stacked" />
               <Candy size={14} strokeWidth={2} aria-hidden="true" />
               {upgradeCost}
             </span>
@@ -356,7 +366,11 @@ function OccupiedSlot({
           onClick={onSell}
           className="min-h-11 rounded-[10px] border border-black/5 bg-white px-3 text-sm font-medium text-slate-600 shadow-sm transition hover:bg-slate-50"
         >
-          賣掉 +{getSellRefund(pet, tower.level)}
+          <T
+            k="defenders.tower.sell"
+            params={{ n: getSellRefund(pet, tower.level) }}
+            variant="stacked"
+          />
         </button>
       </div>
     </>

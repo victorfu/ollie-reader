@@ -3,6 +3,10 @@ import { readerEn } from "./messages/reader";
 import { practiceEn } from "./messages/practice";
 import { listeningEn } from "./messages/listening";
 import { examsEn } from "./messages/exams";
+import { gachaEn } from "./messages/gacha";
+import { defendersEn } from "./messages/defenders";
+import { adventureEn } from "./messages/adventure";
+import { arcadeEn } from "./messages/arcade";
 
 
 /** English dictionary. Typed against the zh-TW keys so a missing entry fails tsc. */
@@ -141,4 +145,8 @@ export const en: Record<MessageKey, string> = {
   ...practiceEn,
   ...listeningEn,
   ...examsEn,
+  ...gachaEn,
+  ...defendersEn,
+  ...adventureEn,
+  ...arcadeEn,
 };

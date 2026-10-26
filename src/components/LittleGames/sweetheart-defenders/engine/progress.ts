@@ -1,5 +1,6 @@
 import { THREE_STAR_CAKE_RATIO, TWO_STAR_CAKE_RATIO } from "../constants";
 import type { BattlePhase } from "../types";
+import { msg, type MessageRef } from "../../../../i18n/translate";
 
 export type Stars = 0 | 1 | 2 | 3;
 
@@ -105,16 +106,19 @@ export function applyRunResult(
 
 /**
  * 失敗時給的鼓勵訊息。刻意不寫 Game Over——寫「撐到第幾波」比較容易讓人
- * 想再試一次。
+ * 想再試一次。回傳字典 key + 參數，由畫面依語言翻譯。
  */
 export function summariseRun(
   state: RunOutcome,
   totalWaves: number,
-): { title: string; detail: string } {
+): { title: MessageRef; detail: MessageRef } {
   if (state.phase === "cleared") {
     return {
-      title: "守住了！",
-      detail: `蛋糕還剩 ${state.cakes} 塊 · 擊倒 ${state.kills} 隻怪`,
+      title: msg("defenders.result.cleared"),
+      detail: msg("defenders.result.clearedDetail", {
+        cakes: state.cakes,
+        kills: state.kills,
+      }),
     };
   }
 
@@ -122,10 +126,10 @@ export function summariseRun(
   const remaining = totalWaves - reached;
 
   return {
-    title: `這次撐到第 ${reached} 波！`,
+    title: msg("defenders.result.reached", { wave: reached }),
     detail:
       remaining <= 3
-        ? `離通關只差 ${remaining} 波 · 擊倒 ${state.kills} 隻怪`
-        : `擊倒 ${state.kills} 隻怪 · 再試一次一定更好`,
+        ? msg("defenders.result.almost", { remaining, kills: state.kills })
+        : msg("defenders.result.keepTrying", { kills: state.kills }),
   };
 }

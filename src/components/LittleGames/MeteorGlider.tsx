@@ -1,4 +1,7 @@
 import { useEffect, useRef, useState } from "react";
+import { T } from "../common/T";
+import { useLanguage } from "../../hooks/useLanguage";
+import type { MessageKey } from "../../i18n/translate";
 import {
   getKeyboardSteeringDirection,
   getTouchDirection,
@@ -102,13 +105,17 @@ type GameData = {
 };
 
 const TUTORIAL_STEPS = 4;
-const TUTORIAL_TEXT = [
-  "用 ← → 或 A D 鍵左右移動滑翔機！",
-  "流星來了！左右移動閃開它 ☄️",
-  "去吃綠色的燃料電池，補滿能量 💎",
-  "按空白鍵（或 Shift）衝刺一下！",
+type TutorialLine = { key: MessageKey; emoji?: string };
+const TUTORIAL_TEXT: TutorialLine[] = [
+  { key: "arcade.meteor.tutorial.move" },
+  { key: "arcade.meteor.tutorial.dodge", emoji: "☄️" },
+  { key: "arcade.meteor.tutorial.fuel", emoji: "💎" },
+  { key: "arcade.meteor.tutorial.dash" },
 ];
-const TUTORIAL_FINALE_TEXT = "衝刺成功！你已經準備好了 🚀";
+const TUTORIAL_FINALE_TEXT: TutorialLine = {
+  key: "arcade.meteor.tutorial.finale",
+  emoji: "🚀",
+};
 
 const WIDTH = 480;
 const HEIGHT = 720;
@@ -138,6 +145,13 @@ export default function MeteorGlider({ onExit, onPlayBunny }: MeteorGliderProps)
   const [gameState, setGameState] = useState<GameState>("menu");
   const [score, setScore] = useState(0);
   const [bestScore, setBestScore] = useState(0);
+  const { t } = useLanguage();
+  // The canvas is drawn inside the game loop; read t through a ref so a
+  // language change never restarts the loop.
+  const tRef = useRef(t);
+  useEffect(() => {
+    tRef.current = t;
+  }, [t]);
   const [dashFuelUI, setDashFuelUI] = useState(FUEL_MAX);
   const [dashCooldownUI, setDashCooldownUI] = useState(0);
   const [tutorialDone, setTutorialDone] = useState(false);
@@ -384,7 +398,9 @@ export default function MeteorGlider({ onExit, onPlayBunny }: MeteorGliderProps)
     const tut = data.tutorial;
     if (tut) {
       const isFinale = tut.step >= TUTORIAL_STEPS;
-      const text = isFinale ? TUTORIAL_FINALE_TEXT : TUTORIAL_TEXT[tut.step];
+      const line = isFinale ? TUTORIAL_FINALE_TEXT : TUTORIAL_TEXT[tut.step];
+      const label = tRef.current(line.key);
+      const text = line.emoji ? `${label} ${line.emoji}` : label;
       ctx.save();
       ctx.font = "bold 18px system-ui";
       ctx.textAlign = "center";
@@ -830,7 +846,7 @@ export default function MeteorGlider({ onExit, onPlayBunny }: MeteorGliderProps)
           className="absolute left-6 top-6 z-20 rounded-full bg-white/90 px-4 py-2 text-sm font-semibold text-slate-900 shadow-lg backdrop-blur transition hover:-translate-y-0.5 hover:shadow-xl"
           type="button"
         >
-          ← 回遊戲列表
+          ← <T k="arcade.common.backToGames" variant="stacked" />
         </button>
       )}
 
@@ -858,15 +874,16 @@ export default function MeteorGlider({ onExit, onPlayBunny }: MeteorGliderProps)
               </p>
               <h1 className="mt-2 text-3xl font-bold">Meteor Glider</h1>
               <p className="mt-3 text-slate-200">
-                Weave through falling meteors, dash through gaps, and keep your
-                fuel topped up.
+                <T k="arcade.meteor.tagline" />
               </p>
               {gameState === "gameover" && (
                 <div className="mt-4 rounded-2xl bg-white/10 p-4">
-                  <p className="text-xs text-slate-200">Score</p>
+                  <p className="text-xs text-slate-200">
+                    <T k="arcade.common.score" />
+                  </p>
                   <p className="text-4xl font-bold">{score}</p>
                   <p className="text-xs text-slate-300 mt-1">
-                    Best: {bestScore}
+                    <T k="arcade.common.best" params={{ score: bestScore }} />
                   </p>
                 </div>
               )}
@@ -877,13 +894,13 @@ export default function MeteorGlider({ onExit, onPlayBunny }: MeteorGliderProps)
                       onClick={startTutorial}
                       className="rounded-full bg-amber-400 text-slate-900 font-semibold py-3 shadow-lg transition hover:-translate-y-0.5 hover:shadow-xl"
                     >
-                      🎓 先玩教學
+                      🎓 <T k="arcade.common.tutorialFirst" variant="stacked" />
                     </button>
                     <button
                       onClick={startGame}
                       className="rounded-full border border-white/30 text-white font-semibold py-3 transition hover:-translate-y-0.5 hover:bg-white/10"
                     >
-                      直接開始
+                      <T k="arcade.common.skipTutorial" variant="stacked" />
                     </button>
                   </>
                 ) : (
@@ -891,7 +908,14 @@ export default function MeteorGlider({ onExit, onPlayBunny }: MeteorGliderProps)
                     onClick={startGame}
                     className="rounded-full bg-amber-400 text-slate-900 font-semibold py-3 shadow-lg transition hover:-translate-y-0.5 hover:shadow-xl"
                   >
-                    {gameState === "menu" ? "Start run" : "Play again"}
+                    <T
+                      k={
+                        gameState === "menu"
+                          ? "arcade.meteor.startRun"
+                          : "arcade.common.playAgain"
+                      }
+                      variant="stacked"
+                    />
                   </button>
                 )}
                 {gameState === "menu" && tutorialDone && (
@@ -899,7 +923,7 @@ export default function MeteorGlider({ onExit, onPlayBunny }: MeteorGliderProps)
                     onClick={startTutorial}
                     className="rounded-full border border-white/30 text-white font-semibold py-3 transition hover:-translate-y-0.5 hover:bg-white/10"
                   >
-                    🎓 教學
+                    🎓 <T k="arcade.common.tutorial" variant="stacked" />
                   </button>
                 )}
                 {onPlayBunny && (
@@ -907,13 +931,12 @@ export default function MeteorGlider({ onExit, onPlayBunny }: MeteorGliderProps)
                     onClick={onPlayBunny}
                     className="rounded-full border border-white/30 text-white font-semibold py-3 transition hover:-translate-y-0.5 hover:bg-white/10"
                   >
-                    Play Bunny Jumper
+                    <T k="arcade.meteor.playBunny" variant="stacked" />
                   </button>
                 )}
               </div>
               <p className="mt-4 text-xs text-slate-200">
-                Controls: ←/→ or A/D to steer, Space/Shift to dash. Tap left/right
-                halves on mobile; tap Dash to burst through.
+                <T k="arcade.meteor.controls" />
               </p>
             </div>
           </div>
@@ -923,22 +946,24 @@ export default function MeteorGlider({ onExit, onPlayBunny }: MeteorGliderProps)
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="w-[90%] max-w-[360px] rounded-3xl border border-white/15 bg-white/10 p-8 backdrop-blur-xl shadow-2xl text-white text-center">
               <div className="text-5xl">🎉</div>
-              <h1 className="mt-2 text-3xl font-bold">教學完成！</h1>
+              <h1 className="mt-2 text-3xl font-bold">
+                <T k="arcade.common.tutorialDone" variant="stacked" />
+              </h1>
               <p className="mt-3 text-slate-200">
-                你學會了移動、閃避流星、補充燃料和衝刺，出發挑戰吧！
+                <T k="arcade.meteor.tutorialDoneBody" />
               </p>
               <div className="mt-5 flex flex-col gap-3">
                 <button
                   onClick={startGame}
                   className="rounded-full bg-amber-400 text-slate-900 font-semibold py-3 shadow-lg transition hover:-translate-y-0.5 hover:shadow-xl"
                 >
-                  開始遊戲
+                  <T k="arcade.common.startGame" variant="stacked" />
                 </button>
                 <button
                   onClick={() => setGameState("menu")}
                   className="rounded-full border border-white/30 text-white font-semibold py-3 transition hover:-translate-y-0.5 hover:bg-white/10"
                 >
-                  回主選單
+                  <T k="arcade.common.backToMenu" variant="stacked" />
                 </button>
               </div>
             </div>
@@ -948,22 +973,24 @@ export default function MeteorGlider({ onExit, onPlayBunny }: MeteorGliderProps)
         {gameState === "paused" && (
           <div className="absolute inset-0 flex items-center justify-center bg-slate-900/50 backdrop-blur">
             <div className="rounded-2xl bg-white/90 px-6 py-5 text-slate-900 shadow-2xl">
-              <p className="text-lg font-semibold">Paused</p>
+              <p className="text-lg font-semibold">
+                <T k="arcade.common.paused" variant="stacked" />
+              </p>
               <p className="text-sm text-slate-600 mt-1">
-                Press resume to keep flying.
+                <T k="arcade.meteor.pausedHint" />
               </p>
               <div className="mt-4 flex gap-3">
                 <button
                   onClick={pauseToggle}
                   className="rounded-full bg-slate-900 text-white px-4 py-2 text-sm font-semibold"
                 >
-                  Resume
+                  <T k="arcade.common.resume" variant="stacked" />
                 </button>
                 <button
                   onClick={() => setGameState("menu")}
                   className="rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-800"
                 >
-                  Quit
+                  <T k="arcade.meteor.quit" variant="stacked" />
                 </button>
               </div>
             </div>
@@ -977,21 +1004,26 @@ export default function MeteorGlider({ onExit, onPlayBunny }: MeteorGliderProps)
                 {isTutorial ? (
                   <>
                     <span className="text-xs uppercase tracking-[0.2em] text-amber-200">
-                      教學
+                      <T k="arcade.common.tutorial" variant="stacked" />
                     </span>
                     <span className="text-2xl font-bold">
-                      步驟 {Math.min(tutorialStepUI + 1, TUTORIAL_STEPS)}/
-                      {TUTORIAL_STEPS}
+                      <T
+                        k="arcade.meteor.step"
+                        params={{
+                          step: Math.min(tutorialStepUI + 1, TUTORIAL_STEPS),
+                          total: TUTORIAL_STEPS,
+                        }}
+                      />
                     </span>
                   </>
                 ) : (
                   <>
                     <span className="text-xs uppercase tracking-[0.2em] text-slate-200">
-                      Score
+                      <T k="arcade.common.score" variant="stacked" />
                     </span>
                     <span className="text-3xl font-bold">{score}</span>
                     <span className="text-[11px] text-slate-200">
-                      Best {bestScore}
+                      <T k="arcade.common.best" params={{ score: bestScore }} />
                     </span>
                   </>
                 )}
@@ -1002,18 +1034,22 @@ export default function MeteorGlider({ onExit, onPlayBunny }: MeteorGliderProps)
                     onClick={pauseToggle}
                     className="rounded-full bg-white/20 px-3 py-2 text-xs font-semibold backdrop-blur border border-white/30"
                   >
-                    Pause
+                    <T k="arcade.common.pause" variant="stacked" />
                   </button>
                 </div>
                 <div className="flex flex-col gap-1 text-xs text-slate-100">
-                  <span>Fuel</span>
+                  <span>
+                    <T k="arcade.meteor.fuel" variant="stacked" />
+                  </span>
                   <div className="h-2 w-32 rounded-full bg-white/15 overflow-hidden">
                     <div
                       className="h-full rounded-full bg-emerald-300 transition-[width]"
                       style={{ width: `${(dashFuelUI / FUEL_MAX) * 100}%` }}
                     />
                   </div>
-                  <span className="mt-1">Dash</span>
+                  <span className="mt-1">
+                    <T k="arcade.meteor.dash" variant="stacked" />
+                  </span>
                   <div className="h-2 w-32 rounded-full bg-white/15 overflow-hidden">
                     <div
                       className="h-full rounded-full bg-amber-300 transition-[width]"
@@ -1031,7 +1067,7 @@ export default function MeteorGlider({ onExit, onPlayBunny }: MeteorGliderProps)
                 onClick={dashButton}
                 className="rounded-full bg-amber-400 text-slate-900 px-6 py-3 text-sm font-semibold shadow-lg transition hover:-translate-y-0.5"
               >
-                Dash
+                <T k="arcade.meteor.dash" variant="stacked" />
               </button>
             </div>
           </div>

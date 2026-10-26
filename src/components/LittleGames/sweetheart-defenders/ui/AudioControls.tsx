@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Volume1, Volume2, VolumeX } from "lucide-react";
 import type { AudioControls as Controls } from "../useAudioSettings";
+import { useLanguage } from "../../../../hooks/useLanguage";
+import { T } from "../../../common/T";
 
 type Props = Controls & {
   /** 彈出面板要往哪一邊長。戰鬥 HUD 在右上角，往左下開才不會被裁掉。 */
@@ -22,6 +24,7 @@ export function AudioButton({
   align = "right",
 }: Props) {
   const [open, setOpen] = useState(false);
+  const { t } = useLanguage();
   const containerRef = useRef<HTMLDivElement>(null);
 
   const soundOn = !settings.muted;
@@ -52,7 +55,7 @@ export function AudioButton({
         type="button"
         onClick={() => setOpen((current) => !current)}
         aria-expanded={open}
-        aria-label={soundOn ? "聲音設定（目前有聲音）" : "聲音設定（目前靜音）"}
+        aria-label={t(soundOn ? "defenders.audio.labelOn" : "defenders.audio.labelOff")}
         className={`flex min-h-11 items-center justify-center rounded-[10px] border px-3 shadow-sm transition ${
           soundOn
             ? "border-[#ff6f9f] bg-[#ff6f9f] text-white"
@@ -83,25 +86,28 @@ export function AudioButton({
             ) : (
               <VolumeX size={16} strokeWidth={2} aria-hidden="true" />
             )}
-            {soundOn ? "有聲音" : "打開聲音"}
+            <T
+              k={soundOn ? "defenders.audio.on" : "defenders.audio.turnOn"}
+              variant="stacked"
+            />
           </button>
 
           {soundOn ? (
             <div className="mt-3 space-y-2">
               <VolumeSlider
-                label="音樂"
+                label={t("defenders.audio.music")}
                 value={settings.music}
                 onChange={setMusicVolume}
               />
               <VolumeSlider
-                label="音效"
+                label={t("defenders.audio.sfx")}
                 value={settings.sfx}
                 onChange={setSfxVolume}
               />
             </div>
           ) : (
             <p className="mt-2 text-xs leading-snug text-slate-500">
-              預設是靜音的，打開就會有音樂和音效。
+              <T k="defenders.audio.mutedHint" />
             </p>
           )}
         </div>
@@ -121,7 +127,7 @@ function VolumeSlider({
 }) {
   return (
     <label className="flex items-center gap-2 text-xs">
-      <span className="w-8 shrink-0 font-medium text-slate-600">{label}</span>
+      <span className="min-w-8 shrink-0 font-medium text-slate-600">{label}</span>
       <input
         type="range"
         min={0}

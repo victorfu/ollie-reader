@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import {
   HEIGHT,
   MAX_STEPS_PER_FRAME,
@@ -133,7 +140,7 @@ type Props = {
   /** 這一場賺到的扭蛋代幣，結算頁顯示用 */
   coinsEarned: number;
   isSettling: boolean;
-  settlementError: string | null;
+  settlementError: ReactNode;
   onExit: () => void;
   onRetry: () => void;
   onFinished: (outcome: RunOutcome) => void;
