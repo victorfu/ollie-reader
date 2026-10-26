@@ -5,6 +5,7 @@ const firestoreMocks = vi.hoisted(() => ({
   doc: vi.fn(),
   getDoc: vi.fn(),
   getDocFromServer: vi.fn(),
+  onSnapshot: vi.fn(),
   runTransaction: vi.fn(),
   serverTimestamp: vi.fn(),
   updateDoc: vi.fn(),
@@ -35,6 +36,7 @@ import {
   getOrCreateProgress,
   resetGameProgress,
   saveProgressWithTokenReward,
+  subscribeTokenBalance,
 } from "./gameProgressService";
 
 const progressRef = { kind: "progress-document" };
@@ -481,5 +483,24 @@ describe("daily gacha token claims", () => {
       "Player progress does not exist.",
     );
     expect(transaction.update).not.toHaveBeenCalled();
+  });
+});
+
+describe("subscribeTokenBalance", () => {
+  it("reports the stored balance, 0 without a save, and hands back the unsubscribe", () => {
+    const unsubscribe = vi.fn();
+    firestoreMocks.onSnapshot.mockReturnValue(unsubscribe);
+    const onBalance = vi.fn();
+    const onError = vi.fn();
+
+    expect(subscribeTokenBalance("player-1", onBalance, onError)).toBe(unsubscribe);
+    expect(firestoreMocks.doc).toHaveBeenCalledWith(mockDb, "gameProgress", "player-1");
+
+    const [, onNext, errorHandler] = firestoreMocks.onSnapshot.mock.calls.at(-1)!;
+    onNext({ exists: () => true, data: () => ({ coins: 125 }) });
+    onNext({ exists: () => true, data: () => ({ coins: -3 }) });
+    onNext({ exists: () => false, data: () => undefined });
+    expect(onBalance.mock.calls).toEqual([[125], [0], [0]]);
+    expect(errorHandler).toBe(onError);
   });
 });

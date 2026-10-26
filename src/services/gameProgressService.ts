@@ -2,6 +2,7 @@ import {
   doc,
   getDoc,
   getDocFromServer,
+  onSnapshot,
   updateDoc,
   runTransaction,
   deleteField,
@@ -404,6 +405,23 @@ export async function fetchProgress(
     console.error("Error fetching game progress:", error);
     throw error;
   }
+}
+
+/**
+ * 即時監聽扭蛋代幣餘額；還沒有存檔時為 0。回傳取消監聽的函式。
+ */
+export function subscribeTokenBalance(
+  uid: string,
+  onBalance: (balance: number) => void,
+  onError: (error: Error) => void,
+): () => void {
+  return onSnapshot(
+    doc(db, GAME_PROGRESS_PATH, uid),
+    (docSnap) => {
+      onBalance(docSnap.exists() ? parseStoredTokenBalance(docSnap.data().coins) : 0);
+    },
+    onError,
+  );
 }
 
 /**

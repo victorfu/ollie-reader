@@ -31,6 +31,7 @@ import { SpeechProvider } from "./contexts/SpeechContext";
 import { SettingsProvider } from "./contexts/SettingsContext";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { ThemeToggle } from "./components/common/ThemeToggle";
+import { TokenBalance } from "./components/common/TokenBalance";
 import { useWarmServerOnRouteChange } from "./hooks/useWarmServer";
 import { ErrorBoundary } from "./components/common/ErrorBoundary";
 import { lazyWithReload } from "./utils/lazyWithReload";
@@ -593,6 +594,7 @@ function AppContent() {
           </div>
 
           <div className="flex items-center gap-1">
+            <TokenBalance />
             <ThemeToggle />
             <Link
               to="/settings"
