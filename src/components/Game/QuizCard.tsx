@@ -12,6 +12,7 @@ import {
 import type { QuizQuestion } from "../../types/game";
 import { playSound } from "../../services/gameService";
 import { SpellChips } from "./SpellChips";
+import { splitWordForms } from "../../utils/wordForms";
 import { useLanguage } from "../../hooks/useLanguage";
 import type { MessageKey } from "../../i18n/translate";
 import { T } from "../common/T";
@@ -29,7 +30,7 @@ interface QuizCardProps {
   isLastStep?: boolean;
   isSettling?: boolean;
   onAnswer: (answer: number | string) => void;
-  /** 答錯／逾時後手動推進。答對時由父層自動推進，不顯示按鈕 */
+  /** 答錯／逾時、或句子填空作答後手動推進。其他題型答對由父層自動推進，不顯示按鈕 */
   onNext?: () => void;
   speak?: (text: string) => void;
 }
@@ -44,6 +45,7 @@ const PROMPT_HINT: Record<string, MessageKey> = {
   reverse: "adventure.quiz.prompt.reverse",
   emoji: "adventure.quiz.prompt.emoji",
   spell: "adventure.quiz.prompt.spell",
+  cloze: "adventure.quiz.prompt.cloze",
 };
 
 /**
@@ -67,6 +69,9 @@ export function QuizCard({
 }: QuizCardProps) {
   const { t } = useLanguage();
   const promptHint = PROMPT_HINT[question.kind];
+  // 句子填空答對也停住（父層不自動推進），和答錯一樣等玩家按「下一題」
+  const waitsForNext =
+    lastAnswerCorrect === false || question.kind === "cloze";
 
   // 聽力題進場自動唸（StrictMode 以 ref 防雙念）
   const spokenIndexRef = useRef<number>(-1);
@@ -80,6 +85,20 @@ export function QuizCard({
       speak(question.word);
     }
   }, [question, questionIndex, speak]);
+
+  // 句子填空作答後自動唸完整句子一次
+  const spokenSentenceIndexRef = useRef<number>(-1);
+  useEffect(() => {
+    if (
+      isAnswered &&
+      question.kind === "cloze" &&
+      speak &&
+      spokenSentenceIndexRef.current !== questionIndex
+    ) {
+      spokenSentenceIndexRef.current = questionIndex;
+      speak(question.sentence);
+    }
+  }, [isAnswered, question, questionIndex, speak]);
 
   // 答對放煙火 + 音效
   useEffect(() => {
@@ -96,14 +115,14 @@ export function QuizCard({
     }
   }, [lastAnswerCorrect]);
 
-  // 鍵盤：作答用 1-4（僅選項題）；答錯停住時用 Enter 推進
+  // 鍵盤：作答用 1-4（僅選項題）；停住等推進時用 Enter
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
       if (isAnswered) {
         if (
           onNext &&
           !isSettling &&
-          lastAnswerCorrect === false &&
+          waitsForNext &&
           e.key === "Enter"
         ) {
           e.preventDefault();
@@ -118,7 +137,7 @@ export function QuizCard({
     [
       isAnswered,
       isSettling,
-      lastAnswerCorrect,
+      waitsForNext,
       question.kind,
       onAnswer,
       onNext,
@@ -186,6 +205,11 @@ export function QuizCard({
               <Volume2 className="h-5 w-5" strokeWidth={2} aria-hidden="true" />
               <T k="adventure.quiz.listenAgain" variant="stacked" />
             </button>
+          )}
+          {question.kind === "cloze" && (
+            <h2 className="text-xl font-semibold leading-relaxed text-secondary mb-2">
+              {question.prompt}
+            </h2>
           )}
           {question.kind === "spell" && (
             <h2 className="text-2xl font-bold text-secondary mb-2">
@@ -322,8 +346,41 @@ export function QuizCard({
                 </div>
               )}
 
-              {/* 答錯不自動跳題：讓玩家看清正確答案，自己決定何時繼續 */}
-              {onNext && lastAnswerCorrect === false && (
+              {/* 句子填空揭曉完整句子（答案字加粗）與翻譯，可再聽一次整句 */}
+              {question.kind === "cloze" && (
+                <div className="mt-2 space-y-1 text-base-content">
+                  <p className="text-base leading-relaxed">
+                    {splitWordForms(question.sentence, question.word).map(
+                      (part, i) =>
+                        part.match ? (
+                          <strong key={i}>{part.text}</strong>
+                        ) : (
+                          <span key={i}>{part.text}</span>
+                        ),
+                    )}
+                    {speak && (
+                      <button
+                        type="button"
+                        onClick={() => speak(question.sentence)}
+                        aria-label={t("adventure.quiz.listenSentence")}
+                        className="btn btn-ghost btn-xs btn-circle ml-1 align-middle"
+                      >
+                        <Volume2
+                          className="h-4 w-4"
+                          strokeWidth={2}
+                          aria-hidden="true"
+                        />
+                      </button>
+                    )}
+                  </p>
+                  {question.translation && (
+                    <p className="text-sm opacity-70">{question.translation}</p>
+                  )}
+                </div>
+              )}
+
+              {/* 答錯（以及句子填空）不自動跳題：讓玩家看清答案，自己決定何時繼續 */}
+              {onNext && waitsForNext && (
                 <button
                   type="button"
                   onClick={onNext}
