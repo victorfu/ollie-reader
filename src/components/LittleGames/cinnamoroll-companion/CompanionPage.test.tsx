@@ -21,13 +21,15 @@ const auth = vi.hoisted(() => ({ user: null as { uid: string } | null }));
 const cloud = vi.hoisted(() => ({
   onWardrobe: null as ((wardrobe: CompanionWardrobe) => void) | null,
   onBalance: null as ((value: number) => void) | null,
+  onBalanceError: null as ((error: Error) => void) | null,
   purchase: vi.fn(),
   save: vi.fn(),
 }));
 vi.mock("../../../hooks/useAuth", () => ({ useAuth: () => auth }));
 vi.mock("../../../services/gameProgressService", () => ({
-  subscribeTokenBalance: (_uid: string, onBalance: (value: number) => void) => {
+  subscribeTokenBalance: (_uid: string, onBalance: (value: number) => void, onError: (error: Error) => void) => {
     cloud.onBalance = onBalance;
+    cloud.onBalanceError = onError;
     return () => undefined;
   },
 }));
@@ -182,6 +184,27 @@ describe("CompanionPage", () => {
     expect(sceneProps?.outfit).toEqual({});
     expect(sceneProps?.runtime.performance).toBeNull();
     expect(button("藍蝴蝶結").parentElement!.textContent).not.toContain("已擁有");
+  });
+
+  it("offers a retry when the balance cannot be loaded", async () => {
+    setWebGL(true);
+    auth.user = { uid: "uid-1" };
+    await renderPage();
+    act(() => {
+      cloud.onWardrobe?.({ owned: new Set(), equipped: {} });
+      cloud.onBalanceError?.(new Error("permission-denied"));
+    });
+    act(() => button("商店").click());
+
+    expect(container.textContent).toContain("讀不到你的背包");
+    expect(container.textContent).not.toContain("正在讀取");
+    await act(async () => button("重試").click());
+    expect(container.textContent).toContain("正在讀取");
+    act(() => {
+      cloud.onWardrobe?.({ owned: new Set(), equipped: {} });
+      cloud.onBalance?.(70);
+    });
+    expect(container.textContent).toContain("我的代幣：70");
   });
 
   it("saves owned accessories as equipment but never a try-on", async () => {

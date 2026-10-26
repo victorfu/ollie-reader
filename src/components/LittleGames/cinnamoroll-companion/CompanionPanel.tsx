@@ -94,6 +94,7 @@ export function CompanionPanel({ panel, view, shop, message, onClose, onAction, 
         <T k="gacha.companion.shop.balance" params={{ n: shop.balance }} />
       </p>}
       {status ? <p className="mb-2 text-sm text-muted-foreground"><T k={status} /></p> : null}
+      {shop.status === "error" ? <button type="button" className="btn btn-outline btn-sm mb-2 min-h-11" onClick={shop.retry}><T k="gacha.retry" variant="stacked" /></button> : null}
       <p aria-live="polite" className="mb-2 min-h-5 text-sm font-medium">{message ? <T k={message} /> : null}</p>
       {filters}
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">

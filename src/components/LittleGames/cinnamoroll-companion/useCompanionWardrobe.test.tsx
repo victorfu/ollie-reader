@@ -10,12 +10,18 @@ const storage = vi.hoisted(() => ({
   subscribeCompanionWardrobe: vi.fn(),
   onWardrobe: null as ((wardrobe: CompanionWardrobe) => void) | null,
 }));
-const balance = vi.hoisted(() => ({ onBalance: null as ((value: number) => void) | null }));
+const balance = vi.hoisted(() => ({
+  onBalance: null as ((value: number) => void) | null,
+  onError: null as ((error: Error) => void) | null,
+  subscriptions: 0,
+}));
 
 vi.mock("../../../hooks/useAuth", () => ({ useAuth: () => auth }));
 vi.mock("../../../services/gameProgressService", () => ({
-  subscribeTokenBalance: (_uid: string, onBalance: (value: number) => void) => {
+  subscribeTokenBalance: (_uid: string, onBalance: (value: number) => void, onError: (error: Error) => void) => {
     balance.onBalance = onBalance;
+    balance.onError = onError;
+    balance.subscriptions += 1;
     return () => undefined;
   },
 }));
@@ -60,6 +66,8 @@ beforeEach(() => {
   auth.user = null;
   storage.onWardrobe = null;
   balance.onBalance = null;
+  balance.onError = null;
+  balance.subscriptions = 0;
   storage.subscribeCompanionWardrobe.mockImplementation(async (_uid: string, onWardrobe: (w: CompanionWardrobe) => void) => {
     storage.onWardrobe = onWardrobe;
     return () => undefined;
@@ -181,6 +189,30 @@ describe("useCompanionWardrobe", () => {
     act(() => storage.onWardrobe?.({ owned: new Set(["bow"]), equipped: {} }));
     act(() => state.equip({ head: "bow" }));
     expect(storage.saveCompanionEquipment).toHaveBeenCalledWith("uid-1", { head: "bow" }, new Set(["bow"]));
+  });
+
+  it("reports a failed balance listener instead of loading forever, and retries it", async () => {
+    auth.user = { uid: "uid-1" };
+    await render();
+    act(() => storage.onWardrobe?.({ owned: new Set(), equipped: {} }));
+    act(() => balance.onError?.(new Error("permission-denied")));
+
+    expect(state.status).toBe("error");
+    let outcome = "";
+    await act(async () => { outcome = await state.purchase("bow"); });
+    expect(outcome).toBe("failed");
+
+    const wardrobeSubscriptions = storage.subscribeCompanionWardrobe.mock.calls.length;
+    act(() => state.retry());
+    expect(state.status).toBe("loading");
+    expect(balance.subscriptions).toBe(2);
+    expect(storage.subscribeCompanionWardrobe).toHaveBeenCalledTimes(wardrobeSubscriptions + 1);
+    act(() => {
+      storage.onWardrobe?.({ owned: new Set(), equipped: {} });
+      balance.onBalance?.(80);
+    });
+    expect(state.status).toBe("ready");
+    expect(state.balance).toBe(80);
   });
 
   it("never shows one account's wardrobe under another", async () => {

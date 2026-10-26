@@ -27,6 +27,8 @@ export interface CompanionWardrobeState {
   buying: CompanionAccessory | null;
   purchase: (item: CompanionAccessory) => Promise<PurchaseOutcome>;
   equip: (outfit: CompanionOutfit) => void;
+  /** Subscribes again after the wardrobe or the balance failed to load. */
+  retry: () => void;
 }
 
 function useOnline(): boolean {
@@ -53,7 +55,8 @@ export function useCompanionWardrobe(): CompanionWardrobeState {
   const online = useOnline();
   // Keyed by account so one account's wardrobe never shows under another.
   const [loaded, setLoaded] = useState<{ uid: string; wardrobe: CompanionWardrobe | null; failed: boolean } | null>(null);
-  const [balance, setBalance] = useState<{ uid: string; value: number } | null>(null);
+  const [balance, setBalance] = useState<{ uid: string; value: number | null; failed: boolean } | null>(null);
+  const [attempt, setAttempt] = useState(0);
   const [buying, setBuying] = useState<{ uid: string; item: CompanionAccessory } | null>(null);
   const inFlight = useRef(false);
   // A purchase whose outcome is unknown (e.g. the reply was lost) keeps its
@@ -80,18 +83,29 @@ export function useCompanionWardrobe(): CompanionWardrobeState {
     });
     const stopBalance = subscribeTokenBalance(
       uid,
-      (value) => { if (!cancelled) setBalance({ uid, value }); },
-      (error) => logger.error("Could not watch the token balance:", error),
+      (value) => { if (!cancelled) setBalance({ uid, value, failed: false }); },
+      (error) => {
+        logger.error("Could not watch the token balance:", error);
+        if (!cancelled) setBalance({ uid, value: null, failed: true });
+      },
     );
     return () => {
       cancelled = true;
       unsubscribe?.();
       stopBalance();
     };
-  }, [uid]);
+  }, [uid, attempt]);
 
   const current = uid && loaded?.uid === uid ? loaded : null;
-  const status: WardrobeStatus = !uid ? "guest" : !current ? "loading" : current.failed ? "error" : "ready";
+  const currentBalance = uid && balance?.uid === uid ? balance : null;
+  // Buying needs both the wardrobe and the balance; either failing is an error.
+  const status: WardrobeStatus = !uid
+    ? "guest"
+    : current?.failed || currentBalance?.failed
+      ? "error"
+      : !current || !currentBalance
+        ? "loading"
+        : "ready";
   const wardrobe = current?.wardrobe ?? EMPTY_WARDROBE;
 
   const purchase = useCallback(async (item: CompanionAccessory): Promise<PurchaseOutcome> => {
@@ -133,13 +147,20 @@ export function useCompanionWardrobe(): CompanionWardrobeState {
     });
   }, [status, uid, wardrobe.owned]);
 
+  const retry = useCallback(() => {
+    setLoaded(null);
+    setBalance(null);
+    setAttempt((count) => count + 1);
+  }, []);
+
   return {
     status,
     wardrobe,
-    balance: uid && balance?.uid === uid ? balance.value : null,
+    balance: currentBalance?.value ?? null,
     online,
     buying: uid && buying?.uid === uid ? buying.item : null,
     purchase,
     equip,
+    retry,
   };
 }
