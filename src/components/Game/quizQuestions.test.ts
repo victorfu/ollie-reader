@@ -7,6 +7,8 @@ import {
 } from "./quizQuestions";
 import type { GameWord } from "../../services/gameService";
 import type { QuizKind, Stage } from "../../types/game";
+import { CLOZE_BLANK } from "../../utils/wordForms";
+import { FALLBACK_GAME_WORDS } from "../../services/gameWords";
 
 const POOL: GameWord[] = [
   { word: "apple", def: "蘋果", emoji: "🍎" },
@@ -362,5 +364,114 @@ describe("isQuestionCorrect", () => {
     expect(isQuestionCorrect(q, "  APPLE ")).toBe(true);
     expect(isQuestionCorrect(q, "aple")).toBe(false);
     expect(isQuestionCorrect(q, 0)).toBe(false); // 拼字題不吃數字
+  });
+});
+
+describe("cloze", () => {
+  const CLOZE_POOL: GameWord[] = [
+    {
+      word: "apple",
+      def: "蘋果",
+      emoji: "🍎",
+      example: "I eat an apple every day.",
+      exampleZh: "我每天吃一顆蘋果。",
+    },
+    { word: "dog", def: "狗", emoji: "🐶", example: "The dog's ball is red." },
+    { word: "run", def: "跑", emoji: "🏃", example: "She ran home." },
+    { word: "book", def: "書", emoji: "📖" },
+    { word: "cat", def: "貓", emoji: "🐱", example: "My cat sleeps a lot." },
+  ];
+  const clozeStage = (count: number) =>
+    makeStage({ questionCount: count, questionKinds: ["cloze"] });
+  const questionFor = (word: string, opts?: { defLanguage?: "zh" | "en" }) => {
+    const pool = CLOZE_POOL.filter((w) => w.word === word).concat(
+      CLOZE_POOL.filter((w) => w.word !== word),
+    );
+    return buildQuizQuestions(pool, clozeStage(1), opts)[0];
+  };
+
+  it("builds a blanked sentence with word options", () => {
+    const q = questionFor("apple");
+    if (q.kind !== "cloze") throw new Error(`unexpected ${q.kind}`);
+    expect(q.prompt).toContain(CLOZE_BLANK);
+    expect(q.prompt.toLowerCase()).not.toContain("apple");
+    expect(q.sentence).toBe("I eat an apple every day.");
+    expect(q.options[q.correctIndex]).toBe("apple");
+    expect(q.options).toHaveLength(4);
+    expect(new Set(q.options).size).toBe(4);
+  });
+
+  it("blanks an irregular form", () => {
+    const q = questionFor("run");
+    if (q.kind !== "cloze") throw new Error(`unexpected ${q.kind}`);
+    expect(q.prompt).toBe(`She ${CLOZE_BLANK} home.`);
+    expect(q.options[q.correctIndex]).toBe("run");
+  });
+
+  it("falls back to reverse when the sentence only has a possessive", () => {
+    expect(questionFor("dog").kind).toBe("reverse");
+  });
+
+  it("falls back to reverse when the word has no example", () => {
+    const pool = CLOZE_POOL.filter((w) => w.word === "book").concat(POOL);
+    const qs = buildQuizQuestions(pool, clozeStage(3));
+    expect(qs).toHaveLength(3);
+    expect(qs.every((q) => q.kind === "reverse")).toBe(true);
+  });
+
+  it("falls back to reverse when a related word would leak the answer", () => {
+    const pool: GameWord[] = [
+      {
+        word: "communicate",
+        def: "溝通",
+        emoji: "🗣️",
+        example: "Good communication helps us communicate.",
+      },
+      ...POOL,
+    ];
+    expect(buildQuizQuestions(pool, clozeStage(1))[0].kind).toBe("reverse");
+  });
+
+  it("keeps every built-in fallback word as a cloze question", () => {
+    const pool = [...FALLBACK_GAME_WORDS];
+    const qs = buildQuizQuestions(pool, clozeStage(pool.length));
+    expect(qs.filter((q) => q.kind !== "cloze").map((q) => q.word)).toEqual([]);
+  });
+
+  // 例句常常好幾個字都說得通，作答前用釋義點出要的是哪個字
+  it("gives the word's meaning as a hint", () => {
+    const q = questionFor("apple");
+    if (q.kind !== "cloze") throw new Error(`unexpected ${q.kind}`);
+    expect(q.hint).toBe("蘋果");
+  });
+
+  it("gives the hint in the round's definition language", () => {
+    const pool = BILINGUAL_POOL.map((w) =>
+      w.word === "apple" ? { ...w, example: "I eat an apple every day." } : w,
+    );
+    const q = buildQuizQuestions(pool, clozeStage(1), {
+      defLanguage: "en",
+    })[0];
+    if (q.kind !== "cloze") throw new Error(`unexpected ${q.kind}`);
+    expect(q.hint).toBe("a round red or green fruit");
+  });
+
+  it("carries the translation", () => {
+    const withZh = questionFor("apple");
+    const without = questionFor("cat");
+    if (withZh.kind !== "cloze" || without.kind !== "cloze") {
+      throw new Error("expected cloze questions");
+    }
+    expect(withZh.translation).toBe("我每天吃一顆蘋果。");
+    expect(without.translation).toBeUndefined();
+  });
+
+  it("fallback reverse uses the round's definition language", () => {
+    const pool = BILINGUAL_POOL.map((w) => ({ ...w, example: undefined }));
+    const q = buildQuizQuestions(pool, clozeStage(1), {
+      defLanguage: "en",
+    })[0];
+    if (q.kind !== "reverse") throw new Error(`unexpected ${q.kind}`);
+    expect(HAS_CJK.test(q.prompt)).toBe(false);
   });
 });

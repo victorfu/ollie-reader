@@ -859,7 +859,8 @@ export function useAdventure(): UseAdventureReturn {
       });
 
       // 答對才自動進下一題；答錯停在原地，讓玩家看清正確答案後自己按「下一題」
-      if (isCorrect) {
+      // 句子填空答對也停下來 — 要留時間讀完整句子、翻譯，聽完整句
+      if (isCorrect && currentQuestion.kind !== "cloze") {
         const runId = runIdRef.current;
         const timeoutId = setTimeout(() => {
           timeoutRefs.current.delete(timeoutId);

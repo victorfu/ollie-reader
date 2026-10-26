@@ -117,6 +117,31 @@ describe("aiService Gemini boundary", () => {
     await expect(parseAndTranslateSentences("Hello.")).rejects.toBe(error);
   });
 
+  it("normalizes game word examples", async () => {
+    mocks.generateGeminiContent.mockResolvedValue(
+      response(
+        JSON.stringify([
+          {
+            word: "brave",
+            def: "勇敢的",
+            defEn: "not afraid",
+            emoji: "🦁",
+            example: " The brave girl jumped. ",
+            exampleZh: "勇敢的女孩跳了。",
+          },
+          { word: "calm", def: "冷靜的", emoji: "😌", example: 3 },
+        ]),
+      ),
+    );
+
+    const [brave, calm] = await generateGameWords(2);
+
+    expect(brave.example).toBe("The brave girl jumped.");
+    expect(brave.exampleZh).toBe("勇敢的女孩跳了。");
+    expect(calm.example).toBeUndefined();
+    expect(calm.exampleZh).toBeUndefined();
+  });
+
   it("propagates game generation cancellation to its run owner", async () => {
     const abort = new DOMException("cancelled", "AbortError");
     mocks.generateGeminiContent.mockRejectedValue(abort);

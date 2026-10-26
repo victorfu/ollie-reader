@@ -34,7 +34,13 @@ export interface Stage {
 export type GameView = "home" | "map" | "quiz" | "boss" | "reward";
 
 // 題型判別子
-export type QuizKind = "meaning" | "listen" | "spell" | "reverse" | "emoji";
+export type QuizKind =
+  | "meaning"
+  | "listen"
+  | "spell"
+  | "reverse"
+  | "emoji"
+  | "cloze";
 
 // 題目釋義語言：zh=中文釋義 · en=英文釋義（英英，難度較高，代幣加倍）
 export type DefLanguage = "zh" | "en";
@@ -59,7 +65,18 @@ export interface SpellQuestion extends BaseQuestion {
   hint: string; // 中文提示（該字的意思）
 }
 
-export type QuizQuestion = OptionQuestion | SpellQuestion;
+// 句子填空：例句挖掉被考的字，四選一選出原形單字
+export interface ClozeQuestion extends BaseQuestion {
+  kind: "cloze";
+  prompt: string; // 挖空後的例句
+  hint: string; // 該字的釋義（本輪語言）— 例句常有好幾個字說得通，作答前用它點出要的字
+  options: string[]; // 4 個英文單字（原形）
+  correctIndex: number;
+  sentence: string; // 原句，答完揭曉用
+  translation?: string; // 例句中文翻譯（可能沒有）
+}
+
+export type QuizQuestion = OptionQuestion | SpellQuestion | ClozeQuestion;
 
 export interface QuizState {
   questions: QuizQuestion[];

@@ -302,6 +302,45 @@ describe("useAdventure run ownership and settlement", () => {
     expect(current.quizState?.isAnswered).toBe(false);
   });
 
+  it("still auto-advances a correct meaning answer", async () => {
+    await mount();
+    await start(0, "word");
+
+    act(() => current.submitAnswer(0));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2_000);
+    });
+
+    expect(current.quizState?.currentIndex).toBe(1);
+  });
+
+  // 句子填空答對要留時間看完整句子和翻譯，等玩家自己按「下一題」
+  it("keeps a correct cloze answer on screen until the player moves on", async () => {
+    mocks.buildQuizQuestions.mockImplementation(
+      (pool: GameWord[], _stage: unknown, options: { count: number }) =>
+        Array.from({ length: options.count }, (_, index) => ({
+          kind: "cloze",
+          word: `${pool[0].word}-${index}`,
+          prompt: "I like _____.",
+          hint: "它",
+          sentence: "I like it.",
+          options: ["correct", "wrong", "other", "extra"],
+          correctIndex: 0,
+        })),
+    );
+    await mount();
+    await start(0, "word");
+
+    act(() => current.submitAnswer(0));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2_000);
+    });
+    expect(current.quizState?.currentIndex).toBe(0);
+
+    act(() => current.advanceQuestion());
+    expect(current.quizState?.currentIndex).toBe(1);
+  });
+
   it("ignores an old settlement result after a new run starts", async () => {
     await mount();
     const oldSettlement = deferred<ReturnType<typeof settlementResult>>();

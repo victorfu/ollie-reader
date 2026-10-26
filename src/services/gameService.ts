@@ -2,6 +2,7 @@ import { generateGameWords as generateGameWordsAI, type GameWord } from "./aiSer
 import { isGeminiRateLimitError } from "./geminiErrorPolicy";
 import type { VocabularyWord } from "../types/vocabulary";
 import { FALLBACK_GAME_WORDS } from "./gameWords";
+import { sentenceUsesWord } from "../utils/wordForms";
 
 export { FALLBACK_GAME_WORDS } from "./gameWords";
 
@@ -120,11 +121,17 @@ export const prepareGamePool = async (
   const userGameWords: GameWord[] = userWords.map((w) => {
     const first = w.definitions[0];
     const defEn = first?.definition?.trim();
+    // 句子填空用：第一個認得出這個字的例句（第一句通常對應第一個意思）
+    const example = w.examples?.find((e) =>
+      sentenceUsesWord(e.sentence, w.word),
+    );
     return {
       word: w.word,
       def: first?.definitionChinese || first?.definition || "未知定義",
       defEn: defEn || undefined,
       emoji: w.emoji || "✨",
+      example: example?.sentence,
+      exampleZh: example?.translation?.trim() || undefined,
     };
   });
 

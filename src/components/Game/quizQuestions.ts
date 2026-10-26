@@ -1,5 +1,6 @@
 import type { GameWord } from "../../services/gameService";
 import type {
+  ClozeQuestion,
   DefLanguage,
   QuizKind,
   QuizQuestion,
@@ -8,6 +9,7 @@ import type {
   Stage,
 } from "../../types/game";
 import { shuffleArray } from "../../utils/arrayUtils";
+import { redactWordForms, sentenceUsesWord } from "../../utils/wordForms";
 
 // 選項不足時的中文/英文備援
 const FALLBACK_DEFS = ["未知的意思", "一種動物", "一種食物", "一個動作"];
@@ -69,6 +71,20 @@ function redactHeadword(text: string, word: string): string {
   const redacted = text.replace(new RegExp(`\\b${escaped}\\w*`, "gi"), "____");
   // 整句被遮光的話反而無題可解，保留原文
   return redacted.replace(/[_\s]/g, "") ? redacted : text;
+}
+
+/**
+ * 例句能不能出句子填空：要認得出這個字，且挖空後不能再看到同字根的相關字
+ * （"Good communication helps us communicate." 挖掉 communicate 仍留著 communication）。
+ */
+function hasUsableExample(word: GameWord): boolean {
+  if (!word.example || !sentenceUsesWord(word.example, word.word)) return false;
+  const stem = stemOf(word.word);
+  if (stem.length < MIN_STEM_LENGTH) return true;
+  const escaped = stem.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return !new RegExp(`\\b${escaped}`, "i").test(
+    redactWordForms(word.example, word.word),
+  );
 }
 
 /** 該語言是否有釋義可用（不做遮蔽，純粹判斷有無） */
@@ -174,6 +190,28 @@ function buildOne(
     return q;
   }
 
+  if (kind === "cloze") {
+    // 呼叫端已確認例句用得到這個字（?? 只是型別上的保險）；選項是原形單字，不管句中字形
+    const example = word.example ?? "";
+    const { options, correctIndex } = makeOptions(
+      word.word,
+      pool.map((w) => w.word),
+      FALLBACK_WORDS,
+      padLabel,
+    );
+    const q: ClozeQuestion = {
+      ...base,
+      kind: "cloze",
+      prompt: redactWordForms(example, word.word),
+      hint: def,
+      options,
+      correctIndex,
+      sentence: example,
+      translation: word.exampleZh,
+    };
+    return q;
+  }
+
   if (kind === "reverse") {
     // 看釋義選英文單字
     const { options, correctIndex } = makeOptions(
@@ -238,7 +276,8 @@ function resolveKinds(
 
 /**
  * 依關卡設定，從單字池建出一整份題目。
- * emoji 題若單字沒有可辨識的 emoji（或用了預設 ✨）自動退回 meaning，避免無解。
+ * emoji 題若單字沒有可辨識的 emoji（或用了預設 ✨）自動退回 meaning，避免無解；
+ * cloze 題沒有可用例句時退回 reverse。
  * defLanguage 決定整輪釋義語言，單字池會先濾成只剩該語言可用的字。
  */
 export function buildQuizQuestions(
@@ -266,6 +305,10 @@ export function buildQuizQuestions(
     let kind = kinds[i];
     if (kind === "emoji" && (!word.emoji || word.emoji === DEFAULT_EMOJI)) {
       kind = "meaning";
+    }
+    // 沒有例句、例句裡認不出這個字（如只有所有格）、或挖空後會洩答 → 改出反向選字
+    if (kind === "cloze" && !hasUsableExample(word)) {
+      kind = "reverse";
     }
     return buildOne(kind, word, usable, lang);
   });

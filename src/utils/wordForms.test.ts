@@ -7,6 +7,7 @@ import {
   IRREGULAR_FORMS,
   redactWordForms,
   sentenceUsesWord,
+  splitWordForms,
 } from "./wordForms";
 
 describe("formsOf", () => {
@@ -320,5 +321,23 @@ describe("clitic keys", () => {
   it("never match inside a contraction", () => {
     expect(findWordForm("I'm sure", "'m")).toBeNull();
     expect(findWordForm("I’m sure", "'m")).toBeNull();
+  });
+});
+
+describe("splitWordForms", () => {
+  it("marks every form of the word and keeps the rest of the sentence", () => {
+    const text = "Dogs love to run, and my dog runs.";
+    const parts = splitWordForms(text, "dog");
+    expect(parts.filter((p) => p.match).map((p) => p.text)).toEqual([
+      "Dogs",
+      "dog",
+    ]);
+    expect(parts.map((p) => p.text).join("")).toBe(text);
+  });
+
+  it("leaves the possessive suffix outside the match", () => {
+    const parts = splitWordForms("The puppy's toy", "puppy");
+    expect(parts.filter((p) => p.match).map((p) => p.text)).toEqual(["puppy"]);
+    expect(parts.map((p) => p.text).join("")).toBe("The puppy's toy");
   });
 });

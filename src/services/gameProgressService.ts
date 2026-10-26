@@ -321,6 +321,131 @@ export const STAGES: Stage[] = [
     chapterId: "ch2",
     questionKinds: ["meaning", "listen", "reverse", "emoji", "spell"],
   },
+
+  // ===== 第三章「珊瑚海底王國」=====
+  {
+    id: "stage-16",
+    name: "珊瑚礁淺灘",
+    stageNumber: 24,
+    isBoss: false,
+    requiredLevel: 14,
+    rewardExp: 600,
+    rewardCoins: 45,
+    questionCount: 6,
+    chapterId: "ch3",
+    questionKinds: ["cloze", "meaning"],
+  },
+  {
+    id: "stage-17",
+    name: "水母燈籠街",
+    stageNumber: 25,
+    isBoss: false,
+    requiredLevel: 14,
+    rewardExp: 640,
+    rewardCoins: 45,
+    questionCount: 6,
+    chapterId: "ch3",
+    questionKinds: ["emoji", "reverse"],
+  },
+  {
+    id: "stage-18",
+    name: "海龜驛站",
+    stageNumber: 26,
+    isBoss: false,
+    requiredLevel: 15,
+    rewardExp: 680,
+    rewardCoins: 50,
+    questionCount: 6,
+    chapterId: "ch3",
+    questionKinds: ["cloze", "listen"],
+  },
+  {
+    id: "boss-9",
+    name: "章魚守門人",
+    stageNumber: 27,
+    isBoss: true,
+    requiredLevel: 15,
+    rewardExp: 1600,
+    rewardCoins: 90,
+    bossHp: 6,
+    questionCount: 9,
+    chapterId: "ch3",
+    questionKinds: ["cloze", "listen"],
+  },
+  {
+    id: "stage-19",
+    name: "沉船寶藏",
+    stageNumber: 28,
+    isBoss: false,
+    requiredLevel: 16,
+    rewardExp: 720,
+    rewardCoins: 50,
+    questionCount: 6,
+    chapterId: "ch3",
+    questionKinds: ["reverse", "spell"],
+  },
+  {
+    id: "stage-20",
+    name: "珍珠貝殼宮",
+    stageNumber: 29,
+    isBoss: false,
+    requiredLevel: 16,
+    rewardExp: 760,
+    rewardCoins: 55,
+    questionCount: 6,
+    chapterId: "ch3",
+    questionKinds: ["cloze", "spell"],
+  },
+  {
+    id: "boss-10",
+    name: "鯊魚船長",
+    stageNumber: 30,
+    isBoss: true,
+    requiredLevel: 17,
+    rewardExp: 2000,
+    rewardCoins: 120,
+    bossHp: 8,
+    questionCount: 11,
+    chapterId: "ch3",
+    questionKinds: ["cloze", "spell", "emoji"],
+  },
+  {
+    id: "stage-21",
+    name: "深海螢光森林",
+    stageNumber: 31,
+    isBoss: false,
+    requiredLevel: 17,
+    rewardExp: 820,
+    rewardCoins: 55,
+    questionCount: 7,
+    chapterId: "ch3",
+    questionKinds: ["meaning", "listen", "reverse", "emoji", "spell", "cloze"],
+  },
+  {
+    id: "stage-22",
+    name: "海底火山",
+    stageNumber: 32,
+    isBoss: false,
+    requiredLevel: 18,
+    rewardExp: 880,
+    rewardCoins: 60,
+    questionCount: 7,
+    chapterId: "ch3",
+    questionKinds: ["meaning", "listen", "reverse", "emoji", "spell", "cloze"],
+  },
+  {
+    id: "boss-11",
+    name: "深海鯨王",
+    stageNumber: 33,
+    isBoss: true,
+    requiredLevel: 19,
+    rewardExp: 2400,
+    rewardCoins: 160,
+    bossHp: 10,
+    questionCount: 13,
+    chapterId: "ch3",
+    questionKinds: ["meaning", "listen", "reverse", "emoji", "spell", "cloze"],
+  },
 ];
 
 // 等級經驗值表（升到該等級所需總經驗）
@@ -339,7 +464,12 @@ export const LEVEL_EXP_TABLE: number[] = [
   5000, // Level 12
   6200, // Level 13
   7600, // Level 14
-  9200, // Level 15 (最高)
+  9200, // Level 15
+  11000, // Level 16
+  13000, // Level 17
+  15200, // Level 18
+  17600, // Level 19
+  20200, // Level 20 (最高)
 ];
 
 function timestampMillis(value: unknown): number | null {

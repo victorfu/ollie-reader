@@ -19,6 +19,12 @@ export const CHAPTERS: Chapter[] = [
     subtitle: "棉花糖與星光的甜蜜國度",
     firstStageIndex: 13,
   },
+  {
+    id: "ch3",
+    name: "第三章 · 珊瑚海底王國",
+    subtitle: "潛進閃閃發光的海底世界",
+    firstStageIndex: 23,
+  },
 ];
 
 /** 依關卡 index 取得所屬章節 */

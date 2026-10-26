@@ -50,6 +50,8 @@ export interface GameWord {
   def: string; // 中文優先的主要釋義（中文模式用）
   defEn?: string; // 英文釋義（英文模式用，可能缺）
   emoji: string;
+  example?: string; // 含該字的英文例句（句子填空用，可能缺）
+  exampleZh?: string; // 例句的中文翻譯（可能缺）
 }
 
 /**
@@ -404,6 +406,9 @@ export async function generateSpeechScript(
  * @param count - Number of words to generate
  * @returns Array of game words
  */
+const optionalText = (value: unknown): string | undefined =>
+  typeof value === "string" && value.trim() ? value.trim() : undefined;
+
 export async function generateGameWords(
   count: number = 10,
   signal?: AbortSignal,
@@ -419,11 +424,14 @@ export async function generateGameWords(
       - "defEn": A simple English definition (10-20 words) that only uses words easier than the target word.
         NEVER include the target word or any inflected form of it inside "defEn" — it is used as a quiz clue.
       - "emoji": A relevant emoji (string)
+      - "example": One short, simple English sentence (8-15 words) a 12-year-old can read.
+        It MUST contain the target word (an inflected form like "ran" or "dogs" is fine).
+      - "exampleZh": The Traditional Chinese translation of "example".
 
       Example format:
       [
-        {"word": "Magnificent", "def": "壯麗的", "defEn": "extremely beautiful or impressive to look at", "emoji": "✨"},
-        {"word": "Persevere", "def": "堅持不懈", "defEn": "to keep trying to do something even when it is hard", "emoji": "💪"}
+        {"word": "Magnificent", "def": "壯麗的", "defEn": "extremely beautiful or impressive to look at", "emoji": "✨", "example": "The view from the mountain top was magnificent.", "exampleZh": "從山頂看出去的景色非常壯麗。"},
+        {"word": "Persevere", "def": "堅持不懈", "defEn": "to keep trying to do something even when it is hard", "emoji": "💪", "example": "She persevered and finally solved the puzzle.", "exampleZh": "她堅持不懈，終於解開了謎題。"}
       ]
 
       Do not include markdown formatting like \`\`\`json. Just the raw JSON string.
@@ -454,6 +462,9 @@ export async function generateGameWords(
               ? w.defEn.trim()
               : undefined,
           emoji: typeof w.emoji === "string" && w.emoji ? w.emoji : "✨",
+          // 缺例句不丟掉整個字，句子填空會自動改出其他題型
+          example: optionalText(w.example),
+          exampleZh: optionalText(w.exampleZh),
         }))
         .filter((w) => w.word && w.def);
 
