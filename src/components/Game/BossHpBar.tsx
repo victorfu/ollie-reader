@@ -1,4 +1,5 @@
 import { motion } from "framer-motion";
+import { useLanguage } from "../../hooks/useLanguage";
 
 interface BossHpBarProps {
   hp: number;
@@ -6,11 +7,12 @@ interface BossHpBarProps {
 }
 
 export function BossHpBar({ hp, maxHp }: BossHpBarProps) {
+  const { t } = useLanguage();
   const pct = Math.max(0, Math.min(100, (hp / maxHp) * 100));
   return (
     <div className="w-full max-w-sm">
       <div className="flex justify-between text-xs font-bold mb-1">
-        <span className="text-error">魔王 HP</span>
+        <span className="text-error">{t("adventure.boss.hp")}</span>
         <span className="text-muted-foreground">
           {hp} / {maxHp}
         </span>

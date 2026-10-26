@@ -6,6 +6,7 @@ import {
   type SetStateAction,
 } from "react";
 import { useAuth } from "./useAuth";
+import { useLanguage } from "./useLanguage";
 import {
   addSentences,
   getSpeechSentences,
@@ -49,6 +50,13 @@ const makeOwnerKey = (userId: string, speechId: string) =>
 export const useSentencePractice = (speechId: string | null) => {
   const { user } = useAuth();
   const userId = user?.uid ?? null;
+  // Messages are translated when an operation finishes; a ref keeps the
+  // callbacks stable across a language change.
+  const { t } = useLanguage();
+  const tRef = useRef(t);
+  useEffect(() => {
+    tRef.current = t;
+  });
   const ownerKey =
     userId && speechId ? makeOwnerKey(userId, speechId) : null;
 
@@ -155,7 +163,7 @@ export const useSentencePractice = (speechId: string | null) => {
           return;
         }
         console.error("Failed to load sentences:", err);
-        setOwnedError(operationOwnerKey, "載入句子失敗");
+        setOwnedError(operationOwnerKey, tRef.current("practice.sentence.msg.loadFailed"));
       } finally {
         if (requestId === loadRequestIdRef.current) {
           setLoadingOwnerKey((current) =>
@@ -224,7 +232,7 @@ export const useSentencePractice = (speechId: string | null) => {
         return;
       }
       console.error("Failed to load more sentences:", err);
-      setOwnedError(operationOwnerKey, "載入更多句子失敗");
+      setOwnedError(operationOwnerKey, tRef.current("practice.sentence.msg.loadMoreFailed"));
     } finally {
       if (requestId === loadMoreRequestIdRef.current) {
         setLoadingMoreOwnerKey((current) =>
@@ -247,11 +255,11 @@ export const useSentencePractice = (speechId: string | null) => {
     async (
       text: string,
     ): Promise<{ success: boolean; message?: string; count?: number }> => {
-      if (!userId) return { success: false, message: "使用者未登入" };
+      if (!userId) return { success: false, message: tRef.current("practice.sentence.msg.notSignedIn") };
       if (!speechId || !ownerKey) {
-        return { success: false, message: "請先選擇演講版本" };
+        return { success: false, message: tRef.current("practice.sentence.msg.chooseVersion") };
       }
-      if (!text.trim()) return { success: false, message: "請輸入英文文字" };
+      if (!text.trim()) return { success: false, message: tRef.current("practice.sentence.msg.enterText") };
 
       const operationOwnerKey = ownerKey;
       const operationSpeechId = speechId;
@@ -268,11 +276,11 @@ export const useSentencePractice = (speechId: string | null) => {
         );
 
         if (controller.signal.aborted) {
-          return { success: false, message: "操作已取消" };
+          return { success: false, message: tRef.current("practice.sentence.msg.cancelled") };
         }
 
         if (parsedSentences.length === 0) {
-          return { success: false, message: "無法解析句子" };
+          return { success: false, message: tRef.current("practice.sentence.msg.cannotParse") };
         }
 
         const sentencesToSave = parsedSentences.map((sentence) => ({
@@ -283,7 +291,7 @@ export const useSentencePractice = (speechId: string | null) => {
         }));
         const saved = await addSentences(sentencesToSave);
         if (saved.length !== parsedSentences.length) {
-          throw new Error("新增句子的結果不完整");
+          throw new Error(tRef.current("practice.sentence.msg.incompleteAdd"));
         }
 
         const newSentences: PracticeSentence[] = parsedSentences.map(
@@ -327,16 +335,20 @@ export const useSentencePractice = (speechId: string | null) => {
         return {
           success: true,
           message: hasFailedTranslation
-            ? `已新增 ${parsedSentences.length} 個句子（翻譯暫時無法使用）`
-            : `成功新增 ${parsedSentences.length} 個句子`,
+            ? tRef.current("practice.sentence.msg.addedNoTranslation", {
+                count: parsedSentences.length,
+              })
+            : tRef.current("practice.sentence.msg.added", {
+                count: parsedSentences.length,
+              }),
           count: parsedSentences.length,
         };
       } catch (err) {
         if (controller.signal.aborted) {
-          return { success: false, message: "操作已取消" };
+          return { success: false, message: tRef.current("practice.sentence.msg.cancelled") };
         }
         console.error("Failed to parse and translate:", err);
-        const message = err instanceof Error ? err.message : "處理失敗";
+        const message = err instanceof Error ? err.message : tRef.current("practice.sentence.processFailed");
         if (aiOperationControllerRef.current === controller) {
           setOwnedError(operationOwnerKey, message);
         }
@@ -369,7 +381,7 @@ export const useSentencePractice = (speechId: string | null) => {
       newEnglish: string,
     ): Promise<{ success: boolean; message?: string }> => {
       if (!userId || !speechId || !ownerKey) {
-        return { success: false, message: "使用者未登入" };
+        return { success: false, message: tRef.current("practice.sentence.msg.notSignedIn") };
       }
 
       const operationOwnerKey = ownerKey;
@@ -384,9 +396,9 @@ export const useSentencePractice = (speechId: string | null) => {
           controller.signal,
         );
         if (controller.signal.aborted) {
-          return { success: false, message: "操作已取消" };
+          return { success: false, message: tRef.current("practice.sentence.msg.cancelled") };
         }
-        if (!newChinese) return { success: false, message: "翻譯失敗" };
+        if (!newChinese) return { success: false, message: tRef.current("practice.sentence.msg.translateFailed") };
 
         await updateSentence(sentenceId, {
           english: newEnglish,
@@ -413,13 +425,13 @@ export const useSentencePractice = (speechId: string | null) => {
           );
         }
 
-        return { success: true, message: "更新成功" };
+        return { success: true, message: tRef.current("practice.sentence.msg.updated") };
       } catch (err) {
         if (controller.signal.aborted) {
-          return { success: false, message: "操作已取消" };
+          return { success: false, message: tRef.current("practice.sentence.msg.cancelled") };
         }
         console.error("Failed to edit sentence:", err);
-        const message = err instanceof Error ? err.message : "更新失敗";
+        const message = err instanceof Error ? err.message : tRef.current("practice.sentence.updateFailed");
         return { success: false, message };
       } finally {
         if (aiOperationControllerRef.current === controller) {
@@ -438,7 +450,7 @@ export const useSentencePractice = (speechId: string | null) => {
       sentenceId: string,
     ): Promise<{ success: boolean; message?: string }> => {
       if (!userId || !speechId || !ownerKey) {
-        return { success: false, message: "使用者未登入" };
+        return { success: false, message: tRef.current("practice.sentence.msg.notSignedIn") };
       }
 
       const operationOwnerKey = ownerKey;
@@ -460,10 +472,10 @@ export const useSentencePractice = (speechId: string | null) => {
             };
           });
         }
-        return { success: true, message: "刪除成功" };
+        return { success: true, message: tRef.current("practice.sentence.msg.deleted") };
       } catch (err) {
         console.error("Failed to delete sentence:", err);
-        const message = err instanceof Error ? err.message : "刪除失敗";
+        const message = err instanceof Error ? err.message : tRef.current("practice.sentence.deleteFailed");
         return { success: false, message };
       }
     },
@@ -474,9 +486,9 @@ export const useSentencePractice = (speechId: string | null) => {
     async (
       targetSpeechId: string | null = speechId,
     ): Promise<{ success: boolean; message?: string }> => {
-      if (!userId) return { success: false, message: "使用者未登入" };
+      if (!userId) return { success: false, message: tRef.current("practice.sentence.msg.notSignedIn") };
       if (!targetSpeechId) {
-        return { success: false, message: "請先選擇演講版本" };
+        return { success: false, message: tRef.current("practice.sentence.msg.chooseVersion") };
       }
 
       const operationOwnerKey = makeOwnerKey(userId, targetSpeechId);
@@ -494,10 +506,10 @@ export const useSentencePractice = (speechId: string | null) => {
         if (isActiveOwner(operationOwnerKey)) {
           setViewState(emptyView(operationOwnerKey));
         }
-        return { success: true, message: "已清除所有句子" };
+        return { success: true, message: tRef.current("practice.sentence.cleared") };
       } catch (err) {
         console.error("Failed to clear sentences:", err);
-        const message = err instanceof Error ? err.message : "清除失敗";
+        const message = err instanceof Error ? err.message : tRef.current("practice.sentence.clearFailed");
         setOwnedError(operationOwnerKey, message);
         if (isActiveOwner(operationOwnerKey)) {
           void loadSentences();
@@ -513,14 +525,14 @@ export const useSentencePractice = (speechId: string | null) => {
       reorderedList: PracticeSentence[],
     ): Promise<{ success: boolean; message?: string }> => {
       if (!userId || !speechId || !ownerKey) {
-        return { success: false, message: "使用者未登入" };
+        return { success: false, message: tRef.current("practice.sentence.msg.notSignedIn") };
       }
       if (
         reorderedList.some(
           (sentence) => !sentence.id || sentence.speechId !== speechId,
         )
       ) {
-        return { success: false, message: "排序清單不屬於目前演講版本" };
+        return { success: false, message: tRef.current("practice.sentence.msg.reorderMismatch") };
       }
 
       const operationOwnerKey = ownerKey;
@@ -568,7 +580,7 @@ export const useSentencePractice = (speechId: string | null) => {
         return { success: true };
       } catch (err) {
         console.error("Failed to reorder sentences:", err);
-        const message = err instanceof Error ? err.message : "排序失敗";
+        const message = err instanceof Error ? err.message : tRef.current("practice.sentence.msg.reorderFailed");
         if (isActiveOwner(operationOwnerKey)) {
           dataEpochRef.current += 1;
           await loadSentences();

@@ -19,6 +19,8 @@ import type { TowerCharacter } from "../types";
 import { CharacterDetail, PowerMeter, RangePips } from "./CharacterDetail";
 import { CharacterTags } from "./CharacterTags";
 import { Popup } from "./Popup";
+import { useLanguage } from "../../../../hooks/useLanguage";
+import { T } from "../../../common/T";
 
 type Props = {
   levelName: string;
@@ -50,6 +52,7 @@ export function SquadSelect({
       : recommendSquad(availableCharacters, []),
   );
   const [detailId, setDetailId] = useState<string | null>(null);
+  const { t } = useLanguage();
 
   const isFull = squadIds.length >= MAX_SQUAD_SIZE;
   const detail = availableCharacters.find(
@@ -94,12 +97,12 @@ export function SquadSelect({
         className="absolute left-4 top-4 z-20 flex min-h-11 items-center gap-1.5 rounded-full bg-white/90 px-4 py-2 text-sm font-semibold text-slate-900 shadow-lg backdrop-blur transition hover:-translate-y-0.5 hover:shadow-xl sm:left-6 sm:top-6"
       >
         <ArrowLeft size={16} strokeWidth={2} aria-hidden="true" />
-        回闖關路線
+        <T k="defenders.squad.back" variant="stacked" />
       </button>
 
       <header className="mt-10 flex flex-col items-center sm:mt-2">
         <h1 className="text-3xl font-semibold tracking-tight text-slate-900">
-          出戰隊伍
+          <T k="defenders.squad.heading" variant="stacked" />
         </h1>
         <p className="mt-1 text-sm text-slate-600">
           {levelName}
@@ -118,7 +121,7 @@ export function SquadSelect({
               key={member.id}
               type="button"
               onClick={() => toggle(member.id)}
-              aria-label={`把 ${member.nameZh} 請下場`}
+              aria-label={t("defenders.squad.removeLabel", { name: member.nameZh })}
               className="flex size-14 items-center justify-center rounded-full border-2 border-[#ff6f9f] bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
             >
               <img
@@ -138,17 +141,32 @@ export function SquadSelect({
       </div>
 
       <p className="mt-2 text-center text-xs text-slate-500">
-        {isFull
-          ? "隊伍滿了，想換人就先點掉上面的一位"
-          : `還可以帶 ${MAX_SQUAD_SIZE - squadIds.length} 位`}
+        {isFull ? (
+          <T k="defenders.squad.full" />
+        ) : (
+          <T
+            k="defenders.squad.slotsLeft"
+            params={{ n: MAX_SQUAD_SIZE - squadIds.length }}
+          />
+        )}
       </p>
-      <p className="mt-1 flex items-center justify-center gap-1 text-center text-[11px] text-slate-400">
-        <Swords size={12} strokeWidth={2} aria-hidden="true" className="text-[#ff6f9f]" />
-        是攻擊力、
-        <Crosshair size={12} strokeWidth={2} aria-hidden="true" className="text-sky-500" />
-        是射程，亮越多越強；點
-        <Info size={12} strokeWidth={2} aria-hidden="true" />
-        看招式細節
+      {/* 圖例：每個圖示後面接自己的標籤，不把一句話拆成好幾段來翻譯。 */}
+      <p className="mt-1 flex flex-wrap items-center justify-center gap-x-2 gap-y-0.5 text-center text-[11px] text-slate-400">
+        <span className="flex items-center gap-1">
+          <Swords size={12} strokeWidth={2} aria-hidden="true" className="text-[#ff6f9f]" />
+          <T k="defenders.squad.legend.power" />
+        </span>
+        <span className="flex items-center gap-1">
+          <Crosshair size={12} strokeWidth={2} aria-hidden="true" className="text-sky-500" />
+          <T k="defenders.squad.legend.range" />
+        </span>
+        <span>
+          <T k="defenders.squad.legend.more" />
+        </span>
+        <span className="flex items-center gap-1">
+          <Info size={12} strokeWidth={2} aria-hidden="true" />
+          <T k="defenders.squad.legend.details" />
+        </span>
       </p>
 
       <div className="mx-auto mt-5 grid w-full max-w-4xl grid-cols-3 gap-2 pb-28 sm:grid-cols-5 lg:grid-cols-6">
@@ -206,7 +224,8 @@ export function SquadSelect({
                         fill="currentColor"
                         aria-hidden="true"
                       />
-                      加速夥伴
+                      {/* 這一排固定 13px 高，放不下雙行提示，只換語言。 */}
+                      {t("defenders.squad.cheer")}
                     </span>
                   )}
                 </span>
@@ -222,7 +241,7 @@ export function SquadSelect({
                   setDetailId(character.id);
                 }}
                 aria-haspopup="dialog"
-                aria-label={`看 ${character.nameZh} 的招式細節`}
+                aria-label={t("defenders.squad.detailsLabel", { name: character.nameZh })}
                 className="absolute left-0.5 top-0.5 flex size-8 items-center justify-center rounded-full text-slate-400 transition hover:bg-black/5 hover:text-slate-600"
               >
                 <Info size={15} strokeWidth={2} aria-hidden="true" />
@@ -234,7 +253,7 @@ export function SquadSelect({
 
       {detail && (
         <Popup
-          title="招式細節"
+          titleKey="defenders.squad.detailsTitle"
           panelClassName="max-w-lg"
           onClose={() => setDetailId(null)}
           // 看完就能直接決定要不要帶，不用關掉面板再回去清單裡找同一張卡。
@@ -253,11 +272,16 @@ export function SquadSelect({
                     : "bg-[#ff6f9f] text-white hover:brightness-105"
                 }`}
               >
-                {squadIds.includes(detail.id)
-                  ? "請下場"
-                  : isFull
-                    ? "隊伍滿了"
-                    : "選入隊伍"}
+                <T
+                  k={
+                    squadIds.includes(detail.id)
+                      ? "defenders.squad.remove"
+                      : isFull
+                        ? "defenders.squad.teamFull"
+                        : "defenders.squad.add"
+                  }
+                  variant="stacked"
+                />
               </button>
             </div>
           }
@@ -276,7 +300,7 @@ export function SquadSelect({
             className="flex min-h-11 items-center gap-1 rounded-[10px] border border-black/5 bg-white px-3 text-sm font-medium text-slate-600 shadow-sm transition hover:bg-slate-50 disabled:opacity-45"
           >
             <Sparkles size={15} strokeWidth={2} aria-hidden="true" />
-            推薦
+            <T k="defenders.squad.recommend" variant="stacked" />
           </button>
           <button
             type="button"
@@ -285,7 +309,7 @@ export function SquadSelect({
             className="flex min-h-11 items-center gap-1 rounded-[10px] border border-black/5 bg-white px-3 text-sm font-medium text-slate-600 shadow-sm transition hover:bg-slate-50 disabled:opacity-45"
           >
             <Eraser size={15} strokeWidth={2} aria-hidden="true" />
-            清空
+            <T k="defenders.squad.clear" variant="stacked" />
           </button>
           <button
             type="button"
@@ -294,7 +318,11 @@ export function SquadSelect({
             className="flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-[10px] bg-[#ff6f9f] px-4 text-sm font-semibold text-white shadow-sm transition hover:brightness-105 active:scale-[0.99] disabled:opacity-45"
           >
             <Swords size={16} strokeWidth={2} aria-hidden="true" />
-            出發（{squadIds.length} / {MAX_SQUAD_SIZE}）
+            <T
+              k="defenders.squad.go"
+              params={{ count: squadIds.length, max: MAX_SQUAD_SIZE }}
+              variant="stacked"
+            />
           </button>
         </div>
       </div>

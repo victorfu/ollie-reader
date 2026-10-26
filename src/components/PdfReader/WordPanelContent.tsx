@@ -7,6 +7,8 @@ import type { LookupItem } from "../../hooks/useLookupQueue";
 import type { VocabularyWord } from "../../types/vocabulary";
 import type { VocabularyPanelMode } from "../../types/pdf";
 import { LookupResultCard } from "./LookupResultCard";
+import { useLanguage } from "../../hooks/useLanguage";
+import { T } from "../common/T";
 
 // --- Inline SVG Icons ---
 
@@ -79,7 +81,9 @@ const WordDetail = memo(
     word: VocabularyWord;
     onSpeak?: (text: string) => void;
     showChinese: boolean;
-  }) => (
+  }) => {
+    const { t } = useLanguage();
+    return (
     <motion.div
       initial={{ height: 0, opacity: 0 }}
       animate={{ height: "auto", opacity: 1 }}
@@ -129,7 +133,7 @@ const WordDetail = memo(
                         onSpeak(ex.sentence);
                       }}
                       className="btn btn-ghost btn-xs btn-circle hover:bg-black/5 dark:hover:bg-white/10 shrink-0 mt-0.5"
-                      aria-label="朗讀例句"
+                      aria-label={t("reader.speakExample")}
                     >
                       <SpeakerIcon className="w-3 h-3" />
                     </button>
@@ -157,7 +161,8 @@ const WordDetail = memo(
         )}
       </div>
     </motion.div>
-  ),
+    );
+  },
 );
 
 WordDetail.displayName = "WordDetail";
@@ -177,7 +182,9 @@ const SavedWordItem = memo(
     onToggle: () => void;
     onSpeak?: (text: string) => void;
     showChinese: boolean;
-  }) => (
+  }) => {
+    const { t } = useLanguage();
+    return (
     <motion.div
       layout="position"
       initial={{ opacity: 0, y: 10 }}
@@ -204,7 +211,7 @@ const SavedWordItem = memo(
                 onSpeak(word.word);
               }}
               className="btn btn-ghost btn-xs btn-circle hover:bg-black/5 dark:hover:bg-white/10 shrink-0"
-              aria-label="朗讀單字"
+              aria-label={t("reader.speakWord")}
             >
               <SpeakerIcon />
             </button>
@@ -233,7 +240,8 @@ const SavedWordItem = memo(
         )}
       </AnimatePresence>
     </motion.div>
-  ),
+    );
+  },
 );
 
 SavedWordItem.displayName = "SavedWordItem";
@@ -295,6 +303,7 @@ export const WordPanelContent = memo(
     dragHandleProps,
     disableItemLayoutAnimation,
   }: WordPanelContentProps) => {
+    const { t } = useLanguage();
     const inputRef = useRef<HTMLInputElement>(null);
     const { showChineseTranslation, updateShowChineseTranslation } = useSettings();
 
@@ -380,7 +389,9 @@ export const WordPanelContent = memo(
         >
           <div className="flex items-center gap-2 min-w-0">
             <BookMarkedIcon className="w-4 h-4 text-accent shrink-0" />
-            <span className="font-semibold text-base truncate">生詞本</span>
+            <span className="font-semibold text-base truncate">
+              <T k="reader.vocab.title" variant="stacked" />
+            </span>
             {activeCount > 0 && (
               <span className="badge badge-xs badge-accent shrink-0">
                 {activeCount}
@@ -391,7 +402,11 @@ export const WordPanelContent = memo(
             {/* Chinese translation toggle */}
             <label
               className="flex items-center gap-1.5 px-2 cursor-pointer text-xs select-none"
-              title={showChineseTranslation ? "隱藏中文翻譯" : "顯示中文翻譯"}
+              title={
+                showChineseTranslation
+                  ? t("reader.chineseToggle.hide")
+                  : t("reader.chineseToggle.show")
+              }
               onMouseDown={(e) => e.stopPropagation()}
               onClick={(e) => e.stopPropagation()}
             >
@@ -409,7 +424,7 @@ export const WordPanelContent = memo(
                 onClick={onDismissAll}
                 className="btn btn-ghost btn-xs hover:bg-black/5 dark:hover:bg-white/10"
               >
-                清除
+                <T k="reader.clearAll" variant="stacked" />
               </button>
             )}
             {/* Docked ⇄ floating mode toggle — hidden where docking cannot
@@ -420,8 +435,8 @@ export const WordPanelContent = memo(
                 data-testid="panel-mode-toggle"
                 onClick={onToggleMode}
                 className="btn btn-ghost btn-xs btn-circle hover:bg-black/5 dark:hover:bg-white/10"
-                aria-label={isDocked ? "改為浮動視窗" : "停靠到側邊"}
-                title={isDocked ? "改為浮動視窗" : "停靠到側邊"}
+                aria-label={isDocked ? t("reader.panel.toFloating") : t("reader.panel.toDock")}
+                title={isDocked ? t("reader.panel.toFloating") : t("reader.panel.toDock")}
               >
                 {isDocked ? <FloatWindowIcon /> : <DockRightIcon />}
               </button>
@@ -431,7 +446,7 @@ export const WordPanelContent = memo(
               data-testid="panel-close"
               onClick={onClose}
               className="btn btn-ghost btn-xs btn-circle hover:bg-black/5 dark:hover:bg-white/10"
-              aria-label={isDocked ? "關閉側欄" : "收合面板"}
+              aria-label={isDocked ? t("reader.panel.closeSidebar") : t("reader.collapsePanel")}
             >
               <MinusIcon />
             </button>
@@ -451,8 +466,8 @@ export const WordPanelContent = memo(
               type="text"
               value={query}
               onChange={(e) => onQueryChange(e.target.value)}
-              placeholder="搜尋或查詢單字…"
-              aria-label="搜尋或查詢單字"
+              placeholder={t("reader.panel.searchPlaceholder")}
+              aria-label={t("reader.panel.searchLabel")}
               className="w-full h-9 rounded-[8px] border border-border-hairline bg-base-200/50 pl-9 pr-9 text-sm placeholder:text-base-content/40 focus:outline-none focus:border-accent/40 focus:ring-2 focus:ring-accent/40 transition-colors"
             />
             {query && (
@@ -463,7 +478,7 @@ export const WordPanelContent = memo(
                   inputRef.current?.focus();
                 }}
                 className="absolute right-2 top-1/2 -translate-y-1/2 btn btn-ghost btn-xs btn-circle hover:bg-black/5 dark:hover:bg-white/10"
-                aria-label="清除搜尋"
+                aria-label={t("reader.panel.clearSearch")}
               >
                 <XIcon className="w-3 h-3" />
               </button>
@@ -482,7 +497,11 @@ export const WordPanelContent = memo(
             >
               <SearchIcon className="w-4 h-4 shrink-0" />
               <span className="flex-1 truncate">
-                查詢「{trimmedQuery}」並加入生詞本
+                <T
+                  k="reader.panel.lookupAndAdd"
+                  params={{ word: trimmedQuery }}
+                  variant="stacked"
+                />
               </span>
               <ReturnIcon className="w-3.5 h-3.5 shrink-0 opacity-60" />
             </button>
@@ -492,7 +511,9 @@ export const WordPanelContent = memo(
           {visibleLookups.length > 0 && (
             <>
               {showGroupLabels && (
-                <p className="text-xs text-base-content/40 px-1 pt-0.5">查詢結果</p>
+                <p className="text-xs text-base-content/40 px-1 pt-0.5">
+                  <T k="reader.lookup.title" />
+                </p>
               )}
               <AnimatePresence initial={false}>
                 {visibleLookups.map((item) => (
@@ -513,7 +534,9 @@ export const WordPanelContent = memo(
           {trimmedQuery && isSearching && (
             <div className="flex items-center justify-center gap-2 py-4">
               <span className="loading loading-spinner loading-sm text-accent" />
-              <span className="text-sm text-base-content/50">搜尋中...</span>
+              <span className="text-sm text-base-content/50">
+                <T k="reader.panel.searching" />
+              </span>
             </div>
           )}
 
@@ -521,7 +544,9 @@ export const WordPanelContent = memo(
           {visibleSaved.length > 0 && (
             <>
               {showGroupLabels && (
-                <p className="text-xs text-base-content/40 px-1 pt-0.5">生詞本</p>
+                <p className="text-xs text-base-content/40 px-1 pt-0.5">
+                  <T k="reader.vocab.title" />
+                </p>
               )}
               <AnimatePresence initial={false}>
                 {visibleSaved.map((word) => (
@@ -541,7 +566,7 @@ export const WordPanelContent = memo(
           {/* No saved match (the CTA above offers to look it up) */}
           {showNoSavedHint && (
             <p className="text-center text-sm text-base-content/40 px-4 py-2">
-              生詞本沒有「{trimmedQuery}」
+              <T k="reader.panel.notInBook" params={{ word: trimmedQuery }} />
             </p>
           )}
 
@@ -549,7 +574,9 @@ export const WordPanelContent = memo(
           {showLandingHint && (
             <div className="flex flex-col items-center justify-center h-full text-base-content/40 text-sm text-center px-4">
               <SearchIcon className="w-8 h-8 mb-2 text-base-content/20" />
-              <p>搜尋生詞本，或輸入單字查詢</p>
+              <p>
+                <T k="reader.panel.landingHint" />
+              </p>
             </div>
           )}
         </div>

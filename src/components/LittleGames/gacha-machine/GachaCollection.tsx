@@ -11,6 +11,9 @@ import {
   WifiOff,
 } from "lucide-react";
 import { motion, useReducedMotion } from "framer-motion";
+import { useLanguage } from "../../../hooks/useLanguage";
+import type { MessageKey } from "../../../i18n/translate";
+import { T } from "../../common/T";
 import { GACHA_CHARACTERS } from "./gachaData";
 import type { GachaCharacter, GachaSaveV1 } from "./gachaTypes";
 import { GachaCollectionDialog } from "./GachaCollectionDialog";
@@ -19,7 +22,7 @@ interface GachaCollectionProps {
   save: GachaSaveV1;
   isLoading?: boolean;
   isOffline?: boolean;
-  syncLabel?: string;
+  syncLabel?: MessageKey;
   hasPendingCapsule?: boolean;
   canResetCollection?: boolean;
   showAllEntries?: boolean;
@@ -31,7 +34,7 @@ export function GachaCollection({
   save,
   isLoading = false,
   isOffline = false,
-  syncLabel = "已與雲端同步",
+  syncLabel = "gacha.sync.cloud",
   hasPendingCapsule = false,
   canResetCollection = false,
   showAllEntries = false,
@@ -39,6 +42,9 @@ export function GachaCollection({
   onRequestReset,
 }: GachaCollectionProps) {
   const reduceMotion = useReducedMotion();
+  const { t, language } = useLanguage();
+  // English needs a space between the bold title and the sentence after it.
+  const titleGap = language === "en" ? " " : null;
   const [selectedCharacter, setSelectedCharacter] =
     useState<GachaCharacter | null>(null);
   const unlockedCount = GACHA_CHARACTERS.reduce(
@@ -82,17 +88,17 @@ export function GachaCollection({
             id="gacha-collection-title"
             className="text-2xl font-bold tracking-tight sm:text-3xl"
           >
-            我的角色圖鑑
+            <T k="gacha.collection.title" variant="stacked" />
           </h2>
           <p className="mt-1 max-w-lg text-sm leading-6 text-muted-foreground">
-            每次遇見新角色都會自動解鎖；重複扭到的角色也會留下相遇次數。點選角色即可查看大圖。
+            <T k="gacha.collection.intro" />
           </p>
         </div>
 
         <div className="min-w-48 rounded-[14px] border border-border-hairline bg-background/70 p-4 shadow-sm">
           <div className="flex items-center justify-between gap-4">
             <span className="text-xs font-semibold text-muted-foreground">
-              收集進度
+              <T k="gacha.collection.progress" />
             </span>
             <span className="text-sm font-bold text-foreground">
               {unlockedCount} / {GACHA_CHARACTERS.length}
@@ -101,7 +107,7 @@ export function GachaCollection({
           <div
             className="mt-2 h-2.5 overflow-hidden rounded-full bg-muted"
             role="progressbar"
-            aria-label="角色圖鑑收集進度"
+            aria-label={t("gacha.progress.label")}
             aria-valuemin={0}
             aria-valuemax={GACHA_CHARACTERS.length}
             aria-valuenow={unlockedCount}
@@ -123,16 +129,20 @@ export function GachaCollection({
             ) : (
               <Cloud className="size-3.5" strokeWidth={1.8} aria-hidden="true" />
             )}
-            {syncLabel}
+            <T k={syncLabel} />
           </div>
           <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border-hairline pt-3 text-center">
             <div>
               <p className="text-lg font-black text-foreground">{save.totalDraws}</p>
-              <p className="text-[11px] font-medium text-muted-foreground">累計抽取</p>
+              <p className="text-[11px] font-medium text-muted-foreground">
+                <T k="gacha.collection.totalDraws" />
+              </p>
             </div>
             <div>
               <p className="text-lg font-black text-foreground">{missCount}</p>
-              <p className="text-[11px] font-medium text-muted-foreground">空膠囊</p>
+              <p className="text-[11px] font-medium text-muted-foreground">
+                <T k="gacha.collection.empty" />
+              </p>
             </div>
           </div>
         </div>
@@ -141,8 +151,10 @@ export function GachaCollection({
       {hasPendingCapsule ? (
         <div className="mb-5 flex flex-col gap-3 rounded-[14px] border border-sky-400/30 bg-sky-400/10 px-4 py-3 text-sm text-sky-900 sm:flex-row sm:items-center sm:justify-between dark:text-sky-100" role="status">
           <span>
-            <strong className="font-bold">還有一顆待開啟膠囊。</strong>
-            本次結果會在你親手打開後才顯示於圖鑑。
+            <strong className="font-bold">
+              <T k="gacha.collection.pendingTitle" />
+            </strong>{titleGap}
+            <T k="gacha.collection.pendingBody" />
           </span>
           <button
             type="button"
@@ -150,7 +162,7 @@ export function GachaCollection({
             className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-[9px] border border-sky-400/30 bg-background/85 px-4 font-semibold text-foreground shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
           >
             <RotateCcw className="size-4" strokeWidth={1.8} aria-hidden="true" />
-            回到扭蛋機
+            <T k="gacha.collection.backToMachine" variant="stacked" />
           </button>
         </div>
       ) : null}
@@ -166,8 +178,10 @@ export function GachaCollection({
             aria-hidden="true"
           />
           <span>
-            <strong className="font-bold">完整圖鑑預覽已開啟。</strong>
-            尚未抽到的角色也可以查看圖片；收集進度仍只計算實際遇見的角色。
+            <strong className="font-bold">
+              <T k="gacha.collection.previewTitle" />
+            </strong>{titleGap}
+            <T k="gacha.collection.previewBody" />
           </span>
         </div>
       ) : null}
@@ -176,8 +190,10 @@ export function GachaCollection({
         <div className="mb-5 flex items-center gap-3 rounded-[14px] border border-amber-300/35 bg-amber-300/10 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
           <Sparkles className="size-5 shrink-0" strokeWidth={1.8} aria-hidden="true" />
           <span>
-            <strong className="font-bold">圖鑑完成！</strong>
-            你已經遇見所有角色，還可以繼續扭蛋累積相遇次數。
+            <strong className="font-bold">
+              <T k="gacha.collection.completeTitle" />
+            </strong>{titleGap}
+            <T k="gacha.collection.completeBody" />
           </span>
         </div>
       ) : null}
@@ -199,8 +215,13 @@ export function GachaCollection({
               disabled={!isVisible}
               aria-label={
                 isVisible
-                  ? `查看${character.name}角色圖片${isPreview ? "（尚未解鎖）" : `，已遇見 ${ownedCount} 次`}`
-                  : "尚未解鎖的角色"
+                  ? isPreview
+                    ? t("gacha.collection.viewPreview", { name: character.name })
+                    : t("gacha.collection.viewOwned", {
+                        name: character.name,
+                        n: ownedCount,
+                      })
+                  : t("gacha.collection.locked")
               }
               initial={reduceMotion ? false : { opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
@@ -244,7 +265,7 @@ export function GachaCollection({
                 ) : isPreview ? (
                   <span className="absolute right-2 top-2 inline-flex min-h-7 items-center justify-center gap-1 rounded-full border border-white/65 bg-background/85 px-2 text-[10px] font-bold text-accent shadow-sm backdrop-blur-md dark:border-white/10">
                     <Eye className="size-3.5" strokeWidth={1.9} aria-hidden="true" />
-                    預覽
+                    <T k="gacha.collection.preview" />
                   </span>
                 ) : (
                   <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 text-muted-foreground">
@@ -265,7 +286,11 @@ export function GachaCollection({
                   {isVisible ? character.name : "???"}
                 </h3>
                 <p className="mt-0.5 truncate text-[11px] font-medium text-muted-foreground">
-                  {isVisible ? character.englishName : "尚未解鎖"}
+                  {isVisible ? (
+                    character.englishName
+                  ) : (
+                    <T k="gacha.collection.notUnlocked" />
+                  )}
                 </p>
               </div>
 
@@ -285,7 +310,7 @@ export function GachaCollection({
       {isLoading ? (
         <div className="mt-5 flex min-h-11 items-center justify-center gap-2 rounded-[12px] border border-border-hairline bg-card px-4 text-sm text-muted-foreground" role="status">
           <span className="loading loading-spinner loading-sm text-accent" />
-          正在更新雲端圖鑑…
+          <T k="gacha.sync.cache" />
         </div>
       ) : null}
 
@@ -295,15 +320,15 @@ export function GachaCollection({
             <div className="flex items-center gap-2 text-error">
               <Trash2 className="size-5" strokeWidth={1.8} aria-hidden="true" />
               <h3 id="gacha-reset-title" className="font-bold">
-                圖鑑管理
+                <T k="gacha.collection.manageTitle" variant="stacked" />
               </h3>
             </div>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-              清空會移除全部角色、相遇次數、抽取與空膠囊統計，並同步到其他裝置。這個動作無法復原。
+              <T k="gacha.collection.manageBody" />
             </p>
             {isOffline ? (
               <p className="mt-1 text-xs font-semibold text-amber-700 dark:text-amber-300">
-                離線時只能查看快取，重新連線後才能清空圖鑑。
+                <T k="gacha.collection.manageOffline" />
               </p>
             ) : null}
           </div>
@@ -314,7 +339,7 @@ export function GachaCollection({
             className="btn btn-error min-h-11 shrink-0 rounded-[9px] px-5 disabled:cursor-not-allowed"
           >
             <Trash2 className="size-4" strokeWidth={1.8} aria-hidden="true" />
-            清空圖鑑
+            <T k="gacha.reset.confirm" variant="stacked" />
           </button>
         </div>
       </section>

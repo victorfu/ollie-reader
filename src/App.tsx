@@ -30,7 +30,10 @@ import { PdfProvider } from "./contexts/PdfContext";
 import { SpeechProvider } from "./contexts/SpeechContext";
 import { SettingsProvider } from "./contexts/SettingsContext";
 import { ThemeProvider } from "./contexts/ThemeContext";
+import { LanguageProvider } from "./contexts/LanguageContext";
 import { ThemeToggle } from "./components/common/ThemeToggle";
+import { T } from "./components/common/T";
+import { useLanguage } from "./hooks/useLanguage";
 import { TokenBalance } from "./components/common/TokenBalance";
 import { useWarmServerOnRouteChange } from "./hooks/useWarmServer";
 import { ErrorBoundary } from "./components/common/ErrorBoundary";
@@ -107,11 +110,12 @@ const SIDEBAR_COLLAPSED_KEY = "ollie-sidebar-collapsed";
 
 // Loading fallback component
 function RouteLoadingFallback() {
+  const { t } = useLanguage();
   return (
     <div className="flex items-center justify-center min-h-[400px]">
       <span
         className="loading loading-spinner loading-lg text-primary"
-        aria-label="載入頁面中"
+        aria-label={t("loading.page")}
       />
     </div>
   );
@@ -119,11 +123,12 @@ function RouteLoadingFallback() {
 
 // Auth loading fallback component
 function AuthLoadingFallback() {
+  const { t } = useLanguage();
   return (
     <div className="min-h-dvh bg-background flex items-center justify-center">
       <span
         className="loading loading-spinner loading-lg text-primary"
-        aria-label="載入登入頁面"
+        aria-label={t("loading.login")}
       />
     </div>
   );
@@ -243,7 +248,7 @@ function AccountMenu({
               strokeWidth={1.75}
               aria-hidden="true"
             />
-            <span>設定</span>
+            <T k="nav.settings" variant="stacked" />
           </Link>
           <button
             type="button"
@@ -259,7 +264,7 @@ function AccountMenu({
               strokeWidth={1.75}
               aria-hidden="true"
             />
-            <span>登出</span>
+            <T k="nav.signOut" variant="stacked" />
           </button>
         </div>
       )}
@@ -269,6 +274,7 @@ function AccountMenu({
 
 function AppContent() {
   const { user, loading, authError, signOutUser } = useAuth();
+  const { t } = useLanguage();
   const location = useLocation();
   const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -394,7 +400,7 @@ function AppContent() {
       <div className="min-h-dvh bg-background flex items-center justify-center">
         <span
           className="loading loading-spinner loading-lg text-primary"
-          aria-label="載入使用者資料"
+          aria-label={t("loading.user")}
         />
       </div>
     );
@@ -430,23 +436,23 @@ function AppContent() {
     void signOutUser();
   };
 
-  const accountLabel = user.displayName || user.email || "使用者";
+  const accountLabel = user.displayName || user.email || t("common.user");
   const accountEmail = user.email;
   const accountInitial = accountLabel.charAt(0).toUpperCase();
   const navItems: SidebarNavItem[] = [
-    { to: "/reader", label: "閱讀器", icon: BookOpen },
-    { to: "/vocabulary", label: "生詞本", icon: BookMarked },
-    { to: "/word-practice", label: "單字練習", icon: SpellCheck },
+    { to: "/reader", labelKey: "nav.reader", icon: BookOpen },
+    { to: "/vocabulary", labelKey: "nav.vocabulary", icon: BookMarked },
+    { to: "/word-practice", labelKey: "nav.wordPractice", icon: SpellCheck },
     {
       to: "/english-speech",
-      label: "演講",
+      labelKey: "nav.speech",
       icon: Mic,
       matches: ["/speech-practice", "/audio-uploads"],
     },
-    { to: "/podcasts", label: "Podcast 聽力", icon: Headphones },
-    { to: "/show", label: "影集字幕", icon: MonitorPlay },
-    { to: "/exams", label: "基本學力測驗", icon: ClipboardCheck },
-    { to: "/games", label: "小遊戲", icon: Joystick },
+    { to: "/podcasts", labelKey: "nav.podcasts", icon: Headphones },
+    { to: "/show", labelKey: "nav.show", icon: MonitorPlay },
+    { to: "/exams", labelKey: "nav.exams", icon: ClipboardCheck },
+    { to: "/games", labelKey: "nav.games", icon: Joystick },
   ];
   const isNavItemActive = (item: SidebarNavItem) =>
     item.to === location.pathname ||
@@ -472,9 +478,9 @@ function AppContent() {
     onMoveToMore: moveToMore,
     onMoveOutOfMore: moveOutOfMore,
   };
-  const currentLabel =
-    activeNavItem?.label ??
-    (location.pathname === "/settings" ? "設定" : "Ollie Reader");
+  const currentLabelKey =
+    activeNavItem?.labelKey ??
+    (location.pathname === "/settings" ? "nav.settings" : null);
 
   return (
     <div
@@ -558,7 +564,7 @@ function AppContent() {
               type="button"
               onClick={() => setSidebarCollapsed((v) => !v)}
               className="hidden h-9 w-9 items-center justify-center rounded-lg text-base-content/70 transition-colors hover:bg-accent-tint hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent lg:inline-flex"
-              aria-label={sidebarCollapsed ? "展開側邊欄" : "收合側邊欄"}
+              aria-label={t(sidebarCollapsed ? "nav.expandSidebar" : "nav.collapseSidebar")}
             >
               <PanelLeft className="size-5" strokeWidth={1.75} aria-hidden="true" />
             </button>
@@ -568,7 +574,7 @@ function AppContent() {
               type="button"
               onClick={() => setIsMobileMenuOpen(true)}
               className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-base-content/70 transition-colors hover:bg-accent-tint hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent lg:hidden"
-              aria-label="開啟選單"
+              aria-label={t("nav.openMenu")}
             >
               <Menu className="size-5" strokeWidth={1.75} aria-hidden="true" />
             </button>
@@ -589,7 +595,11 @@ function AppContent() {
 
             {/* Desktop: current page title */}
             <h1 className="hidden truncate text-base font-semibold tracking-tight lg:block">
-              {currentLabel}
+              {currentLabelKey ? (
+                <T k={currentLabelKey} variant="stacked" />
+              ) : (
+                "Ollie Reader"
+              )}
             </h1>
           </div>
 
@@ -598,8 +608,8 @@ function AppContent() {
             <ThemeToggle />
             <Link
               to="/settings"
-              aria-label="設定"
-              title="設定"
+              aria-label={t("nav.settings")}
+              title={t("nav.settings")}
               aria-current={location.pathname === "/settings" ? "page" : undefined}
               className={`inline-flex h-9 w-9 items-center justify-center rounded-lg transition-colors duration-200 hover:bg-accent-tint hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent active:scale-[0.97] ${
                 location.pathname === "/settings"
@@ -638,7 +648,7 @@ function AppContent() {
                   type="button"
                   onClick={() => setIsMobileMenuOpen(false)}
                   className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-base-content/70 transition-colors hover:bg-accent-tint hover:text-accent"
-                  aria-label="關閉選單"
+                  aria-label={t("nav.closeMenu")}
                 >
                   <X className="size-5" strokeWidth={1.75} aria-hidden="true" />
                 </button>
@@ -666,7 +676,7 @@ function AppContent() {
                   className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-base-content transition-colors duration-200 hover:bg-accent-tint hover:text-accent active:scale-[0.98]"
                 >
                   <SettingsIcon className="size-5 shrink-0" strokeWidth={1.75} aria-hidden="true" />
-                  <span>設定</span>
+                  <T k="nav.settings" variant="stacked" />
                 </Link>
                 <button
                   type="button"
@@ -677,7 +687,7 @@ function AppContent() {
                   className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-error transition-colors duration-200 hover:bg-error/10 active:scale-[0.98]"
                 >
                   <LogOut className="size-5 shrink-0" strokeWidth={1.75} aria-hidden="true" />
-                  <span>登出</span>
+                  <T k="nav.signOut" variant="stacked" />
                 </button>
               </div>
 
@@ -701,7 +711,7 @@ function AppContent() {
                 strokeWidth={1.5}
                 aria-hidden="true"
               />
-              <span className="text-sm text-error">{authError}</span>
+              <span className="text-sm text-error">{t(authError)}</span>
             </div>
           </div>
         )}
@@ -765,9 +775,11 @@ function App() {
   return (
     <ErrorBoundary>
       <ThemeProvider>
-        <BrowserRouter>
-          <AppContent />
-        </BrowserRouter>
+        <LanguageProvider>
+          <BrowserRouter>
+            <AppContent />
+          </BrowserRouter>
+        </LanguageProvider>
       </ThemeProvider>
     </ErrorBoundary>
   );

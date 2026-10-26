@@ -20,7 +20,7 @@ const battleState = vi.hoisted(() => ({
   props: null as null | {
     coinsEarned: number;
     isSettling: boolean;
-    settlementError: string | null;
+    settlementError: import("react").ReactNode;
     onExit: () => void;
     onRetry: () => void;
     onFinished: (outcome: {

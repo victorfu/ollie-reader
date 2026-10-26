@@ -1,4 +1,5 @@
 import { useWordPractice } from "../../hooks/useWordPractice";
+import { T } from "../common/T";
 import { ParentSettings } from "./ParentSettings";
 
 /** Loads the word practice on its own, so the settings page can change it without the practice page open. */
@@ -27,7 +28,7 @@ export function WordPracticeSettings() {
           onClick={() => void wordPractice.reload()}
           className="btn btn-primary min-h-11 active:scale-[0.98]"
         >
-          重新載入
+          <T k="practice.word.reload" variant="stacked" />
         </button>
       </div>
     );

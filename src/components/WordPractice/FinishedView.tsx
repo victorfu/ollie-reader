@@ -4,7 +4,9 @@ import { Coins, PartyPopper } from "lucide-react";
 import type { HomeworkReward, HomeworkRewardItem } from "../../services/economyService";
 import type { Homework, SentenceReview } from "../../types/wordPractice";
 import { dictationAnswer, findDictationItem, gradeDictation, sentencesToReview } from "../../utils/homeworkFlow";
-import { INFLECTION_LABEL } from "../../utils/inflection";
+import type { MessageKey } from "../../i18n/translate";
+import { T } from "../common/T";
+import { PracticeText } from "./PracticeText";
 
 interface FinishedViewProps {
   homework: Homework;
@@ -18,32 +20,27 @@ interface FinishedViewProps {
   onReview?: () => void;
 }
 
-function rewardLabel(item: HomeworkRewardItem): string {
-  switch (item.kind) {
-    case "handIn":
-      return "交作業";
-    case "dictation":
-      return `聽寫寫對 ${item.count ?? 0} 題`;
-    case "perfect":
-      return "聽寫全對";
-    case "firstToday":
-      return "今天第一份功課";
-    case "streak":
-      return `連續寫功課 ${item.count ?? 0} 天`;
-  }
-}
+const REWARD_LABEL: Record<HomeworkRewardItem["kind"], MessageKey> = {
+  handIn: "practice.finished.reward.handIn",
+  dictation: "practice.finished.reward.dictation",
+  perfect: "practice.finished.reward.perfect",
+  firstToday: "practice.finished.reward.firstToday",
+  streak: "practice.finished.reward.streak",
+};
 
 function RewardBox({ reward }: { reward: HomeworkReward }) {
   return (
     <section className="mx-auto w-full max-w-sm space-y-3 rounded-xl border border-warning/30 bg-warning/10 px-4 py-3">
       <p className="flex items-center justify-center gap-2 text-lg font-semibold">
         <Coins className="size-5 text-warning" strokeWidth={1.75} aria-hidden="true" />
-        獲得 {reward.coins} 代幣！
+        <T k="practice.finished.coins" params={{ coins: reward.coins }} />
       </p>
       <ul className="space-y-1 text-sm">
         {reward.items.map((item) => (
           <li key={item.kind} className="flex justify-between gap-3">
-            <span>{rewardLabel(item)}</span>
+            <span>
+              <T k={REWARD_LABEL[item.kind]} params={{ count: item.count ?? 0 }} />
+            </span>
             <span className="font-medium tabular-nums">+{item.coins}</span>
           </li>
         ))}
@@ -59,7 +56,11 @@ function ReviewNote({ review }: { review: SentenceReview }) {
         {review.ok ? "✓ " : ""}
         {review.comment}
       </p>
-      {review.corrected && <p className="text-muted-foreground">修正：{review.corrected}</p>}
+      {review.corrected && (
+        <p className="text-muted-foreground">
+          <T k="practice.finished.suggestion" params={{ text: review.corrected }} />
+        </p>
+      )}
     </div>
   );
 }
@@ -89,43 +90,55 @@ export function FinishedView({
     const word = item && [...homework.newWords, ...homework.reviewWords].find((candidate) => candidate.key === item.key);
     if (!item || !word) return [];
     const spelling = dictationAnswer(homework, item);
-    const note = item.form && word.inflection ? `（${word.word} 的${INFLECTION_LABEL[word.inflection.kind]}）` : "";
-    return [{ key: id, word: `${spelling}${note}`, answer: item.answer }];
+    const formKind = item.form ? word.inflection?.kind : undefined;
+    return [{ key: id, spelling, base: word.word, formKind, answer: item.answer }];
   });
 
   const reviews = new Map((homework.review?.items ?? []).map((item) => [item.key, item]));
   const canReview = !homework.review && sentencesToReview(homework).length > 0;
 
-  const score = result.total === 0 ? "這次沒有聽寫成績" : `聽寫 ${result.correctCount} / ${result.total}`;
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col items-center gap-2 text-center">
         <PartyPopper className="size-10 text-accent" strokeWidth={1.5} aria-hidden="true" />
-        <h2 className="text-2xl font-semibold">寫完了！</h2>
-        <p className="text-lg">{score}</p>
+        <h2 className="text-2xl font-semibold">
+          <T k="practice.finished.title" variant="stacked" />
+        </h2>
+        <p className="text-lg">
+          {result.total === 0 ? (
+            <T k="practice.finished.noScore" />
+          ) : (
+            <T k="practice.finished.score" params={{ correct: result.correctCount, total: result.total }} />
+          )}
+        </p>
       </div>
 
       {homework.reward && <RewardBox reward={homework.reward} />}
 
       {homework.newWords.length > 0 && (
         <section className="space-y-3">
-          <h3 className="text-base font-semibold">造句（給家長看）</h3>
+          <h3 className="text-base font-semibold">
+            <T k="practice.finished.sentencesTitle" variant="stacked" />
+          </h3>
           {canReview && reviewState === "reviewing" && (
             <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground">
               <span className="loading loading-spinner loading-xs" aria-hidden="true" />
-              正在批改造句…
+              <T k="practice.finished.reviewing" />
             </p>
           )}
           {canReview && reviewState !== "reviewing" && onReview && (
             <div className="flex flex-wrap items-center gap-3">
               {reviewState === "failed" && (
                 <p role="status" className="text-sm text-warning">
-                  還沒改好
+                  <T k="practice.finished.reviewFailed" />
                 </p>
               )}
               <button type="button" onClick={onReview} className="btn btn-outline btn-sm min-h-11">
-                {reviewState === "failed" ? "再改一次" : "批改造句"}
+                <T
+                  k={reviewState === "failed" ? "practice.finished.reviewAgain" : "practice.finished.review"}
+                  variant="stacked"
+                />
               </button>
             </div>
           )}
@@ -138,13 +151,17 @@ export function FinishedView({
                     {word.word}
                     {word.inflection && (
                       <span className="ml-2 text-sm font-normal text-muted-foreground">
-                        {word.inflection.form}（{INFLECTION_LABEL[word.inflection.kind]}）
+                        <PracticeText
+                          k="practice.finished.formLabel"
+                          params={{ form: word.inflection.form }}
+                          inflection={word.inflection.kind}
+                        />
                       </span>
                     )}
                   </p>
                   {/* Only homework written before the phrase step was dropped has one. */}
                   {page?.phrase && <p className="text-sm">{page.phrase}</p>}
-                  <p className="text-sm">{page?.sentence ?? "（沒有寫）"}</p>
+                  <p className="text-sm">{page?.sentence ?? <T k="practice.finished.notWritten" />}</p>
                   {reviews.has(word.key) && <ReviewNote review={reviews.get(word.key)!} />}
                 </li>
               );
@@ -155,16 +172,31 @@ export function FinishedView({
 
       {corrected.length > 0 && (
         <section className="space-y-3">
-          <h3 className="text-base font-semibold">寫錯、已訂正的字</h3>
+          <h3 className="text-base font-semibold">
+            <T k="practice.finished.wrongTitle" variant="stacked" />
+          </h3>
           <ul className="space-y-2">
-            {corrected.map(({ key, word, answer }) => (
+            {corrected.map(({ key, spelling, base, formKind, answer }) => (
               <li
                 key={key}
                 className="flex flex-wrap items-baseline gap-x-3 rounded-[10px] border border-border-hairline px-4 py-3"
               >
-                <span className="font-semibold">{word}</span>
-                <span className="text-sm text-muted-foreground">你寫的：{answer ?? "（沒有寫）"}</span>
-                <span className="text-sm text-success">已訂正</span>
+                <span className="font-semibold">
+                  {spelling}
+                  {formKind && (
+                    <PracticeText k="practice.finished.formNote" params={{ word: base }} inflection={formKind} />
+                  )}
+                </span>
+                <span className="text-sm text-muted-foreground">
+                  {answer === null ? (
+                    <T k="practice.finished.youWroteNothing" />
+                  ) : (
+                    <T k="practice.finished.youWrote" params={{ answer }} />
+                  )}
+                </span>
+                <span className="text-sm text-success">
+                  <T k="practice.finished.corrected" />
+                </span>
               </li>
             ))}
           </ul>
@@ -173,11 +205,11 @@ export function FinishedView({
 
       <div className="flex flex-wrap justify-center gap-2">
         <button type="button" onClick={onBack} className="btn btn-primary min-h-11 active:scale-[0.98]">
-          回到首頁
+          <T k="practice.word.backHome" variant="stacked" />
         </button>
         {onAgain && (
           <button type="button" onClick={onAgain} className="btn btn-outline min-h-11 active:scale-[0.98]">
-            再寫一份
+            <T k="practice.finished.again" variant="stacked" />
           </button>
         )}
       </div>

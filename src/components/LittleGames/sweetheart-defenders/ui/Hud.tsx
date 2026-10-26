@@ -4,6 +4,8 @@ import type { AudioControls } from "../useAudioSettings";
 import { AudioButton } from "./AudioControls";
 import type { HudSnapshot } from "./BattleScreen";
 import { WavePreview } from "./WavePreview";
+import { useLanguage } from "../../../../hooks/useLanguage";
+import { T } from "../../../common/T";
 
 type Props = {
   hud: HudSnapshot;
@@ -39,6 +41,7 @@ export function Hud({
 }: Props) {
   const inPrep = hud.phase === "prep";
   const finished = hud.phase === "cleared" || hud.phase === "lost";
+  const { t } = useLanguage();
 
   return (
     // relative z-30：header 的 backdrop-blur 會自成一個堆疊環境，static 又排在
@@ -51,7 +54,7 @@ export function Hud({
           onClick={onExit}
           disabled={exitDisabled}
           className="flex min-h-11 items-center rounded-[8px] px-2 text-slate-600 transition hover:bg-black/5 disabled:cursor-not-allowed disabled:opacity-40"
-          aria-label="回到選單"
+          aria-label={t("defenders.hud.back")}
         >
           <ArrowLeft size={18} strokeWidth={2} aria-hidden="true" />
         </button>
@@ -64,7 +67,7 @@ export function Hud({
 
         <span
           className="flex items-center gap-1 rounded-full bg-amber-100/70 px-2.5 py-1 text-sm font-semibold text-amber-700"
-          aria-label="糖霜"
+          aria-label={t("defenders.hud.frosting")}
         >
           <Candy size={14} strokeWidth={2} aria-hidden="true" />
           {hud.frosting}
@@ -80,7 +83,7 @@ export function Hud({
               type="button"
               onClick={onTogglePause}
               aria-pressed={paused}
-              aria-label={paused ? "繼續" : "暫停"}
+              aria-label={t(paused ? "defenders.hud.resume" : "defenders.hud.pause")}
               className={`flex min-h-11 items-center justify-center rounded-[8px] border px-3 shadow-sm transition ${
                 paused
                   ? "border-[#ff6f9f] bg-[#ff6f9f] text-white"
@@ -99,7 +102,7 @@ export function Hud({
             type="button"
             onClick={onToggleSpeed}
             className="min-h-11 rounded-[8px] border border-black/5 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
-            aria-label="切換遊戲速度"
+            aria-label={t("defenders.hud.speed")}
           >
             {hud.speed}×
           </button>
@@ -113,7 +116,11 @@ export function Hud({
               inPrep ? "" : "invisible"
             }`}
           >
-            開始第 {hud.waveNumber} 波
+            <T
+              k="defenders.hud.startWave"
+              params={{ n: hud.waveNumber }}
+              variant="stacked"
+            />
             {/* 秒數固定寬度：19s → 9s 少一位數時，整顆按鈕才不會每秒抖動。 */}
             <span className="ml-1.5 inline-block w-7 text-left tabular-nums opacity-80">
               {hud.prepSeconds}s
@@ -140,7 +147,8 @@ export function Hud({
  * 免得整排圖示把工具列擠爆。
  */
 function CakeMeter({ cakes, maxCakes }: { cakes: number; maxCakes: number }) {
-  const label = `蛋糕還剩 ${cakes} 塊，共 ${maxCakes} 塊`;
+  const { t } = useLanguage();
+  const label = t("defenders.hud.cakes", { cakes, max: maxCakes });
 
   if (maxCakes > 12) {
     return (
@@ -179,10 +187,11 @@ function CakeMeter({ cakes, maxCakes }: { cakes: number; maxCakes: number }) {
 
 /** 打到第幾波。一波一顆點，打完填滿，正在打的那顆會亮。 */
 function WaveDots({ current, total }: { current: number; total: number }) {
+  const { t } = useLanguage();
   return (
     <span
       className="flex items-center gap-1"
-      aria-label={`第 ${current} 波，共 ${total} 波`}
+      aria-label={t("defenders.hud.waves", { current, total })}
     >
       {Array.from({ length: total }, (_, index) => {
         const waveNumber = index + 1;

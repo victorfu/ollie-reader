@@ -7,6 +7,8 @@ import { SceneBackground } from "./SceneBackground";
 import { QuizCard } from "./QuizCard";
 import { BossHpBar } from "./BossHpBar";
 import { useSpeechState } from "../../hooks/useSpeechState";
+import { useLanguage } from "../../hooks/useLanguage";
+import { T } from "../common/T";
 
 interface BossBattleProps {
   stage: Stage;
@@ -45,6 +47,7 @@ export function BossBattle({
 }: BossBattleProps) {
   const currentQuestion = quizState.questions[quizState.currentIndex];
   const { speak } = useSpeechState();
+  const { t } = useLanguage();
   const reduce = useReducedMotion();
 
   // 推進後就會結算：魔王倒了、沒命了，或已是最後一題
@@ -82,7 +85,7 @@ export function BossBattle({
             className="btn btn-ghost btn-sm glass gap-1 rounded-full active:scale-[0.98]"
           >
             <X className="h-4 w-4" strokeWidth={2} aria-hidden="true" />
-            離開
+            <T k="adventure.quiz.quit" variant="stacked" />
           </button>
           <div className="flex items-center gap-2 sm:gap-4">
             <div className="flex items-center gap-1 glass px-3 py-1 rounded-full">
@@ -116,7 +119,12 @@ export function BossBattle({
                 className="badge badge-warning badge-md sm:badge-lg gap-1 font-bold text-white shadow-lg"
               >
                 <Flame className="h-4 w-4" strokeWidth={2} aria-hidden="true" />
-                {quizState.combo} 連擊{quizState.combo >= 3 ? " 爆擊!" : ""}
+                {t(
+                  quizState.combo >= 3
+                    ? "adventure.boss.comboCritical"
+                    : "adventure.quiz.combo",
+                  { count: quizState.combo },
+                )}
               </motion.div>
             )}
           </div>
@@ -130,7 +138,7 @@ export function BossBattle({
               strokeWidth={2}
               aria-hidden="true"
             />
-            魔王戰：{stage.name}
+            <T k="adventure.boss.title" params={{ name: stage.name }} />
           </h2>
           <motion.div
             animate={bossAnim}
@@ -177,7 +185,7 @@ export function BossBattle({
               strokeWidth={2}
               aria-hidden="true"
             />
-            答對就攻擊魔王，連續答對還能爆擊！
+            <T k="adventure.boss.hint" />
           </p>
         </div>
       </div>

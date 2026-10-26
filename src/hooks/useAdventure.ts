@@ -6,6 +6,8 @@ import {
   useRef,
 } from "react";
 import { useAuth } from "./useAuth";
+import { useLanguage } from "./useLanguage";
+import type { MessageKey } from "../i18n/translate";
 import {
   getOrCreateProgress,
   fetchProgress,
@@ -121,11 +123,12 @@ interface PendingSettlement {
 
 export function useAdventure(): UseAdventureReturn {
   const { user } = useAuth();
+  const { t } = useLanguage();
 
   // 玩家進度
   const [progress, setProgress] = useState<PlayerProgress | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<MessageKey | null>(null);
 
   // 遊戲畫面
   const [gameView, setGameView] = useState<GameView>("home");
@@ -161,8 +164,12 @@ export function useAdventure(): UseAdventureReturn {
   const [pendingDailyBonus, setPendingDailyBonus] =
     useState<DailyBonusResult | null>(null);
   const [isClaimingDailyBonus, setIsClaimingDailyBonus] = useState(false);
-  const [dailyBonusError, setDailyBonusError] = useState<string | null>(null);
-  const [tokenSyncError, setTokenSyncError] = useState<string | null>(null);
+  const [dailyBonusError, setDailyBonusError] = useState<MessageKey | null>(
+    null,
+  );
+  const [tokenSyncError, setTokenSyncError] = useState<MessageKey | null>(
+    null,
+  );
   const [isSettling, setIsSettling] = useState(false);
   const [canRetrySettlement, setCanRetrySettlement] = useState(false);
 
@@ -298,7 +305,7 @@ export function useAdventure(): UseAdventureReturn {
     setPendingReward(null);
     setIsLoading(false);
     setGameView("home");
-    setTokenSyncError("遊戲進度已在其他分頁重設，本輪結果不再套用。");
+    setTokenSyncError("adventure.error.resetElsewhere");
   }, [progress, quizState, invalidateRun, setQuizSnapshot, setBossSnapshot]);
   useEffect(() => {
     bossStateRef.current = bossState;
@@ -336,7 +343,7 @@ export function useAdventure(): UseAdventureReturn {
     } catch (err) {
       if (!ownsAccount(uid, accountGeneration)) return;
       console.error("Failed to initialize game:", err);
-      setError("無法載入遊戲進度");
+      setError("adventure.error.load");
     } finally {
       if (ownsAccount(uid, accountGeneration)) setIsLoading(false);
     }
@@ -402,7 +409,7 @@ export function useAdventure(): UseAdventureReturn {
 
       const stage = STAGES[stageIndex];
       if (!stage) {
-        setError("關卡不存在");
+        setError("adventure.error.stageMissing");
         return;
       }
 
@@ -494,7 +501,7 @@ export function useAdventure(): UseAdventureReturn {
           return;
         }
         console.error("Failed to start quiz:", err);
-        setError("無法開始遊戲");
+        setError("adventure.error.start");
       } finally {
         if (gamePoolControllerRef.current === gamePoolController) {
           gamePoolControllerRef.current = null;
@@ -569,7 +576,7 @@ export function useAdventure(): UseAdventureReturn {
           latestLocalProgress.resetVersion !== result.progress.resetVersion
         ) {
           invalidateRun();
-          setTokenSyncError("遊戲進度已在其他分頁重設，本輪結果不再套用。");
+          setTokenSyncError("adventure.error.resetElsewhere");
           setPendingReward(null);
           setGameView("home");
           coinsEarnedRef.current = 0;
@@ -636,7 +643,7 @@ export function useAdventure(): UseAdventureReturn {
             progressRef.current = latest;
             setProgress(latest);
           }
-          setTokenSyncError("遊戲進度已在其他分頁重設，本輪結果未寫入。");
+          setTokenSyncError("adventure.error.resetElsewhereNotSaved");
           setPendingReward(null);
           setGameView("home");
           coinsEarnedRef.current = 0;
@@ -651,7 +658,7 @@ export function useAdventure(): UseAdventureReturn {
         // Keep the final question and exact request so retry cannot double-add
         // stage rewards or silently advance only the local progress.
         console.error("進度寫入失敗:", settlementError);
-        setTokenSyncError("本輪進度與代幣尚未完成結算，請確認連線後重試。");
+        setTokenSyncError("adventure.error.settlement");
         setCanRetrySettlement(true);
       } finally {
         if (
@@ -981,7 +988,7 @@ export function useAdventure(): UseAdventureReturn {
     } catch (claimError) {
       if (!ownsAccount(uid, accountGeneration)) return;
       console.error("每日代幣領取失敗:", claimError);
-      setDailyBonusError("每日代幣尚未入帳，請確認連線後重試。");
+      setDailyBonusError("adventure.error.dailyBonus");
     } finally {
       if (ownsAccount(uid, accountGeneration)) {
         dailyClaimInFlightRef.current = false;
@@ -1019,7 +1026,7 @@ export function useAdventure(): UseAdventureReturn {
   return {
     progress,
     isLoading,
-    error,
+    error: error ? t(error) : null,
     gameView,
     setGameView,
     stages: STAGES,
@@ -1033,8 +1040,8 @@ export function useAdventure(): UseAdventureReturn {
     pendingReward,
     pendingDailyBonus,
     isClaimingDailyBonus,
-    dailyBonusError,
-    tokenSyncError,
+    dailyBonusError: dailyBonusError ? t(dailyBonusError) : null,
+    tokenSyncError: tokenSyncError ? t(tokenSyncError) : null,
     isSettling,
     canRetrySettlement,
     initializeGame,

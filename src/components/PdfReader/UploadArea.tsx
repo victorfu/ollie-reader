@@ -1,5 +1,7 @@
 import { memo } from "react";
 import type { ChangeEventHandler, DragEventHandler } from "react";
+import { useLanguage } from "../../hooks/useLanguage";
+import { T } from "../common/T";
 
 interface UploadAreaProps {
   selectedFile: File | null;
@@ -31,6 +33,7 @@ export const UploadArea = memo(
     isClearingCache,
     variant = "card",
   }: UploadAreaProps) => {
+    const { t } = useLanguage();
     const isToolbar = variant === "toolbar";
     // In the card the controls own the full width of a phone; in the toolbar
     // they sit shoulder to shoulder and wrap instead.
@@ -71,7 +74,7 @@ export const UploadArea = memo(
           {selectedFile ? (
             <span className="truncate max-w-32">{selectedFile.name}</span>
           ) : (
-            "上傳 PDF"
+            <T k="reader.upload.button" variant="stacked" />
           )}
         </label>
       </div>
@@ -82,9 +85,9 @@ export const UploadArea = memo(
         type="button"
         className={`btn btn-primary btn-sm ${blockWidth}`}
         onClick={onOpenBookingDrawer}
-        aria-label="查看課程預約紀錄"
+        aria-label={t("reader.booking.open")}
       >
-        課程紀錄
+        <T k="reader.booking.button" variant="stacked" />
       </button>
     );
 
@@ -94,7 +97,8 @@ export const UploadArea = memo(
         onClick={onClearCache}
         disabled={isClearingCache}
         className="btn btn-ghost btn-sm text-error hover:bg-error/10"
-        title="清除快取後需重新載入 PDF"
+        title={t("reader.upload.clearCacheTitle")}
+        aria-label={t("reader.upload.clearCacheTitle")}
       >
         {isClearingCache ? (
           <span className="loading loading-spinner loading-xs"></span>
@@ -145,8 +149,8 @@ export const UploadArea = memo(
           {!speechSupported && (
             <span
               className="flex items-center"
-              title="您的瀏覽器不支援語音朗讀功能"
-              aria-label="您的瀏覽器不支援語音朗讀功能"
+              title={t("reader.upload.speechUnsupported")}
+              aria-label={t("reader.upload.speechUnsupported")}
             >
               {speechWarningIcon}
             </span>
@@ -169,7 +173,7 @@ export const UploadArea = memo(
             <div className="rounded-lg bg-warning/10 border border-warning/20 px-4 py-3 mt-3 flex items-center gap-2">
               {speechWarningIcon}
               <span className="text-xs text-warning">
-                您的瀏覽器不支援語音朗讀功能
+                <T k="reader.upload.speechUnsupported" />
               </span>
             </div>
           )}

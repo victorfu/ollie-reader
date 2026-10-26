@@ -10,6 +10,7 @@ import {
   ROW_DELETE_ICON_CLASS,
 } from "../common/rowActionStyles";
 import { useSettings } from "../../hooks/useSettings";
+import { useLanguage } from "../../hooks/useLanguage";
 
 interface VocabularyRowProps {
   word: VocabularyWord;
@@ -34,6 +35,7 @@ export const VocabularyRow = ({
   onDelete,
 }: VocabularyRowProps) => {
   const { showChineseTranslation } = useSettings();
+  const { t } = useLanguage();
   const def = word.definitions[0];
   const previewDef = def
     ? showChineseTranslation && def.definitionChinese
@@ -97,13 +99,13 @@ export const VocabularyRow = ({
       {/* Action buttons — siblings of the selector, not descendants.
           Always visible on touch screens; revealed on hover with a mouse. */}
       <span className={ROW_ACTIONS_CLASS}>
-        <SpeakButton text={word.word} label="播放發音" />
+        <SpeakButton text={word.word} label={t("speak.play")} />
         <button
           type="button"
           onClick={onDelete}
           className={ROW_DELETE_CLASS}
-          title="刪除單字"
-          aria-label="刪除單字"
+          title={t("reader.vocab.deleteWordTitle")}
+          aria-label={t("reader.vocab.deleteWordTitle")}
         >
           <TrashIcon className={ROW_DELETE_ICON_CLASS} />
         </button>

@@ -2,6 +2,9 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { getBestScore } from "./lib/game-utils";
 import { GACHA_CHARACTER_IDS } from "./gacha-machine/gachaTypes";
 import { openGameTab } from "../../utils/gameTabs";
+import { T } from "../common/T";
+import { useLanguage } from "../../hooks/useLanguage";
+import { msg, type MessageKey, type MessageParams } from "../../i18n/translate";
 
 const METEOR_BEST_KEY = "meteor-glider-best";
 const MUSHROOM_BEST_KEY = "mushroom-adventure-best";
@@ -16,21 +19,23 @@ type GameCard = {
     | "mushroom"
     | "sweetheart";
   to: string;
-  title: string;
+  title: MessageKey;
   /**
-   * 中文名。這是一個英文學習 App，所以卡片以英文名為主、中文名放在下一行；
-   * 只有本來就沒有英文名的幾款（單字大冒險等）維持單一名稱。
+   * 英文名。這是一個英文學習 App，所以有英文名的卡片在任何語言下都以英文名為主、
+   * `title` 的中文名放在下一行；只有本來就沒有英文名的幾款（單字大冒險等）
+   * 直接顯示翻譯後的單一名稱。
    */
-  titleZh?: string;
-  blurb: string;
+  titleEn?: string;
+  blurb: MessageKey;
+  blurbParams?: MessageParams;
   tag: string;
   emoji: string;
   best: number | null;
-  primaryLabel?: string;
-  statusLabel?: string;
+  primaryLabel?: MessageKey;
+  statusLabel?: MessageKey;
   inDevelopment?: boolean;
   secondaryAction?: {
-    label: string;
+    label: MessageKey;
     to: string;
   };
 };
@@ -41,6 +46,7 @@ function readBest(key: string): number | null {
 }
 
 export default function GameHub() {
+  const { language, showHints, tZh } = useLanguage();
   const [bunnyBest, setBunnyBest] = useState(() => getBestScore());
   const [meteorBest, setMeteorBest] = useState(() => readBest(METEOR_BEST_KEY));
   const [mushroomBest, setMushroomBest] = useState(() =>
@@ -69,9 +75,8 @@ export default function GameHub() {
       {
         id: "word-adventure",
         to: "/games/spirit",
-        title: "單字大冒險",
-        blurb:
-          "用生詞本的單字闖關，答對詞彙小測驗、賺扭蛋代幣抽人氣角色。",
+        title: "arcade.hub.wordAdventure.title",
+        blurb: "arcade.hub.wordAdventure.blurb",
         tag: "Quiz",
         emoji: "🗺️",
         best: null,
@@ -79,47 +84,49 @@ export default function GameHub() {
       {
         id: "gacha-machine",
         to: "/games/gacha",
-        title: "人氣角色扭蛋機",
-        blurb: `用「單字大冒險」賺的代幣扭蛋，收集 ${GACHA_CHARACTER_IDS.length} 個人氣角色圖鑑項目。`,
+        title: "arcade.hub.gacha.title",
+        blurb: "arcade.hub.gacha.blurb",
+        blurbParams: {
+          game: msg("arcade.hub.wordAdventure.title"),
+          count: GACHA_CHARACTER_IDS.length,
+        },
         tag: "Collection",
         emoji: "🎀",
         best: null,
-        primaryLabel: "開始扭蛋",
-        statusLabel: "雲端圖鑑",
+        primaryLabel: "arcade.hub.gacha.play",
+        statusLabel: "arcade.hub.gacha.status",
         secondaryAction: {
-          label: "查看圖鑑",
+          label: "arcade.hub.gacha.collection",
           to: "/games/gacha?view=collection",
         },
       },
       {
         id: "cottage",
         to: "/games/cottage",
-        title: "大耳狗 3D 夥伴",
-        blurb:
-          "立體的大耳狗就在眼前：摸摸他的頭，他會閉上眼睛、搖搖耳朵跟你撒嬌。",
+        title: "arcade.hub.cottage.title",
+        blurb: "arcade.hub.cottage.blurb",
         tag: "3D Companion",
         emoji: "☁️",
         best: null,
-        statusLabel: "打開就能玩",
+        statusLabel: "arcade.hub.cottage.status",
       },
       {
         id: "sweetheart",
         to: "/games/sweetheart",
-        title: "甜心防衛隊",
-        blurb:
-          "甜點店保衛戰：把寵物放上塔位攔下偷糖果的怪物，守住櫃檯上的蛋糕。",
+        title: "arcade.hub.sweetheart.title",
+        blurb: "arcade.hub.sweetheart.blurb",
         tag: "Tower Defense",
         emoji: "🍰",
         best: null,
         inDevelopment: true,
-        statusLabel: "開發中 · 雲端存檔",
+        statusLabel: "arcade.hub.sweetheart.status",
       },
       {
         id: "mushroom",
         to: "/games/mushroom",
-        title: "Mushroom Adventure",
-        titleZh: "森林蘑菇冒險",
-        blurb: "像馬力歐的闖關平台：踩蘑菇怪、收集硬幣、衝向旗桿。",
+        title: "arcade.hub.mushroom.title",
+        titleEn: "Mushroom Adventure",
+        blurb: "arcade.hub.mushroom.blurb",
         tag: "Platformer",
         emoji: "🍄",
         best: mushroomBest,
@@ -127,9 +134,9 @@ export default function GameHub() {
       {
         id: "meteor",
         to: "/games/meteor",
-        title: "Meteor Glider",
-        titleZh: "隕石滑翔機",
-        blurb: "駕駛滑翔機穿越隕石雨，衝刺鑽過縫隙、收集燃料電池。",
+        title: "arcade.hub.meteor.title",
+        titleEn: "Meteor Glider",
+        blurb: "arcade.hub.meteor.blurb",
         tag: "Arcade",
         emoji: "☄️",
         best: meteorBest,
@@ -137,9 +144,9 @@ export default function GameHub() {
       {
         id: "bunny",
         to: "/games/bunny",
-        title: "Bunny Jumper",
-        titleZh: "兔兔跳跳",
-        blurb: "在粉彩天空中不斷彈跳，收集胡蘿蔔、衝高連段分數。",
+        title: "arcade.hub.bunny.title",
+        titleEn: "Bunny Jumper",
+        blurb: "arcade.hub.bunny.blurb",
         tag: "Arcade",
         emoji: "🐰",
         best: bunnyBest,
@@ -153,15 +160,21 @@ export default function GameHub() {
     openGameTab(to);
   }, []);
 
+  // English-named cards show their Chinese name underneath in Chinese mode
+  // (the original design) and as the hint in "English + Chinese hints" mode.
+  const showChineseName = language === "zh-TW" || showHints;
+
   return (
     <div className="mx-auto w-full max-w-6xl">
       <header className="mb-4">
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
           Ollie Little Games
         </p>
-        <h1 className="mt-1 text-3xl font-semibold tracking-tight">小遊戲</h1>
+        <h1 className="mt-1 text-3xl font-semibold tracking-tight">
+          <T k="arcade.hub.title" variant="stacked" />
+        </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          一些瀏覽器大小的小冒險，點開即玩，免安裝。
+          <T k="arcade.hub.subtitle" />
         </p>
       </header>
 
@@ -178,7 +191,7 @@ export default function GameHub() {
               <div className="flex flex-wrap items-center justify-end gap-1.5">
                 {card.inDevelopment && (
                   <span className="rounded-full bg-warning/15 px-2.5 py-1 text-xs font-semibold text-warning">
-                    開發中
+                    <T k="arcade.hub.inDevelopment" variant="stacked" />
                   </span>
                 )}
                 <span className="rounded-full bg-accent-tint px-2.5 py-1 text-xs font-semibold text-accent">
@@ -187,24 +200,30 @@ export default function GameHub() {
               </div>
             </div>
             <h2 className="mt-2 text-base font-semibold tracking-tight">
-              {card.title}
+              {card.titleEn ?? <T k={card.title} variant="stacked" />}
             </h2>
-            {card.titleZh && (
-              <p className="text-sm font-medium text-muted-foreground">
-                {card.titleZh}
+            {card.titleEn && showChineseName && (
+              <p
+                lang="zh-Hant-TW"
+                className="text-sm font-medium text-muted-foreground"
+              >
+                {tZh(card.title)}
               </p>
             )}
             <p className="mt-1 flex-1 text-sm text-muted-foreground">
-              {card.blurb}
+              <T k={card.blurb} params={card.blurbParams} />
             </p>
             <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
               <span className="text-xs text-muted-foreground">
-                {card.statusLabel ??
-                (card.best && card.best > 0
-                  ? `最高星星 ${card.best}`
-                  : card.id === "word-adventure"
-                    ? "雲端存檔進度"
-                    : "尚無紀錄")}
+                {card.statusLabel ? (
+                  <T k={card.statusLabel} />
+                ) : card.best && card.best > 0 ? (
+                  <T k="arcade.hub.bestStars" params={{ n: card.best }} />
+                ) : card.id === "word-adventure" ? (
+                  <T k="arcade.hub.cloudProgress" />
+                ) : (
+                  <T k="arcade.hub.noRecord" />
+                )}
               </span>
               <div className="flex flex-wrap justify-end gap-2">
                 {card.secondaryAction && (
@@ -213,7 +232,7 @@ export default function GameHub() {
                     onClick={() => openGame(card.secondaryAction!.to)}
                     className="btn btn-outline btn-sm min-h-11 rounded-[6px]"
                   >
-                    {card.secondaryAction.label}
+                    <T k={card.secondaryAction.label} variant="stacked" />
                   </button>
                 )}
                 <button
@@ -221,7 +240,10 @@ export default function GameHub() {
                   onClick={() => openGame(card.to)}
                   className="btn btn-primary btn-sm min-h-11 rounded-[6px]"
                 >
-                  {card.primaryLabel ?? "開始遊戲"}
+                  <T
+                    k={card.primaryLabel ?? "arcade.hub.play"}
+                    variant="stacked"
+                  />
                 </button>
               </div>
             </div>

@@ -4,6 +4,7 @@ import { GameLayout } from "./GameLayout";
 import { BattleScene } from "./BattleScene";
 import { SpellBoard } from "./SpellBoard";
 import { GameResult } from "./GameResult";
+import { T } from "../common/T";
 
 export function MagicBattle() {
   const {
@@ -37,7 +38,7 @@ export function MagicBattle() {
             🌸✨
           </motion.div>
           <p className="text-xl sm:text-2xl font-semibold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
-            正在召喚可愛怪獸...
+            <T k="adventure.magic.loading" />
           </p>
         </motion.div>
       )}
@@ -84,10 +85,10 @@ export function MagicBattle() {
           </motion.div>
 
           <h1 className="text-3xl sm:text-5xl lg:text-6xl font-semibold tracking-tight mb-3 bg-gradient-to-r from-primary via-secondary to-accent text-transparent bg-clip-text">
-            Ollie 的魔法對決
+            <T k="adventure.magic.title" variant="stacked" />
           </h1>
           <p className="text-base sm:text-lg lg:text-xl text-muted-foreground mb-8 max-w-md mx-auto leading-relaxed">
-            用單字魔法打敗可愛的小怪獸吧！
+            <T k="adventure.magic.subtitle" />
           </p>
 
           <motion.button
@@ -98,7 +99,7 @@ export function MagicBattle() {
           >
             <span className="flex items-center gap-3">
               <span>🎀</span>
-              <span>開始冒險</span>
+              <T k="adventure.start" variant="stacked" />
               <motion.span
                 animate={{ x: [0, 5, 0] }}
                 transition={{ repeat: Infinity, duration: 1 }}

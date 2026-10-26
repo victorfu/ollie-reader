@@ -1,5 +1,7 @@
 import type { SpeechPracticeTopic } from "../../types/speechPractice";
 import { SPEECH_TOPICS } from "../../types/speechPractice";
+import { T } from "../common/T";
+import { useLanguage } from "../../hooks/useLanguage";
 
 interface TopicSelectorProps {
   selectedTopic: SpeechPracticeTopic | null;
@@ -18,18 +20,23 @@ export function TopicSelector({
   topicCounts,
   topicScripts,
 }: TopicSelectorProps) {
+  const { t } = useLanguage();
   const formatTime = (seconds: number): string => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     if (mins === 0) {
-      return `${secs}秒`;
+      return t("listening.speech.time.seconds", { seconds: secs });
     }
-    return secs === 0 ? `${mins}分鐘` : `${mins}分${secs}秒`;
+    return secs === 0
+      ? t("listening.speech.time.minutes", { minutes: mins })
+      : t("listening.speech.time.minutesSeconds", { minutes: mins, seconds: secs });
   };
 
   return (
     <div className="space-y-4">
-      <h2 className="text-lg font-semibold">🎯 選擇練習主題</h2>
+      <h2 className="text-lg font-semibold">
+        🎯 <T k="listening.speech.chooseTopic" variant="stacked" />
+      </h2>
 
       {/* Topic Grid */}
       <div className="grid gap-4 auto-grid">
@@ -61,12 +68,15 @@ export function TopicSelector({
                   </span>
                   {hasScript && (
                     <span className="badge badge-success badge-sm">
-                      📝 已有講稿
+                      📝 <T k="listening.speech.hasScript" />
                     </span>
                   )}
                   {practiceCount > 0 && (
                     <span className="badge badge-primary badge-sm">
-                      已練習 {practiceCount} 次
+                      <T
+                        k="listening.speech.practicedTimes"
+                        params={{ count: practiceCount }}
+                      />
                     </span>
                   )}
                 </div>
@@ -90,7 +100,7 @@ export function TopicSelector({
                       >
                         <path d="M8 5v14l11-7z" />
                       </svg>
-                      開始練習
+                      <T k="listening.speech.start" variant="stacked" />
                     </button>
                     <button
                       type="button"
@@ -110,7 +120,11 @@ export function TopicSelector({
                       >
                         <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
                       </svg>
-                      {hasScript ? "編輯講稿" : "產生講稿"}
+                      {hasScript ? (
+                        <T k="listening.speech.editScript" variant="stacked" />
+                      ) : (
+                        <T k="listening.speech.makeScript" variant="stacked" />
+                      )}
                     </button>
                   </div>
                 )}

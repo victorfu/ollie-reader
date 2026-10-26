@@ -1,4 +1,11 @@
-import { useState, useEffect, useCallback, useRef, forwardRef } from "react";
+import {
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+  forwardRef,
+  type ReactNode,
+} from "react";
 import {
   Reorder,
   useDragControls,
@@ -8,6 +15,8 @@ import {
 import { useSentencePractice } from "../../hooks/useSentencePractice";
 import { useSpeeches } from "../../hooks/useSpeeches";
 import { useSpeechState } from "../../hooks/useSpeechState";
+import { useLanguage } from "../../hooks/useLanguage";
+import { T } from "../common/T";
 import { SentenceInput } from "./SentenceInput";
 import { SentenceCard } from "./SentenceCard";
 import { ClickableWords } from "./ClickableWords";
@@ -109,9 +118,10 @@ export const SentencePractice = () => {
   } = useSentencePractice(currentSpeechId);
 
   const { isLoadingAudio, stopSpeaking, speakAsync } = useSpeechState();
+  const { t } = useLanguage();
 
   const [toastMessage, setToastMessage] = useState<{
-    message: string;
+    message: ReactNode;
     type: "success" | "error" | "info";
   } | null>(null);
 
@@ -226,7 +236,9 @@ export const SentencePractice = () => {
     const result = await reorderSentences(reorderedList);
     if (!result.success) {
       setToastMessage({
-        message: result.message || "排序儲存失敗",
+        message: result.message || (
+          <T k="practice.sentence.reorderFailed" variant="stacked" />
+        ),
         type: "error",
       });
     }
@@ -237,12 +249,16 @@ export const SentencePractice = () => {
 
     if (result.success) {
       setToastMessage({
-        message: result.message || "成功",
+        message: result.message || (
+          <T k="practice.sentence.success" variant="stacked" />
+        ),
         type: "success",
       });
     } else {
       setToastMessage({
-        message: result.message || "處理失敗",
+        message: result.message || (
+          <T k="practice.sentence.processFailed" variant="stacked" />
+        ),
         type: "error",
       });
     }
@@ -255,12 +271,14 @@ export const SentencePractice = () => {
 
     if (result.success) {
       setToastMessage({
-        message: "句子已更新",
+        message: <T k="practice.sentence.updated" variant="stacked" />,
         type: "success",
       });
     } else {
       setToastMessage({
-        message: result.message || "更新失敗",
+        message: result.message || (
+          <T k="practice.sentence.updateFailed" variant="stacked" />
+        ),
         type: "error",
       });
     }
@@ -273,12 +291,14 @@ export const SentencePractice = () => {
 
     if (result.success) {
       setToastMessage({
-        message: "句子已刪除",
+        message: <T k="practice.sentence.deleted" variant="stacked" />,
         type: "info",
       });
     } else {
       setToastMessage({
-        message: result.message || "刪除失敗",
+        message: result.message || (
+          <T k="practice.sentence.deleteFailed" variant="stacked" />
+        ),
         type: "error",
       });
     }
@@ -293,12 +313,14 @@ export const SentencePractice = () => {
 
     if (result.success) {
       setToastMessage({
-        message: "已清除所有句子",
+        message: <T k="practice.sentence.cleared" variant="stacked" />,
         type: "info",
       });
     } else {
       setToastMessage({
-        message: result.message || "清除失敗",
+        message: result.message || (
+          <T k="practice.sentence.clearFailed" variant="stacked" />
+        ),
         type: "error",
       });
     }
@@ -320,13 +342,15 @@ export const SentencePractice = () => {
         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
             <div className="flex-1 min-w-0">
               <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight flex items-center gap-2">
-                ✍️ 英文演講
+                ✍️ <T k="practice.sentence.title" variant="stacked" />
               </h1>
               <p className="text-muted-foreground mt-1">
-                貼上英文段落，一句一句練習閱讀與發音
+                <T k="practice.sentence.subtitle" />
               </p>
               <div className="mt-3 flex items-center gap-2">
-                <span className="text-xs text-muted-foreground">版本：</span>
+                <span className="text-xs text-muted-foreground">
+                  <T k="practice.sentence.version" />
+                </span>
                 <SpeechSwitcher
                   speeches={speeches}
                   currentSpeechId={currentSpeechId}
@@ -356,13 +380,16 @@ export const SentencePractice = () => {
                       .join("\n");
                     navigator.clipboard.writeText(allSentences).then(() => {
                       setToastMessage({
-                        message: "已複製所有句子",
+                        message: (
+                          <T k="practice.sentence.copiedAll" variant="stacked" />
+                        ),
                         type: "success",
                       });
                     });
                   }}
                   className="btn btn-sm btn-outline btn-secondary active:scale-[0.98]"
-                  title="複製全部"
+                  title={t("practice.sentence.copyAll")}
+                  aria-label={t("practice.sentence.copyAll")}
                 >
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
@@ -378,7 +405,9 @@ export const SentencePractice = () => {
                       d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
                     />
                   </svg>
-                  <span className="hidden sm:inline">複製全部</span>
+                  <span className="hidden sm:inline">
+                    <T k="practice.sentence.copyAll" variant="stacked" />
+                  </span>
                 </button>
                 <button
                   type="button"
@@ -387,7 +416,16 @@ export const SentencePractice = () => {
                   className={`btn btn-sm active:scale-[0.98] ${
                     isPlayingAll ? "btn-warning" : "btn-primary"
                   }`}
-                  title={isPlayingAll ? "停止播放" : "播放全部"}
+                  title={t(
+                    isPlayingAll
+                      ? "practice.sentence.stopPlaying"
+                      : "practice.sentence.playAll",
+                  )}
+                  aria-label={t(
+                    isPlayingAll
+                      ? "practice.sentence.stopPlaying"
+                      : "practice.sentence.playAll",
+                  )}
                 >
                   {isPlayingAll ? (
                     <>
@@ -411,7 +449,9 @@ export const SentencePractice = () => {
                           d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"
                         />
                       </svg>
-                      <span className="hidden sm:inline">停止播放</span>
+                      <span className="hidden sm:inline">
+                        <T k="practice.sentence.stopPlaying" variant="stacked" />
+                      </span>
                     </>
                   ) : (
                     <>
@@ -435,7 +475,9 @@ export const SentencePractice = () => {
                           d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
                         />
                       </svg>
-                      <span className="hidden sm:inline">播放全部</span>
+                      <span className="hidden sm:inline">
+                        <T k="practice.sentence.playAll" variant="stacked" />
+                      </span>
                     </>
                   )}
                 </button>
@@ -444,7 +486,8 @@ export const SentencePractice = () => {
                   onClick={() => setClearTargetSpeechId(currentSpeechId)}
                   disabled={isProcessing || !currentSpeechId}
                   className="btn btn-outline btn-error btn-sm active:scale-[0.98]"
-                  title="清除全部"
+                  title={t("practice.sentence.clearAll")}
+                  aria-label={t("practice.sentence.clearAll")}
                 >
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
@@ -460,7 +503,9 @@ export const SentencePractice = () => {
                       d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
                     />
                   </svg>
-                  <span className="hidden sm:inline">清除全部</span>
+                  <span className="hidden sm:inline">
+                    <T k="practice.sentence.clearAll" variant="stacked" />
+                  </span>
                 </button>
               </div>
             )}
@@ -489,7 +534,7 @@ export const SentencePractice = () => {
                 d="M12 4v16m8-8H4"
               />
             </svg>
-            新增句子
+            <T k="practice.sentence.add" variant="stacked" />
           </button>
         </div>
       )}
@@ -526,10 +571,10 @@ export const SentencePractice = () => {
                 />
               </svg>
               <h3 className="text-lg font-semibold text-muted-foreground mt-4">
-                還沒有句子
+                <T k="practice.sentence.emptyTitle" />
               </h3>
               <p className="text-sm text-muted-foreground/70">
-                在上方輸入英文文字開始練習
+                <T k="practice.sentence.emptyHint" />
               </p>
             </div>
           </div>
@@ -573,10 +618,10 @@ export const SentencePractice = () => {
                   {isLoadingMore ? (
                     <>
                       <span className="loading loading-spinner loading-sm"></span>
-                      載入中...
+                      <T k="practice.sentence.loadingMore" variant="stacked" />
                     </>
                   ) : (
-                    "載入更多"
+                    <T k="practice.sentence.loadMore" variant="stacked" />
                   )}
                 </button>
               </div>
@@ -588,13 +633,19 @@ export const SentencePractice = () => {
       {/* Clear All Confirm Modal */}
       <ConfirmModal
         isOpen={clearTargetSpeechId !== null}
-        title="清除所有句子"
-        message={`確定要刪除「${
-          speeches.find((speech) => speech.id === clearTargetSpeechId)?.name ??
-          "此版本"
-        }」的所有句子嗎？此操作無法復原。`}
-        confirmText="清除全部"
-        cancelText="取消"
+        title={<T k="practice.sentence.clearTitle" variant="stacked" />}
+        message={(() => {
+          const name = speeches.find(
+            (speech) => speech.id === clearTargetSpeechId,
+          )?.name;
+          return name !== undefined ? (
+            <T k="practice.sentence.clearMessage" params={{ name }} />
+          ) : (
+            <T k="practice.sentence.clearMessageUnnamed" />
+          );
+        })()}
+        confirmText={<T k="practice.sentence.clearAll" variant="stacked" />}
+        cancelText={<T k="practice.sentence.cancel" variant="stacked" />}
         confirmVariant="error"
         onConfirm={handleClearAll}
         onCancel={() => setClearTargetSpeechId(null)}
@@ -621,7 +672,8 @@ export const SentencePractice = () => {
                   type="button"
                   onClick={handlePlayAll}
                   className="btn btn-circle btn-ghost btn-lg active:scale-[0.98]"
-                  title="關閉"
+                  title={t("practice.sentence.close")}
+                  aria-label={t("practice.sentence.close")}
                 >
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
@@ -672,7 +724,8 @@ export const SentencePractice = () => {
                   onClick={handlePrevSentence}
                   disabled={currentPlayingIndex <= 0}
                   className="btn btn-circle btn-ghost btn-lg disabled:opacity-30 active:scale-[0.98]"
-                  title="上一句"
+                  title={t("practice.sentence.prev")}
+                  aria-label={t("practice.sentence.prev")}
                 >
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
@@ -695,7 +748,8 @@ export const SentencePractice = () => {
                   type="button"
                   onClick={handlePlayAll}
                   className="btn btn-circle btn-warning btn-xl shadow-floating active:scale-[0.98]"
-                  title="停止播放"
+                  title={t("practice.sentence.stopPlaying")}
+          aria-label={t("practice.sentence.stopPlaying")}
                 >
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
@@ -713,7 +767,8 @@ export const SentencePractice = () => {
                   onClick={handleNextSentence}
                   disabled={currentPlayingIndex >= sentences.length - 1}
                   className="btn btn-circle btn-ghost btn-lg disabled:opacity-30 active:scale-[0.98]"
-                  title="下一句"
+                  title={t("practice.sentence.next")}
+                  aria-label={t("practice.sentence.next")}
                 >
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
@@ -741,7 +796,8 @@ export const SentencePractice = () => {
           type="button"
           onClick={handlePlayAll}
           className="fixed bottom-6 right-6 btn btn-circle btn-lg btn-warning shadow-floating z-40 sm:hidden active:scale-[0.98]"
-          title="停止播放"
+          title={t("practice.sentence.stopPlaying")}
+          aria-label={t("practice.sentence.stopPlaying")}
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"

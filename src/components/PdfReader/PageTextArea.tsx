@@ -2,6 +2,7 @@ import { memo, useCallback } from "react";
 import type { ReactNode } from "react";
 import type { ReadingMode } from "../../types/pdf";
 import { CopyPagePromptButton } from "./CopyPagePromptButton";
+import { T } from "../common/T";
 
 // Regex defined outside component to avoid recreation on each render
 const WORD_REGEX = /[A-Za-z]+(?:[''-][A-Za-z]+)*/g;
@@ -108,7 +109,7 @@ export const PageTextArea = memo(
                 {isLoadingAudio ? (
                   <>
                     <span className="loading loading-spinner loading-xs"></span>
-                    生成中
+                    <T k="reader.speech.generating" variant="stacked" />
                   </>
                 ) : (
                   <>
@@ -132,7 +133,7 @@ export const PageTextArea = memo(
                         d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
                       />
                     </svg>
-                    朗讀此頁
+                    <T k="reader.page.readAloud" variant="stacked" />
                   </>
                 )}
               </button>

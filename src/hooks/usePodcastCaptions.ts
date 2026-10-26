@@ -3,6 +3,7 @@ import type { RefObject } from "react";
 import { PODCAST_API_BASE_URL } from "../constants/api";
 import type { CaptionDelay, PodcastCaptionWord, PodcastEpisode } from "../types/podcast";
 import { logger } from "../utils/logger";
+import type { MessageKey } from "../i18n/translate";
 import {
   CAPTION_DELAY_SECONDS,
   CAPTION_SAMPLE_RATE,
@@ -16,6 +17,16 @@ import {
 import type { CaptionUtterance } from "../utils/podcastCaptions";
 
 export type PodcastCaptionStatus = "off" | "loading" | "listening" | "error";
+
+/** A failure we explain to the user; `key` is the message to show. */
+class CaptionError extends Error {
+  readonly key: MessageKey;
+  constructor(key: MessageKey) {
+    super(key);
+    this.key = key;
+    this.name = "CaptionError";
+  }
+}
 
 // The worklet hears the media immediately; the speakers hear it through an
 // optional DelayNode, so captions can be ready before the words are heard.
@@ -122,7 +133,7 @@ function loaded(audio: HTMLAudioElement, signal: AbortSignal): Promise<void> {
       else resolve();
     };
     const ok = () => done();
-    const failed = () => done(new Error("無法以字幕模式載入這個音訊來源；播放不受影響。"));
+    const failed = () => done(new CaptionError("listening.captions.error.sourceLoad"));
     const aborted = () => done(signal.reason);
     audio.addEventListener("loadedmetadata", ok);
     audio.addEventListener("error", failed);
@@ -157,7 +168,7 @@ async function ensureReadableSource(audio: HTMLAudioElement, episode: PodcastEpi
   let url: string | null = null;
   if (await readable(episode.audioUrl, signal)) url = episode.audioUrl;
   else if (relay && await readable(relay, signal)) url = relay;
-  if (!url) throw new Error("這個節目的音訊主機不允許瀏覽器讀取，暫時無法產生字幕；播放不受影響。");
+  if (!url) throw new CaptionError("listening.captions.error.hostBlocked");
   const at = audio.currentTime;
   const resume = !audio.paused;
   try {
@@ -183,7 +194,7 @@ type Job = { offset: number; rate: number; samples: Float32Array };
 export function usePodcastCaptions(audioRef: RefObject<HTMLAudioElement | null>, episode: PodcastEpisode) {
   const [enabled, setEnabled] = useState(false);
   const [state, setState] = useState<PodcastCaptionStatus>("off");
-  const [error, setError] = useState("");
+  const [error, setError] = useState<MessageKey | null>(null);
   const [words, setWords] = useState<PodcastCaptionWord[]>([]);
   const [progress, setProgress] = useState<number | null>(null);
   const [delay, setDelay] = useState<CaptionDelay | null>(null);
@@ -192,12 +203,12 @@ export function usePodcastCaptions(audioRef: RefObject<HTMLAudioElement | null>,
     const audio = audioRef.current;
     if (!audio) return;
     if (!window.AudioContext || !window.AudioWorkletNode) {
-      setError("這個瀏覽器不支援即時字幕需要的音訊處理功能。");
+      setError("listening.captions.error.unsupported");
       setState("error");
       return;
     }
     contextFor(audio);
-    setError("");
+    setError(null);
     setProgress(null);
     setState("loading");
     setEnabled(true);
@@ -233,7 +244,7 @@ export function usePodcastCaptions(audioRef: RefObject<HTMLAudioElement | null>,
       resume?.();
     };
     signal.addEventListener("abort", wake);
-    const stop = (message: string) => {
+    const stop = (message: MessageKey) => {
       if (signal.aborted) return;
       controller.abort();
       run = undefined;
@@ -306,7 +317,7 @@ export function usePodcastCaptions(audioRef: RefObject<HTMLAudioElement | null>,
           const current = run;
           if (!current) return;
           for (const utterance of current.segmenter.push(current.downsample(event.data.samples))) enqueue(current, utterance);
-          if (queuedSeconds + current.segmenter.bufferedSeconds > MAX_BACKLOG_SECONDS) stop("這台裝置的辨識速度跟不上播放，字幕已停止；音訊仍可正常播放。");
+          if (queuedSeconds + current.segmenter.bufferedSeconds > MAX_BACKLOG_SECONDS) stop("listening.captions.error.tooSlow");
         };
         setState("listening");
         listening = true;
@@ -326,8 +337,8 @@ export function usePodcastCaptions(audioRef: RefObject<HTMLAudioElement | null>,
       } catch (cause) {
         if (signal.aborted) return;
         logger.error("Podcast captions failed", cause);
-        // Our own messages are user-facing Chinese; engine errors are not.
-        const message = cause instanceof Error && /[一-鿿]/.test(cause.message) ? cause.message : "無法啟動即時字幕，請稍後再試；音訊仍可正常播放。";
+        // Our own failures carry a user-facing message; engine errors do not.
+        const message = cause instanceof CaptionError ? cause.key : "listening.captions.error.startFailed";
         stop(message);
       }
     })();

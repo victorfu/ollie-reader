@@ -1,6 +1,7 @@
 import { getEnemy } from "../data/enemies";
 import { previewWave } from "../engine/waves";
 import type { WaveSpec } from "../types";
+import { T } from "../../../common/T";
 
 type Props = {
   wave: WaveSpec | undefined;
@@ -22,7 +23,7 @@ export function WavePreview({ wave, waveNumber }: Props) {
   return (
     <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
       <span className="font-semibold text-slate-500">
-        第 {waveNumber} 波
+        <T k="defenders.hud.wave" params={{ n: waveNumber }} />
         {hasBoss && (
           <span className="ml-1 rounded-full bg-amber-200 px-1.5 py-0.5 text-[10px] font-bold text-amber-800">
             BOSS

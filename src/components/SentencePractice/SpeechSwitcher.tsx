@@ -2,6 +2,8 @@ import { useState } from "react";
 import { ChevronDown, Plus, Copy, Pencil, Trash2, Check } from "lucide-react";
 import type { Speech } from "../../types/sentencePractice";
 import { ConfirmModal } from "../common/ConfirmModal";
+import { T } from "../common/T";
+import { useLanguage } from "../../hooks/useLanguage";
 
 interface SpeechSwitcherProps {
   speeches: Speech[];
@@ -22,6 +24,7 @@ export const SpeechSwitcher = ({
   onRename,
   onDelete,
 }: SpeechSwitcherProps) => {
+  const { t } = useLanguage();
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState("");
@@ -35,7 +38,7 @@ export const SpeechSwitcher = ({
   };
 
   const handleCreate = async () => {
-    const name = window.prompt("新增演講版本，請輸入名稱：");
+    const name = window.prompt(t("practice.speech.createPrompt"));
     if (!name?.trim()) return;
     await onCreate(name.trim());
     close();
@@ -44,8 +47,8 @@ export const SpeechSwitcher = ({
   const handleDuplicate = async () => {
     if (!current) return;
     const name = window.prompt(
-      "複製為新版本，請輸入名稱：",
-      `${current.name} 副本`,
+      t("practice.speech.duplicatePrompt"),
+      t("practice.speech.copyName", { name: current.name }),
     );
     if (!name?.trim()) return;
     await onDuplicate(current.id, name.trim());
@@ -81,7 +84,7 @@ export const SpeechSwitcher = ({
         className="btn btn-sm btn-ghost gap-1 normal-case active:scale-[0.98]"
       >
         <span className="font-medium truncate max-w-[12rem]">
-          {current?.name || "選擇版本"}
+          {current?.name || <T k="practice.speech.choose" variant="stacked" />}
         </span>
         <ChevronDown className="h-4 w-4" />
       </button>
@@ -90,14 +93,14 @@ export const SpeechSwitcher = ({
         <>
           <button
             type="button"
-            aria-label="關閉選單"
+            aria-label={t("practice.speech.closeMenu")}
             className="fixed inset-0 z-40"
             onClick={close}
           />
           <div className="glass absolute z-50 mt-1 right-0 sm:right-auto sm:left-0 w-72 rounded-xl shadow-floating">
             <div className="p-1">
               <div className="px-3 py-2 text-xs font-semibold text-muted-foreground">
-                演講版本
+                <T k="practice.speech.versions" />
               </div>
               <ul className="max-h-72 overflow-y-auto">
                 {speeches.map((s) => {
@@ -129,7 +132,8 @@ export const SpeechSwitcher = ({
                               type="button"
                               onClick={commitRename}
                               className="btn btn-xs btn-ghost"
-                              title="確認"
+                              title={t("practice.speech.confirm")}
+                              aria-label={t("practice.speech.confirm")}
                             >
                               <Check className="h-3.5 w-3.5" />
                             </button>
@@ -150,7 +154,8 @@ export const SpeechSwitcher = ({
                               type="button"
                               onClick={() => startRename(s)}
                               className="btn btn-xs btn-ghost opacity-0 group-hover:opacity-100"
-                              title="重新命名"
+                              title={t("practice.speech.rename")}
+                              aria-label={t("practice.speech.rename")}
                             >
                               <Pencil className="h-3.5 w-3.5" />
                             </button>
@@ -158,7 +163,8 @@ export const SpeechSwitcher = ({
                               type="button"
                               onClick={() => setDeletingId(s.id)}
                               className="btn btn-xs btn-ghost text-error opacity-0 group-hover:opacity-100"
-                              title="刪除版本"
+                              title={t("practice.speech.deleteVersion")}
+                              aria-label={t("practice.speech.deleteVersion")}
                               disabled={speeches.length <= 1}
                             >
                               <Trash2 className="h-3.5 w-3.5" />
@@ -177,7 +183,7 @@ export const SpeechSwitcher = ({
                 className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-accent-tint hover:text-accent"
               >
                 <Plus className="h-4 w-4" />
-                新增空白版本
+                <T k="practice.speech.newBlank" variant="stacked" />
               </button>
               {current && (
                 <button
@@ -186,7 +192,7 @@ export const SpeechSwitcher = ({
                   className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-accent-tint hover:text-accent"
                 >
                   <Copy className="h-4 w-4" />
-                  複製目前版本
+                  <T k="practice.speech.duplicate" variant="stacked" />
                 </button>
               )}
             </div>
@@ -196,12 +202,15 @@ export const SpeechSwitcher = ({
 
       <ConfirmModal
         isOpen={!!deletingId}
-        title="刪除演講版本"
-        message={`確定要刪除「${
-          speeches.find((s) => s.id === deletingId)?.name
-        }」？此版本下的所有句子也會被刪除，且無法復原。`}
-        confirmText="刪除"
-        cancelText="取消"
+        title={<T k="practice.speech.deleteTitle" variant="stacked" />}
+        message={
+          <T
+            k="practice.speech.deleteMessage"
+            params={{ name: speeches.find((s) => s.id === deletingId)?.name ?? "" }}
+          />
+        }
+        confirmText={<T k="practice.speech.deleteConfirm" variant="stacked" />}
+        cancelText={<T k="practice.speech.cancel" variant="stacked" />}
         confirmVariant="error"
         onConfirm={confirmDelete}
         onCancel={() => setDeletingId(null)}

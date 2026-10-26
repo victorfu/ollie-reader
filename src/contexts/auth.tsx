@@ -17,37 +17,41 @@ import {
 } from "react";
 import { auth, db } from "../utils/firebaseUtil";
 import { AuthContext } from "./AuthContextType";
+import { translate, type MessageKey } from "../i18n/translate";
 
-function mapFirebaseError(error: unknown, action: "signIn" | "signOut") {
+function mapFirebaseError(
+  error: unknown,
+  action: "signIn" | "signOut",
+): MessageKey {
   if (error instanceof FirebaseError) {
     switch (error.code) {
       case "auth/popup-closed-by-user":
-        return "登入視窗已關閉";
+        return "auth.error.popupClosed";
       case "auth/cancelled-popup-request":
-        return "登入已取消";
+        return "auth.error.cancelled";
       case "auth/popup-blocked":
-        return "瀏覽器封鎖了彈出視窗";
+        return "auth.error.popupBlocked";
       case "auth/account-exists-with-different-credential":
-        return "此帳號已使用其他登入方式註冊";
+        return "auth.error.differentCredential";
       case "auth/too-many-requests":
-        return "嘗試次數過多，請稍後再試";
+        return "auth.error.tooManyRequests";
       case "auth/network-request-failed":
-        return "網路連線異常";
+        return "auth.error.network";
       default:
         break;
     }
   }
 
   if (action === "signOut") {
-    return "登出失敗，請稍後再試";
+    return "auth.error.signOutFailed";
   }
 
-  return "發生未知錯誤，請稍後再試";
+  return "auth.error.unknown";
 }
 
 type AccessVerification =
   | { status: "allowed" }
-  | { status: "denied"; message: string; error?: unknown }
+  | { status: "denied"; message: MessageKey; error?: unknown }
   | { status: "unavailable"; error: unknown };
 
 function isAccessDeniedError(error: unknown): boolean {
@@ -67,32 +71,32 @@ async function verifyAllowedUser(currentUser: User): Promise<AccessVerification>
       ? { status: "allowed" }
       : {
           status: "denied",
-          message: "此帳號無權限存取。請聯絡管理員。",
+          message: "auth.error.notAllowed",
         };
   } catch (error) {
     return isAccessDeniedError(error)
-      ? { status: "denied", message: "此帳號無權限存取。", error }
+      ? { status: "denied", message: "auth.error.denied", error }
       : { status: "unavailable", error };
   }
 }
 
-function unavailableAccessMessage(): string {
+function unavailableAccessMessage(): MessageKey {
   return typeof navigator !== "undefined" && !navigator.onLine
-    ? "目前離線，已使用這台裝置上次的登入狀態。"
-    : "暫時無法驗證帳號權限，部分雲端功能可能無法使用。";
+    ? "auth.error.offline"
+    : "auth.error.unverified";
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [authError, setAuthError] = useState<string | null>(null);
+  const [authError, setAuthError] = useState<MessageKey | null>(null);
   const currentUserRef = useRef<User | null>(null);
   const publishedUserRef = useRef<User | null>(null);
   const needsAccessRecheckRef = useRef(false);
   const verificationSequenceRef = useRef(0);
 
   const denyAccess = useCallback(
-    async (message: string, error?: unknown) => {
+    async (message: MessageKey, error?: unknown) => {
       if (error) console.error("權限驗證失敗:", error);
       needsAccessRecheckRef.current = false;
       currentUserRef.current = null;
@@ -208,7 +212,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const message = mapFirebaseError(error, "signIn");
       setAuthError(message);
       console.error("Firebase Google sign in error", error);
-      throw new Error(message);
+      throw new Error(translate("zh-TW", message));
     }
   }, []);
 
@@ -219,7 +223,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const message = mapFirebaseError(error, "signOut");
       setAuthError(message);
       console.error("Firebase sign out error", error);
-      throw new Error(message);
+      throw new Error(translate("zh-TW", message));
     }
   }, []);
 

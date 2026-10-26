@@ -5,6 +5,8 @@ import { useFloatingPanel } from "../../hooks/useFloatingPanel";
 import { useSettings } from "../../hooks/useSettings";
 import { Search } from "lucide-react";
 import { LookupResultCard } from "./LookupResultCard";
+import { useLanguage } from "../../hooks/useLanguage";
+import { T } from "../common/T";
 
 const BookOpenIcon = ({ className = "w-4 h-4" }: { className?: string }) => (
   <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -29,6 +31,7 @@ interface LookupPanelProps {
 
 export const LookupPanel = memo(
   ({ lookups, onDismiss, onDismissAll, onSpeak, onLookupWord, showSignal }: LookupPanelProps) => {
+    const { t } = useLanguage();
     const [collapsedToken, setCollapsedToken] = useState<number | "nosignal" | null>(
       null,
     );
@@ -70,7 +73,7 @@ export const LookupPanel = memo(
           transition={{ duration: 0.2 }}
           onClick={() => setCollapsedToken(null)}
           className="fixed right-6 bottom-6 z-40 w-14 h-14 rounded-full flex items-center justify-center bg-base-100/90 backdrop-blur-xl border border-border-hairline shadow-floating hover:scale-105 hover:text-accent active:scale-[0.98] transition-all duration-200"
-          aria-label="展開查詢面板"
+          aria-label={t("reader.lookup.expandPanel")}
         >
           <div className="relative">
             <BookOpenIcon className="w-5 h-5" />
@@ -102,7 +105,9 @@ export const LookupPanel = memo(
           >
             <div className="flex items-center gap-2">
               <BookOpenIcon className="w-4 h-4 text-accent" />
-              <span className="font-semibold text-base">查詢結果</span>
+              <span className="font-semibold text-base">
+                <T k="reader.lookup.title" variant="stacked" />
+              </span>
               {activeCount > 0 && (
                 <span className="badge badge-xs badge-accent">
                   {activeCount}
@@ -113,7 +118,11 @@ export const LookupPanel = memo(
               {/* Chinese translation toggle */}
               <label
                 className="flex items-center gap-1.5 px-2 cursor-pointer text-xs select-none"
-                title={showChineseTranslation ? "隱藏中文翻譯" : "顯示中文翻譯"}
+                title={
+                  showChineseTranslation
+                    ? t("reader.chineseToggle.hide")
+                    : t("reader.chineseToggle.show")
+                }
                 onMouseDown={(e) => e.stopPropagation()}
                 onClick={(e) => e.stopPropagation()}
               >
@@ -131,14 +140,14 @@ export const LookupPanel = memo(
                   onClick={onDismissAll}
                   className="btn btn-ghost btn-xs hover:bg-black/5 dark:hover:bg-white/10"
                 >
-                  清除
+                  <T k="reader.clearAll" variant="stacked" />
                 </button>
               )}
               <button
                 type="button"
                 onClick={() => setCollapsedToken(signalToken)}
                 className="btn btn-ghost btn-xs btn-circle hover:bg-black/5 dark:hover:bg-white/10"
-                aria-label="收合面板"
+                aria-label={t("reader.collapsePanel")}
               >
                 <MinusIcon />
               </button>
@@ -162,8 +171,8 @@ export const LookupPanel = memo(
                   type="text"
                   value={searchInput}
                   onChange={(e) => setSearchInput(e.target.value)}
-                  placeholder="輸入單字查詢…"
-                  aria-label="輸入單字查詢"
+                  placeholder={t("reader.lookup.placeholder")}
+                  aria-label={t("reader.lookup.inputLabel")}
                   className="w-full rounded-[6px] border border-border-hairline bg-base-200/50 py-1.5 pl-8 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-accent placeholder:text-base-content/40"
                 />
               </form>

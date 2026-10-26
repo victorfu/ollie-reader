@@ -1,5 +1,6 @@
 import { memo } from "react";
 import type { SelectionToolbarPosition } from "../../hooks/useTextSelection";
+import { useLanguage } from "../../hooks/useLanguage";
 
 interface SelectionToolbarProps {
   selectedText: string;
@@ -25,6 +26,7 @@ export const SelectionToolbar = memo(
     onAddToVocabulary,
     position = null,
   }: SelectionToolbarProps) => {
+  const { t } = useLanguage();
   if (!selectedText) return null;
 
   const isFloating = Boolean(position);
@@ -45,8 +47,8 @@ export const SelectionToolbar = memo(
             type="button"
             onClick={onSpeak}
             className="btn btn-circle size-11 border-0 bg-accent-content text-accent hover:bg-accent-content/90 sm:btn-sm tooltip tooltip-top"
-            data-tip="朗讀"
-            aria-label="朗讀選取文字"
+            data-tip={t("reader.speak")}
+            aria-label={t("reader.selection.speakLabel")}
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -70,8 +72,8 @@ export const SelectionToolbar = memo(
               type="button"
               onClick={onAddToVocabulary}
               className="btn btn-circle size-11 border-0 bg-accent-content text-accent hover:bg-accent-content/90 sm:btn-sm tooltip tooltip-top"
-              data-tip="查詢單字"
-              aria-label="查詢選取單字"
+              data-tip={t("reader.selection.lookup")}
+              aria-label={t("reader.selection.lookupLabel")}
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -96,8 +98,8 @@ export const SelectionToolbar = memo(
               type="button"
               onClick={onTranslate}
               className="btn btn-circle size-11 border-0 bg-accent-content text-accent hover:bg-accent-content/90 sm:btn-sm tooltip tooltip-top"
-              data-tip="翻譯"
-              aria-label="翻譯選取文字"
+              data-tip={t("reader.selection.translate")}
+              aria-label={t("reader.selection.translateLabel")}
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -121,8 +123,8 @@ export const SelectionToolbar = memo(
             type="button"
             onClick={onClear}
             className="btn btn-circle size-11 border-0 bg-accent-content/20 text-accent-content hover:bg-accent-content/30 sm:btn-sm tooltip tooltip-top"
-            data-tip="清除 (ESC)"
-            aria-label="清除文字選取"
+            data-tip={t("reader.selection.clear")}
+            aria-label={t("reader.selection.clearLabel")}
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"

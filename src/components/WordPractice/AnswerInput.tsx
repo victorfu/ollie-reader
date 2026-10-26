@@ -1,10 +1,10 @@
-import { useId } from "react";
+import { useId, type ReactNode } from "react";
 
 interface AnswerInputProps {
   value: string;
   onChange: (value: string) => void;
   onSubmit: () => void;
-  label: string;
+  label: ReactNode;
   disabled?: boolean;
 }
 

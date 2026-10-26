@@ -2,6 +2,8 @@ import { useEffect, useRef } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { ArrowRight, BarChart3, X } from "lucide-react";
 import type { ExamSectionResult } from "../../types/exam";
+import { T } from "../common/T";
+import { scopeTitleKey } from "./examUi";
 
 interface ExamSectionResultViewProps {
   result: ExamSectionResult;
@@ -15,6 +17,7 @@ export function ExamSectionResultView({
   onExit,
 }: ExamSectionResultViewProps) {
   const shouldReduceMotion = useReducedMotion();
+  const sectionKey = scopeTitleKey(result.sectionId);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const percent =
     result.total > 0 ? Math.round((result.score / result.total) * 100) : 0;
@@ -32,7 +35,7 @@ export function ExamSectionResultView({
           className="btn btn-ghost btn-sm min-h-[44px] gap-1 rounded-full text-muted-foreground"
         >
           <X size={16} strokeWidth={2} />
-          離開
+          <T k="exams.common.exit" variant="stacked" />
         </button>
       </div>
 
@@ -49,23 +52,34 @@ export function ExamSectionResultView({
         <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-accent-tint text-accent">
           <BarChart3 size={24} strokeWidth={1.75} aria-hidden="true" />
         </div>
-        <p className="mt-4 text-sm font-medium text-accent">區段完成</p>
+        <p className="mt-4 text-sm font-medium text-accent">
+          <T k="exams.sectionResult.done" />
+        </p>
         <h2
           ref={headingRef}
           tabIndex={-1}
           className="mt-1 text-xl font-semibold tracking-tight"
         >
-          {result.sectionLabel}
+          {sectionKey ? (
+            <T k={sectionKey} variant="stacked" />
+          ) : (
+            result.sectionLabel
+          )}
         </h2>
 
         <div className="mt-6">
-          <p className="text-sm text-muted-foreground">正確率</p>
+          <p className="text-sm text-muted-foreground">
+            <T k="exams.sectionResult.accuracy" />
+          </p>
           <p className="mt-1 text-6xl font-semibold tracking-tight">
             {percent}
             <span className="ml-1 text-2xl text-muted-foreground">%</span>
           </p>
           <p className="mt-2 text-sm text-muted-foreground">
-            答對 {result.score} / {result.total} 題
+            <T
+              k="exams.sectionResult.correctCount"
+              params={{ score: result.score, total: result.total }}
+            />
           </p>
         </div>
 
@@ -74,7 +88,14 @@ export function ExamSectionResultView({
           onClick={onContinue}
           className="btn btn-primary mt-7 min-h-[48px] w-full gap-1.5 rounded-xl"
         >
-          {result.isFinalSection ? "查看總成績" : "繼續下一區段"}
+          <T
+            k={
+              result.isFinalSection
+                ? "exams.sectionResult.viewTotal"
+                : "exams.sectionResult.next"
+            }
+            variant="stacked"
+          />
           <ArrowRight size={18} strokeWidth={2} aria-hidden="true" />
         </button>
       </motion.section>

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef } from "react";
 import { ArrowLeft, ArrowRight, ArrowUp } from "lucide-react";
+import { useLanguage } from "../../hooks/useLanguage";
 
 export type GameControl = "left" | "right" | "jump";
 
@@ -8,6 +9,7 @@ export function GameControls({ onChange, jump = false }: {
   onChange: (control: GameControl, pressed: boolean) => void;
   jump?: boolean;
 }) {
+  const { t } = useLanguage();
   const sources = useRef(new Map<string, GameControl>());
   const setSource = useCallback((source: string, control: GameControl, pressed: boolean) => {
     const wasPressed = [...sources.current.values()].includes(control);
@@ -78,12 +80,12 @@ export function GameControls({ onChange, jump = false }: {
     </button>
   );
   return (
-    <div className="pointer-events-none absolute inset-x-0 bottom-6 z-20 flex justify-between px-6" aria-label="遊戲控制">
+    <div className="pointer-events-none absolute inset-x-0 bottom-6 z-20 flex justify-between px-6" aria-label={t("arcade.controls.label")}>
       <div className="pointer-events-auto flex gap-3">
-        {controlButton("left", "向左", ArrowLeft)}
-        {controlButton("right", "向右", ArrowRight)}
+        {controlButton("left", t("arcade.controls.left"), ArrowLeft)}
+        {controlButton("right", t("arcade.controls.right"), ArrowRight)}
       </div>
-      {jump && <div className="pointer-events-auto">{controlButton("jump", "跳躍", ArrowUp)}</div>}
+      {jump && <div className="pointer-events-auto">{controlButton("jump", t("arcade.controls.jump"), ArrowUp)}</div>}
     </div>
   );
 }

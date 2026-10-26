@@ -1,12 +1,9 @@
 import type { ExamTab } from "../../types/exam";
-import { SUBJECT_LABELS } from "../../data/exams/mixed";
+import { useLanguage } from "../../hooks/useLanguage";
+import { T } from "../common/T";
+import { SUBJECT_KEYS } from "./examUi";
 
-const TABS: { id: ExamTab; label: string }[] = [
-  { id: "chinese", label: SUBJECT_LABELS.chinese },
-  { id: "math", label: SUBJECT_LABELS.math },
-  { id: "english", label: SUBJECT_LABELS.english },
-  { id: "mixed", label: "綜合" },
-];
+const TABS: readonly ExamTab[] = ["chinese", "math", "english", "mixed"];
 
 interface ExamSubjectSwitcherProps {
   value: ExamTab;
@@ -18,27 +15,28 @@ export function ExamSubjectSwitcher({
   value,
   onSelect,
 }: ExamSubjectSwitcherProps) {
+  const { t } = useLanguage();
   return (
     <div className="flex justify-center">
       <div
         role="group"
-        aria-label="選擇考科"
+        aria-label={t("exams.switcher.label")}
         className="inline-flex rounded-full border border-border-hairline bg-card p-1 shadow-soft"
       >
         {TABS.map((tab) => {
-          const isActive = tab.id === value;
+          const isActive = tab === value;
           return (
             <button
-              key={tab.id}
+              key={tab}
               aria-pressed={isActive}
-              onClick={() => onSelect(tab.id)}
+              onClick={() => onSelect(tab)}
               className={`min-h-[44px] rounded-full px-5 text-sm font-semibold transition-all active:scale-[0.98] sm:px-8 ${
                 isActive
                   ? "bg-accent text-white shadow-sm"
                   : "text-muted-foreground hover:bg-accent/10"
               }`}
             >
-              {tab.label}
+              <T k={SUBJECT_KEYS[tab]} variant="stacked" />
             </button>
           );
         })}

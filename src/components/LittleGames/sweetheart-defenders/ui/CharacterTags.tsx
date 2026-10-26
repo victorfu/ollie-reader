@@ -1,5 +1,5 @@
-import { ARCHETYPE_BY_ELEMENT, ARCHETYPE_LABEL_ZH, ELEMENT_COLOR } from "../data/elements";
-import { TRAIT_LABEL_ZH } from "../data/traits";
+import { ARCHETYPE_BY_ELEMENT, ELEMENT_COLOR } from "../data/elements";
+import { useLanguage } from "../../../../hooks/useLanguage";
 import { getTrait } from "../engine/combat";
 import type { TowerCharacter } from "../types";
 
@@ -11,6 +11,8 @@ export function CharacterTags({ pet }: { pet: TowerCharacter }) {
   const element = pet.elements[0];
   const archetype = ARCHETYPE_BY_ELEMENT[element];
   const trait = getTrait(pet);
+  // 標籤只有 10px 又常在可點的卡片裡：放雙行或點擊提示都會擠壞版面，只換語言。
+  const { t } = useLanguage();
 
   return (
     <div className="flex flex-wrap items-center gap-1">
@@ -18,7 +20,7 @@ export function CharacterTags({ pet }: { pet: TowerCharacter }) {
         className="rounded-full px-1.5 py-0.5 text-[10px] font-semibold text-slate-800"
         style={{ backgroundColor: ELEMENT_COLOR[element] }}
       >
-        {ARCHETYPE_LABEL_ZH[archetype]}
+        {t(`defenders.archetype.${archetype}`)}
       </span>
       <span
         className="rounded-full px-1.5 py-0.5 text-[10px] font-semibold text-slate-700 ring-1 ring-inset ring-black/5"
@@ -27,7 +29,7 @@ export function CharacterTags({ pet }: { pet: TowerCharacter }) {
           backgroundColor: `${ELEMENT_COLOR[pet.elements[1] ?? element]}55`,
         }}
       >
-        {TRAIT_LABEL_ZH[trait]}
+        {t(`defenders.trait.${trait}`)}
       </span>
     </div>
   );

@@ -8,6 +8,8 @@ import { currentPosition, dictationId, findDictationItem } from "../../utils/hom
 import { CorrectionStep } from "./CorrectionStep";
 import { DictationStep } from "./DictationStep";
 import { WordPage } from "./WordPage";
+import { useLanguage } from "../../hooks/useLanguage";
+import { T } from "../common/T";
 
 interface HomeworkBookProps {
   homework: Homework;
@@ -33,6 +35,7 @@ export function HomeworkBook({
   submitting,
   locked = false,
 }: HomeworkBookProps) {
+  const { t } = useLanguage();
   const position = currentPosition(homework);
   const { pages, dictation, corrections } = homework;
 
@@ -91,7 +94,9 @@ export function HomeworkBook({
   } else {
     step = (
       <div className="space-y-4 text-center">
-        <p className="text-lg">全部寫完了，可以交作業囉！</p>
+        <p className="text-lg">
+          <T k="practice.book.allDone" />
+        </p>
         <button
           type="button"
           disabled={submitting || locked}
@@ -99,7 +104,7 @@ export function HomeworkBook({
           className="btn btn-primary btn-lg min-h-14 active:scale-[0.98]"
         >
           {submitting && <span className="loading loading-spinner loading-sm" aria-hidden="true" />}
-          交作業
+          <T k="practice.book.handIn" variant="stacked" />
         </button>
       </div>
     );
@@ -112,7 +117,7 @@ export function HomeworkBook({
           className="progress progress-primary flex-1"
           value={percent}
           max={100}
-          aria-label="功課進度"
+          aria-label={t("practice.book.progress")}
         />
         <button
           type="button"
@@ -120,14 +125,14 @@ export function HomeworkBook({
           onClick={onRest}
           className="btn btn-ghost btn-sm min-h-11 active:scale-[0.98]"
         >
-          先休息，等一下再寫
+          <T k="practice.book.rest" variant="stacked" />
         </button>
       </div>
 
       <fieldset disabled={locked || submitting} className="min-w-0 border-0 p-0">
         {step ?? (
           <p role="alert" className="text-sm text-error">
-            這份功課的資料有問題，請先休息再回來。
+            <T k="practice.book.broken" />
           </p>
         )}
       </fieldset>

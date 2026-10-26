@@ -5,6 +5,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { MUSHROOM_CONFIG } from "../lib/constants";
 import { clamp, getBestScore, setBestScore } from "../lib/game-utils";
 import { type MushroomSettings } from "../lib/types";
+import { T } from "../../common/T";
+import { useLanguage } from "../../../hooks/useLanguage";
+import type { MessageKey } from "../../../i18n/translate";
 import {
   GRAVITY,
   HEIGHT,
@@ -60,6 +63,33 @@ import type {
   MushroomProgress,
   Particle,
 } from "./types";
+
+// Display text for level data, looked up by id when drawing. The Chinese
+// text in levels.ts / themes.ts stays as the fallback for unknown ids.
+const SIGN_KEYS: Record<string, MessageKey> = {
+  move: "arcade.mushroom.sign.move",
+  jump: "arcade.mushroom.sign.jump",
+  climb: "arcade.mushroom.sign.climb",
+  stomp: "arcade.mushroom.sign.stomp",
+  coin: "arcade.mushroom.sign.coin",
+  power: "arcade.mushroom.sign.power",
+  goal: "arcade.mushroom.sign.goal",
+};
+const GATE_KEYS: Record<string, MessageKey> = {
+  "gate-stomp": "arcade.mushroom.gate.stomp",
+};
+const THEME_KEYS: Record<string, MessageKey> = {
+  grassland: "arcade.mushroom.theme.grassland",
+  forest: "arcade.mushroom.theme.forest",
+  lake: "arcade.mushroom.theme.lake",
+  cave: "arcade.mushroom.theme.cave",
+  desert: "arcade.mushroom.theme.desert",
+  clouds: "arcade.mushroom.theme.clouds",
+  snow: "arcade.mushroom.theme.snow",
+  dusk: "arcade.mushroom.theme.dusk",
+  night: "arcade.mushroom.theme.night",
+  starry: "arcade.mushroom.theme.starry",
+};
 
 // 執行期生成的關卡：開局／儲存設定時重建（隨機尾段 + 套用設定）。
 // 模組級可變狀態——遊戲同時只會有一個實例。
@@ -140,6 +170,15 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
   const stageRef = useRef<HTMLDivElement>(null);
   const renderRef = useRef<(() => void) | null>(null);
   const rafRef = useRef<number | null>(null);
+  const { t } = useLanguage();
+  // The canvas and pop-up texts are produced inside the game loop; read t
+  // through a ref so a language change never restarts the loop.
+  const tRef = useRef(t);
+  useEffect(() => {
+    tRef.current = t;
+  }, [t]);
+  const lookup = (key: MessageKey | undefined, fallback: string) =>
+    key ? tRef.current(key) : fallback;
   const [gameState, setGameState] = useState<GameState>("menu");
   const [score, setScore] = useState(0);
   const [best, setBest] = useState(0);
@@ -579,7 +618,7 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
           s.floatingTexts.push({
             x: g.x + 12,
             y: HEIGHT - 220,
-            text: "門打開了！",
+            text: tRef.current("arcade.mushroom.pop.doorOpen"),
             life: 1.5,
             color: "#22c55e",
           });
@@ -726,7 +765,10 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
           s.floatingTexts.push({
             x: e.x + e.w / 2,
             y: e.y - 30,
-            text: `連擊 ×${s.comboCount}！+${totalScore}`,
+            text: tRef.current("arcade.mushroom.pop.combo", {
+              n: s.comboCount,
+              points: totalScore,
+            }),
             life: 1.5,
             color:
               s.comboCount >= 5
@@ -829,22 +871,22 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
         let color = "#fff";
         if (pu.type === "star") {
           s.invincibleTimer = 8;
-          msg = "無敵!";
+          msg = tRef.current("arcade.mushroom.pop.star");
           color = "#facc15";
         }
         if (pu.type === "boot") {
           s.speedTimer = 8;
-          msg = "加速!";
+          msg = tRef.current("arcade.mushroom.pop.boot");
           color = "#22c55e";
         }
         if (pu.type === "feather") {
           s.featherTimer = 10;
-          msg = "二段跳!";
+          msg = tRef.current("arcade.mushroom.pop.feather");
           color = "#a855f7";
         }
         if (pu.type === "heart") {
           s.lives += 1;
-          msg = "生命+1";
+          msg = tRef.current("arcade.mushroom.pop.heart");
           color = "#ef4444";
         }
 
@@ -1105,10 +1147,17 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
     // 教學：告示牌與未解鎖的門
     if (lvl.tutorial) {
       for (const t of lvl.triggers ?? []) {
-        drawSign(ctx, t.anchorX, HEIGHT - 40, t.text, s.activeHintId === t.id);
+        drawSign(
+          ctx,
+          t.anchorX,
+          HEIGHT - 40,
+          lookup(SIGN_KEYS[t.id], t.text),
+          s.activeHintId === t.id,
+        );
       }
       for (const g of lvl.gates ?? []) {
-        if (!s.gatesOpen[g.id]) drawGate(ctx, g.x, HEIGHT - 40, g.hint);
+        if (!s.gatesOpen[g.id])
+          drawGate(ctx, g.x, HEIGHT - 40, lookup(GATE_KEYS[g.id], g.hint));
       }
     }
 
@@ -1190,17 +1239,22 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
       ctx.fillText(text, hudX + 14, 37);
       hudX += w + 8;
     };
-    chip(`分數 ${s.score}`);
+    chip(tRef.current("arcade.mushroom.hud.score", { score: s.score }));
     if (s.levelIndex === TUTORIAL_INDEX) {
-      chip("教學關 · 放心練習", "#0369a1");
+      chip(tRef.current("arcade.mushroom.hud.tutorial"), "#0369a1");
     } else {
       chip(
         s.lives <= 5 ? "❤️".repeat(Math.max(s.lives, 0)) : `❤️ ×${s.lives}`,
         "#e11d48",
       );
-      chip(`第 ${s.levelIndex + 1} 關 · ${lvl.theme.name}`);
+      chip(
+        tRef.current("arcade.mushroom.hud.level", {
+          level: s.levelIndex + 1,
+          theme: lookup(THEME_KEYS[lvl.theme.id], lvl.theme.name),
+        }),
+      );
     }
-    chip(`最佳 ${best}`, "#64748b");
+    chip(tRef.current("arcade.mushroom.hud.best", { score: best }), "#64748b");
     if (s.comboCount >= 2) {
       const comboColor =
         s.comboCount >= 5
@@ -1208,7 +1262,7 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
           : s.comboCount >= 3
           ? "#22c55e"
           : "#3b82f6";
-      chip(`連擊 ×${s.comboCount}`, comboColor);
+      chip(tRef.current("arcade.mushroom.hud.combo", { n: s.comboCount }), comboColor);
     }
     if (s.invincibleTimer > 0) chip(`⭐ ${s.invincibleTimer.toFixed(1)}s`, "#d97706");
     if (s.featherTimer > 0) chip(`🪶 ${s.featherTimer.toFixed(1)}s`, "#7c3aed");
@@ -1264,14 +1318,13 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
       return (
         <Overlay>
           <h2 className="text-4xl font-bold text-emerald-800 mb-2">
-            森林蘑菇冒險
+            <T k="arcade.mushroom.title" variant="stacked" />
           </h2>
           <p className="text-slate-700 mb-2">
-            可愛橫向平台闘關，踩蘑菇怪、收硬幣、衝旗桿。
+            <T k="arcade.mushroom.tagline" />
           </p>
           <p className="text-slate-600 mb-4 text-sm">
-            操作：← → 移動，↑/W/空白鍵
-            跳躍，踩怪可得分，星星無敵、羽毛二段跳、靴子加速、愛心補生命。
+            <T k="arcade.mushroom.controls" />
           </p>
           <div className="flex gap-3 justify-center flex-wrap">
             {!progress.tutorialDone ? (
@@ -1280,13 +1333,13 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
                   onClick={() => startGame(TUTORIAL_INDEX)}
                   className={BTN_PRIMARY}
                 >
-                  🎓 先玩教學
+                  🎓 <T k="arcade.common.tutorialFirst" variant="stacked" />
                 </button>
                 <button
                   onClick={() => startGame()}
                   className={BTN_SECONDARY}
                 >
-                  直接開始
+                  <T k="arcade.common.skipTutorial" variant="stacked" />
                 </button>
               </>
             ) : hasProgress ? (
@@ -1295,13 +1348,17 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
                   onClick={() => startGame(progress.highestUnlocked)}
                   className={BTN_PRIMARY}
                 >
-                  繼續（第 {progress.highestUnlocked + 1} 關）
+                  <T
+                    k="arcade.mushroom.continue"
+                    params={{ level: progress.highestUnlocked + 1 }}
+                    variant="stacked"
+                  />
                 </button>
                 <button
                   onClick={() => startGame()}
                   className={BTN_SECONDARY}
                 >
-                  從第 1 關開始
+                  <T k="arcade.mushroom.fromLevel1" variant="stacked" />
                 </button>
               </>
             ) : (
@@ -1309,7 +1366,7 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
                 onClick={() => startGame()}
                 className={BTN_PRIMARY}
               >
-                開始遊戲
+                <T k="arcade.common.startGame" variant="stacked" />
               </button>
             )}
             {progress.tutorialDone && (
@@ -1317,19 +1374,21 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
                 onClick={() => startGame(TUTORIAL_INDEX)}
                 className={BTN_SECONDARY}
               >
-                🎓 教學
+                🎓 <T k="arcade.common.tutorial" variant="stacked" />
               </button>
             )}
             <button
               onClick={() => setGameState("settings")}
               className={BTN_SECONDARY}
             >
-              ⚙️ 設定
+              ⚙️ <T k="arcade.mushroom.settings" variant="stacked" />
             </button>
           </div>
           {hasProgress && (
             <div className="mt-4">
-              <p className="text-xs text-slate-500 mb-2">選擇關卡</p>
+              <p className="text-xs text-slate-500 mb-2">
+                <T k="arcade.mushroom.chooseLevel" />
+              </p>
               <div className="flex flex-wrap gap-2 justify-center">
                 {Array.from({ length: LEVEL_COUNT }, (_, i) => {
                   const unlocked = i <= progress.highestUnlocked;
@@ -1340,7 +1399,12 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
                       aria-disabled={!unlocked}
                       onClick={() => startGame(i)}
                       aria-label={
-                        unlocked ? `第 ${i + 1} 關` : `第 ${i + 1} 關（未解鎖）`
+                        t(
+                          unlocked
+                            ? "arcade.mushroom.levelAria"
+                            : "arcade.mushroom.levelLockedAria",
+                          { level: i + 1 },
+                        )
                       }
                       className={`h-9 w-9 rounded-full text-sm font-semibold shadow transition ${
                         unlocked
@@ -1392,23 +1456,27 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
       return (
         <Overlay>
           <h2 className="text-4xl font-bold text-emerald-800 mb-2">
-            全部通關！
+            <T k="arcade.mushroom.win" variant="stacked" />
           </h2>
-          <p className="text-slate-700 mb-2">總分 {score}</p>
-          <p className="text-xs text-slate-600 mb-4">最佳：{best}</p>
+          <p className="text-slate-700 mb-2">
+            <T k="arcade.mushroom.totalScore" params={{ score }} />
+          </p>
+          <p className="text-xs text-slate-600 mb-4">
+            <T k="arcade.mushroom.best" params={{ score: best }} />
+          </p>
           <div className="flex gap-3 justify-center">
             <button
               onClick={() => startGame()}
               className={BTN_PRIMARY}
             >
-              再玩一次
+              <T k="arcade.common.playAgain" variant="stacked" />
             </button>
             {onExit && (
               <button
                 onClick={onExit}
                 className={BTN_OUTLINE}
               >
-                回主選單
+                <T k="arcade.common.backToMenu" variant="stacked" />
               </button>
             )}
           </div>
@@ -1419,24 +1487,35 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
     if (gameState === "dead") {
       return (
         <Overlay>
-          <h2 className="text-4xl font-bold text-rose-500 mb-2">差一點點！</h2>
-          <p className="text-slate-700 mb-1">再試一次一定可以的！</p>
+          <h2 className="text-4xl font-bold text-rose-500 mb-2">
+            <T k="arcade.mushroom.dead" variant="stacked" />
+          </h2>
+          <p className="text-slate-700 mb-1">
+            <T k="arcade.mushroom.deadCheer" />
+          </p>
           <p className="text-slate-600 mb-4 text-sm">
-            這次拿到 {score} 分（第 {levelIndex + 1} 關）
+            <T
+              k="arcade.mushroom.deadScore"
+              params={{ score, level: levelIndex + 1 }}
+            />
           </p>
           <div className="flex gap-3 justify-center">
             <button
               onClick={() => startGame(levelIndex)}
               className={BTN_PRIMARY}
             >
-              從第 {levelIndex + 1} 關再試
+              <T
+                k="arcade.mushroom.retryLevel"
+                params={{ level: levelIndex + 1 }}
+                variant="stacked"
+              />
             </button>
             {onExit && (
               <button
                 onClick={onExit}
                 className={BTN_OUTLINE}
               >
-                回主選單
+                <T k="arcade.common.backToMenu" variant="stacked" />
               </button>
             )}
           </div>
@@ -1461,7 +1540,7 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
           onClick={onExit}
           className="absolute left-6 top-6 z-20 rounded-full bg-white/90 px-4 py-2 text-sm font-semibold text-slate-900 shadow-lg backdrop-blur transition hover:-translate-y-0.5 hover:shadow-xl"
         >
-          ← 回遊戲列表
+          ← <T k="arcade.common.backToGames" variant="stacked" />
         </button>
       )}
       {gameState === "playing" && (
@@ -1469,7 +1548,7 @@ export default function MushroomAdventure({ onExit }: { onExit?: () => void }) {
           onClick={pauseGame}
           className="absolute right-6 top-6 z-20 rounded-full bg-white/90 px-4 py-2 text-sm font-semibold text-slate-900 shadow-lg backdrop-blur transition hover:-translate-y-0.5 hover:shadow-xl"
         >
-          ⏸ 暫停
+          ⏸ <T k="arcade.common.pause" variant="stacked" />
         </button>
       )}
       <div

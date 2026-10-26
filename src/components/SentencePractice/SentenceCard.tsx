@@ -1,6 +1,8 @@
 import { useState } from "react";
 import type { DragControls } from "framer-motion";
 import { useSpeechState } from "../../hooks/useSpeechState";
+import { useLanguage } from "../../hooks/useLanguage";
+import { T } from "../common/T";
 import { ClickableWords } from "./ClickableWords";
 import type { PracticeSentence } from "../../types/sentencePractice";
 
@@ -32,6 +34,7 @@ export const SentenceCard = ({
   dragControls,
 }: SentenceCardProps) => {
   const { speak, isSpeaking, isLoadingAudio } = useSpeechState();
+  const { t } = useLanguage();
   const [isEditing, setIsEditing] = useState(false);
   const [editedEnglish, setEditedEnglish] = useState(sentence.english);
   const [isUpdating, setIsUpdating] = useState(false);
@@ -96,7 +99,7 @@ export const SentenceCard = ({
           {/* Drag handle - only this element triggers drag */}
           <div
             className="shrink-0 mt-0.5 cursor-grab active:cursor-grabbing text-muted-foreground/60 hover:text-foreground touch-none select-none transition-colors"
-            title="拖曳排序"
+            title={t("practice.sentence.drag")}
             onPointerDown={(e) => {
               e.preventDefault();
               dragControls?.start(e);
@@ -124,7 +127,8 @@ export const SentenceCard = ({
             onClick={handleSpeak}
             disabled={isSpeaking || isLoadingAudio}
             className="btn btn-circle btn-sm btn-ghost text-primary shrink-0 mt-0.5"
-            title="播放整句"
+            title={t("practice.sentence.playSentence")}
+            aria-label={t("practice.sentence.playSentence")}
           >
             {isLoadingAudio ? (
               <span className="loading loading-spinner loading-xs"></span>
@@ -165,7 +169,7 @@ export const SentenceCard = ({
                     className="btn btn-ghost btn-sm active:scale-[0.98]"
                     disabled={isUpdating}
                   >
-                    取消
+                    <T k="practice.sentence.cancel" variant="stacked" />
                   </button>
                   <button
                     type="button"
@@ -176,10 +180,10 @@ export const SentenceCard = ({
                     {isUpdating ? (
                       <>
                         <span className="loading loading-spinner loading-xs"></span>
-                        更新中...
+                        <T k="practice.sentence.updating" variant="stacked" />
                       </>
                     ) : (
-                      "儲存"
+                      <T k="practice.sentence.save" variant="stacked" />
                     )}
                   </button>
                 </div>
@@ -202,7 +206,8 @@ export const SentenceCard = ({
                 onClick={handleEdit}
                 disabled={isProcessing}
                 className="btn btn-circle btn-sm btn-ghost text-base-content/60 hover:text-primary"
-                title="編輯"
+                title={t("practice.sentence.edit")}
+                aria-label={t("practice.sentence.edit")}
               >
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
@@ -224,7 +229,8 @@ export const SentenceCard = ({
                 onClick={handleDelete}
                 disabled={isProcessing}
                 className="btn btn-circle btn-sm btn-ghost text-base-content/60 hover:text-error"
-                title="刪除"
+                title={t("practice.sentence.delete")}
+                aria-label={t("practice.sentence.delete")}
               >
                 <svg
                   xmlns="http://www.w3.org/2000/svg"

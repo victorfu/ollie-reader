@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Check, RotateCcw, Send, Volume2 } from "lucide-react";
 import type { ExamTextQuestion } from "../../types/exam";
+import { useLanguage } from "../../hooks/useLanguage";
+import { T } from "../common/T";
 
 interface ExamTypedAnswerPanelProps {
   question: ExamTextQuestion;
@@ -27,6 +29,7 @@ export function ExamTypedAnswerPanel({
   onNext,
   speak,
 }: ExamTypedAnswerPanelProps) {
+  const { t } = useLanguage();
   const [draft, setDraft] = useState("");
   /** 已點過的字卡索引(以索引而非字面追蹤,重複單字才安全)。 */
   const [usedChips, setUsedChips] = useState<number[]>([]);
@@ -90,7 +93,7 @@ export function ExamTypedAnswerPanel({
       {/* 題型提示區 */}
       {question.form === "qa" && question.hint && (
         <p className="text-sm text-muted-foreground">
-          提示：
+          <T k="exams.typed.hint" />
           <span className="ml-1 rounded-full bg-accent-tint px-2.5 py-1 font-semibold text-accent">
             {question.hint}
           </span>
@@ -102,7 +105,7 @@ export function ExamTypedAnswerPanel({
           <div
             className="flex flex-wrap items-center gap-2"
             role="group"
-            aria-label="打散的單字，點一下加入答案"
+            aria-label={t("exams.typed.wordBankAria")}
           >
             {bankWords.map((word, index) => {
               const used = usedChips.includes(index);
@@ -112,7 +115,7 @@ export function ExamTypedAnswerPanel({
                   type="button"
                   disabled={isAnswered || used}
                   aria-pressed={used}
-                  aria-label={`加入單字 ${word}`}
+                  aria-label={t("exams.typed.addWord", { word })}
                   onClick={() => appendWord(word, index)}
                   className={`inline-flex min-h-[44px] items-center gap-1 rounded-lg border border-border-hairline px-3 text-base font-medium shadow-soft transition-all active:scale-[0.97] ${
                     used
@@ -134,11 +137,11 @@ export function ExamTypedAnswerPanel({
               className="btn btn-ghost btn-sm min-h-[44px] gap-1 rounded-full text-muted-foreground"
             >
               <RotateCcw size={14} strokeWidth={2} />
-              清除重來
+              <T k="exams.typed.clear" variant="stacked" />
             </button>
           </div>
           <p className="text-xs text-muted-foreground">
-            點字卡把句子排出來，也可以直接輸入。
+            <T k="exams.typed.unscrambleHelp" />
           </p>
         </div>
       )}
@@ -151,11 +154,11 @@ export function ExamTypedAnswerPanel({
             className="btn btn-outline min-h-[48px] w-full gap-2 rounded-xl text-accent"
           >
             <Volume2 size={20} strokeWidth={2} />
-            播放語音(可重複點)
+            <T k="exams.typed.playAudio" variant="stacked" />
           </button>
         ) : (
           <p className="rounded-lg border border-border-hairline bg-accent-tint p-3 text-sm">
-            這裝置無法播放語音，請直接把這句打出來：
+            <T k="exams.typed.noAudio" />
             <span className="ml-1 font-semibold">{question.acceptedAnswers[0]}</span>
           </p>
         ))}
@@ -189,13 +192,13 @@ export function ExamTypedAnswerPanel({
             }
           }}
           aria-readonly={isAnswered}
-          placeholder="在這裡輸入英文句子…"
+          placeholder={t("exams.typed.placeholder")}
           autoCapitalize="none"
           autoCorrect="off"
           autoComplete="off"
           spellCheck={false}
           enterKeyHint={isAnswered ? "next" : "send"}
-          aria-label="輸入你的答案"
+          aria-label={t("exams.typed.inputAria")}
           className={`input input-bordered min-h-[48px] flex-1 rounded-xl bg-background/50 text-base focus-visible:ring-2 focus-visible:ring-accent ${
             isAnswered ? "opacity-70" : ""
           }`}
@@ -207,13 +210,13 @@ export function ExamTypedAnswerPanel({
           className="btn btn-primary min-h-[48px] gap-1.5 rounded-xl px-5"
         >
           <Send size={16} strokeWidth={2} />
-          送出
+          <T k="exams.typed.submit" variant="stacked" />
         </button>
       </div>
 
       {showDictationFallback ? null : question.form === "dictation" ? (
         <p className="text-xs text-muted-foreground">
-          聽不清楚可以再按一次「播放語音」。
+          <T k="exams.typed.replayHelp" />
         </p>
       ) : null}
     </div>

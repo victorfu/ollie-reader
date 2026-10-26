@@ -6,6 +6,8 @@ import {
   MIXED_SUBJECTS,
   mixedCountOptions,
 } from "../../data/exams/mixed";
+import { useLanguage } from "../../hooks/useLanguage";
+import { T } from "../common/T";
 import { ExamSubjectSwitcher } from "./ExamSubjectSwitcher";
 
 const DEFAULT_COUNT = 30;
@@ -23,13 +25,19 @@ export function ExamRandomHub({
   onSelectSubject,
   onGenerate,
 }: ExamRandomHubProps) {
+  const { t } = useLanguage();
   const [count, setCount] = useState(DEFAULT_COUNT);
   const base = Math.floor(count / MIXED_SUBJECTS.length);
   const remainder = count % MIXED_SUBJECTS.length;
   const composition =
-    remainder === 0
-      ? `國語、數學、英文各 ${base} 題`
-      : `國語、數學、英文各 ${base}～${base + 1} 題（隨機分配）`;
+    remainder === 0 ? (
+      <T k="exams.random.compositionEven" params={{ n: base }} />
+    ) : (
+      <T
+        k="exams.random.compositionUneven"
+        params={{ min: base, max: base + 1 }}
+      />
+    );
 
   return (
     <div className="flex flex-col gap-5">
@@ -41,28 +49,32 @@ export function ExamRandomHub({
             <Shuffle size={20} strokeWidth={2} aria-hidden="true" />
           </span>
           <div>
-            <h2 className="text-xl font-semibold tracking-tight">隨機綜合卷</h2>
+            <h2 className="text-xl font-semibold tracking-tight">
+              <T k="exams.scope.mixed" variant="stacked" />
+            </h2>
             <p className="text-xs text-muted-foreground">
-              從三科題庫（共 {MIXED_POOL_TOTAL} 題）隨機抽題
+              <T k="exams.random.pool" params={{ total: MIXED_POOL_TOTAL }} />
             </p>
           </div>
         </div>
 
         <p className="text-sm text-muted-foreground">
-          每次產生都是一張新考卷：三科平均分配、題目不重複，依國語→數學→英文排列。隨機卷不記錄最佳成績。
+          <T k="exams.random.description" />
         </p>
 
         <label className="flex flex-col gap-1.5">
-          <span className="text-sm font-medium">題數</span>
+          <span className="text-sm font-medium">
+            <T k="exams.random.countLabel" />
+          </span>
           <select
             value={count}
             onChange={(event) => setCount(Number(event.target.value))}
-            aria-label="選擇題數"
+            aria-label={t("exams.random.countAria")}
             className="select select-bordered min-h-[48px] w-full rounded-xl bg-background/50 text-base focus-visible:ring-2 focus-visible:ring-accent"
           >
             {mixedCountOptions().map((option) => (
               <option key={option} value={option}>
-                {option} 題
+                {t("exams.random.countOption", { n: option })}
               </option>
             ))}
           </select>
@@ -76,12 +88,12 @@ export function ExamRandomHub({
           className="btn btn-primary min-h-[48px] w-full gap-1.5 rounded-xl"
         >
           <Play size={18} strokeWidth={2} />
-          產生考卷並開始
+          <T k="exams.random.generate" variant="stacked" />
         </button>
       </article>
 
       <p className="text-center text-xs text-muted-foreground">
-        答完每一題會立即顯示對錯與解析，錯題可以馬上重練！
+        <T k="exams.random.footer" />
       </p>
     </div>
   );

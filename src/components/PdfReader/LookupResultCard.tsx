@@ -1,6 +1,8 @@
 import { memo } from "react";
 import { motion } from "framer-motion";
 import type { LookupItem } from "../../hooks/useLookupQueue";
+import { useLanguage } from "../../hooks/useLanguage";
+import { T } from "../common/T";
 
 const SpeakerIcon = ({ className = "w-3.5 h-3.5" }: { className?: string }) => (
   <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -39,6 +41,7 @@ export const LookupResultCard = memo(
     showChinese: boolean;
     disableLayoutAnimation?: boolean;
   }) => {
+    const { t } = useLanguage();
     const isTranslation = item.type === "translation";
     const borderColor =
       item.status === "loading"
@@ -74,14 +77,16 @@ export const LookupResultCard = memo(
               <span className="badge badge-xs badge-accent">new</span>
             )}
             {isTranslation && (
-              <span className="badge badge-xs badge-ghost shrink-0">翻譯</span>
+              <span className="badge badge-xs badge-ghost shrink-0">
+                <T k="reader.lookup.translationBadge" />
+              </span>
             )}
             {onSpeak && (
               <button
                 type="button"
                 onClick={() => onSpeak(item.word)}
                 className="btn btn-ghost btn-xs btn-circle hover:bg-black/5 dark:hover:bg-white/10 shrink-0"
-                aria-label="朗讀"
+                aria-label={t("reader.speak")}
               >
                 <SpeakerIcon />
               </button>
@@ -92,7 +97,7 @@ export const LookupResultCard = memo(
               type="button"
               onClick={() => onDismiss(item.id)}
               className="btn btn-ghost btn-xs btn-circle hover:bg-black/5 dark:hover:bg-white/10 shrink-0"
-              aria-label="關閉"
+              aria-label={t("common.close")}
             >
               <XIcon />
             </button>
@@ -103,7 +108,9 @@ export const LookupResultCard = memo(
           <div className="mt-2 flex items-center gap-2">
             <span className="loading loading-spinner loading-xs text-accent" />
             <span className="text-sm text-base-content/50">
-              {isTranslation ? "翻譯中..." : "查詢中..."}
+              <T
+                k={isTranslation ? "reader.lookup.translating" : "reader.lookup.searching"}
+              />
             </span>
           </div>
         )}
@@ -144,7 +151,15 @@ export const LookupResultCard = memo(
 
         {item.status === "error" && (
           <p className="mt-2 text-sm text-error">
-            {item.error || (isTranslation ? "翻譯失敗" : "查詢失敗")}
+            {item.error || (
+              <T
+                k={
+                  isTranslation
+                    ? "reader.lookup.translateFailed"
+                    : "reader.lookup.lookupFailed"
+                }
+              />
+            )}
           </p>
         )}
       </motion.div>

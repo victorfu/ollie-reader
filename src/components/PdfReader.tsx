@@ -20,10 +20,13 @@ import { ToastContainer } from "./common/ToastContainer";
 import { useToastQueue } from "../hooks/useToastQueue";
 import { BookingRecordsDrawer } from "./PdfReader/BookingRecordsDrawer";
 import { useBookingRecords } from "../hooks/useBookingRecords";
+import { useLanguage } from "../hooks/useLanguage";
+import { T } from "./common/T";
 
 function PdfReader() {
   // Use custom hooks
   usePdfWorker();
+  const { t } = useLanguage();
 
   // Use PDF state from context instead of local hook
   const {
@@ -156,7 +159,7 @@ function PdfReader() {
       logger.error("Error loading booking PDF:", error);
       // Only show error if this is still the active request
       if (loadingCourseIdRef.current === currentCourseId) {
-        addToast("載入課程 PDF 失敗", "error");
+        addToast(t("reader.toast.loadCoursePdfFailed"), "error");
       }
     } finally {
       // Only reset loading state if this is still the active request
@@ -216,9 +219,9 @@ function PdfReader() {
     });
 
     if (result === "duplicate") {
-      addToast(`「${word}」正在查詢中`, "info");
+      addToast(t("reader.toast.lookupInProgress", { word }), "info");
     } else if (result === "max_reached") {
-      addToast("待處理查詢數量已達上限", "error");
+      addToast(t("reader.toast.queueFull"), "error");
     }
 
     clearSelection();
@@ -235,9 +238,9 @@ function PdfReader() {
     });
 
     if (result === "duplicate") {
-      addToast(`「${trimmed}」正在查詢中`, "info");
+      addToast(t("reader.toast.lookupInProgress", { word: trimmed }), "info");
     } else if (result === "max_reached") {
-      addToast("待處理查詢數量已達上限", "error");
+      addToast(t("reader.toast.queueFull"), "error");
     }
   };
 
@@ -253,9 +256,9 @@ function PdfReader() {
     );
 
     if (result === "duplicate") {
-      addToast("此句子正在翻譯中", "info");
+      addToast(t("reader.toast.translationInProgress"), "info");
     } else if (result === "max_reached") {
-      addToast("待處理查詢數量已達上限", "error");
+      addToast(t("reader.toast.queueFull"), "error");
     }
 
     clearSelection();
@@ -265,10 +268,10 @@ function PdfReader() {
     setIsClearingCache(true);
     try {
       await clearPdfCache();
-      addToast("快取已清除，請重新載入 PDF", "success");
+      addToast(t("reader.toast.cacheCleared"), "success");
     } catch (error) {
       logger.error("Error clearing cache:", error);
-      addToast("清除快取時發生錯誤", "error");
+      addToast(t("reader.toast.clearCacheFailed"), "error");
     } finally {
       setIsClearingCache(false);
     }
@@ -384,7 +387,7 @@ function PdfReader() {
             {isLoadingAudio ? (
               <>
                 <span className="loading loading-spinner loading-xs"></span>
-                生成中
+                <T k="reader.speech.generating" variant="stacked" />
               </>
             ) : (
               <>
@@ -408,7 +411,7 @@ function PdfReader() {
                     d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"
                   />
                 </svg>
-                停止
+                <T k="reader.speech.stop" variant="stacked" />
               </>
             )}
           </button>
@@ -421,7 +424,7 @@ function PdfReader() {
           type="button"
           onClick={openWordPanel}
           className="fixed right-6 bottom-6 z-40 w-12 h-12 rounded-full flex items-center justify-center bg-base-100/90 backdrop-blur-xl border border-border-hairline shadow-floating hover:scale-105 hover:text-accent active:scale-[0.98] transition-all duration-200"
-          aria-label="開啟生詞本"
+          aria-label={t("reader.openWordBook")}
         >
           <div className="relative">
             <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">

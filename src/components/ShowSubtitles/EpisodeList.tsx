@@ -1,4 +1,5 @@
 import type { Episode } from "../../types/showSubtitles";
+import { T } from "../common/T";
 
 interface EpisodeListProps {
   episodes: Episode[];
@@ -14,7 +15,9 @@ export function EpisodeList({
   if (episodes.length === 0) {
     return (
       <div className="text-center py-12">
-        <p className="text-muted-foreground">此季沒有集數資料</p>
+        <p className="text-muted-foreground">
+          <T k="listening.show.noEpisodes" />
+        </p>
       </div>
     );
   }

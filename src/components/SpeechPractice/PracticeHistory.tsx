@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import type { PracticeRecord } from "../../types/speechPractice";
 import { SPEECH_TOPICS } from "../../types/speechPractice";
 import { getAudioSignedUrl } from "../../services/audioStorageService";
+import { T } from "../common/T";
+import { useLanguage } from "../../hooks/useLanguage";
 
 interface PracticeHistoryProps {
   records: PracticeRecord[];
@@ -20,6 +22,7 @@ export function PracticeHistory({
   onLoadMore,
   onDelete,
 }: PracticeHistoryProps) {
+  const { t, language } = useLanguage();
   const [expandedScriptId, setExpandedScriptId] = useState<string | null>(null);
   // Cache signed URLs for audio playback
   const [audioUrls, setAudioUrls] = useState<Map<string, string>>(new Map());
@@ -84,7 +87,7 @@ export function PracticeHistory({
   };
 
   const formatDate = (date: Date): string => {
-    return new Date(date).toLocaleDateString("zh-TW", {
+    return new Date(date).toLocaleDateString(language === "en" ? "en-US" : "zh-TW", {
       year: "numeric",
       month: "long",
       day: "numeric",
@@ -109,9 +112,11 @@ export function PracticeHistory({
     return (
       <div className="text-center py-8">
         <div className="text-6xl mb-4">📝</div>
-        <h3 className="text-lg font-semibold mb-2">還沒有練習記錄</h3>
+        <h3 className="text-lg font-semibold mb-2">
+          <T k="listening.speech.historyEmpty" />
+        </h3>
         <p className="text-muted-foreground">
-          選擇一個主題開始練習，你的進步將會記錄在這裡
+          <T k="listening.speech.historyEmptyHint" />
         </p>
       </div>
     );
@@ -120,7 +125,7 @@ export function PracticeHistory({
   return (
     <div className="space-y-4">
       <h2 className="text-lg font-semibold flex items-center gap-2">
-        📊 練習記錄
+        📊 <T k="listening.speech.historyTitle" variant="stacked" />
         <span className="badge badge-primary">{records.length}</span>
       </h2>
 
@@ -160,7 +165,8 @@ export function PracticeHistory({
                       type="button"
                       className="btn btn-ghost btn-xs btn-circle"
                       onClick={() => record.id && onDelete(record.id)}
-                      title="刪除記錄"
+                      title={t("listening.speech.deleteRecord")}
+                      aria-label={t("listening.speech.deleteRecord")}
                     >
                       <svg
                         xmlns="http://www.w3.org/2000/svg"
@@ -190,14 +196,16 @@ export function PracticeHistory({
                 {record.recordingUrl && record.id && (
                   <div className="mt-2">
                     <h4 className="text-sm font-medium mb-1 flex items-center gap-1">
-                      🎧 錄音回放
+                      🎧 <T k="listening.speech.recordingPlayback" />
                       {audioLoading.has(record.id) && (
                         <span className="loading loading-spinner loading-xs" />
                       )}
                     </h4>
                     {audioErrors.has(record.id) ? (
                       <div className="flex items-center gap-2 text-sm text-error">
-                        <span>載入音訊失敗</span>
+                        <span>
+                          <T k="listening.speech.audioLoadFailed" />
+                        </span>
                         <button
                           type="button"
                           className="btn btn-ghost btn-xs"
@@ -206,7 +214,7 @@ export function PracticeHistory({
                             void fetchAudioUrl(record.id!, record.recordingUrl!);
                           }}
                         >
-                          重試
+                          <T k="common.retry" variant="stacked" />
                         </button>
                       </div>
                     ) : audioUrls.has(record.id) ? (
@@ -231,11 +239,11 @@ export function PracticeHistory({
                           void fetchAudioUrl(record.id!, record.recordingUrl!);
                         }}
                       >
-                        您的瀏覽器不支援音訊播放
+                        {t("listening.audioUnsupported")}
                       </audio>
                     ) : (
                       <div className="text-sm text-muted-foreground">
-                        載入中...
+                        <T k="listening.loading" />
                       </div>
                     )}
                   </div>
@@ -271,9 +279,9 @@ export function PracticeHistory({
                           d="M9 5l7 7-7 7"
                         />
                       </svg>
-                      📄 查看講稿
+                      📄 <T k="listening.speech.viewScript" variant="stacked" />
                       <span className="badge badge-ghost badge-xs">
-                        {record.script.length} 字
+                        <T k="listening.charCount" params={{ count: record.script.length }} variant="stacked" />
                       </span>
                     </button>
 
@@ -289,7 +297,10 @@ export function PracticeHistory({
 
                 {topicInfo && (
                   <div className="text-xs text-muted-foreground mt-1">
-                    建議時間：{formatTime(topicInfo.suggestedTimeSeconds)}
+                    <T
+                      k="listening.speech.suggestedTime"
+                      params={{ time: formatTime(topicInfo.suggestedTimeSeconds) }}
+                    />
                   </div>
                 )}
               </div>
@@ -309,10 +320,10 @@ export function PracticeHistory({
             {isLoadingMore ? (
               <>
                 <span className="loading loading-spinner loading-sm" />
-                載入中...
+                <T k="listening.loading" variant="stacked" />
               </>
             ) : (
-              "載入更多記錄"
+              <T k="listening.speech.loadMore" variant="stacked" />
             )}
           </button>
         </div>

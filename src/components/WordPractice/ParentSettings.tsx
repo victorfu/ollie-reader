@@ -2,6 +2,7 @@ import { useId, useState } from "react";
 import type { PracticeSettings } from "../../types/wordPractice";
 import { CEFR_LEVELS } from "../../utils/cefr";
 import { ConfirmModal } from "../common/ConfirmModal";
+import { T } from "../common/T";
 
 interface ParentSettingsProps {
   settings: PracticeSettings;
@@ -68,13 +69,17 @@ export function ParentSettings({
 
   return (
     <div>
-      <h3 className="text-lg font-semibold mb-3">家長設定</h3>
-      <p className="text-sm text-muted-foreground mb-4">調整單字練習每份功課的份量與起始等級</p>
+      <h3 className="text-lg font-semibold mb-3">
+        <T k="practice.settings.title" variant="stacked" />
+      </h3>
+      <p className="text-sm text-muted-foreground mb-4">
+        <T k="practice.settings.description" />
+      </p>
       <div className="space-y-4">
         <div className="grid gap-4 sm:grid-cols-3">
           <div className="space-y-1">
             <label htmlFor={newCountId} className="text-sm font-medium">
-              每份新字數
+              <T k="practice.settings.newWordCount" />
             </label>
             <select
               id={newCountId}
@@ -91,7 +96,7 @@ export function ParentSettings({
           </div>
           <div className="space-y-1">
             <label htmlFor={reviewId} className="text-sm font-medium">
-              複習字上限
+              <T k="practice.settings.reviewLimit" />
             </label>
             <select
               id={reviewId}
@@ -108,7 +113,7 @@ export function ParentSettings({
           </div>
           <div className="space-y-1">
             <label htmlFor={levelId} className="text-sm font-medium">
-              起始等級
+              <T k="practice.settings.startLevel" />
             </label>
             <select
               id={levelId}
@@ -129,7 +134,7 @@ export function ParentSettings({
         </div>
 
         <p className="text-xs text-muted-foreground">
-          比起始等級更低、而且沒寫錯過的字不會出現在新字裡；寫錯過的字一定會排在最前面。
+          <T k="practice.settings.note" />
         </p>
 
         <div className="flex flex-wrap gap-2">
@@ -139,7 +144,7 @@ export function ParentSettings({
             onClick={() => void save()}
             className="btn btn-primary min-h-11 active:scale-[0.98]"
           >
-            儲存設定
+            <T k="practice.settings.save" variant="stacked" />
           </button>
           {hasActive && (
             <button
@@ -148,7 +153,7 @@ export function ParentSettings({
               onClick={() => setConfirming(true)}
               className="btn btn-ghost min-h-11 text-error active:scale-[0.98]"
             >
-              放棄這份功課
+              <T k="practice.settings.abandon" variant="stacked" />
             </button>
           )}
           <button
@@ -157,7 +162,7 @@ export function ParentSettings({
             onClick={() => setConfirmingReset(true)}
             className="btn btn-ghost min-h-11 text-error active:scale-[0.98]"
           >
-            重設練習進度
+            <T k="practice.settings.reset" variant="stacked" />
           </button>
         </div>
       </div>
@@ -165,9 +170,9 @@ export function ParentSettings({
       {hasActive && (
         <ConfirmModal
           isOpen={confirming}
-          title="放棄這份功課"
-          message="放棄後不會計入歷史成績，進度也無法復原。確定要放棄嗎？"
-          confirmText="放棄功課"
+          title={<T k="practice.settings.abandon" variant="stacked" />}
+          message={<T k="practice.settings.abandonMessage" />}
+          confirmText={<T k="practice.settings.abandonConfirm" variant="stacked" />}
           isLoading={abandoning}
           onConfirm={() => void confirmAbandon()}
           onCancel={() => setConfirming(false)}
@@ -176,9 +181,9 @@ export function ParentSettings({
 
       <ConfirmModal
         isOpen={confirmingReset}
-        title="重設練習進度"
-        message="所有單字會變回新字、複習排程和連續天數歸零，進行中的功課會被放棄。設定和歷史紀錄會保留。這個動作無法復原，確定要重設嗎？"
-        confirmText="重設進度"
+        title={<T k="practice.settings.reset" variant="stacked" />}
+        message={<T k="practice.settings.resetMessage" />}
+        confirmText={<T k="practice.settings.resetConfirm" variant="stacked" />}
         isLoading={resetting}
         onConfirm={() => void confirmReset()}
         onCancel={() => setConfirmingReset(false)}

@@ -3,6 +3,8 @@ import confetti from "canvas-confetti";
 import { useReducedMotion } from "framer-motion";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { GAME_CONFIG } from "./lib/constants";
+import { T } from "../common/T";
+import { useLanguage } from "../../hooks/useLanguage";
 import {
   GameState,
   type Player,
@@ -118,6 +120,13 @@ export default function BunnyJumper({ onExit }: BunnyJumperProps) {
   const [gapScale, setGapScale] = useState(1.25);
   const [isNewBest, setIsNewBest] = useState(false);
   const shouldReduceMotion = useReducedMotion();
+  const { t } = useLanguage();
+  // The canvas is drawn inside the game loop; read t through a ref so a
+  // language change never restarts the loop.
+  const tRef = useRef(t);
+  useEffect(() => {
+    tRef.current = t;
+  }, [t]);
   const renderedScoreRef = useRef(0);
   const lastScoreSyncRef = useRef(-Infinity);
   const gameLoopRef = useRef<number | undefined>(undefined);
@@ -1827,7 +1836,11 @@ export default function BunnyJumper({ onExit }: BunnyJumperProps) {
     ctx.fillStyle = "#FF6B9D";
     ctx.font = "bold 14px system-ui, -apple-system, sans-serif";
     ctx.textAlign = "center";
-    ctx.fillText("分數", GAME_CONFIG.WIDTH / 2 - 40, panelY + 24);
+    ctx.fillText(
+      tRef.current("arcade.common.score"),
+      GAME_CONFIG.WIDTH / 2 - 40,
+      panelY + 24,
+    );
 
     ctx.fillStyle = "#E85A8F";
     ctx.font = "bold 24px system-ui, -apple-system, sans-serif";
@@ -2136,7 +2149,7 @@ export default function BunnyJumper({ onExit }: BunnyJumperProps) {
           className="absolute left-6 top-6 z-20 rounded-full bg-white/90 px-4 py-2 text-sm font-semibold text-slate-800 shadow-lg backdrop-blur transition hover:-translate-y-0.5 hover:shadow-xl"
           type="button"
         >
-          ← 回遊戲列表
+          ← <T k="arcade.common.backToGames" variant="stacked" />
         </button>
       )}
       {gameState === GameState.Playing && (
@@ -2145,7 +2158,7 @@ export default function BunnyJumper({ onExit }: BunnyJumperProps) {
           className="absolute right-6 top-6 z-20 rounded-full bg-white/90 px-4 py-2 text-sm font-semibold text-slate-800 shadow-lg backdrop-blur transition hover:-translate-y-0.5 hover:shadow-xl"
           type="button"
         >
-          ⏸ 暫停
+          ⏸ <T k="arcade.common.pause" variant="stacked" />
         </button>
       )}
       <div
@@ -2349,7 +2362,7 @@ export default function BunnyJumper({ onExit }: BunnyJumperProps) {
                   fontFamily: "system-ui, -apple-system, sans-serif",
                 }}
               >
-                跳跳兔
+                <T k="arcade.bunny.title" variant="stacked" />
               </h1>
 
               {/* 副標題 */}
@@ -2361,7 +2374,7 @@ export default function BunnyJumper({ onExit }: BunnyJumperProps) {
                   fontFamily: "system-ui, -apple-system, sans-serif",
                 }}
               >
-                跳上雲端，收集寶石！
+                <T k="arcade.bunny.tagline" />
               </p>
 
               {/* 開始遊戲按鈕 */}
@@ -2393,7 +2406,7 @@ export default function BunnyJumper({ onExit }: BunnyJumperProps) {
                     "0 8px 24px rgba(255, 107, 157, 0.4)";
                 }}
               >
-                ▶ 開始遊戲
+                ▶ <T k="arcade.common.startGame" variant="stacked" />
               </button>
 
               {/* 最高分 */}
@@ -2411,7 +2424,7 @@ export default function BunnyJumper({ onExit }: BunnyJumperProps) {
                     fontFamily: "system-ui, -apple-system, sans-serif",
                   }}
                 >
-                  👑 最高分：{bestScore}
+                  👑 <T k="arcade.common.best" params={{ score: bestScore }} />
                 </div>
               )}
 
@@ -2424,7 +2437,7 @@ export default function BunnyJumper({ onExit }: BunnyJumperProps) {
                   fontFamily: "system-ui, -apple-system, sans-serif",
                 }}
               >
-                ← → 或 A D 移動
+                <T k="arcade.bunny.controls" />
               </p>
 
               {/* 難度：雲間距 */}
@@ -2439,7 +2452,7 @@ export default function BunnyJumper({ onExit }: BunnyJumperProps) {
               >
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-sm font-semibold text-pink-500">
-                    雲間距 / 難度
+                    <T k="arcade.bunny.gap" />
                   </span>
                   <span className="text-sm font-semibold text-gray-700">
                     {gapScale.toFixed(2)}x
@@ -2452,12 +2465,16 @@ export default function BunnyJumper({ onExit }: BunnyJumperProps) {
                   step={0.05}
                   value={gapScale}
                   onChange={(e) => setGapScale(parseFloat(e.target.value))}
-                  aria-label="雲間距倍率"
+                  aria-label={t("arcade.bunny.gapAria")}
                   className="w-full accent-pink-400"
                 />
                 <div className="flex justify-between text-[11px] text-gray-500 mt-1">
-                  <span>較多雲 (容易)</span>
-                  <span>較少雲 (困難)</span>
+                  <span>
+                    <T k="arcade.bunny.gapEasy" />
+                  </span>
+                  <span>
+                    <T k="arcade.bunny.gapHard" />
+                  </span>
                 </div>
               </div>
             </div>
@@ -2490,7 +2507,7 @@ export default function BunnyJumper({ onExit }: BunnyJumperProps) {
                   fontFamily: "system-ui, -apple-system, sans-serif",
                 }}
               >
-                暫停中
+                <T k="arcade.common.paused" variant="stacked" />
               </h2>
               <p
                 style={{
@@ -2500,7 +2517,7 @@ export default function BunnyJumper({ onExit }: BunnyJumperProps) {
                   fontFamily: "system-ui, -apple-system, sans-serif",
                 }}
               >
-                休息一下，準備好了再繼續！（按 Esc 也可以繼續）
+                <T k="arcade.common.pausedHint" />
               </p>
               <div
                 style={{ display: "flex", flexDirection: "column", gap: "10px" }}
@@ -2522,7 +2539,7 @@ export default function BunnyJumper({ onExit }: BunnyJumperProps) {
                     fontFamily: "system-ui, -apple-system, sans-serif",
                   }}
                 >
-                  ▶ 繼續
+                  ▶ <T k="arcade.common.resume" variant="stacked" />
                 </button>
                 <button
                   onClick={handleRestart}
@@ -2539,7 +2556,7 @@ export default function BunnyJumper({ onExit }: BunnyJumperProps) {
                     fontFamily: "system-ui, -apple-system, sans-serif",
                   }}
                 >
-                  🔄 重新開始
+                  🔄 <T k="arcade.common.restart" variant="stacked" />
                 </button>
                 <button
                   onClick={handleMenu}
@@ -2556,7 +2573,7 @@ export default function BunnyJumper({ onExit }: BunnyJumperProps) {
                     fontFamily: "system-ui, -apple-system, sans-serif",
                   }}
                 >
-                  🏠 主選單
+                  🏠 <T k="arcade.common.mainMenu" variant="stacked" />
                 </button>
               </div>
             </div>
@@ -2591,7 +2608,10 @@ export default function BunnyJumper({ onExit }: BunnyJumperProps) {
                   fontFamily: "system-ui, -apple-system, sans-serif",
                 }}
               >
-                {isNewBest ? "新紀錄！" : "遊戲結束"}
+                <T
+                  k={isNewBest ? "arcade.bunny.newRecord" : "arcade.bunny.gameOver"}
+                  variant="stacked"
+                />
               </h2>
               {isNewBest && (
                 <div
@@ -2608,7 +2628,7 @@ export default function BunnyJumper({ onExit }: BunnyJumperProps) {
                     fontFamily: "system-ui, -apple-system, sans-serif",
                   }}
                 >
-                  👑 你創下新高分！
+                  👑 <T k="arcade.bunny.newBest" variant="stacked" />
                 </div>
               )}
 
@@ -2629,7 +2649,7 @@ export default function BunnyJumper({ onExit }: BunnyJumperProps) {
                     fontFamily: "system-ui, -apple-system, sans-serif",
                   }}
                 >
-                  你的分數
+                  <T k="arcade.bunny.yourScore" />
                 </p>
                 <p
                   style={{
@@ -2652,7 +2672,7 @@ export default function BunnyJumper({ onExit }: BunnyJumperProps) {
                     fontFamily: "system-ui, -apple-system, sans-serif",
                   }}
                 >
-                  最高分：{bestScore}
+                  <T k="arcade.common.best" params={{ score: bestScore }} />
                 </p>
               </div>
 
@@ -2682,7 +2702,7 @@ export default function BunnyJumper({ onExit }: BunnyJumperProps) {
                     e.currentTarget.style.transform = "translateY(0)";
                   }}
                 >
-                  🔄 再玩一次
+                  🔄 <T k="arcade.common.playAgain" variant="stacked" />
                 </button>
                 <button
                   onClick={handleMenu}
@@ -2709,7 +2729,7 @@ export default function BunnyJumper({ onExit }: BunnyJumperProps) {
                     e.currentTarget.style.transform = "translateY(0)";
                   }}
                 >
-                  🏠 主選單
+                  🏠 <T k="arcade.common.mainMenu" variant="stacked" />
                 </button>
               </div>
             </div>

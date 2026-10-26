@@ -1,27 +1,33 @@
 import { useState } from "react";
 import { SpellCheck } from "lucide-react";
+import { useLanguage } from "../../hooks/useLanguage";
 import { useWordPractice } from "../../hooks/useWordPractice";
+import type { MessageKey } from "../../i18n/translate";
 import type { HistoryHomework, LegacyHomework } from "../../types/wordPractice";
 import { FinishedView } from "./FinishedView";
 import { HomeworkBook } from "./HomeworkBook";
 import { HomeworkHistory } from "./HomeworkHistory";
 import { TodayCard } from "./TodayCard";
 import { formatHomeworkDate, formatHomeworkScore, isHomeworkBook } from "./homeworkFormat";
+import { T } from "../common/T";
 
 const CEFR_J_CREDIT =
   "The CEFR-J Wordlist Version 1.5. Compiled by Yukio Tono, Tokyo University of Foreign Studies.";
 const OCTANOVE_CREDIT = "Octanove Vocabulary Profile (CC BY-SA 4.0)";
-const NO_WORDS_NOTICE = "生詞本裡沒有可以練習的新單字";
-const REVIEW_ONLY_NOTICE = "生詞本裡沒有可以練習的新單字，這次只有聽寫";
 
 /** An old homework only has its date, its score and its words to show. */
 function LegacyResult({ homework, onBack }: { homework: LegacyHomework; onBack: () => void }) {
+  const { language } = useLanguage();
   return (
     <div className="space-y-4">
       <div className="space-y-1 text-center">
-        <h2 className="text-2xl font-semibold">{formatHomeworkDate(homework)}</h2>
+        <h2 className="text-2xl font-semibold">
+          {formatHomeworkDate(homework, language === "en" ? "en-US" : "zh-TW")}
+        </h2>
         {homework.result && (
-          <p className="text-lg">答對 {formatHomeworkScore(homework)}</p>
+          <p className="text-lg">
+            <T k="practice.word.legacyScore" params={{ score: formatHomeworkScore(homework) }} />
+          </p>
         )}
       </div>
       <ul className="flex flex-wrap gap-2">
@@ -36,7 +42,7 @@ function LegacyResult({ homework, onBack }: { homework: LegacyHomework; onBack: 
       </ul>
       <div className="flex justify-center">
         <button type="button" onClick={onBack} className="btn btn-primary min-h-11 active:scale-[0.98]">
-          回到首頁
+          <T k="practice.word.backHome" variant="stacked" />
         </button>
       </div>
     </div>
@@ -100,7 +106,7 @@ export default function WordPracticePage() {
         onClick={() => void wordPractice.reload()}
         className="btn btn-primary min-h-11 active:scale-[0.98]"
       >
-        重新載入
+        <T k="practice.word.reload" variant="stacked" />
       </button>
     );
   } else if (viewing) {
@@ -152,11 +158,12 @@ export default function WordPracticePage() {
     );
   }
 
-  const busyMessage =
-    status === "loading" ? "載入中…" : starting ? "正在準備功課…" : null;
+  const busyMessage: MessageKey | null =
+    status === "loading" ? "practice.word.loading" : starting ? "practice.word.preparing" : null;
   const reviewOnly = justStarted && inBook && active !== null && active.newWords.length === 0;
-  const statusMessage =
-    busyMessage ?? (noWords ? NO_WORDS_NOTICE : reviewOnly ? REVIEW_ONLY_NOTICE : null);
+  const statusMessage: MessageKey | null =
+    busyMessage ??
+    (noWords ? "practice.word.noWords" : reviewOnly ? "practice.word.reviewOnly" : null);
   const saveMessage = status === "ready" ? saveError : null;
 
   return (
@@ -165,10 +172,10 @@ export default function WordPracticePage() {
         <div className="space-y-2">
           <h1 className="flex items-center gap-3 text-3xl font-semibold tracking-tight">
             <SpellCheck className="shrink-0" aria-hidden="true" />
-            單字練習
+            <T k="practice.word.title" variant="stacked" />
           </h1>
           <p className="text-muted-foreground">
-            照作業簿一步一步寫：抄寫、默寫、造句，最後聽寫。
+            <T k="practice.word.subtitle" />
           </p>
         </div>
         {/* The live regions stay mounted so that a change in their text is announced. */}
@@ -182,7 +189,7 @@ export default function WordPracticePage() {
               {busyMessage && (
                 <span className="loading loading-spinner loading-sm" aria-hidden="true" />
               )}
-              {statusMessage}
+              <T k={statusMessage} />
             </p>
           )}
         </div>

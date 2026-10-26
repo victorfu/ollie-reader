@@ -1,4 +1,6 @@
 import { memo } from "react";
+import { useLanguage } from "../../hooks/useLanguage";
+import { T } from "../common/T";
 
 interface WordToolbarProps {
   word: string;
@@ -20,6 +22,7 @@ export const WordToolbar = memo(
     definition,
     isLoading,
   }: WordToolbarProps) => {
+    const { t } = useLanguage();
     return (
       <div
         className="word-toolbar fixed z-50 flex flex-col items-center animate-in fade-in zoom-in-95 duration-150"
@@ -39,7 +42,7 @@ export const WordToolbar = memo(
               onSpeak();
             }}
             className="btn btn-sm btn-circle bg-accent-content/20 hover:bg-accent-content/30 border-none text-accent-content"
-            title="朗讀"
+            title={t("reader.speak")}
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -68,7 +71,7 @@ export const WordToolbar = memo(
               onLookup();
             }}
             className="btn btn-sm btn-circle bg-accent-content/20 hover:bg-accent-content/30 border-none text-accent-content"
-            title="查詢解釋"
+            title={t("reader.wordToolbar.lookup")}
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -94,7 +97,7 @@ export const WordToolbar = memo(
               onClose();
             }}
             className="btn btn-sm btn-circle bg-accent-content/20 hover:bg-accent-content/30 border-none text-accent-content"
-            title="關閉 (ESC)"
+            title={t("reader.wordToolbar.close")}
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -120,7 +123,9 @@ export const WordToolbar = memo(
               {isLoading ? (
                 <div className="flex items-center gap-2 text-sm text-base-content/60">
                   <span className="loading loading-spinner loading-xs"></span>
-                  <span>查詢中...</span>
+                  <span>
+                    <T k="reader.lookup.searching" />
+                  </span>
                 </div>
               ) : (
                 <>
@@ -140,7 +145,7 @@ export const WordToolbar = memo(
                           d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
                         />
                       </svg>
-                      單字解釋
+                      <T k="reader.wordToolbar.definition" variant="stacked" />
                     </h4>
                   </div>
                   <p className="text-sm leading-relaxed whitespace-pre-line text-base-content/80">

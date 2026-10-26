@@ -15,26 +15,31 @@ import { useGachaMissRate } from "../../hooks/useGachaMissRate";
 import { useShowAllGachaEntries } from "../../hooks/useShowAllGachaEntries";
 import { useAuth } from "../../hooks/useAuth";
 import { useTheme } from "../../hooks/useTheme";
+import { useLanguage } from "../../hooks/useLanguage";
 import { resetGameProgress } from "../../services/gameProgressService";
 import { ConfirmModal } from "../common/ConfirmModal";
 import { GlassCard } from "../common/GlassCard";
 import { WordPracticeSettings } from "../WordPractice/WordPracticeSettings";
 import { Toast } from "../common/Toast";
+import { LanguagePicker } from "../common/LanguagePicker";
+import { T } from "../common/T";
 import type { TTSMode, ComputeMode } from "../../types/pdf";
+import type { MessageKey } from "../../i18n/translate";
 import { getComputeStatusSync, refreshComputeBase, type ComputeStatus } from "../../services/localBackend";
 
 const THEME_OPTIONS = [
-  { id: "light", label: "淺色", icon: Sun },
-  { id: "dark", label: "深色", icon: Moon },
-  { id: "system", label: "系統", icon: Monitor },
+  { id: "light", label: "settings.theme.light", icon: Sun },
+  { id: "dark", label: "settings.theme.dark", icon: Moon },
+  { id: "system", label: "settings.theme.system", icon: Monitor },
 ] as const;
 
+
 const CATEGORIES = [
-  { id: "appearance", label: "外觀", icon: Palette },
-  { id: "audio", label: "語音", icon: Volume2 },
-  { id: "advanced", label: "進階", icon: SlidersHorizontal },
-  { id: "game", label: "遊戲", icon: Gamepad2 },
-  { id: "wordPractice", label: "單字練習", icon: SpellCheck },
+  { id: "appearance", label: "settings.category.appearance", icon: Palette },
+  { id: "audio", label: "settings.category.audio", icon: Volume2 },
+  { id: "advanced", label: "settings.category.advanced", icon: SlidersHorizontal },
+  { id: "game", label: "settings.category.game", icon: Gamepad2 },
+  { id: "wordPractice", label: "nav.wordPractice", icon: SpellCheck },
 ] as const;
 
 type CategoryId = (typeof CATEGORIES)[number]["id"];
@@ -42,6 +47,7 @@ type CategoryId = (typeof CATEGORIES)[number]["id"];
 export const Settings = () => {
   const { user } = useAuth();
   const { theme, setTheme } = useTheme();
+  const { t } = useLanguage();
   const { showAllGachaEntries, updateShowAllGachaEntries } =
     useShowAllGachaEntries();
   const { gachaMissRatePercent, updateGachaMissRatePercent } =
@@ -146,7 +152,7 @@ export const Settings = () => {
         <aside className="lg:sticky lg:top-[4.5rem] lg:w-56 lg:shrink-0">
           {/* Mobile: page heading */}
           <h1 className="mb-3 text-2xl font-semibold tracking-tight lg:hidden">
-            ⚙️ 設定
+            ⚙️ <T k="settings.title" variant="stacked" />
           </h1>
 
           {/* Mobile: horizontally scrollable segmented nav */}
@@ -161,14 +167,14 @@ export const Settings = () => {
                     type="button"
                     onClick={() => setActiveCategory(cat.id)}
                     aria-pressed={active}
-                    className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md px-3 text-sm font-medium transition-all active:scale-[0.98] ${
+                    className={`inline-flex min-h-9 shrink-0 items-center py-1 gap-1.5 rounded-md px-3 text-sm font-medium transition-all active:scale-[0.98] ${
                       active
                         ? "bg-accent text-white shadow-soft"
                         : "text-muted-foreground hover:bg-accent-tint hover:text-accent"
                     }`}
                   >
                     <Icon className="size-4" strokeWidth={1.75} aria-hidden="true" />
-                    <span>{cat.label}</span>
+                    <T k={cat.label} variant="stacked" />
                   </button>
                 );
               })}
@@ -178,7 +184,7 @@ export const Settings = () => {
           {/* Desktop: vertical sidebar nav */}
           <GlassCard className="hidden overflow-hidden lg:block">
             <div className="px-3 pb-1 pt-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground/70">
-              設定
+              <T k="settings.title" variant="stacked" />
             </div>
             <nav className="space-y-1 p-2 pt-1">
               {CATEGORIES.map((cat) => {
@@ -190,14 +196,14 @@ export const Settings = () => {
                     type="button"
                     onClick={() => setActiveCategory(cat.id)}
                     aria-current={active ? "page" : undefined}
-                    className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors duration-200 ${
+                    className={`flex w-full items-center gap-3 rounded-lg text-left px-3 py-2 text-sm font-medium transition-colors duration-200 ${
                       active
                         ? "bg-accent-tint text-accent"
                         : "text-base-content/70 hover:bg-accent-tint hover:text-accent"
                     }`}
                   >
                     <Icon className="size-5 shrink-0" strokeWidth={1.75} aria-hidden="true" />
-                    <span className="truncate">{cat.label}</span>
+                    <T k={cat.label} variant="stacked" />
                   </button>
                 );
               })}
@@ -218,9 +224,11 @@ export const Settings = () => {
               {/* Appearance / Theme */}
               {activeCategory === "appearance" && (
                 <div>
-                  <h3 className="text-lg font-semibold mb-3">外觀主題</h3>
+                  <h3 className="text-lg font-semibold mb-3">
+                    <T k="settings.theme.title" variant="stacked" />
+                  </h3>
                   <p className="text-sm text-muted-foreground mb-4">
-                    選擇介面的明暗模式
+                    <T k="settings.theme.description" />
                   </p>
 
                   <div className="inline-flex gap-1 rounded-lg bg-base-200 p-1">
@@ -233,18 +241,27 @@ export const Settings = () => {
                           type="button"
                           onClick={() => setTheme(opt.id)}
                           aria-pressed={active}
-                          className={`inline-flex h-9 items-center gap-2 rounded-md px-4 text-sm font-medium transition-colors active:scale-[0.98] ${
+                          className={`inline-flex min-h-9 items-center gap-2 rounded-md px-4 py-1 text-sm font-medium transition-colors active:scale-[0.98] ${
                             active
                               ? "bg-base-100 text-accent shadow-soft"
                               : "text-muted-foreground hover:text-base-content"
                           }`}
                         >
                           <Icon className="size-4" strokeWidth={1.75} aria-hidden="true" />
-                          {opt.label}
+                          <T k={opt.label} variant="stacked" />
                         </button>
                       );
                     })}
                   </div>
+
+                  <h3 className="text-lg font-semibold mb-3 mt-8">
+                    <T k="settings.language.title" variant="stacked" />
+                  </h3>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    <T k="settings.language.description" />
+                  </p>
+
+                  <LanguagePicker />
                 </div>
               )}
 
@@ -253,9 +270,11 @@ export const Settings = () => {
                 <div className="space-y-6">
                   {/* TTS Mode Selection */}
                   <div>
-                    <h3 className="text-lg font-semibold mb-3">語音模式選擇</h3>
+                    <h3 className="text-lg font-semibold mb-3">
+                      <T k="settings.tts.title" variant="stacked" />
+                    </h3>
                     <p className="text-sm text-muted-foreground mb-4">
-                      選擇文字轉語音的服務
+                      <T k="settings.tts.description" />
                     </p>
 
                     <div className="space-y-3">
@@ -269,9 +288,11 @@ export const Settings = () => {
                           disabled={saving}
                         />
                         <div className="flex-1">
-                          <div className="font-medium">系統語音</div>
+                          <div className="font-medium">
+                            <T k="settings.tts.browser" variant="stacked" />
+                          </div>
                           <div className="text-sm text-muted-foreground">
-                            使用瀏覽器內建的語音引擎（推薦）
+                            <T k="settings.tts.browserDesc" />
                           </div>
                         </div>
                       </label>
@@ -286,9 +307,11 @@ export const Settings = () => {
                           disabled={saving}
                         />
                         <div className="flex-1">
-                          <div className="font-medium">AI 語音（Edge TTS）</div>
+                          <div className="font-medium">
+                            <T k="settings.tts.api" variant="stacked" />
+                          </div>
                           <div className="text-sm text-muted-foreground">
-                            微軟神經語音；需連網，可透過桌面 App 或雲端服務使用
+                            <T k="settings.tts.apiDesc" />
                           </div>
                         </div>
                       </label>
@@ -300,14 +323,18 @@ export const Settings = () => {
 
                   {/* Speech Rate Setting */}
                   <div>
-                    <h3 className="text-lg font-semibold mb-3">語速設定</h3>
+                    <h3 className="text-lg font-semibold mb-3">
+                      <T k="settings.rate.title" variant="stacked" />
+                    </h3>
                     <p className="text-sm text-muted-foreground mb-4">
-                      調整播放速度
+                      <T k="settings.rate.description" />
                     </p>
 
                     <div className="p-4 border border-border-hairline rounded-lg">
                       <div className="flex items-center gap-4">
-                        <span className="text-sm whitespace-nowrap">慢</span>
+                        <span className="text-sm whitespace-nowrap">
+                          <T k="settings.rate.slow" variant="stacked" />
+                        </span>
                         <input
                           type="range"
                           min={0.5}
@@ -320,7 +347,9 @@ export const Settings = () => {
                           className="range range-primary flex-1"
                           disabled={saving}
                         />
-                        <span className="text-sm whitespace-nowrap">快</span>
+                        <span className="text-sm whitespace-nowrap">
+                          <T k="settings.rate.fast" variant="stacked" />
+                        </span>
                         <span className="badge badge-primary min-w-[4rem] justify-center">
                           {speechRate.toFixed(1)}x
                         </span>
@@ -335,18 +364,20 @@ export const Settings = () => {
                 <div className="space-y-6">
                   {/* 運算後端 / 連線模式 */}
                   <div>
-                    <h3 className="text-lg font-semibold mb-3">運算後端</h3>
+                    <h3 className="text-lg font-semibold mb-3">
+                      <T k="settings.compute.title" variant="stacked" />
+                    </h3>
                     <p className="text-sm text-muted-foreground mb-4">
-                      選擇 AI 語音、網址抓檔與課程紀錄要走本機桌面 App、自動，或只用雲端
+                      <T k="settings.compute.description" />
                     </p>
 
                     <div className="space-y-3">
                       {(
                         [
-                          { id: "auto", name: "自動", desc: "偵測到本機桌面 App 就用本機，否則用雲端（推薦）" },
-                          { id: "local", name: "只用本機", desc: "強制使用本機桌面 App；未啟動時會顯示錯誤，不退雲端" },
-                          { id: "cloud", name: "只用雲端", desc: "永遠使用雲端服務，不偵測本機" },
-                        ] as { id: ComputeMode; name: string; desc: string }[]
+                          { id: "auto", name: "settings.compute.auto", desc: "settings.compute.autoDesc" },
+                          { id: "local", name: "settings.compute.local", desc: "settings.compute.localDesc" },
+                          { id: "cloud", name: "settings.compute.cloud", desc: "settings.compute.cloudDesc" },
+                        ] as { id: ComputeMode; name: MessageKey; desc: MessageKey }[]
                       ).map((opt) => (
                         <label
                           key={opt.id}
@@ -361,8 +392,12 @@ export const Settings = () => {
                             disabled={redetecting}
                           />
                           <div className="flex-1">
-                            <div className="font-medium">{opt.name}</div>
-                            <div className="text-sm text-muted-foreground">{opt.desc}</div>
+                            <div className="font-medium">
+                              <T k={opt.name} variant="stacked" />
+                            </div>
+                            <div className="text-sm text-muted-foreground">
+                              <T k={opt.desc} />
+                            </div>
                           </div>
                         </label>
                       ))}
@@ -371,11 +406,19 @@ export const Settings = () => {
                     {computeMode !== "cloud" && (
                       <div className="mt-3 flex items-center gap-3 border-l-2 border-border-hairline pl-4">
                         <span className="text-sm text-base-content/70">
-                          目前使用：
-                          {computeStatus.usingLocal ? "本機 sidecar" : "雲端"}
-                          {computeMode === "local" && computeStatus.localReachable === false
-                            ? "（本機未連線）"
-                            : ""}
+                          <T
+                            k="settings.compute.current"
+                            params={{
+                              backend: t(
+                                computeStatus.usingLocal
+                                  ? "settings.compute.usingLocal"
+                                  : "settings.compute.usingCloud",
+                              ),
+                            }}
+                          />
+                          {computeMode === "local" && computeStatus.localReachable === false ? (
+                            <T k="settings.compute.unreachable" />
+                          ) : null}
                         </span>
                         <button
                           type="button"
@@ -383,7 +426,10 @@ export const Settings = () => {
                           onClick={handleRedetect}
                           disabled={redetecting}
                         >
-                          {redetecting ? "偵測中…" : "重新偵測"}
+                          <T
+                            k={redetecting ? "settings.compute.detecting" : "settings.compute.redetect"}
+                            variant="stacked"
+                          />
                         </button>
                       </div>
                     )}
@@ -394,9 +440,11 @@ export const Settings = () => {
               {/* Game Settings */}
               {activeCategory === "game" && (
                 <div>
-                  <h3 className="text-lg font-semibold mb-3">🎮 遊戲設定</h3>
+                  <h3 className="text-lg font-semibold mb-3">
+                    🎮 <T k="settings.game.title" variant="stacked" />
+                  </h3>
                   <p className="text-sm text-muted-foreground mb-4">
-                    管理遊戲偏好與進度
+                    <T k="settings.game.description" />
                   </p>
 
                   <div className="space-y-4">
@@ -411,12 +459,14 @@ export const Settings = () => {
                             />
                           </span>
                           <span className="min-w-0">
-                            <span className="block font-medium">空膠囊機率</span>
+                            <span className="block font-medium">
+                              <T k="settings.game.missRate" variant="stacked" />
+                            </span>
                             <span
                               id="gacha-miss-rate-description"
                               className="mt-1 block text-sm leading-5 text-muted-foreground"
                             >
-                              儲存在這台裝置，下一次轉動扭蛋機把手時套用。
+                              <T k="settings.game.missRateDesc" />
                             </span>
                           </span>
                         </div>
@@ -438,13 +488,17 @@ export const Settings = () => {
                           updateGachaMissRatePercent(Number(event.target.value))
                         }
                         className="range range-primary mt-4 w-full"
-                        aria-label="空膠囊機率"
+                        aria-label={t("settings.game.missRate")}
                         aria-describedby="gacha-miss-rate-description"
                         aria-valuetext={`${gachaMissRatePercent}%`}
                       />
                       <div className="mt-2 flex justify-between text-[11px] font-medium text-muted-foreground">
-                        <span>0%（必得角色）</span>
-                        <span>100%（必定為空）</span>
+                        <span>
+                          <T k="settings.game.missRateMin" />
+                        </span>
+                        <span>
+                          <T k="settings.game.missRateMax" />
+                        </span>
                       </div>
                     </div>
 
@@ -459,13 +513,13 @@ export const Settings = () => {
                         </span>
                         <span className="min-w-0">
                           <span className="block font-medium">
-                            開啟全部扭蛋圖鑑
+                            <T k="settings.game.showAll" variant="stacked" />
                           </span>
                           <span
                             id="show-all-gacha-description"
                             className="mt-1 block text-sm leading-5 text-muted-foreground"
                           >
-                            可查看所有角色圖片，不會更改抽取紀錄或實際收集進度。此設定只儲存在這台裝置。
+                            <T k="settings.game.showAllDesc" />
                           </span>
                         </span>
                       </span>
@@ -483,9 +537,11 @@ export const Settings = () => {
                     <div className="p-4 border border-error/30 rounded-lg bg-error/5">
                       <div className="flex items-center justify-between">
                         <div>
-                          <div className="font-medium text-error">重置遊戲進度</div>
+                          <div className="font-medium text-error">
+                            <T k="settings.game.reset" variant="stacked" />
+                          </div>
                           <div className="text-sm text-muted-foreground">
-                            清除所有關卡進度、等級和扭蛋代幣（生詞本不受影響）
+                            <T k="settings.game.resetDesc" />
                           </div>
                         </div>
                         <button
@@ -494,7 +550,7 @@ export const Settings = () => {
                           onClick={() => setShowResetModal(true)}
                           disabled={!user}
                         >
-                          重置
+                          <T k="settings.game.resetButton" variant="stacked" />
                         </button>
                       </div>
                     </div>
@@ -518,21 +574,28 @@ export const Settings = () => {
         >
           <div className="flex items-center gap-3 rounded-xl border border-border-hairline bg-background/80 px-4 py-3 shadow-floating backdrop-blur-md">
             <span className="loading loading-spinner loading-sm" />
-            <span className="text-sm font-medium">儲存中...</span>
+            <span className="text-sm font-medium">
+              <T k="settings.saving" variant="stacked" />
+            </span>
           </div>
         </div>
       ) : saveSuccess ? (
-        <Toast message="✓ 設定已儲存" onClose={() => setSaveSuccess(false)} />
+        <Toast
+          message={<>✓ <T k="settings.saved" variant="stacked" /></>}
+          onClose={() => setSaveSuccess(false)}
+        />
       ) : resetSuccess ? (
-        <Toast message="遊戲進度已重置" onClose={() => setResetSuccess(false)} />
+        <Toast
+          message={<T k="settings.game.resetDone" variant="stacked" />}
+          onClose={() => setResetSuccess(false)}
+        />
       ) : null}
 
       <ConfirmModal
         isOpen={showResetModal}
-        title="確定要重置遊戲進度？"
-        message="這將清除所有關卡進度、等級和扭蛋代幣。此操作無法復原，但生詞本不會受到影響。"
-        confirmText="重置"
-        cancelText="取消"
+        title={<T k="settings.game.resetConfirmTitle" variant="stacked" />}
+        message={<T k="settings.game.resetConfirmMessage" />}
+        confirmText={<T k="settings.game.resetButton" variant="stacked" />}
         confirmVariant="error"
         isLoading={resetting}
         onConfirm={handleResetGameProgress}

@@ -1,4 +1,5 @@
 import { Volume2 } from "lucide-react";
+import { useLanguage } from "../../hooks/useLanguage";
 
 interface SpeakerButtonProps {
   /** 要朗讀的文字 */
@@ -11,6 +12,7 @@ interface SpeakerButtonProps {
 
 /** 點一下就用 TTS 朗讀指定文字的小喇叭按鈕 */
 export function SpeakerButton({ text, speak, label, className }: SpeakerButtonProps) {
+  const { t } = useLanguage();
   return (
     <button
       type="button"
@@ -19,7 +21,7 @@ export function SpeakerButton({ text, speak, label, className }: SpeakerButtonPr
         e.stopPropagation();
         speak(text);
       }}
-      aria-label={label ?? `播放：${text}`}
+      aria-label={label ?? t("speak.playText", { text })}
     >
       <Volume2 className="w-5 h-5" />
     </button>

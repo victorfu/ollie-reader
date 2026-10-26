@@ -1,13 +1,14 @@
-import { useEffect, useId, useRef } from "react";
+import { useEffect, useId, useRef, type ReactNode } from "react";
+import { T } from "./T";
 
 interface ConfirmModalProps {
   isOpen: boolean;
-  title: string;
-  message: string;
+  title: ReactNode;
+  message: ReactNode;
   onConfirm: () => void;
   onCancel: () => void;
-  confirmText?: string;
-  cancelText?: string;
+  confirmText?: ReactNode;
+  cancelText?: ReactNode;
   confirmVariant?: "primary" | "error" | "warning";
   isLoading?: boolean;
   errorMessage?: string | null;
@@ -20,8 +21,8 @@ export function ConfirmModal({
   message,
   onConfirm,
   onCancel,
-  confirmText = "確認",
-  cancelText = "取消",
+  confirmText = <T k="common.confirm" variant="stacked" />,
+  cancelText = <T k="common.cancel" variant="stacked" />,
   confirmVariant = "error",
   isLoading = false,
   errorMessage = null,
@@ -92,7 +93,7 @@ export function ConfirmModal({
             {isLoading ? (
               <>
                 <span className="loading loading-spinner loading-sm" />
-                處理中…
+                <T k="common.processing" variant="stacked" />
               </>
             ) : (
               confirmText

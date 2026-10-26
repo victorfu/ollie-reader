@@ -7,6 +7,9 @@ import { createCompanionRuntime } from "./logic/companionRuntime";
 import type { CompanionOutfit } from "../../../types/companion";
 import { previewAccessory } from "./logic/outfit";
 import { CompanionPanel } from "./CompanionPanel";
+import { useLanguage } from "../../../hooks/useLanguage";
+import type { MessageKey } from "../../../i18n/translate";
+import { T } from "../../common/T";
 
 // three.js only downloads once the device is known to support WebGL.
 const CompanionScene = lazyWithReload(() => import("./CompanionScene"));
@@ -37,7 +40,7 @@ function Loading() {
       className="absolute inset-0 flex items-center justify-center gap-2 text-sm font-medium text-sky-900"
     >
       <span className="loading loading-spinner loading-sm" />
-      大耳狗準備中…
+      <T k="gacha.companion.loading" />
     </div>
   );
 }
@@ -47,7 +50,7 @@ function Notice({
   children,
   action,
 }: {
-  title: string;
+  title: MessageKey;
   children: ReactNode;
   action?: ReactNode;
 }) {
@@ -55,7 +58,7 @@ function Notice({
     <div className="absolute inset-0 flex items-center justify-center p-6">
       <div className="max-w-sm rounded-[16px] border border-white/70 bg-white/85 p-6 text-center shadow-lg backdrop-blur-md">
         <p className="text-4xl" aria-hidden="true">☁️</p>
-        <h2 className="mt-3 text-lg font-semibold text-sky-950">{title}</h2>
+        <h2 className="mt-3 text-lg font-semibold text-sky-950"><T k={title} variant="stacked" /></h2>
         <p className="mt-2 text-sm leading-6 text-slate-600">{children}</p>
         {action ? <div className="mt-5 flex justify-center">{action}</div> : null}
       </div>
@@ -74,6 +77,7 @@ export default function CompanionPage({ onExit }: { onExit: () => void }) {
   const [outfit, setOutfit] = useState<CompanionOutfit>({});
   const reducedMotion = Boolean(useReducedMotion());
   const hidden = usePageHidden();
+  const { t } = useLanguage();
 
   useEffect(() => {
     if (!import.meta.env.DEV) return;
@@ -98,7 +102,7 @@ export default function CompanionPage({ onExit }: { onExit: () => void }) {
       className="inline-flex min-h-11 items-center gap-1.5 rounded-full border border-white/70 bg-white/80 px-4 text-sm font-medium text-sky-950 shadow-sm backdrop-blur-md transition-colors hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
     >
       <ArrowLeft className="size-4" aria-hidden="true" />
-      返回
+      <T k="gacha.companion.back" variant="stacked" />
     </button>
   );
 
@@ -108,8 +112,8 @@ export default function CompanionPage({ onExit }: { onExit: () => void }) {
         <div className={panel ? "absolute inset-x-0 top-0 bottom-[45dvh]" : "absolute inset-0"}>
           <ErrorBoundary
             fallback={
-              <Notice title="大耳狗暫時出不來" action={backButton}>
-                3D 畫面載入失敗，請稍後再試一次。
+              <Notice title="gacha.companion.loadFailedTitle" action={backButton}>
+                <T k="gacha.companion.loadFailedBody" />
               </Notice>
             }
           >
@@ -130,14 +134,14 @@ export default function CompanionPage({ onExit }: { onExit: () => void }) {
       ) : null}
 
       {!webGL ? (
-        <Notice title="這台裝置無法顯示 3D 畫面" action={backButton}>
-          瀏覽器沒有開啟 WebGL，換一個瀏覽器或裝置就能和大耳狗玩了。
+        <Notice title="gacha.companion.noWebglTitle" action={backButton}>
+          <T k="gacha.companion.noWebglBody" />
         </Notice>
       ) : null}
 
       {contextLost ? (
         <Notice
-          title="3D 畫面中斷了"
+          title="gacha.companion.contextLostTitle"
           action={
             <button
               type="button"
@@ -149,11 +153,11 @@ export default function CompanionPage({ onExit }: { onExit: () => void }) {
               className="btn btn-primary min-h-11 rounded-full px-5"
             >
               <RotateCcw className="size-4" aria-hidden="true" />
-              重新載入
+              <T k="gacha.companion.reload" variant="stacked" />
             </button>
           }
         >
-          顯示卡暫時休息了一下，重新載入就好。
+          <T k="gacha.companion.contextLostBody" />
         </Notice>
       ) : null}
 
@@ -161,7 +165,7 @@ export default function CompanionPage({ onExit }: { onExit: () => void }) {
         <div className="pointer-events-auto">{backButton}</div>
         <div className="pointer-events-auto relative flex items-center gap-2">
           <span className="rounded-full bg-white/60 px-3 py-1 text-xs font-medium text-sky-900 backdrop-blur-md">
-            大耳狗 3D 夥伴
+            <T k="gacha.companion.badge" />
           </span>
           <button
             type="button"
@@ -170,12 +174,12 @@ export default function CompanionPage({ onExit }: { onExit: () => void }) {
             className="inline-flex size-11 items-center justify-center rounded-full border border-white/70 bg-white/80 text-sky-950 shadow-sm backdrop-blur-md transition-colors hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
           >
             <Info className="size-4" aria-hidden="true" />
-            <span className="sr-only">模型出處</span>
+            <span className="sr-only">{t("gacha.companion.credit")}</span>
           </button>
           {/* Required attribution for the CC BY 4.0 model, one tap away. */}
           {showCredit ? (
             <p className="absolute right-0 top-full mt-2 w-64 rounded-[12px] border border-white/70 bg-white/90 p-3 text-xs leading-5 text-sky-900 shadow-lg backdrop-blur-md">
-              3D 模型：
+              {t("gacha.companion.creditPrefix")}
               <a
                 href="https://sketchfab.com/3d-models/cinnamoroll-eae98497b99f47b8897c4ffd06521e31"
                 target="_blank"
@@ -193,7 +197,7 @@ export default function CompanionPage({ onExit }: { onExit: () => void }) {
               >
                 fukkacumy
               </a>
-              ，
+              {t("gacha.companion.creditSeparator")}
               <a
                 href="http://creativecommons.org/licenses/by/4.0/"
                 target="_blank"
@@ -213,18 +217,18 @@ export default function CompanionPage({ onExit }: { onExit: () => void }) {
             aria-live="polite"
             className="rounded-full bg-white/75 px-4 py-2 text-sm font-medium text-sky-900 shadow-sm backdrop-blur-md"
           >
-            拖曳轉一圈，點頭、耳朵、肚子或手一起玩
+            <T k="gacha.companion.hint" />
           </p>
           <div className="flex flex-wrap items-center justify-center gap-2">
-            <button type="button" className="btn min-h-11 pointer-events-auto rounded-full" onClick={() => setPanel("actions")}>動作</button>
-            <button type="button" className="btn min-h-11 pointer-events-auto rounded-full" onClick={() => setPanel("outfit")}>換裝</button>
+            <button type="button" className="btn min-h-11 pointer-events-auto rounded-full" onClick={() => setPanel("actions")}><T k="gacha.companion.actions" variant="stacked" /></button>
+            <button type="button" className="btn min-h-11 pointer-events-auto rounded-full" onClick={() => setPanel("outfit")}><T k="gacha.companion.outfit" variant="stacked" /></button>
             <button
               type="button"
               onClick={() => runtime.resetView()}
               className="pointer-events-auto inline-flex min-h-11 items-center gap-1.5 rounded-full border border-white/70 bg-white/80 px-4 text-sm font-medium text-sky-950 shadow-sm backdrop-blur-md transition-colors hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 active:scale-[0.98]"
             >
               <RotateCcw className="size-4" aria-hidden="true" />
-              回正
+              <T k="gacha.companion.resetView" variant="stacked" />
             </button>
           </div>
         </footer>

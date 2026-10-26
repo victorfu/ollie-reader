@@ -5,6 +5,8 @@ import type { QuizState, Stage } from "../../types/game";
 import { SceneBackground } from "./SceneBackground";
 import { QuizCard } from "./QuizCard";
 import { useSpeechState } from "../../hooks/useSpeechState";
+import { useLanguage } from "../../hooks/useLanguage";
+import { T } from "../common/T";
 
 interface QuizGameProps {
   stage: Stage;
@@ -32,6 +34,7 @@ export function QuizGame({
     ((quizState.currentIndex + 1) / quizState.questions.length) * 100;
 
   const { speak } = useSpeechState();
+  const { t } = useLanguage();
 
   // 推進後就會結算：沒命了，或已是最後一題
   const isLastStep =
@@ -58,7 +61,7 @@ export function QuizGame({
             className="btn btn-ghost btn-sm glass gap-1 rounded-full active:scale-[0.98]"
           >
             <X className="h-4 w-4" strokeWidth={2} aria-hidden="true" />
-            離開
+            <T k="adventure.quiz.quit" variant="stacked" />
           </button>
 
           <div className="flex items-center gap-2 sm:gap-4">
@@ -95,13 +98,13 @@ export function QuizGame({
                 className="badge badge-warning badge-md sm:badge-lg gap-1 font-bold text-white shadow-lg"
               >
                 <Flame className="h-4 w-4" strokeWidth={2} aria-hidden="true" />
-                {quizState.combo} 連擊
+                {t("adventure.quiz.combo", { count: quizState.combo })}
               </motion.div>
             )}
 
             {/* 分數 */}
             <div className="badge badge-primary badge-md sm:badge-lg shadow-lg">
-              {quizState.score} 分
+              {t("adventure.quiz.score", { score: quizState.score })}
             </div>
           </div>
         </div>
@@ -149,7 +152,7 @@ export function QuizGame({
               strokeWidth={2}
               aria-hidden="true"
             />
-            選項題可用數字鍵 1-4 作答，答錯後按 Enter 繼續
+            <T k="adventure.quiz.keyboardHint" />
           </p>
         </div>
       </div>

@@ -2,6 +2,8 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Check, RotateCcw } from "lucide-react";
 import { playSound } from "../../services/gameService";
+import { useLanguage } from "../../hooks/useLanguage";
+import { T } from "../common/T";
 
 interface SpellChipsProps {
   letters: string[]; // 已打散的字母（槽數 = 字母數）
@@ -14,6 +16,7 @@ interface SpellChipsProps {
  * 用字母的 index 追蹤（避免重複字母混淆），每題由父層 key 重新掛載即自動重置。
  */
 export function SpellChips({ letters, disabled, onSubmit }: SpellChipsProps) {
+  const { t } = useLanguage();
   const [chosen, setChosen] = useState<number[]>([]);
   const chosenSet = new Set(chosen);
   const attempt = chosen.map((i) => letters[i]).join("");
@@ -53,7 +56,11 @@ export function SpellChips({ letters, disabled, onSubmit }: SpellChipsProps) {
                   ? "border-primary bg-primary/10 text-primary active:scale-95"
                   : "border-dashed border-base-300 bg-base-100/40 text-transparent"
               }`}
-              aria-label={filled ? `移除字母 ${letters[idx]}` : "空格"}
+              aria-label={
+                filled
+                  ? t("adventure.spell.remove", { letter: letters[idx] })
+                  : t("adventure.spell.empty")
+              }
             >
               {filled ? letters[idx] : "·"}
             </button>
@@ -93,14 +100,14 @@ export function SpellChips({ letters, disabled, onSubmit }: SpellChipsProps) {
             className="btn btn-ghost btn-sm gap-1 rounded-full min-h-11 px-5 disabled:opacity-40"
           >
             <RotateCcw className="h-4 w-4" strokeWidth={2} aria-hidden="true" />
-            清除
+            <T k="adventure.spell.clear" variant="stacked" />
           </button>
           <button
             onClick={() => onSubmit(attempt)}
             disabled={!isFull}
             className="btn btn-primary btn-sm gap-1 rounded-full min-h-11 px-6 disabled:opacity-40 active:scale-[0.98]"
           >
-            完成
+            <T k="adventure.spell.done" variant="stacked" />
             <Check className="h-4 w-4" strokeWidth={2.5} aria-hidden="true" />
           </button>
         </div>

@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useRef, useState, type ReactNode } from "react";
 import type { SpeechPracticeTopic } from "../../types/speechPractice";
 import { useSpeechPractice } from "../../hooks/useSpeechPractice";
 import { useAudioRecorder } from "../../hooks/useAudioRecorder";
@@ -10,10 +10,13 @@ import { PracticeHistory } from "./PracticeHistory";
 import { ScriptGeneratorModal } from "./ScriptGeneratorModal";
 import { Toast } from "../common/Toast";
 import { ConfirmModal } from "../common/ConfirmModal";
+import { T } from "../common/T";
+import { useLanguage } from "../../hooks/useLanguage";
 
 type ViewMode = "select" | "practice" | "history";
 
 export function SpeechPractice() {
+  const { t } = useLanguage();
   const [viewMode, setViewMode] = useState<ViewMode>("select");
   const [selectedTopic, setSelectedTopic] =
     useState<SpeechPracticeTopic | null>(null);
@@ -23,7 +26,7 @@ export function SpeechPractice() {
   const [isScriptExpanded, setIsScriptExpanded] = useState(true);
   const [toastQueue, setToastQueue] = useState<{
     id: number;
-    message: string;
+    message: ReactNode;
     type: "success" | "error" | "info";
   }[]>([]);
   const nextToastIdRef = useRef(0);
@@ -107,7 +110,7 @@ export function SpeechPractice() {
 
         if (result.success) {
           enqueueToast({
-            message: "講稿已儲存",
+            message: <T k="listening.speech.msg.scriptSaved" variant="stacked" />,
             type: "success",
           });
           return true;
@@ -202,7 +205,12 @@ export function SpeechPractice() {
       scriptGenerator.resetState();
     } else {
       enqueueToast({
-        message: `「${selectedTopic.titleChinese}」：${result.message}`,
+        message: (
+          <T
+            k="listening.speech.saveFailedFor"
+            params={{ topic: selectedTopic.titleChinese, message: result.message }}
+          />
+        ),
         type: "error",
       });
     }
@@ -264,10 +272,10 @@ export function SpeechPractice() {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight flex items-center gap-2">
-              🎤 演講練習
+              🎤 <T k="listening.speech.title" variant="stacked" />
             </h1>
             <p className="text-muted-foreground mt-1">
-              選擇主題、計時練習、錄音回放，追蹤你的進步
+              <T k="listening.speech.subtitle" />
             </p>
           </div>
 
@@ -285,7 +293,7 @@ export function SpeechPractice() {
               }}
               disabled={timer.isRunning}
             >
-              主題選擇
+              <T k="listening.speech.tabTopics" variant="stacked" />
             </button>
             <button
               type="button"
@@ -299,7 +307,7 @@ export function SpeechPractice() {
               }}
               disabled={timer.isRunning}
             >
-              練習記錄
+              <T k="listening.speech.tabHistory" variant="stacked" />
             </button>
           </div>
         </div>
@@ -329,7 +337,10 @@ export function SpeechPractice() {
                   {selectedTopic.titleChinese}
                 </h2>
                 <p className="text-sm text-muted-foreground">
-                  建議 {formatTime(selectedTopic.suggestedTimeSeconds)}
+                  <T
+                    k="listening.speech.suggested"
+                    params={{ time: formatTime(selectedTopic.suggestedTimeSeconds) }}
+                  />
                 </p>
               </div>
 
@@ -353,7 +364,11 @@ export function SpeechPractice() {
                       }`}
                     />
                     <span className="text-sm font-medium text-error">
-                      {recorder.isPaused ? "錄音暫停" : "錄音中"}
+                      {recorder.isPaused ? (
+                        <T k="listening.speech.recordingPaused" />
+                      ) : (
+                        <T k="listening.speech.recording" />
+                      )}
                     </span>
                   </div>
                 </div>
@@ -377,9 +392,9 @@ export function SpeechPractice() {
                     onChange={(e) => setIsScriptExpanded(e.target.checked)}
                   />
                   <div className="collapse-title font-medium flex items-center gap-2">
-                    📄 參考講稿
+                    📄 <T k="listening.speech.referenceScript" variant="stacked" />
                     <span className="badge badge-sm badge-ghost">
-                      {script.length} 字
+                      <T k="listening.charCount" params={{ count: script.length }} />
                     </span>
                   </div>
                   <div className="collapse-content">
@@ -404,21 +419,23 @@ export function SpeechPractice() {
                     >
                       <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
                     </svg>
-                    <span className="font-medium">練習完成！</span>
+                    <span className="font-medium">
+                      <T k="listening.speech.done" />
+                    </span>
                   </div>
 
                   {/* Audio Playback */}
                   {recorder.audioUrl && (
                     <div className="space-y-2">
                       <h3 className="text-sm font-semibold flex items-center gap-2">
-                        🎧 回放錄音
+                        🎧 <T k="listening.speech.playback" variant="stacked" />
                       </h3>
                       <audio
                         controls
                         className="w-full h-10"
                         src={recorder.audioUrl}
                       >
-                        您的瀏覽器不支援音訊播放
+                        {t("listening.audioUnsupported")}
                       </audio>
                     </div>
                   )}
@@ -429,12 +446,12 @@ export function SpeechPractice() {
                       htmlFor="practice-notes"
                       className="block text-sm font-medium mb-2"
                     >
-                      練習筆記（選填）
+                      <T k="listening.speech.notesLabel" />
                     </label>
                     <textarea
                       id="practice-notes"
                       className="textarea textarea-bordered w-full"
-                      placeholder="記錄這次練習的心得、需要改進的地方..."
+                      placeholder={t("listening.speech.notesPlaceholder")}
                       value={notes}
                       onChange={(e) => setNotes(e.target.value)}
                       rows={3}
@@ -452,15 +469,15 @@ export function SpeechPractice() {
                       {recorder.isFinalizing ? (
                         <>
                           <span className="loading loading-spinner loading-sm" />
-                          處理錄音中...
+                          <T k="listening.speech.processingRecording" variant="stacked" />
                         </>
                       ) : isSaving ? (
                         <>
                           <span className="loading loading-spinner loading-sm" />
-                          儲存中...
+                          <T k="listening.saving" variant="stacked" />
                         </>
                       ) : (
-                        "儲存練習記錄"
+                        <T k="listening.speech.saveRecord" variant="stacked" />
                       )}
                     </button>
                     <button
@@ -469,7 +486,7 @@ export function SpeechPractice() {
                       onClick={handleCancelPractice}
                       disabled={isSaving}
                     >
-                      放棄並返回
+                      <T k="listening.speech.discard" variant="stacked" />
                     </button>
                   </div>
                 </div>
@@ -516,7 +533,7 @@ export function SpeechPractice() {
                       >
                         <path d="M19 12H5M12 19l-7-7 7-7" />
                       </svg>
-                      返回
+                      <T k="listening.speech.back" variant="stacked" />
                     </button>
                     <button
                       type="button"
@@ -535,10 +552,10 @@ export function SpeechPractice() {
                       {recorder.isStarting ? (
                         <>
                           <span className="loading loading-spinner loading-sm" />
-                          啟動麥克風中...
+                          <T k="listening.speech.startingMic" variant="stacked" />
                         </>
                       ) : (
-                        "開始練習"
+                        <T k="listening.speech.start" variant="stacked" />
                       )}
                     </button>
                     <div className="w-16" /> {/* Spacer for balance */}
@@ -554,7 +571,8 @@ export function SpeechPractice() {
                         type="button"
                         className="btn btn-circle btn-primary btn-lg active:scale-[0.98]"
                         onClick={handleResume}
-                        title="繼續"
+                        title={t("listening.speech.resume")}
+                        aria-label={t("listening.speech.resume")}
                       >
                         <svg
                           xmlns="http://www.w3.org/2000/svg"
@@ -570,7 +588,8 @@ export function SpeechPractice() {
                         type="button"
                         className="btn btn-circle btn-warning btn-lg active:scale-[0.98]"
                         onClick={handlePause}
-                        title="暫停"
+                        title={t("listening.pause")}
+                        aria-label={t("listening.pause")}
                       >
                         <svg
                           xmlns="http://www.w3.org/2000/svg"
@@ -611,7 +630,8 @@ export function SpeechPractice() {
                       type="button"
                       className="btn btn-circle btn-error btn-lg active:scale-[0.98]"
                       onClick={handleStop}
-                      title="結束練習"
+                      title={t("listening.speech.finish")}
+                      aria-label={t("listening.speech.finish")}
                     >
                       <svg
                         xmlns="http://www.w3.org/2000/svg"
@@ -632,7 +652,7 @@ export function SpeechPractice() {
                 recorder.isSupported &&
                 !recorder.error && (
                 <p className="text-center text-xs text-muted-foreground mt-2">
-                  🎙️ 開始練習將自動錄音
+                  🎙️ <T k="listening.speech.autoRecord" />
                 </p>
               )}
             </div>
@@ -642,12 +662,12 @@ export function SpeechPractice() {
       {/* Delete Confirmation Modal */}
       <ConfirmModal
         isOpen={deleteRecordId !== null}
-        title="刪除練習記錄"
-        message="確定要刪除這筆練習記錄嗎？此操作無法復原。"
+        title={<T k="listening.speech.deleteTitle" variant="stacked" />}
+        message={<T k="listening.speech.deleteMessage" />}
         onConfirm={confirmDelete}
         onCancel={cancelDelete}
-        confirmText="刪除"
-        cancelText="取消"
+        confirmText={<T k="listening.delete" variant="stacked" />}
+        cancelText={<T k="common.cancel" variant="stacked" />}
         confirmVariant="error"
         isLoading={isDeleting}
       />

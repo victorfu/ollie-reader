@@ -6,6 +6,7 @@ import {
   useRef,
 } from "react";
 import { useAuth } from "./useAuth";
+import { useLanguage } from "./useLanguage";
 import type { PracticeRecord, PracticeFilters } from "../types/speechPractice";
 import {
   addPracticeRecord,
@@ -45,6 +46,7 @@ function newAudioOperationId(): string {
 
 export function useSpeechPractice() {
   const { user } = useAuth();
+  const { t } = useLanguage();
   const uid = user?.uid;
   const [records, setRecords] = useState<PracticeRecord[]>([]);
   const [loading, setLoading] = useState(false);
@@ -254,7 +256,7 @@ export function useSpeechPractice() {
     ): Promise<{ success: boolean; message: string }> => {
       const operationUid = uid;
       if (!operationUid || activeUidRef.current !== operationUid) {
-        return { success: false, message: "請先登入" };
+        return { success: false, message: t("listening.signInFirst") };
       }
       const isOwnerActive = captureOwnerGuard(operationUid);
 
@@ -271,13 +273,13 @@ export function useSpeechPractice() {
           });
         }
 
-        return { success: true, message: "講稿已儲存" };
+        return { success: true, message: t("listening.speech.msg.scriptSaved") };
       } catch (err) {
         console.error("Failed to save script:", err);
-        return { success: false, message: "儲存講稿失敗" };
+        return { success: false, message: t("listening.speech.msg.scriptSaveFailed") };
       }
     },
-    [captureOwnerGuard, uid],
+    [captureOwnerGuard, uid, t],
   );
 
   const loadScript = useCallback(
@@ -305,7 +307,7 @@ export function useSpeechPractice() {
     ): Promise<{ success: boolean; message: string; recordId?: string }> => {
       const operationUid = uid;
       if (!operationUid || activeUidRef.current !== operationUid) {
-        return { success: false, message: "請先登入" };
+        return { success: false, message: t("listening.signInFirst") };
       }
       const isOwnerActive = captureOwnerGuard(operationUid);
 
@@ -313,11 +315,9 @@ export function useSpeechPractice() {
       if (audioBlob && audioBlob.size > MAX_AUDIO_SIZE_BYTES) {
         return {
           success: false,
-          message: `錄音檔案過大，最大允許 10MB，目前大小 ${(
-            audioBlob.size /
-            1024 /
-            1024
-          ).toFixed(2)}MB`,
+          message: t("listening.speech.msg.recordingTooLarge", {
+            size: (audioBlob.size / 1024 / 1024).toFixed(2),
+          }),
         };
       }
 
@@ -334,7 +334,7 @@ export function useSpeechPractice() {
           if (!isOwnerActive()) {
             return {
               success: true,
-              message: "練習記錄已儲存，但錄音未能儲存",
+              message: t("listening.speech.msg.savedWithoutRecording"),
               recordId,
             };
           }
@@ -505,7 +505,7 @@ export function useSpeechPractice() {
             }
             return {
               success: true,
-              message: "練習記錄已儲存，但錄音未能儲存",
+              message: t("listening.speech.msg.savedWithoutRecording"),
               recordId,
             };
           }
@@ -515,13 +515,13 @@ export function useSpeechPractice() {
         await loadRecords(recordsFiltersRef.current);
         await loadTopicCounts();
 
-        return { success: true, message: "練習記錄已儲存", recordId };
+        return { success: true, message: t("listening.speech.msg.saved"), recordId };
       } catch (err) {
         console.error("Failed to save practice record:", err);
-        return { success: false, message: "儲存練習記錄失敗" };
+        return { success: false, message: t("listening.speech.msg.saveFailed") };
       }
     },
-    [captureOwnerGuard, uid, loadRecords, loadTopicCounts],
+    [captureOwnerGuard, uid, loadRecords, loadTopicCounts, t],
   );
 
   const deleteRecord = useCallback(
@@ -530,7 +530,7 @@ export function useSpeechPractice() {
     ): Promise<{ success: boolean; message: string }> => {
       const operationUid = uid;
       if (!operationUid || activeUidRef.current !== operationUid) {
-        return { success: false, message: "請先登入" };
+        return { success: false, message: t("listening.signInFirst") };
       }
       const isOwnerActive = captureOwnerGuard(operationUid);
 
@@ -542,13 +542,13 @@ export function useSpeechPractice() {
         }
         await loadTopicCounts();
 
-        return { success: true, message: "練習記錄已刪除" };
+        return { success: true, message: t("listening.speech.msg.deleted") };
       } catch (err) {
         console.error("Failed to delete practice record:", err);
-        return { success: false, message: "刪除練習記錄失敗" };
+        return { success: false, message: t("listening.speech.msg.deleteFailed") };
       }
     },
-    [captureOwnerGuard, uid, loadTopicCounts],
+    [captureOwnerGuard, uid, loadTopicCounts, t],
   );
 
   // Reset account-owned state before loading the next account. Returning only

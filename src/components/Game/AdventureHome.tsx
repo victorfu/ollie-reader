@@ -6,6 +6,8 @@ import { getGameTabTargetName } from "../../utils/gameTabs";
 import { AchievementsPanel } from "./AchievementsPanel";
 import { ACHIEVEMENTS } from "../../constants/achievements";
 import { getAdventureLevelProgress } from "./adventureLevelProgress";
+import { T } from "../common/T";
+import type { MessageKey } from "../../i18n/translate";
 
 interface AdventureHomeProps {
   progress: PlayerProgress;
@@ -14,9 +16,9 @@ interface AdventureHomeProps {
   onStartAdventure: () => void;
 }
 
-const DEF_LANGUAGE_OPTIONS: { value: DefLanguage; label: string }[] = [
-  { value: "zh", label: "中文" },
-  { value: "en", label: "英文" },
+const DEF_LANGUAGE_OPTIONS: { value: DefLanguage; label: MessageKey }[] = [
+  { value: "zh", label: "adventure.home.defLanguage.zh" },
+  { value: "en", label: "adventure.home.defLanguage.en" },
 ];
 
 export function AdventureHome({
@@ -88,19 +90,21 @@ export function AdventureHome({
         <div className="card-body items-center text-center">
           {/* 標題 */}
           <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
-            ✨ 單字大冒險 ✨
+            ✨ <T k="adventure.home.title" variant="stacked" /> ✨
           </h1>
           <p className="text-muted-foreground text-sm">
-            闖關答題賺扭蛋代幣，去扭蛋機收集人氣角色！
+            <T k="adventure.home.subtitle" />
           </p>
 
           {/* 玩家資訊 */}
           <div className="w-full mt-4 p-4 bg-base-200/60 rounded-xl border border-border-hairline">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-medium">等級 {progress.level}</span>
+              <span className="text-sm font-medium">
+                <T k="adventure.home.level" params={{ level: progress.level }} />
+              </span>
               <span className="text-xs text-muted-foreground">
                 {levelProgress.isMaxLevel
-                  ? "最高等級"
+                  ? <T k="adventure.home.maxLevel" />
                   : `${levelProgress.expInCurrentLevel} / ${levelProgress.expNeededForLevel} EXP`}
               </span>
             </div>
@@ -118,11 +122,16 @@ export function AdventureHome({
             {/* 扭蛋代幣與連勝 */}
             <div className="flex items-center justify-center gap-2 mt-3">
               <span className="badge badge-soft badge-warning gap-1 font-semibold">
-                🪙 {progress.coins} 代幣
+                🪙{" "}
+                <T k="adventure.home.coins" params={{ coins: progress.coins }} />
               </span>
               {progress.streakDays > 0 && (
                 <span className="badge badge-soft badge-error gap-1 font-semibold">
-                  🔥 連續 {progress.streakDays} 天
+                  🔥{" "}
+                  <T
+                    k="adventure.home.streak"
+                    params={{ days: progress.streakDays }}
+                  />
                 </span>
               )}
             </div>
@@ -133,19 +142,25 @@ export function AdventureHome({
                 <div className="text-lg font-bold text-primary">
                   {progress.totalBossDefeated}
                 </div>
-                <div className="text-xs text-muted-foreground">擊敗魔王</div>
+                <div className="text-xs text-muted-foreground">
+                  <T k="adventure.home.stat.bosses" />
+                </div>
               </div>
               <div className="p-2 bg-base-100/70 rounded-lg border border-border-hairline">
                 <div className="text-lg font-bold text-secondary">
                   {progress.totalQuizCompleted}
                 </div>
-                <div className="text-xs text-muted-foreground">通關</div>
+                <div className="text-xs text-muted-foreground">
+                  <T k="adventure.home.stat.cleared" />
+                </div>
               </div>
               <div className="p-2 bg-base-100/70 rounded-lg border border-border-hairline">
                 <div className="text-lg font-bold text-accent">
                   {progress.highestCombo}
                 </div>
-                <div className="text-xs text-muted-foreground">最高連擊</div>
+                <div className="text-xs text-muted-foreground">
+                  <T k="adventure.home.stat.combo" />
+                </div>
               </div>
             </div>
           </div>
@@ -157,7 +172,7 @@ export function AdventureHome({
                 id="def-language-label"
                 className="text-sm font-medium shrink-0"
               >
-                釋義語言
+                <T k="adventure.home.defLanguage" />
               </span>
               <div
                 role="group"
@@ -178,7 +193,7 @@ export function AdventureHome({
                           : "text-muted-foreground hover:bg-black/5 dark:hover:bg-white/10"
                       }`}
                     >
-                      {label}
+                      <T k={label} variant="stacked" />
                       {value === "en" && (
                         <span className="text-xs font-semibold">
                           🪙×{COIN_REWARDS.englishModeMultiplier}
@@ -190,9 +205,14 @@ export function AdventureHome({
               </div>
             </div>
             <p className="mt-2 text-xs text-muted-foreground">
-              {defLanguage === "en"
-                ? `只看英文解釋，比較難，代幣 ${COIN_REWARDS.englishModeMultiplier} 倍！`
-                : "看中文解釋。想挑戰英英解釋可以切到英文，代幣加倍。"}
+              {defLanguage === "en" ? (
+                <T
+                  k="adventure.home.defLanguage.enHelp"
+                  params={{ multiplier: COIN_REWARDS.englishModeMultiplier }}
+                />
+              ) : (
+                <T k="adventure.home.defLanguage.zhHelp" />
+              )}
             </p>
           </div>
 
@@ -205,7 +225,7 @@ export function AdventureHome({
               className="btn btn-primary btn-lg w-full gap-2 shadow-elevated active:scale-[0.98]"
             >
               <span className="text-xl">🗺️</span>
-              開始冒險
+              <T k="adventure.start" variant="stacked" />
             </motion.button>
 
             <motion.button
@@ -215,7 +235,7 @@ export function AdventureHome({
               className="btn btn-outline btn-accent w-full gap-1"
             >
               <span className="text-lg">🏅</span>
-              成就
+              <T k="adventure.home.achievements" variant="stacked" />
               <span className="badge badge-accent badge-xs">
                 {unlockedAchievements}/{ACHIEVEMENTS.length}
               </span>
@@ -227,7 +247,7 @@ export function AdventureHome({
               className="btn btn-soft btn-warning w-full gap-2 hover:text-white"
             >
               <span className="text-lg">🎀</span>
-              去扭蛋機收集人氣角色
+              <T k="adventure.home.gacha" variant="stacked" />
             </a>
           </div>
         </div>
@@ -240,7 +260,7 @@ export function AdventureHome({
         transition={{ delay: 0.5 }}
         className="text-center text-sm text-muted-foreground mt-6"
       >
-        💡 完成關卡可獲得經驗值和扭蛋代幣，代幣可拿去抽人氣角色！
+        💡 <T k="adventure.home.tip" />
       </motion.p>
     </div>
   );

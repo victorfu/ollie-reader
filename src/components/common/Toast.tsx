@@ -1,7 +1,8 @@
-import { useEffect } from "react";
+import { useEffect, type ReactNode } from "react";
+import { useLanguage } from "../../hooks/useLanguage";
 
 interface ToastProps {
-  message: string;
+  message: ReactNode;
   type?: "success" | "error" | "info";
   duration?: number;
   onClose: () => void;
@@ -13,6 +14,8 @@ export const Toast = ({
   duration = 3000,
   onClose,
 }: ToastProps) => {
+  const { t } = useLanguage();
+
   useEffect(() => {
     const timer = setTimeout(() => {
       onClose();
@@ -55,7 +58,7 @@ export const Toast = ({
           type="button"
           onClick={onClose}
           className="btn btn-ghost btn-xs btn-circle opacity-70 hover:opacity-100 hover:bg-black/5 dark:hover:bg-white/10 transition-all duration-200"
-          aria-label="關閉"
+          aria-label={t("common.close")}
         >
           <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" />

@@ -3,6 +3,8 @@ import { CHARACTERS } from "../data/characters";
 import { CharacterDetail } from "./CharacterDetail";
 import { Popup } from "./Popup";
 import type { TowerCharacter } from "../types";
+import { useLanguage } from "../../../../hooks/useLanguage";
+import { T } from "../../../common/T";
 
 type Props = {
   availableCharacterIds: string[];
@@ -29,8 +31,13 @@ export function CharacterDex({ availableCharacterIds, onClose }: Props) {
 
   return (
     <Popup
-      title="角色圖鑑"
-      subtitle={`已收集 ${unlocked.size} / ${CHARACTERS.length} · 抽到的角色都能放上塔位`}
+      titleKey="defenders.dex.title"
+      subtitle={
+        <T
+          k="defenders.dex.subtitle"
+          params={{ collected: unlocked.size, total: CHARACTERS.length }}
+        />
+      }
       onClose={onClose}
       // 詳細資料釘在底部而不是接在格子後面：57 個角色排下來，點了誰都要
       // 捲到最後才看得到說明，看起來就像點了沒反應。
@@ -71,6 +78,7 @@ function DexCard({
   selected: boolean;
   onSelect: () => void;
 }) {
+  const { t } = useLanguage();
   return (
     <button
       type="button"
@@ -83,7 +91,7 @@ function DexCard({
     >
       <img
         src={character.sprite}
-        alt={unlocked ? character.name : "還沒收集到的角色"}
+        alt={unlocked ? character.name : t("defenders.character.unknownAlt")}
         className={`h-12 w-12 object-contain transition ${
           // 還沒拿到就壓成剪影：看得出輪廓，但看不出是誰。
           unlocked ? "" : "opacity-35 brightness-0"

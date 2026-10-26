@@ -1,13 +1,14 @@
 import type { MouseEvent } from "react";
 import { Volume2 } from "lucide-react";
 import { useSpeechState } from "../../hooks/useSpeechState";
+import { useLanguage } from "../../hooks/useLanguage";
 
 type SpeakButtonSize = "sm" | "md";
 
 interface SpeakButtonProps {
   /** Text to read aloud; also identifies which button is "playing". */
   text: string;
-  /** Accessible name while idle. */
+  /** Accessible name while idle; defaults to "play pronunciation". */
   label?: string;
   size?: SpeakButtonSize;
   className?: string;
@@ -26,12 +27,14 @@ const SIZE_CLASS: Record<SpeakButtonSize, { button: string; icon: string }> = {
  */
 export const SpeakButton = ({
   text,
-  label = "播放發音",
+  label,
   size = "sm",
   className = "",
 }: SpeakButtonProps) => {
   const { speak, stopSpeaking, isSpeaking, isLoadingAudio, speakingText } =
     useSpeechState();
+  const { t } = useLanguage();
+  const idleLabel = label ?? t("speak.play");
   const isActive = speakingText === text && (isSpeaking || isLoadingAudio);
   const isLoading = isActive && isLoadingAudio;
 
@@ -54,8 +57,8 @@ export const SpeakButton = ({
     <button
       type="button"
       onClick={handleClick}
-      aria-label={isActive ? "停止播放" : label}
-      title={isActive ? "停止播放" : label}
+      aria-label={isActive ? t("speak.stop") : idleLabel}
+      title={isActive ? t("speak.stop") : idleLabel}
       aria-pressed={isActive}
       aria-busy={isLoading}
       className={`inline-flex shrink-0 items-center justify-center rounded-full transition-colors active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${button} ${stateClass} ${className}`}

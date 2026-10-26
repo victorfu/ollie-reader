@@ -19,6 +19,10 @@ import {
 import { useSearchParams } from "react-router-dom";
 import { ConfirmModal } from "../../common/ConfirmModal";
 import { useAuth } from "../../../hooks/useAuth";
+import { useLanguage } from "../../../hooks/useLanguage";
+import { msg, type MessageKey } from "../../../i18n/translate";
+import { T } from "../../common/T";
+import { HintText } from "../../common/HintText";
 import { useGachaMissRate } from "../../../hooks/useGachaMissRate";
 import { useShowAllGachaEntries } from "../../../hooks/useShowAllGachaEntries";
 import { playSound } from "../../../services/gameService";
@@ -134,16 +138,22 @@ const CAPSULE_POSITIONS = [
 const GACHA_STEPS = [
   {
     number: "1",
-    title: `投入 ${GACHA_DRAW_COST} 代幣`,
-    description: "代幣可從「單字大冒險」闖關取得",
+    title: "gacha.insertCoins",
+    description: "gacha.step.insert.desc",
   },
-  { number: "3", title: "點擊膠囊開獎", description: "結果成功存檔後才會掉出來" },
-] as const;
+  {
+    number: "3",
+    title: "gacha.step.open.title",
+    description: "gacha.step.open.desc",
+  },
+] as const satisfies ReadonlyArray<{
+  number: string;
+  title: MessageKey;
+  description: MessageKey;
+}>;
 
-const REVEAL_GUARD_RENEWAL_ERROR =
-  "無法延長跨分頁開獎保護；請保持此頁開啟，結果存檔後立即開啟膠囊。";
-const PENDING_REVEAL_RENEWAL_ERROR =
-  "無法延長待開獎紀錄；請不要離開此頁，並立即開啟膠囊。";
+const REVEAL_GUARD_RENEWAL_ERROR: MessageKey = "gacha.error.guardRenewal";
+const PENDING_REVEAL_RENEWAL_ERROR: MessageKey = "gacha.error.pendingRenewal";
 
 function isKeyboardShortcutTarget(target: EventTarget | null): boolean {
   if (!(target instanceof Element)) return false;
@@ -163,44 +173,44 @@ function getStatusMessage(
   hasExternalPendingReveal: boolean,
   coinBalance: number | null,
   coinLoadFailed: boolean,
-): string {
+): MessageKey {
   if (isOffline) {
     return hasOfflineCache
-      ? "目前離線，圖鑑仍可查看；連線後就能繼續扭蛋。"
-      : "目前離線，這台裝置尚無可用的圖鑑快取。";
+      ? "gacha.status.offlineWithCache"
+      : "gacha.status.offlineNoCache";
   }
   if (phase === "idle" && syncFailed) {
-    return "無法同步雲端圖鑑，請重新同步後再試。";
+    return "gacha.status.syncFailed";
   }
   if (phase === "idle" && hasExternalPendingReveal) {
-    return "另一個分頁有待開啟膠囊，開啟後就能繼續扭蛋。";
+    return "gacha.status.externalPending";
   }
-  if (!canDraw && phase === "idle") return "正在確認雲端圖鑑，請稍候。";
+  if (!canDraw && phase === "idle") return "gacha.status.checking";
   if (phase === "idle" && coinLoadFailed) {
-    return "無法同步代幣餘額，請重試。";
+    return "gacha.status.coinSyncFailed";
   }
   if (phase === "idle" && coinBalance === null) {
-    return "正在同步代幣餘額，請稍候。";
+    return "gacha.status.coinSyncing";
   }
   if (
     phase === "idle" &&
     coinBalance !== null &&
     coinBalance < GACHA_DRAW_COST
   ) {
-    return `代幣不足（每抽 ${GACHA_DRAW_COST}），先去「單字大冒險」賺代幣吧！`;
+    return "gacha.status.notEnough";
   }
 
   switch (phase) {
     case "idle":
-      return `準備好了！投入 ${GACHA_DRAW_COST} 代幣開始扭蛋。`;
+      return "gacha.status.idle";
     case "coinInserted":
-      return "代幣投入成功，轉動右側把手吧！";
+      return "gacha.status.coinInserted";
     case "turning":
-      return "扭蛋機轉動中，正在把結果存進雲端…";
+      return "gacha.status.turning";
     case "capsuleReady":
-      return "膠囊掉出來了！點擊膠囊開獎。";
+      return "gacha.status.capsuleReady";
     case "revealed":
-      return "本次結果已同步，可以繼續扭蛋。";
+      return "gacha.status.revealed";
   }
 }
 
@@ -220,15 +230,16 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
   const { gachaMissRatePercent: missRatePercent } = useGachaMissRate();
   const { showAllGachaEntries } = useShowAllGachaEntries();
   const { user, loading: authLoading, authError, signInWithGoogle } = auth;
+  const { t, tZh, showHints } = useLanguage();
   const [searchParams, setSearchParams] = useSearchParams();
   const view: GachaView =
     searchParams.get("view") === "collection" ? "collection" : "machine";
 
   const [save, setSave] = useState<GachaSaveV1>(EMPTY_GACHA_SAVE);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>("loading");
-  const [syncError, setSyncError] = useState<string | null>(null);
-  const [actionError, setActionError] = useState<string | null>(null);
-  const [actionNotice, setActionNotice] = useState<string | null>(null);
+  const [syncError, setSyncError] = useState<MessageKey | null>(null);
+  const [actionError, setActionError] = useState<MessageKey | null>(null);
+  const [actionNotice, setActionNotice] = useState<MessageKey | null>(null);
   const [isOnline, setIsOnline] = useState(() =>
     typeof navigator === "undefined" ? true : navigator.onLine,
   );
@@ -242,10 +253,10 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
   const [dispensedCapsuleStyleIndex, setDispensedCapsuleStyleIndex] = useState(0);
   const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
   const [isResettingCollection, setIsResettingCollection] = useState(false);
-  const [resetError, setResetError] = useState<string | null>(null);
+  const [resetError, setResetError] = useState<MessageKey | null>(null);
   // 代幣餘額（null = 尚未載入/載入失敗）；由單字大冒險的雲端進度提供
   const [coinBalance, setCoinBalance] = useState<number | null>(null);
-  const [coinLoadError, setCoinLoadError] = useState<string | null>(null);
+  const [coinLoadError, setCoinLoadError] = useState<MessageKey | null>(null);
   const phaseRef = useRef<GachaPhase>("idle");
   const saveRef = useRef<GachaSaveV1>(EMPTY_GACHA_SAVE);
   const pendingAttemptRef = useRef<AppliedGachaAttempt | null>(null);
@@ -466,7 +477,7 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
       setDrawResult(null);
       phaseRef.current = "capsuleReady";
       setPhase("capsuleReady");
-      setActionNotice("已找回尚未開啟的膠囊，點擊膠囊即可親手揭曉。");
+      setActionNotice("gacha.notice.recovered");
       startOwnRevealGuardHeartbeat();
       refreshRevealGuards(uid);
       return true;
@@ -485,7 +496,7 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
         setCoinLoadError(null);
         if (coins >= GACHA_DRAW_COST) {
           setActionError((current) =>
-            current?.startsWith("代幣不足") ? null : current,
+            current === "gacha.error.insufficient" ? null : current,
           );
         }
       })
@@ -493,7 +504,7 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
         if (coinLoadSequenceRef.current !== sequence) return;
         logger.error("Failed to load coin balance", error);
         setCoinBalance(null);
-        setCoinLoadError("無法載入代幣餘額，請確認連線後重試。");
+        setCoinLoadError("gacha.error.coinLoad");
       });
   }, []);
 
@@ -581,7 +592,7 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
       setDrawResult(null);
       phaseRef.current = "capsuleReady";
       setPhase("capsuleReady");
-      setActionNotice("已找回尚未開啟的膠囊，點擊膠囊即可親手揭曉。");
+      setActionNotice("gacha.notice.recovered");
       refreshRevealGuards(uid);
     },
     [
@@ -653,8 +664,8 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
         setActionError(null);
         setActionNotice(
           canceledInFlightDraw
-            ? "圖鑑已在另一個分頁重設；若這次抽獎交易已完成，代幣餘額會自動重新同步。"
-            : "圖鑑已在另一個分頁重設，機台狀態已同步更新。",
+            ? "gacha.notice.resetElsewhereInFlight"
+            : "gacha.notice.resetElsewhere",
         );
       }
 
@@ -700,7 +711,7 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
         if (phaseRef.current === "capsuleReady") {
           phaseRef.current = "idle";
           setPhase("idle");
-          setActionNotice("待開啟膠囊已在另一個分頁完成揭曉。");
+          setActionNotice("gacha.notice.revealedElsewhere");
         }
       }
       bufferedSaveRef.current = null;
@@ -909,8 +920,8 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
         setSyncStatus("error");
         setSyncError(
           cached
-            ? "無法更新雲端圖鑑，目前顯示上次同步的收藏。"
-            : "暫時無法載入雲端圖鑑，請檢查連線後再試。",
+            ? "gacha.error.syncStale"
+            : "gacha.error.syncLoad",
         );
       });
   }, [
@@ -1022,13 +1033,13 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
       const next = transitionGachaPhase(phaseRef.current, "idle");
       phaseRef.current = next;
       setPhase(next);
-      setActionError("連線中斷，代幣沒有扣除；重新連線後再試一次。");
+      setActionError("gacha.error.offlineNoCharge");
     }
 
     if (isResetConfirmOpen && !resetSubmissionStartedRef.current) {
       setIsResetConfirmOpen(false);
       setResetError(null);
-      setActionNotice("連線中斷，尚未送出清空圖鑑；重新連線後可再操作。");
+      setActionNotice("gacha.notice.offlineResetCanceled");
     }
   }, [isOnline, isResetConfirmOpen, isResettingCollection]);
 
@@ -1061,9 +1072,7 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
   const handleExit = () => {
     if (phaseRef.current === "turning" && drawInFlightRef.current) {
       setActionError(null);
-      setActionNotice(
-        "正在完成抽獎交易，為避免已扣款結果遺失，請等膠囊掉出後再返回。",
-      );
+      setActionNotice("gacha.notice.waitForCapsule");
       return;
     }
     onExit();
@@ -1109,7 +1118,7 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
         )
       ) {
         if (phaseRef.current === "coinInserted") moveToPhase("idle");
-        setActionNotice("另一個分頁還有待開啟膠囊，開啟後再試一次。");
+        setActionNotice("gacha.notice.otherTabPending");
         return;
       }
     }
@@ -1143,9 +1152,7 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
     if (!drawGuard) {
       drawInFlightRef.current = false;
       moveToPhase("idle");
-      setActionError(
-        "無法建立安全的跨分頁開獎保護，這次沒有送出也沒有扣款。請允許此網站使用本機儲存空間後再試。",
-      );
+      setActionError("gacha.error.guardUnavailable");
       playSound("wrong");
       return;
     }
@@ -1211,9 +1218,7 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
       ) {
         clearOwnRevealGuard();
         if (phaseAfterCommit === "turning") moveToPhase("idle");
-        setActionError(
-          "圖鑑在抽取完成後被其他分頁重設，本次結果已隨重設清除。請重新投入代幣。",
-        );
+        setActionError("gacha.error.resetAfterCommit");
         return;
       }
       pendingAttemptRef.current = committed;
@@ -1246,11 +1251,11 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
           applyIncomingMachineState(cloudState);
           setSyncStatus("cloud");
           setActionError(null);
-          setActionNotice("已有一顆付費膠囊等待開啟，請先親手完成揭曉。");
+          setActionNotice("gacha.notice.paidCapsuleWaiting");
         } catch (syncFailure) {
           logger.error("Failed to recover pending gacha reveal", syncFailure);
           setSyncStatus("error");
-          setSyncError("有一筆待開獎結果，但目前無法載入；請稍後重新同步。");
+          setSyncError("gacha.error.pendingLoad");
         }
       } else if (isGachaResetConflictError(error)) {
         try {
@@ -1272,22 +1277,20 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
           }
           logger.error("Failed to reload gacha after reset conflict", syncFailure);
           setSyncStatus("error");
-          setSyncError("圖鑑已重設，但目前無法重新同步；請稍後再試。");
+          setSyncError("gacha.error.resetResync");
         }
         setActionNotice(null);
-        setActionError("圖鑑剛剛已在其他分頁重設，本次沒有開獎、代幣也沒有扣除。請重新投幣。");
+        setActionError("gacha.error.resetConflict");
       } else if (isGachaInsufficientCoinsError(error)) {
         coinLoadSequenceRef.current += 1;
         setCoinLoadError(null);
         setCoinBalance(error.availableCoins);
-        setActionError(
-          `代幣不足（每抽 ${GACHA_DRAW_COST}），這次沒有開獎也沒有扣款。先去「單字大冒險」賺代幣吧！`,
-        );
+        setActionError("gacha.error.insufficient");
       } else {
         setActionError(
           navigator.onLine
-            ? "這次開獎沒有成功，代幣沒有扣除、收藏也不受影響。請再試一次。"
-            : "連線中斷，這次沒有開獎、代幣也沒有扣除；回到線上後再試一次。",
+            ? "gacha.error.drawFailed"
+            : "gacha.error.drawOffline",
         );
       }
     } finally {
@@ -1319,7 +1322,7 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
         if (activeUidRef.current !== uid) return;
         applyIncomingMachineState(cloudState);
         if (cloudState.pendingReveal) {
-          setActionError("待開獎確認尚未完成，請再次開啟膠囊重試。");
+          setActionError("gacha.error.ackPending");
           return;
         }
       }
@@ -1336,9 +1339,7 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
         activeUidRef.current === uid &&
         cloudPendingRevealRef.current?.attemptId === attemptId
       ) {
-        setActionError(
-          "結果已揭曉，但雲端確認暫時失敗；此膠囊會保留，請再次開啟重試。",
-        );
+        setActionError("gacha.error.ackFailed");
         setHasPendingCapsule(true);
         if (phaseRef.current === "idle") {
           phaseRef.current = "capsuleReady";
@@ -1381,7 +1382,7 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
     ) {
       phaseRef.current = "capsuleReady";
       setPhase("capsuleReady");
-      setActionNotice("請再次開啟膠囊，以重試雲端確認。");
+      setActionNotice("gacha.notice.reopen");
     } else if (phaseRef.current === "revealed") {
       moveToPhase("idle");
     }
@@ -1404,7 +1405,7 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
         if (loadSequenceRef.current !== sequence) return;
         logger.error("Failed to retry gacha sync", error);
         setSyncStatus("error");
-        setSyncError("雲端圖鑑仍然無法連線，請稍後再試。");
+        setSyncError("gacha.error.retrySync");
       });
   };
 
@@ -1446,7 +1447,7 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
       setVisibleSaveIfNewer(resetSave);
       setSyncStatus("cloud");
       setActionError(null);
-      setActionNotice("圖鑑已清空，所有裝置會在下次同步時套用這次重設。");
+      setActionNotice("gacha.notice.resetDone");
       resetSubmissionStartedRef.current = false;
       setIsResetConfirmOpen(false);
       window.requestAnimationFrame(() => collectionTabRef.current?.focus());
@@ -1454,8 +1455,8 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
       logger.error("Failed to reset gacha collection", error);
       setResetError(
         navigator.onLine
-          ? "無法清空雲端圖鑑，原有收藏完全沒有變更。請再試一次。"
-          : "連線已中斷，原有收藏完全沒有變更。重新連線後再試一次。",
+          ? "gacha.error.resetFailed"
+          : "gacha.error.resetOffline",
       );
     } finally {
       setIsResettingCollection(false);
@@ -1536,18 +1537,41 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
     coinBalance,
     coinLoadError !== null,
   );
-  const syncLabel =
+  const syncLabel: MessageKey =
     syncStatus === "cloud"
-      ? "已與雲端同步"
+      ? "gacha.sync.cloud"
       : syncStatus === "cache"
-        ? "正在更新雲端圖鑑…"
+        ? "gacha.sync.cache"
       : syncStatus === "offline"
-          ? "離線快取 · 僅供查看"
+          ? "gacha.sync.offline"
           : syncStatus === "offlineEmpty"
-            ? "這台裝置沒有離線快取"
+            ? "gacha.sync.offlineEmpty"
           : syncStatus === "error"
-            ? "雲端同步失敗"
-            : "正在載入圖鑑…";
+            ? "gacha.sync.error"
+            : "gacha.sync.loading";
+  // Every message may mention the draw cost; unused params are ignored.
+  const messageParams = { cost: GACHA_DRAW_COST };
+  const keyboardHint = tZh("gacha.keyboard.body", {
+    space: msg("gacha.keyboard.space"),
+    enter: "Enter",
+  });
+  const keyboardBody = t("gacha.keyboard.body", {
+    space: "{space}",
+    enter: "{enter}",
+  })
+    .split(/(\{space\}|\{enter\})/)
+    .map((part, index) =>
+      part === "{space}" || part === "{enter}" ? (
+        <kbd
+          key={index}
+          className="mx-1 rounded-[5px] border border-border-hairline bg-background px-1.5 py-0.5 font-mono text-[11px] text-foreground shadow-sm"
+        >
+          {part === "{space}" ? t("gacha.keyboard.space") : "Enter"}
+        </kbd>
+      ) : (
+        part
+      ),
+    );
 
   return (
     <div className="relative flex h-[100dvh] flex-col overflow-hidden bg-background text-foreground">
@@ -1566,8 +1590,8 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
             type="button"
             onClick={handleExit}
             className="inline-flex size-11 shrink-0 items-center justify-center rounded-[10px] border border-border-hairline bg-card text-foreground shadow-sm transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-            aria-label="返回小遊戲"
-            title="返回小遊戲"
+            aria-label={t("gacha.back")}
+            title={t("gacha.back")}
           >
             <ArrowLeft className="size-5" strokeWidth={1.8} aria-hidden="true" />
           </button>
@@ -1576,13 +1600,13 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
               Ollie Little Games
             </p>
             <h1 className="truncate text-base font-bold tracking-tight sm:text-xl">
-              人氣角色扭蛋機
+              <T k="gacha.title" variant="stacked" />
             </h1>
           </div>
         </div>
 
         <nav
-          aria-label="扭蛋機頁面"
+          aria-label={t("gacha.nav.label")}
           className="flex shrink-0 rounded-[11px] border border-border-hairline bg-muted/70 p-1 shadow-inner"
         >
           <button
@@ -1596,8 +1620,12 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
             }`}
           >
             <Gamepad2 className="size-4" strokeWidth={1.8} aria-hidden="true" />
-            <span className="hidden sm:inline">扭蛋機</span>
-            <span className="sm:hidden">扭蛋</span>
+            <span className="hidden sm:inline">
+              <T k="gacha.nav.machine" variant="stacked" />
+            </span>
+            <span className="sm:hidden">
+              <T k="gacha.nav.machineShort" variant="stacked" />
+            </span>
           </button>
           <button
             ref={collectionTabRef}
@@ -1611,7 +1639,7 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
             }`}
           >
             <BookOpen className="size-4" strokeWidth={1.8} aria-hidden="true" />
-            圖鑑
+            <T k="gacha.nav.collection" variant="stacked" />
             {unlockedCount > 0 ? (
               <span className="rounded-full bg-accent-tint px-1.5 py-0.5 text-[10px] font-bold text-accent">
                 {unlockedCount}
@@ -1623,10 +1651,10 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
 
       <p className="sr-only" aria-live="polite" aria-atomic="true">
         {authLoading
-          ? "正在準備扭蛋機。"
+          ? t("gacha.sr.preparing")
           : !user
-            ? "請先登入以同步角色圖鑑。"
-            : actionError ?? actionNotice ?? statusMessage}
+            ? t("gacha.sr.signIn")
+            : t(actionError ?? actionNotice ?? statusMessage, messageParams)}
       </p>
 
       <main className="relative z-10 min-h-0 flex-1 overflow-y-auto overscroll-contain">
@@ -1635,7 +1663,7 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
             <div className="text-center">
               <span className="loading loading-spinner loading-lg text-accent" />
               <p className="mt-3 text-sm font-medium text-muted-foreground">
-                正在準備扭蛋機…
+                <T k="gacha.preparing" />
               </p>
             </div>
           </div>
@@ -1646,15 +1674,14 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
                 <span aria-hidden="true">🎁</span>
               </div>
               <h2 className="mt-5 text-2xl font-bold tracking-tight">
-                登入後開始收藏
+                <T k="gacha.signIn.title" variant="stacked" />
               </h2>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                扭蛋圖鑑會安全同步到雲端，換裝置登入也能繼續收藏。每一抽需要
-                {" "}{GACHA_DRAW_COST} 代幣，可從「單字大冒險」闖關取得。
+                <T k="gacha.signIn.body" params={messageParams} />
               </p>
               {authError ? (
                 <p className="mt-4 rounded-[10px] bg-error/10 px-3 py-2 text-sm text-error" role="alert">
-                  {authError}
+                  {t(authError)}
                 </p>
               ) : null}
               <button
@@ -1663,7 +1690,7 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
                 className="btn btn-primary mt-6 min-h-11 w-full rounded-[10px]"
               >
                 <LogIn className="size-4" strokeWidth={1.8} aria-hidden="true" />
-                使用 Google 登入
+                <T k="gacha.signIn.google" variant="stacked" />
               </button>
             </section>
           </div>
@@ -1672,14 +1699,14 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
             {actionNotice ? (
               <div className="mx-auto mb-4 flex max-w-6xl items-start gap-2 rounded-[12px] border border-emerald-400/30 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-800 dark:text-emerald-200" role="status">
                 <Check className="mt-0.5 size-4 shrink-0" strokeWidth={1.9} aria-hidden="true" />
-                {actionNotice}
+                <T k={actionNotice} params={messageParams} />
               </div>
             ) : null}
             {syncError ? (
               <div className="mx-auto mb-4 flex max-w-6xl flex-col gap-3 rounded-[12px] border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-sm text-amber-800 sm:flex-row sm:items-center sm:justify-between dark:text-amber-200" role="alert">
                 <span className="flex items-start gap-2">
                   <AlertTriangle className="mt-0.5 size-4 shrink-0" strokeWidth={1.8} aria-hidden="true" />
-                  {syncError}
+                  <T k={syncError} params={messageParams} />
                 </span>
                 {isOnline ? (
                   <button
@@ -1688,7 +1715,7 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
                     className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-[8px] bg-background/80 px-3 font-semibold text-foreground shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                   >
                     <RefreshCw className="size-4" strokeWidth={1.8} aria-hidden="true" />
-                    重新同步
+                    <T k="gacha.resync" variant="stacked" />
                   </button>
                 ) : null}
               </div>
@@ -1700,10 +1727,10 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
                     <WifiOff className="size-7" strokeWidth={1.7} aria-hidden="true" />
                   </div>
                   <h2 className="mt-4 text-xl font-bold tracking-tight">
-                    這台裝置還沒有離線圖鑑
+                    <T k="gacha.offlineEmpty.title" variant="stacked" />
                   </h2>
                   <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                    先連上網路完成一次同步，之後離線時就能查看最後成功同步的收藏。
+                    <T k="gacha.offlineEmpty.body" />
                   </p>
                 </div>
               </section>
@@ -1723,20 +1750,22 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
           </div>
         ) : (
           <div className="mx-auto grid min-h-full w-full max-w-6xl items-center gap-5 px-3 py-5 sm:px-6 sm:py-7 lg:grid-cols-[minmax(0,1.25fr)_minmax(280px,0.75fr)] lg:gap-8 lg:px-8">
-            <section aria-label="扭蛋機" className="min-w-0">
+            <section aria-label={t("gacha.nav.machine")} className="min-w-0">
               <div className="mb-3 flex items-center justify-between gap-2 px-1">
                 <span
                   className="inline-flex min-h-8 items-center gap-1.5 rounded-full border border-amber-400/25 bg-amber-400/10 px-3 text-sm font-bold tabular-nums text-amber-700 dark:text-amber-300"
-                  aria-label={`代幣餘額 ${coinBalance ?? "同步中"}`}
+                  aria-label={t("gacha.coins.balanceLabel", {
+                    n: coinBalance ?? msg("gacha.coins.syncing"),
+                  })}
                   aria-live="polite"
                 >
                   <span aria-hidden="true">🪙</span>
-                  代幣 {coinBalance ?? "…"}
+                  <T k="gacha.coins.balance" params={{ n: coinBalance ?? "…" }} />
                 </span>
                 {!isOnline && (
                   <span className="inline-flex min-h-8 items-center gap-1.5 rounded-full border border-amber-400/25 bg-amber-400/10 px-3 text-xs font-semibold text-amber-700 dark:text-amber-300">
                     <WifiOff className="size-3.5" strokeWidth={1.8} aria-hidden="true" />
-                    離線模式
+                    <T k="gacha.offlineMode" />
                   </span>
                 )}
               </div>
@@ -1808,9 +1837,15 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
                         className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[9px] bg-gradient-to-b from-amber-300 to-amber-500 px-3 text-sm font-black text-amber-950 shadow-[0_4px_0_rgb(180,83,9),0_8px_15px_rgba(146,64,14,0.2)] transition-all hover:brightness-105 active:translate-y-1 active:shadow-none disabled:cursor-not-allowed disabled:opacity-45 disabled:shadow-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-pink-500"
                       >
                         <CircleDollarSign className="size-4" strokeWidth={2} aria-hidden="true" />
-                        {syncStatus === "loading" || syncStatus === "cache"
-                          ? "同步中…"
-                          : `投入 ${GACHA_DRAW_COST} 代幣`}
+                        {syncStatus === "loading" || syncStatus === "cache" ? (
+                          <T k="gacha.syncingButton" variant="stacked" />
+                        ) : (
+                          <T
+                            k="gacha.insertCoins"
+                            params={messageParams}
+                            variant="stacked"
+                          />
+                        )}
                       </button>
                     </div>
 
@@ -1822,8 +1857,8 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
                       aria-keyshortcuts="Space Enter"
                       aria-label={
                         phase === "coinInserted"
-                          ? "轉動扭蛋機把手"
-                          : "請先投入代幣"
+                          ? t("gacha.turnHandle")
+                          : t("gacha.insertFirst")
                       }
                       className="group relative mx-auto flex size-28 items-center justify-center rounded-full border-[6px] border-pink-200/90 bg-gradient-to-br from-white to-pink-100 shadow-[0_8px_0_rgb(190,65,113),0_15px_24px_rgba(111,39,73,0.22),inset_0_2px_0_rgba(255,255,255,0.8)] transition-all hover:brightness-105 active:translate-y-1 active:shadow-[0_3px_0_rgb(190,65,113)] disabled:cursor-not-allowed disabled:grayscale disabled:opacity-55 dark:border-pink-400/30 dark:from-slate-700 dark:to-slate-800 sm:size-32"
                     >
@@ -1866,7 +1901,7 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
                           }}
                           data-capsule-variant={dispensedCapsuleStyleIndex}
                           className={`relative flex size-20 items-center justify-center overflow-hidden rounded-full border-2 border-white/80 shadow-[0_8px_16px_rgba(0,0,0,0.45),inset_0_2px_0_rgba(255,255,255,0.9)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950 ${DISPENSED_CAPSULE_STYLES[dispensedCapsuleStyleIndex]}`}
-                          aria-label="膠囊已經出來，點擊開獎"
+                          aria-label={t("gacha.capsuleReady")}
                         >
                           <span aria-hidden="true" className="absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 bg-white/90 shadow-sm" />
                           <span aria-hidden="true" className="absolute left-4 top-3 h-5 w-2 -rotate-[28deg] rounded-full bg-white/70 blur-[1px]" />
@@ -1884,7 +1919,7 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
                           animate={{ opacity: 1 }}
                         >
                           <span className="loading loading-dots loading-sm" />
-                          雲端存檔中
+                          <T k="gacha.savingToCloud" />
                         </motion.div>
                       ) : (
                         <div className="h-3 w-28 rounded-full bg-black/50 shadow-inner" aria-hidden="true" />
@@ -1907,14 +1942,14 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
                 ) : (
                   <Ticket className="size-4 shrink-0 text-pink-500" strokeWidth={1.8} aria-hidden="true" />
                 )}
-                {statusMessage}
+                <T k={statusMessage} params={messageParams} />
               </div>
 
               {actionError ? (
                 <div className="mx-auto mt-3 flex max-w-[570px] flex-col gap-3 rounded-[12px] border border-error/25 bg-error/10 px-4 py-3 text-sm text-error sm:flex-row sm:items-center sm:justify-between" role="alert">
                   <span className="flex items-start gap-2">
                     <AlertTriangle className="mt-0.5 size-4 shrink-0" strokeWidth={1.8} aria-hidden="true" />
-                    {actionError}
+                    <T k={actionError} params={messageParams} />
                   </span>
                   <button
                     type="button"
@@ -1922,7 +1957,7 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
                     disabled={!canDraw || !hasEnoughCoins}
                     className="min-h-11 shrink-0 rounded-[8px] bg-background/80 px-3 font-semibold text-foreground shadow-sm disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                   >
-                    重新投幣
+                    <T k="gacha.reinsert" variant="stacked" />
                   </button>
                 </div>
               ) : null}
@@ -1931,14 +1966,15 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
                 <div className="mx-auto mt-3 flex max-w-[570px] flex-col gap-3 rounded-[12px] border border-sky-400/30 bg-sky-400/10 px-4 py-3 text-sm text-sky-800 sm:flex-row sm:items-center sm:justify-between dark:text-sky-200">
                   <span className="flex items-start gap-2">
                     <Info className="mt-0.5 size-4 shrink-0" strokeWidth={1.8} aria-hidden="true" />
-                    每一抽需要 {GACHA_DRAW_COST} 代幣。去「單字大冒險」闖關答題，過關就能賺代幣！
+                    <T k="gacha.needCoins" params={messageParams} />
                   </span>
                   <a
                     href="/games/spirit"
                     target={getGameTabTargetName("/games/spirit")}
                     className="inline-flex min-h-11 shrink-0 items-center justify-center gap-1.5 rounded-[8px] bg-background/80 px-3 font-semibold text-foreground shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                   >
-                    🗺️ 去賺代幣
+                    <span aria-hidden="true">🗺️</span>
+                    <T k="gacha.earnCoins" variant="stacked" />
                   </a>
                 </div>
               ) : null}
@@ -1950,14 +1986,14 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
                 >
                   <span className="flex items-start gap-2">
                     <Info className="mt-0.5 size-4 shrink-0" strokeWidth={1.8} aria-hidden="true" />
-                    {coinLoadError}
+                    <T k={coinLoadError} params={messageParams} />
                   </span>
                   <button
                     type="button"
                     onClick={() => user && refreshCoinBalance(user.uid)}
                     className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-[8px] bg-background/80 px-3 font-semibold text-foreground shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                   >
-                    重試
+                    <T k="gacha.retry" variant="stacked" />
                   </button>
                 </div>
               ) : null}
@@ -1965,25 +2001,27 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
               {actionNotice ? (
                 <div className="mx-auto mt-3 flex max-w-[570px] items-start gap-2 rounded-[12px] border border-emerald-400/30 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-800 dark:text-emerald-200" role="status">
                   <Check className="mt-0.5 size-4 shrink-0" strokeWidth={1.9} aria-hidden="true" />
-                  {actionNotice}
+                  <T k={actionNotice} params={messageParams} />
                 </div>
               ) : null}
             </section>
 
-            <aside className="space-y-4 lg:sticky lg:top-5" aria-label="扭蛋說明與收藏進度">
+            <aside className="space-y-4 lg:sticky lg:top-5" aria-label={t("gacha.aside.label")}>
               <section className="rounded-[18px] border border-border-hairline bg-card p-5 shadow-sm">
                 <div className="flex items-center gap-2">
                   <Info className="size-5 text-accent" strokeWidth={1.8} aria-hidden="true" />
-                  <h2 className="text-lg font-bold tracking-tight">怎麼玩</h2>
+                  <h2 className="text-lg font-bold tracking-tight">
+                    <T k="gacha.howTo.title" variant="stacked" />
+                  </h2>
                 </div>
                 <ol className="mt-4 space-y-3">
                   {[
                     GACHA_STEPS[0],
                     {
                       number: "2",
-                      title: "轉動機台把手",
-                      description: `${hitRatePercent}% 命中角色、${missRatePercent}% 空膠囊`,
-                    },
+                      title: "gacha.step.turn.title",
+                      description: "gacha.step.turn.desc",
+                    } as const,
                     GACHA_STEPS[1],
                   ].map(({ number, title, description }, index) => {
                     const completed =
@@ -2013,10 +2051,13 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
                         </span>
                         <span className="min-w-0 pt-0.5">
                           <strong className="block text-sm font-bold text-foreground">
-                            {title}
+                            <T k={title} params={messageParams} variant="stacked" />
                           </strong>
                           <span className="mt-0.5 block text-xs leading-5 text-muted-foreground">
-                            {description}
+                            <T
+                              k={description}
+                              params={{ hit: hitRatePercent, miss: missRatePercent }}
+                            />
                           </span>
                         </span>
                       </li>
@@ -2025,18 +2066,14 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
                 </ol>
                 <div className="mt-5 border-t border-border-hairline pt-4">
                   <p className="text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">
-                    鍵盤快速操作
+                    <T k="gacha.keyboard.title" variant="stacked" />
                   </p>
                   <p className="mt-2 text-xs leading-6 text-muted-foreground">
-                    按
-                    <kbd className="mx-1 rounded-[5px] border border-border-hairline bg-background px-1.5 py-0.5 font-mono text-[11px] text-foreground shadow-sm">
-                      空白鍵
-                    </kbd>
-                    或
-                    <kbd className="mx-1 rounded-[5px] border border-border-hairline bg-background px-1.5 py-0.5 font-mono text-[11px] text-foreground shadow-sm">
-                      Enter
-                    </kbd>
-                    ，即可依序投幣、轉動與開啟膠囊。
+                    {showHints ? (
+                      <HintText hint={keyboardHint}>{keyboardBody}</HintText>
+                    ) : (
+                      keyboardBody
+                    )}
                   </p>
                 </div>
               </section>
@@ -2044,7 +2081,9 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
               <section className="rounded-[18px] border border-border-hairline bg-card p-5 shadow-sm">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <p className="text-xs font-semibold text-muted-foreground">圖鑑進度</p>
+                    <p className="text-xs font-semibold text-muted-foreground">
+                      <T k="gacha.progress.title" variant="stacked" />
+                    </p>
                     <p className="mt-1 text-2xl font-black tracking-tight">
                       {unlockedCount}
                       <span className="ml-1 text-sm font-semibold text-muted-foreground">
@@ -2060,17 +2099,19 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
                   className="progress progress-primary mt-4 h-2 w-full"
                   value={unlockedCount}
                   max={GACHA_CHARACTERS.length}
-                  aria-label="角色圖鑑收集進度"
+                  aria-label={t("gacha.progress.label")}
                 />
                 <div className="mt-3 flex items-center justify-between gap-3 text-xs text-muted-foreground">
-                  <span>累計扭蛋 {save.totalDraws} 次</span>
+                  <span>
+                    <T k="gacha.progress.totalDraws" params={{ n: save.totalDraws }} />
+                  </span>
                   <span className="inline-flex items-center gap-1">
                     {syncStatus === "cloud" ? (
                       <Cloud className="size-3.5" strokeWidth={1.8} aria-hidden="true" />
                     ) : (
                       <RefreshCw className="size-3.5" strokeWidth={1.8} aria-hidden="true" />
                     )}
-                    {syncLabel}
+                    <T k={syncLabel} />
                   </span>
                 </div>
                 <button
@@ -2079,7 +2120,7 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
                   className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[9px] border border-border-hairline bg-background px-4 text-sm font-semibold shadow-sm transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                 >
                   <BookOpen className="size-4" strokeWidth={1.8} aria-hidden="true" />
-                  查看完整圖鑑
+                  <T k="gacha.viewCollection" variant="stacked" />
                 </button>
               </section>
 
@@ -2092,11 +2133,15 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
                       <AlertTriangle className="mt-0.5 size-4 shrink-0" strokeWidth={1.8} aria-hidden="true" />
                     )}
                     <p>
-                      {!isOnline
-                        ? syncStatus === "offlineEmpty"
-                          ? "目前離線，而且這台裝置還沒有可查看的圖鑑快取。"
-                          : "離線時可以查看快取圖鑑，但不能進行扭蛋。"
-                        : syncError}
+                      {!isOnline ? (
+                        syncStatus === "offlineEmpty" ? (
+                          <T k="gacha.offline.noCache" />
+                        ) : (
+                          <T k="gacha.offline.cacheOnly" />
+                        )
+                      ) : syncError ? (
+                        <T k={syncError} params={messageParams} />
+                      ) : null}
                     </p>
                   </div>
                   {isOnline && syncError ? (
@@ -2106,7 +2151,7 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
                       className="mt-3 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[8px] bg-background/80 px-3 font-semibold text-foreground shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                     >
                       <RefreshCw className="size-4" strokeWidth={1.8} aria-hidden="true" />
-                      重新同步
+                      <T k="gacha.resync" variant="stacked" />
                     </button>
                   ) : null}
                 </div>
@@ -2133,14 +2178,19 @@ function GachaMachineSession({ onExit, auth }: GachaMachineSessionProps) {
       />
       <ConfirmModal
         isOpen={isResetConfirmOpen}
-        title="清空整本圖鑑？"
-        message={`這會移除全部 ${GACHA_CHARACTERS.length} 個圖鑑項目、相遇次數、抽取與空膠囊統計，並同步到其他裝置。這個動作無法復原。`}
-        confirmText="清空圖鑑"
-        cancelText="保留收藏"
+        title={<T k="gacha.reset.title" variant="stacked" />}
+        message={
+          <T
+            k="gacha.reset.message"
+            params={{ count: GACHA_CHARACTERS.length }}
+          />
+        }
+        confirmText={<T k="gacha.reset.confirm" variant="stacked" />}
+        cancelText={<T k="gacha.reset.cancel" variant="stacked" />}
         confirmVariant="error"
         isLoading={isResettingCollection}
         confirmDisabled={!isOnline}
-        errorMessage={resetError}
+        errorMessage={resetError ? t(resetError) : null}
         onConfirm={() => void handleConfirmCollectionReset()}
         onCancel={() => {
           if (isResettingCollection) return;

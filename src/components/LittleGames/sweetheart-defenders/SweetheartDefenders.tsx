@@ -11,6 +11,8 @@ import { readSquadCache, sanitizeSquad, writeSquadCache } from "./squad";
 import { readScreenSession, writeScreenSession } from "./screenSession";
 import { useAudioSettings } from "./useAudioSettings";
 import { playMusic, playSfx, stopMusic } from "./audio";
+import type { MessageKey } from "../../../i18n/translate";
+import { T } from "../../common/T";
 
 type Props = {
   onExit?: () => void;
@@ -69,7 +71,7 @@ function SweetheartSession({
   const audio = useAudioSettings();
   const [lastCoinsEarned, setLastCoinsEarned] = useState(0);
   const [isSettling, setIsSettling] = useState(false);
-  const [settlementError, setSettlementError] = useState<string | null>(null);
+  const [settlementError, setSettlementError] = useState<MessageKey | null>(null);
   const [deferredRecoveryRequestId, setDeferredRecoveryRequestId] = useState<
     number | null
   >(null);
@@ -192,11 +194,14 @@ function SweetheartSession({
       : null;
   const displayedCoinsEarned = recoveredSettlement?.coinsEarned
     ?? lastCoinsEarned;
-  const displayedSettlementError = recoveredSettlement
+  const displayedSettlementErrorKey: MessageKey | null = recoveredSettlement
     ? recoveredSettlement.coinsEarned > 0
-      ? "已恢復連線，獎勵同步完成"
-      : "已恢復連線，進度已同步（獎勵可能已領取）"
+      ? "defenders.settle.recovered"
+      : "defenders.settle.recoveredClaimed"
     : settlementError;
+  const displayedSettlementError = displayedSettlementErrorKey ? (
+    <T k={displayedSettlementErrorKey} />
+  ) : null;
 
   return (
     <div
@@ -230,13 +235,13 @@ function SweetheartSession({
               if (settlementIdRef.current !== settlementId) return;
               setLastCoinsEarned(coinsEarned);
               if (deferred) {
-                setSettlementError("進度已保留，獎勵將在恢復連線後同步");
+                setSettlementError("defenders.settle.deferred");
                 setDeferredRecoveryRequestId(recoveryRequestId ?? null);
               }
             })
             .catch(() => {
               if (settlementIdRef.current !== settlementId) return;
-              setSettlementError("結算失敗，請稍後再試");
+              setSettlementError("defenders.settle.failed");
             })
             .finally(() => {
               if (settlementIdRef.current !== settlementId) return;

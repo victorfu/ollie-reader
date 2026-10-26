@@ -4,6 +4,8 @@ import { motion } from "framer-motion";
 import { BookOpen, Check, PackageOpen, Sparkles, X } from "lucide-react";
 import { playSound } from "../../../services/gameService";
 import { getGachaCharacter } from "./gachaData";
+import { useLanguage } from "../../../hooks/useLanguage";
+import { T } from "../../common/T";
 import type { GachaDrawResult } from "./gachaTypes";
 
 interface GachaRevealDialogProps {
@@ -26,6 +28,7 @@ export function GachaRevealDialog({
   const dialogRef = useRef<HTMLDialogElement>(null);
   const previouslyFocusedRef = useRef<HTMLElement | null>(null);
   const celebratedResultRef = useRef<string | null>(null);
+  const { t } = useLanguage();
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -126,7 +129,7 @@ export function GachaRevealDialog({
           <button
             type="button"
             onClick={() => dialogRef.current?.close()}
-            aria-label="關閉開獎結果"
+            aria-label={t("gacha.reveal.close")}
             className="absolute right-3 top-3 z-20 inline-flex size-11 items-center justify-center rounded-full border border-border-hairline bg-background/75 text-foreground shadow-sm backdrop-blur-md transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
           >
             <X className="size-5" strokeWidth={1.8} aria-hidden="true" />
@@ -195,19 +198,23 @@ export function GachaRevealDialog({
               ) : (
                 <Check className="size-4" strokeWidth={2} aria-hidden="true" />
               )}
-              {isMiss
-                ? "EMPTY · 空膠囊"
-                : result.kind === "character" && result.isNew
-                  ? "NEW · 圖鑑解鎖"
-                  : result.kind === "character"
-                    ? `第 ${result.ownedCount} 次遇見`
-                    : null}
+              {isMiss ? (
+                <T k="gacha.reveal.emptyBadge" />
+              ) : result.kind === "character" && result.isNew ? (
+                <T k="gacha.reveal.newBadge" />
+              ) : result.kind === "character" ? (
+                <T k="gacha.reveal.metBadge" params={{ n: result.ownedCount }} />
+              ) : null}
             </div>
             <h2
               id="gacha-reveal-title"
               className="text-3xl font-bold tracking-tight text-foreground"
             >
-              {isMiss ? "這次是空膠囊" : character?.name}
+              {isMiss ? (
+                <T k="gacha.reveal.emptyTitle" variant="stacked" />
+              ) : (
+                character?.name
+              )}
             </h2>
             {character ? (
               <p className="mt-1 text-sm font-semibold text-muted-foreground">
@@ -218,11 +225,13 @@ export function GachaRevealDialog({
               id="gacha-reveal-description"
               className="mx-auto mt-4 max-w-xs text-sm leading-6 text-muted-foreground"
             >
-              {isMiss
-                ? "這次沒有遇見角色，但抽取次數已經安全同步。再試一次，下一顆也許就有驚喜！"
-                : result.kind === "character" && result.isNew
-                  ? "恭喜獲得新角色！已經幫你放進雲端圖鑑，可以隨時回來看看。"
-                  : "這位好朋友又來找你了，圖鑑中的相遇次數已經更新。"}
+              {isMiss ? (
+                <T k="gacha.reveal.emptyBody" />
+              ) : result.kind === "character" && result.isNew ? (
+                <T k="gacha.reveal.newBody" />
+              ) : (
+                <T k="gacha.reveal.repeatBody" />
+              )}
             </p>
 
             <div className="mt-6 grid grid-cols-2 gap-3">
@@ -232,14 +241,14 @@ export function GachaRevealDialog({
                 className="inline-flex min-h-11 items-center justify-center gap-2 rounded-[10px] border border-border-hairline bg-background px-4 text-sm font-semibold text-foreground shadow-sm transition-all hover:bg-muted active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
               >
                 <BookOpen className="size-4" strokeWidth={1.8} aria-hidden="true" />
-                查看圖鑑
+                <T k="gacha.reveal.viewCollection" variant="stacked" />
               </button>
               <button
                 type="button"
                 onClick={() => dialogRef.current?.close()}
                 className="btn btn-primary min-h-11 rounded-[10px] text-sm shadow-sm active:scale-[0.98]"
               >
-                再扭一次
+                <T k="gacha.reveal.again" variant="stacked" />
               </button>
             </div>
           </div>
@@ -247,8 +256,8 @@ export function GachaRevealDialog({
       ) : null}
 
       <form method="dialog" className="modal-backdrop">
-        <button type="submit" aria-label="關閉開獎結果">
-          關閉
+        <button type="submit" aria-label={t("gacha.reveal.close")}>
+          {t("gacha.close")}
         </button>
       </form>
     </dialog>

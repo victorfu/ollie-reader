@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "./useAuth";
+import { useLanguage } from "./useLanguage";
+import type { MessageKey } from "../i18n/translate";
 import type {
   HistoryHomework,
   Homework,
@@ -71,13 +73,14 @@ export interface UseWordPractice {
   reload(): Promise<void>;
 }
 
-const LOAD_ERROR = "載入單字練習失敗，請稍後再試";
-const GENERATE_ERROR = "準備功課失敗，請稍後再試";
-const ABANDON_ERROR = "放棄功課失敗，請稍後再試";
-const FINISH_ERROR = "無法完成功課，請稍後再試";
-const SETTINGS_ERROR = "儲存設定失敗，請稍後再試";
-const RESET_ERROR = "重設進度失敗，請稍後再試";
-const SAVE_ERROR = "進度尚未儲存，下一次作答時會再試一次";
+// Errors are kept as dictionary keys and translated when returned, so they follow a language change.
+const LOAD_ERROR: MessageKey = "practice.word.error.load";
+const GENERATE_ERROR: MessageKey = "practice.word.error.generate";
+const ABANDON_ERROR: MessageKey = "practice.word.error.abandon";
+const FINISH_ERROR: MessageKey = "practice.word.error.finish";
+const SETTINGS_ERROR: MessageKey = "practice.word.error.settings";
+const RESET_ERROR: MessageKey = "practice.word.error.reset";
+const SAVE_ERROR: MessageKey = "practice.word.error.save";
 const NO_STREAK = { firstToday: true, days: 1 };
 
 /**
@@ -107,9 +110,10 @@ interface ProgressTracker {
 export function useWordPractice(): UseWordPractice {
   const { user } = useAuth();
   const uid = user?.uid;
+  const { t } = useLanguage();
 
   const [status, setStatus] = useState<UseWordPractice["status"]>("loading");
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<MessageKey | null>(null);
   const [active, setActive] = useState<Homework | null>(null);
   const [history, setHistory] = useState<HistoryHomework[]>([]);
   const [homeworkStreak, setHomeworkStreak] = useState(NO_STREAK);
@@ -118,7 +122,7 @@ export function useWordPractice(): UseWordPractice {
   const [settings, setSettings] = useState<PracticeSettings>(DEFAULT_SETTINGS);
   const [reviewDueCount, setReviewDueCount] = useState(0);
   const [starting, setStarting] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<MessageKey | null>(null);
 
   // Refs hold what the async operations need to read at the moment they run.
   const uidRef = useRef<string | undefined>(undefined);
@@ -476,14 +480,14 @@ export function useWordPractice(): UseWordPractice {
 
   return {
     status,
-    error,
+    error: error ? t(error) : null,
     active,
     history,
     settings,
     reviewDueCount,
     homeworkStreak,
     starting,
-    saveError,
+    saveError: saveError ? t(saveError) : null,
     start,
     updateProgress,
     submit,

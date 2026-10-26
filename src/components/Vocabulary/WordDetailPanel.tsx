@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useSettings } from "../../hooks/useSettings";
+import { useLanguage } from "../../hooks/useLanguage";
+import { T } from "../common/T";
 import { Toast } from "../common/Toast";
 import { RefreshIcon } from "../icons";
 import { SpeakButton } from "../common/SpeakButton";
@@ -41,11 +43,12 @@ export const WordDetailPanel = ({
   headerAction,
 }: WordDetailPanelProps) => {
   const { showChineseTranslation, updateShowChineseTranslation } = useSettings();
+  const { t } = useLanguage();
   const [word, setWord] = useState<VocabularyWord>(initialWord);
   const [isEditing, setIsEditing] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false);
   const [toast, setToast] = useState<{
-    message: string;
+    message: ReactNode;
     type: "success" | "error" | "info";
   } | null>(null);
   const [editedTags, setEditedTags] = useState<string[]>([...word.tags]);
@@ -69,12 +72,20 @@ export const WordDetailPanel = ({
     };
     const result = await onUpdateWord(word.id!, updates);
     if (!result.success) {
-      setToast({ message: result.message || "儲存失敗，請稍後再試", type: "error" });
+      setToast({
+        message: result.message || (
+          <T k="reader.vocab.saveFailed" variant="stacked" />
+        ),
+        type: "error",
+      });
       return;
     }
     setWord((prev) => ({ ...prev, ...updates }));
     setIsEditing(false);
-    setToast({ message: "已儲存標籤與難度", type: "success" });
+    setToast({
+      message: <T k="reader.vocab.tagsSaved" variant="stacked" />,
+      type: "success",
+    });
   };
 
   const handleAddTag = (tag?: string) => {
@@ -114,12 +125,23 @@ export const WordDetailPanel = ({
       if (controller.signal.aborted) return;
       if (result.success && result.updatedWord) {
         setWord((prev) => ({ ...prev, ...result.updatedWord }));
-        setToast({ message: "已重新生成解釋！", type: "success" });
+        setToast({
+          message: <T k="reader.vocab.regenerated" variant="stacked" />,
+          type: "success",
+        });
       } else {
-        setToast({ message: result.message || "重新生成失敗", type: "error" });
+        setToast({
+          message: result.message || (
+            <T k="reader.vocab.regenerateFailed" variant="stacked" />
+          ),
+          type: "error",
+        });
       }
     } catch {
-      setToast({ message: "重新生成時發生錯誤", type: "error" });
+      setToast({
+        message: <T k="reader.vocab.regenerateError" variant="stacked" />,
+        type: "error",
+      });
     } finally {
       if (regenerateControllerRef.current === controller) {
         regenerateControllerRef.current = null;
@@ -140,13 +162,14 @@ export const WordDetailPanel = ({
               {word.word}
             </h2>
             {cefr && <CefrBadge info={cefr} />}
-            <SpeakButton text={word.word} label="發音" size="md" />
+            <SpeakButton text={word.word} label={t("reader.vocab.pronounce")} size="md" />
             <button
               type="button"
               onClick={handleRegenerate}
               disabled={isRegenerating}
               className="btn btn-circle btn-sm btn-ghost shrink-0"
-              title="重新生成解釋"
+              title={t("reader.vocab.regenerate")}
+              aria-label={t("reader.vocab.regenerate")}
             >
               {isRegenerating ? (
                 <span className="loading loading-spinner loading-xs" />
@@ -165,7 +188,9 @@ export const WordDetailPanel = ({
           <div className="space-y-3">
             <div>
               <label className="label">
-                <span className="label-text">標籤</span>
+                <span className="label-text">
+                  <T k="reader.vocab.tags" />
+                </span>
               </label>
               {editedTags.length > 0 && (
                 <div className="flex flex-wrap gap-2 mb-2">
@@ -189,7 +214,7 @@ export const WordDetailPanel = ({
                   className="input input-bordered input-sm flex-1"
                   value={newTag}
                   onChange={(e) => setNewTag(e.target.value)}
-                  placeholder="輸入標籤後按 Enter 或點擊新增"
+                  placeholder={t("reader.vocab.tagPlaceholder")}
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {
                       e.preventDefault();
@@ -203,13 +228,13 @@ export const WordDetailPanel = ({
                   className="btn btn-sm btn-primary"
                   disabled={!newTag.trim()}
                 >
-                  新增
+                  <T k="reader.vocab.addTag" variant="stacked" />
                 </button>
               </div>
               {tagSuggestions.length > 0 && (
                 <div className="mt-2">
                   <span className="text-xs text-muted-foreground mb-1 block">
-                    快速選擇：
+                    <T k="reader.vocab.quickPick" />
                   </span>
                   <div className="flex flex-wrap gap-1">
                     {tagSuggestions.slice(0, 10).map((tag) => (
@@ -228,22 +253,24 @@ export const WordDetailPanel = ({
             </div>
             <div>
               <label className="label">
-                <span className="label-text">難度</span>
+                <span className="label-text">
+                  <T k="reader.vocab.difficulty" />
+                </span>
               </label>
               <select
                 className="select select-bordered w-full"
                 value={editedDifficulty}
                 onChange={(e) => setEditedDifficulty(e.target.value)}
               >
-                <option value="">未設定</option>
-                <option value="easy">簡單</option>
-                <option value="medium">中等</option>
-                <option value="hard">困難</option>
+                <option value="">{t("reader.vocab.difficulty.unset")}</option>
+                <option value="easy">{t("reader.vocab.difficulty.easy")}</option>
+                <option value="medium">{t("reader.vocab.difficulty.medium")}</option>
+                <option value="hard">{t("reader.vocab.difficulty.hard")}</option>
               </select>
             </div>
             <div className="flex gap-2">
               <button type="button" onClick={handleSave} className="btn btn-primary btn-sm">
-                儲存
+                <T k="reader.vocab.save" variant="stacked" />
               </button>
               <button
                 type="button"
@@ -254,7 +281,7 @@ export const WordDetailPanel = ({
                 }}
                 className="btn btn-ghost btn-sm"
               >
-                取消
+                <T k="common.cancel" variant="stacked" />
               </button>
             </div>
           </div>
@@ -270,11 +297,15 @@ export const WordDetailPanel = ({
                       : "badge-error"
                 }`}
               >
-                {word.difficulty === "easy"
-                  ? "簡單"
-                  : word.difficulty === "medium"
-                    ? "中等"
-                    : "困難"}
+                <T
+                  k={
+                    word.difficulty === "easy"
+                      ? "reader.vocab.difficulty.easy"
+                      : word.difficulty === "medium"
+                        ? "reader.vocab.difficulty.medium"
+                        : "reader.vocab.difficulty.hard"
+                  }
+                />
               </span>
             )}
             {word.tags.map((tag) => (
@@ -290,7 +321,7 @@ export const WordDetailPanel = ({
               }}
               className="btn btn-ghost btn-xs"
             >
-              編輯標籤
+              <T k="reader.vocab.editTags" variant="stacked" />
             </button>
           </div>
         )}
@@ -300,9 +331,13 @@ export const WordDetailPanel = ({
       {word.definitions.length > 0 && (
         <div className="mb-6">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="font-semibold text-lg">📖 定義</h3>
+            <h3 className="font-semibold text-lg">
+              📖 <T k="reader.vocab.definitions" variant="stacked" />
+            </h3>
             <label className="flex items-center gap-2 cursor-pointer text-sm select-none">
-              <span className="text-muted-foreground">顯示中文</span>
+              <span className="text-muted-foreground">
+                <T k="reader.vocab.showChinese" />
+              </span>
               <input
                 type="checkbox"
                 className="toggle toggle-sm toggle-accent"
@@ -318,7 +353,7 @@ export const WordDetailPanel = ({
                   <p className="font-medium text-accent capitalize mb-1">
                     {def.partOfSpeech}
                   </p>
-                  <SpeakButton text={def.definition} label="朗讀定義" />
+                  <SpeakButton text={def.definition} label={t("reader.vocab.speakDefinition")} />
                 </div>
                 <p className="text-base-content">
                   {def.definition || def.definitionChinese}
@@ -337,7 +372,9 @@ export const WordDetailPanel = ({
       {/* Examples */}
       {word.examples.length > 0 && (
         <div className="mb-6">
-          <h3 className="font-semibold text-lg mb-3">💡 例句</h3>
+          <h3 className="font-semibold text-lg mb-3">
+            💡 <T k="reader.vocab.examples" variant="stacked" />
+          </h3>
           <div className="space-y-3">
             {word.examples.map((example, index) => (
               <div
@@ -346,7 +383,7 @@ export const WordDetailPanel = ({
               >
                 <div className="flex justify-between items-start gap-2 mb-1">
                   <p className="italic flex-1">{example.sentence}</p>
-                  <SpeakButton text={example.sentence} label="朗讀例句" />
+                  <SpeakButton text={example.sentence} label={t("reader.speakExample")} />
                 </div>
                 {example.translation && (
                   <p className="text-sm text-muted-foreground">{example.translation}</p>
@@ -360,7 +397,9 @@ export const WordDetailPanel = ({
       {/* Stats */}
       <div className="stats surface-card rounded-xl w-full">
         <div className="stat">
-          <div className="stat-title">加入時間</div>
+          <div className="stat-title">
+            <T k="reader.addedAt" />
+          </div>
           <div className="stat-value text-lg">
             {new Date(word.createdAt).toLocaleString("zh-TW", {
               year: "numeric",
