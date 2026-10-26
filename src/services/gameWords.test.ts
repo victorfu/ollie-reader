@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { FALLBACK_GAME_WORDS } from "./gameWords";
+import { sentenceUsesWord } from "../utils/wordForms";
 
 const HAS_CJK = /[㐀-䶿一-鿿]/;
 
@@ -25,6 +26,15 @@ describe("FALLBACK_GAME_WORDS", () => {
   it("never leaks the head word inside its own English definition", () => {
     FALLBACK_GAME_WORDS.forEach((seed) => {
       expect(seed.defEn.toLowerCase()).not.toContain(seed.word.toLowerCase());
+    });
+  });
+
+  // 句子填空靠例句出題；例句認不出這個字就會整題退回 reverse
+  it("every fallback word has an example that uses it", () => {
+    FALLBACK_GAME_WORDS.forEach((seed) => {
+      expect(sentenceUsesWord(seed.example, seed.word), seed.word).toBe(true);
+      expect(HAS_CJK.test(seed.example)).toBe(false);
+      expect(HAS_CJK.test(seed.exampleZh)).toBe(true);
     });
   });
 });
