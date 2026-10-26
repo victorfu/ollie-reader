@@ -1,18 +1,24 @@
 import type { CaptionDelay, PodcastCaptionWord } from "../types/podcast";
 
 export const CAPTION_SAMPLE_RATE = 16_000;
-/** Whistle re-decodes its open window on every pass, so fewer, larger chunks keep up better. */
-export const MIN_CHUNK_SECONDS = 2;
-/** Each streamed chunk must stay within Whistle's 30-second batch limit. */
-export const MAX_CHUNK_SECONDS = 20;
+/**
+ * Utterances are cut at the first pause after this much audio. Whistle's
+ * streaming mode commits a sentence only once the next one has begun (up to
+ * 11 s late), so each utterance is transcribed as soon as it ends instead.
+ * Shorter cuts lose context and recognise worse.
+ */
+export const MIN_UTTERANCE_SECONDS = 2.5;
+/** Without a pause (e.g. under music), cut anyway near this length. */
+export const MAX_UTTERANCE_SECONDS = 6;
+/** Quiet this long ends an utterance. */
+export const PAUSE_SECONDS = 0.35;
 /** Backlog beyond this means the device cannot keep up with playback. */
 export const MAX_BACKLOG_SECONDS = 30;
 /**
  * What the listener hears trails the decoded media by this much, so words are
- * recognised before they are heard (one 2-second chunk plus a few seconds of
- * worst-case inference).
+ * recognised before they are heard: the longest utterance plus transcription.
  */
-export const CAPTION_DELAY_SECONDS = 6;
+export const CAPTION_DELAY_SECONDS = 8;
 
 /** Media seconds held in the delay line: its wall-clock delay at the fill rate. */
 export function delayedMediaSeconds(delay: CaptionDelay): number {
@@ -93,68 +99,85 @@ export function visibleCaptionWords(words: PodcastCaptionWord[], time: number, c
   return words.filter((word) => word.start <= time + 0.25 && word.end >= time - 12).slice(-count);
 }
 
+const FRAME = CAPTION_SAMPLE_RATE / 50; // 20 ms
+/** Below this RMS (about -50 dBFS) a frame is silence however quiet the speech. */
+const SILENCE_FLOOR = 0.003;
+/** Pauses are judged against recent loudness, which halves in about 3 s. */
+const PEAK_DECAY = 0.995;
+/** A forced cut lands on the quietest frame within this window before the limit. */
+const FORCED_CUT_WINDOW = 1.5;
+
+/** A finished stretch of speech, `start` seconds after its playback run began. */
+export interface CaptionUtterance {
+  start: number;
+  samples: Float32Array;
+}
+
 /**
- * PCM for one continuous stretch of playback. Pausing, seeking, buffering or a
- * rate change ends the segment, which lets Whistle flush its final words.
+ * Splits one continuous run of 16 kHz playback into utterances at pauses, so
+ * each can be transcribed with word timestamps as soon as it ends. Pauses are
+ * judged against recent loudness, which also copes with quiet beds; only
+ * near-digital silence is ever discarded, so quieter speech is never lost.
  */
-export class CaptionSegment {
-  readonly anchor: number;
-  readonly playbackRate: number;
-  #queue: Float32Array[] = [];
-  #queued = 0;
-  #ended = false;
-  #wake: (() => void) | undefined;
+export class PauseSegmenter {
+  #buffer = new Float32Array(0);
+  #rms: number[] = [];
+  #offset = 0;
+  #peak = 0.02;
+  #quietFrames = 0;
+  #voiced = false;
 
-  constructor(anchor: number, playbackRate: number) {
-    this.anchor = anchor;
-    this.playbackRate = playbackRate;
+  /** Seconds of audio waiting to complete an utterance. */
+  get bufferedSeconds() {
+    return this.#buffer.length / CAPTION_SAMPLE_RATE;
   }
 
-  get backlogSeconds() {
-    return this.#queued / CAPTION_SAMPLE_RATE;
-  }
-
-  push(samples: Float32Array) {
-    if (this.#ended || !samples.length) return;
-    this.#queue.push(samples);
-    this.#queued += samples.length;
-    if (this.#queued >= MIN_CHUNK_SECONDS * CAPTION_SAMPLE_RATE) this.#notify();
-  }
-
-  end() {
-    this.#ended = true;
-    this.#notify();
-  }
-
-  async *chunks(): AsyncGenerator<Float32Array> {
-    while (true) {
-      if (this.#queued < MIN_CHUNK_SECONDS * CAPTION_SAMPLE_RATE && !this.#ended) {
-        await new Promise<void>((resolve) => { this.#wake = resolve; });
-        continue;
+  push(samples: Float32Array): CaptionUtterance[] {
+    const grown = new Float32Array(this.#buffer.length + samples.length);
+    grown.set(this.#buffer);
+    grown.set(samples, this.#buffer.length);
+    this.#buffer = grown;
+    const done: CaptionUtterance[] = [];
+    while ((this.#rms.length + 1) * FRAME <= this.#buffer.length) {
+      const from = this.#rms.length * FRAME;
+      let sum = 0;
+      for (let i = from; i < from + FRAME; i++) sum += this.#buffer[i] * this.#buffer[i];
+      const rms = Math.sqrt(sum / FRAME);
+      this.#peak = Math.max(rms, this.#peak * PEAK_DECAY);
+      const pause = rms < SILENCE_FLOOR || rms < this.#peak * 0.08;
+      this.#rms.push(rms);
+      this.#quietFrames = pause ? this.#quietFrames + 1 : 0;
+      if (rms >= SILENCE_FLOOR) this.#voiced = true;
+      const length = this.#rms.length * FRAME / CAPTION_SAMPLE_RATE;
+      if (length >= MIN_UTTERANCE_SECONDS && this.#quietFrames * FRAME >= PAUSE_SECONDS * CAPTION_SAMPLE_RATE) {
+        this.#cut(this.#rms.length, done);
+      } else if (length >= MAX_UTTERANCE_SECONDS) {
+        const window = Math.round(FORCED_CUT_WINDOW * 50);
+        let quietest = this.#rms.length - 1;
+        for (let k = this.#rms.length - window; k < this.#rms.length; k++) if (this.#rms[k] < this.#rms[quietest]) quietest = k;
+        this.#cut(quietest + 1, done);
       }
-      if (!this.#queued) return;
-      yield this.#take(Math.min(this.#queued, MAX_CHUNK_SECONDS * CAPTION_SAMPLE_RATE));
     }
+    return done;
   }
 
-  #take(size: number): Float32Array {
-    const block = new Float32Array(size);
-    let offset = 0;
-    while (offset < size) {
-      const head = this.#queue[0];
-      const count = Math.min(head.length, size - offset);
-      block.set(head.subarray(0, count), offset);
-      offset += count;
-      if (count === head.length) this.#queue.shift();
-      else this.#queue[0] = head.subarray(count);
+  /** The unfinished tail, when playback stops. */
+  flush(): CaptionUtterance | null {
+    const done: CaptionUtterance[] = [];
+    if (this.#buffer.length >= CAPTION_SAMPLE_RATE / 5) {
+      this.#cut(Math.ceil(this.#buffer.length / FRAME), done);
     }
-    this.#queued -= size;
-    return block;
+    return done[0] ?? null;
   }
 
-  #notify() {
-    const wake = this.#wake;
-    this.#wake = undefined;
-    wake?.();
+  #cut(frames: number, done: CaptionUtterance[]) {
+    const size = Math.min(this.#buffer.length, frames * FRAME);
+    // Silence carries no words; skip it but keep the timeline.
+    if (this.#voiced) done.push({ start: this.#offset / CAPTION_SAMPLE_RATE, samples: this.#buffer.slice(0, size) });
+    this.#buffer = this.#buffer.slice(size);
+    this.#rms = this.#rms.slice(frames);
+    this.#offset += size;
+    this.#quietFrames = 0;
+    this.#voiced = this.#rms.some((rms) => rms >= SILENCE_FLOOR);
   }
 }

@@ -5,13 +5,15 @@ import type { CaptionDelay, PodcastCaptionWord, PodcastEpisode } from "../types/
 import { logger } from "../utils/logger";
 import {
   CAPTION_DELAY_SECONDS,
-  CaptionSegment,
+  CAPTION_SAMPLE_RATE,
   MAX_BACKLOG_SECONDS,
+  PauseSegmenter,
   createCaptionDownsampler,
   heardTime,
   replaceCaptionWords,
   toPodcastWords,
 } from "../utils/podcastCaptions";
+import type { CaptionUtterance } from "../utils/podcastCaptions";
 
 export type PodcastCaptionStatus = "off" | "loading" | "listening" | "error";
 
@@ -170,8 +172,13 @@ async function ensureReadableSource(audio: HTMLAudioElement, episode: PodcastEpi
   }
 }
 
-const SEGMENT_BREAKS = ["pause", "seeking", "waiting", "ratechange", "ended", "emptied"] as const;
-const SEGMENT_STARTS = ["playing", "seeked", "canplay"] as const;
+// A run is one continuous stretch of playback: its samples map linearly onto
+// media time from `anchor` at `rate`. These events end or (re)start a run.
+const RUN_BREAKS = ["pause", "seeking", "waiting", "ratechange", "ended", "emptied"] as const;
+const RUN_STARTS = ["playing", "seeked", "canplay"] as const;
+
+type Run = { anchor: number; rate: number; segmenter: PauseSegmenter; downsample: (input: Float32Array) => Float32Array };
+type Job = { offset: number; rate: number; samples: Float32Array };
 
 export function usePodcastCaptions(audioRef: RefObject<HTMLAudioElement | null>, episode: PodcastEpisode) {
   const [enabled, setEnabled] = useState(false);
@@ -211,14 +218,13 @@ export function usePodcastCaptions(audioRef: RefObject<HTMLAudioElement | null>,
     if (!enabled || !audio || !capture) return;
     const controller = new AbortController();
     const { signal } = controller;
-    // `segment` receives audio now; `queue` holds ended or live segments that
+    // `run` segments the audio playing now; `queue` holds finished utterances
     // Whistle has not reached yet, so capture never waits on inference.
-    let segment: CaptionSegment | undefined;
-    let recognising: CaptionSegment | undefined;
-    const queue: CaptionSegment[] = [];
+    let run: Run | undefined;
+    const queue: Job[] = [];
+    let queuedSeconds = 0;
     let listening = false;
     let wakeLoop: (() => void) | undefined;
-    let downsample: ((input: Float32Array) => Float32Array) | undefined;
     let worklet: AudioWorkletNode | undefined;
     let closeSpeech: (() => void) | undefined;
     const wake = () => {
@@ -230,26 +236,35 @@ export function usePodcastCaptions(audioRef: RefObject<HTMLAudioElement | null>,
     const stop = (message: string) => {
       if (signal.aborted) return;
       controller.abort();
-      segment?.end();
-      for (const pending of queue) pending.end();
+      run = undefined;
+      queue.length = 0;
       closeSpeech?.();
       undelay(audio, capture);
       setDelay(null);
       setError(message);
       setState("error");
     };
-    const startSegment = () => {
-      if (!listening || signal.aborted || segment || audio.paused || audio.seeking || audio.readyState < HTMLMediaElement.HAVE_FUTURE_DATA) return;
-      segment = new CaptionSegment(audio.currentTime, audio.playbackRate);
-      downsample = createCaptionDownsampler(capture.context.sampleRate);
-      queue.push(segment);
+    const enqueue = (from: Run, utterance: CaptionUtterance) => {
+      queue.push({ offset: from.anchor + utterance.start * from.rate, rate: from.rate, samples: utterance.samples });
+      queuedSeconds += utterance.samples.length / CAPTION_SAMPLE_RATE;
       wake();
     };
-    const breakSegment = () => {
-      segment?.end();
-      segment = undefined;
+    const startRun = () => {
+      if (!listening || signal.aborted || run || audio.paused || audio.seeking || audio.readyState < HTMLMediaElement.HAVE_FUTURE_DATA) return;
+      run = {
+        anchor: audio.currentTime,
+        rate: audio.playbackRate,
+        segmenter: new PauseSegmenter(),
+        downsample: createCaptionDownsampler(capture.context.sampleRate),
+      };
+    };
+    const breakRun = () => {
+      const ended = run;
+      run = undefined;
+      const tail = ended?.segmenter.flush();
+      if (ended && tail) enqueue(ended, tail);
       // A rate change keeps playing without a new "playing" event.
-      startSegment();
+      startRun();
     };
     // After a seek the delay line still holds audio from the old position.
     const flush = () => {
@@ -266,8 +281,8 @@ export function usePodcastCaptions(audioRef: RefObject<HTMLAudioElement | null>,
       flush();
     };
     audio.addEventListener("ratechange", rerate);
-    for (const type of SEGMENT_BREAKS) audio.addEventListener(type, breakSegment);
-    for (const type of SEGMENT_STARTS) audio.addEventListener(type, startSegment);
+    for (const type of RUN_BREAKS) audio.addEventListener(type, breakRun);
+    for (const type of RUN_STARTS) audio.addEventListener(type, startRun);
     audio.addEventListener("seeking", flush);
 
     void (async () => {
@@ -288,29 +303,25 @@ export function usePodcastCaptions(audioRef: RefObject<HTMLAudioElement | null>,
         route(audio, capture, true);
         setDelay(capture.delay);
         worklet.port.onmessage = (event: MessageEvent<{ samples: Float32Array }>) => {
-          if (!segment || !downsample) return;
-          segment.push(downsample(event.data.samples));
-          const waiting = new Set([recognising, ...queue, segment]);
-          let backlog = 0;
-          for (const pending of waiting) backlog += pending?.backlogSeconds ?? 0;
-          if (backlog > MAX_BACKLOG_SECONDS) stop("這台裝置的辨識速度跟不上播放，字幕已停止；音訊仍可正常播放。");
+          const current = run;
+          if (!current) return;
+          for (const utterance of current.segmenter.push(current.downsample(event.data.samples))) enqueue(current, utterance);
+          if (queuedSeconds + current.segmenter.bufferedSeconds > MAX_BACKLOG_SECONDS) stop("這台裝置的辨識速度跟不上播放，字幕已停止；音訊仍可正常播放。");
         };
         setState("listening");
         listening = true;
-        startSegment();
+        startRun();
         while (!signal.aborted) {
-          const current = queue.shift();
-          if (!current) {
+          const job = queue.shift();
+          if (!job) {
             await new Promise<void>((resolve) => { wakeLoop = resolve; });
             continue;
           }
-          recognising = current;
-          for await (const part of whistle.stream(current.chunks(), { language: "en" })) {
-            if (signal.aborted) break;
-            const heard = toPodcastWords(part.words, current.anchor, current.playbackRate);
-            if (heard.length) setWords((previous) => replaceCaptionWords(previous, heard));
-          }
-          recognising = undefined;
+          const result = await whistle.transcribe(job.samples, { language: "en", wordTimestamps: true });
+          queuedSeconds -= job.samples.length / CAPTION_SAMPLE_RATE;
+          if (signal.aborted) break;
+          const heard = toPodcastWords(result.words ?? [], job.offset, job.rate);
+          if (heard.length) setWords((previous) => replaceCaptionWords(previous, heard));
         }
       } catch (cause) {
         if (signal.aborted) return;
@@ -323,11 +334,11 @@ export function usePodcastCaptions(audioRef: RefObject<HTMLAudioElement | null>,
 
     return () => {
       controller.abort();
-      segment?.end();
-      for (const pending of queue) pending.end();
+      run = undefined;
+      queue.length = 0;
       audio.removeEventListener("ratechange", rerate);
-      for (const type of SEGMENT_BREAKS) audio.removeEventListener(type, breakSegment);
-      for (const type of SEGMENT_STARTS) audio.removeEventListener(type, startSegment);
+      for (const type of RUN_BREAKS) audio.removeEventListener(type, breakRun);
+      for (const type of RUN_STARTS) audio.removeEventListener(type, startRun);
       audio.removeEventListener("seeking", flush);
       if (worklet) worklet.port.onmessage = null;
       closeSpeech?.();
