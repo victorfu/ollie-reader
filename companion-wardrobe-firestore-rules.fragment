@@ -1,0 +1,70 @@
+// Merge inside the deployment's existing /databases/{database}/documents block.
+// This only adds the Cinnamoroll companion wardrobe (大耳狗背包); do not
+// replace all app rules. The deployed rules are not kept in this repo, so this
+// fragment must be merged into them by hand. It has not been run against the
+// Firestore emulator; test it there before deploying.
+//
+// A new accessory may only appear in `owned` in the same commit that lowers
+// gameProgress/{uid}.coins by exactly its price (the client's purchase
+// transaction). Equipment may only hold owned accessories in their own slot.
+// Keep the prices identical to COMPANION_PRICES in
+// src/components/LittleGames/cinnamoroll-companion/logic/outfit.ts.
+//
+// LIMITATION: game rewards are granted by browser-side transactions, so the
+// owner can already write gameProgress/{uid}.coins. These rules stop free
+// grants through the wardrobe document, not forged token balances; that needs
+// a trusted settlement backend for every reward and purchase.
+function companionPrices() {
+  return { 'bow': 50, 'hat': 100, 'crown': 300, 'glasses': 120, 'scarf': 150, 'plush': 180 };
+}
+function companionSlots() {
+  return { 'bow': 'head', 'hat': 'head', 'crown': 'head', 'glasses': 'face', 'scarf': 'neck', 'plush': 'hand' };
+}
+function ownsCompanionWardrobe(uid) {
+  return request.auth != null && request.auth.uid == uid;
+}
+function companionEquipmentValid(data) {
+  let equipped = data.equipped;
+  return equipped is map
+    && equipped.keys().hasOnly(['head', 'face', 'neck', 'hand'])
+    && (!('head' in equipped) || (equipped.head in data.owned && companionSlots()[equipped.head] == 'head'))
+    && (!('face' in equipped) || (equipped.face in data.owned && companionSlots()[equipped.face] == 'face'))
+    && (!('neck' in equipped) || (equipped.neck in data.owned && companionSlots()[equipped.neck] == 'neck'))
+    && (!('hand' in equipped) || (equipped.hand in data.owned && companionSlots()[equipped.hand] == 'hand'));
+}
+function companionPaidFor(uid, item, added) {
+  let progress = /databases/$(database)/documents/gameProgress/$(uid);
+  let price = companionPrices()[item];
+  return added == [item].toSet()
+    && request.resource.data.owned[item].price == price
+    && get(progress).data.coins is int
+    && getAfter(progress).data.coins == get(progress).data.coins - price;
+}
+function companionOwnershipChangeValid(uid) {
+  let before = resource == null ? {} : resource.data.owned;
+  let diff = request.resource.data.owned.diff(before);
+  let added = diff.addedKeys();
+  return diff.removedKeys().size() == 0
+    && diff.changedKeys().size() == 0
+    && (added.size() == 0
+      || companionPaidFor(uid, 'bow', added)
+      || companionPaidFor(uid, 'hat', added)
+      || companionPaidFor(uid, 'crown', added)
+      || companionPaidFor(uid, 'glasses', added)
+      || companionPaidFor(uid, 'scarf', added)
+      || companionPaidFor(uid, 'plush', added));
+}
+match /gameProgress/{uid}/littleGames/companionWardrobe {
+  allow read: if ownsCompanionWardrobe(uid);
+  allow create, update: if ownsCompanionWardrobe(uid)
+    && request.resource.data.keys().hasOnly(['schemaVersion', 'owned', 'equipped', 'createdAt', 'updatedAt'])
+    && request.resource.data.owned is map
+    && request.resource.data.owned.keys().hasOnly(companionPrices().keys())
+    && companionEquipmentValid(request.resource.data)
+    && companionOwnershipChangeValid(uid);
+  allow delete: if false;
+}
+// IMPORTANT: Remove/narrow overlapping wildcard grants such as
+// /gameProgress/{uid}/{document=**}. Firestore grants access if ANY matching
+// rule allows it, so a broader grant would bypass these checks. Keep explicit
+// rules for the other littleGames documents (e.g. gachaMachine) when narrowing.
