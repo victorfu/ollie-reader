@@ -4,9 +4,10 @@ import { ArrowLeft, Info, RotateCcw } from "lucide-react";
 import { ErrorBoundary } from "../../common/ErrorBoundary";
 import { lazyWithReload } from "../../../utils/lazyWithReload";
 import { createCompanionRuntime } from "./logic/companionRuntime";
-import type { CompanionOutfit } from "../../../types/companion";
-import { previewAccessory } from "./logic/outfit";
-import { CompanionPanel } from "./CompanionPanel";
+import type { CompanionAccessory, CompanionOutfit } from "../../../types/companion";
+import { accessorySlot, sameOutfit, shownOutfit, wearAccessory } from "./logic/outfit";
+import { CompanionPanel, type CompanionPanelKind } from "./CompanionPanel";
+import { useCompanionWardrobe, type PurchaseOutcome } from "./useCompanionWardrobe";
 import { useLanguage } from "../../../hooks/useLanguage";
 import type { MessageKey } from "../../../i18n/translate";
 import { T } from "../../common/T";
@@ -32,6 +33,14 @@ function usePageHidden(): boolean {
   }, []);
   return hidden;
 }
+
+const PURCHASE_MESSAGES: Record<Exclude<PurchaseOutcome, "busy">, MessageKey> = {
+  bought: "gacha.companion.shop.bought",
+  insufficient: "gacha.companion.shop.insufficient",
+  owned: "gacha.companion.shop.alreadyOwned",
+  offline: "gacha.companion.shop.offline",
+  failed: "gacha.companion.shop.failed",
+};
 
 function Loading() {
   return (
@@ -73,8 +82,13 @@ export default function CompanionPage({ onExit }: { onExit: () => void }) {
   const [contextLost, setContextLost] = useState(false);
   const [sceneKey, setSceneKey] = useState(0);
   const [ready, setReady] = useState(false);
-  const [panel, setPanel] = useState<"actions" | "outfit" | null>(null);
-  const [outfit, setOutfit] = useState<CompanionOutfit>({});
+  const [panel, setPanel] = useState<CompanionPanelKind | null>(null);
+  // Free try-ons of accessories the player does not own; never saved.
+  const [trial, setTrial] = useState<CompanionOutfit>({});
+  const [purchaseMessage, setPurchaseMessage] = useState<MessageKey | null>(null);
+  const shop = useCompanionWardrobe();
+  const view = { equipped: shop.wardrobe.equipped, trial };
+  const outfit = shownOutfit(view);
   const reducedMotion = Boolean(useReducedMotion());
   const hidden = usePageHidden();
   const { t } = useLanguage();
@@ -83,7 +97,8 @@ export default function CompanionPage({ onExit }: { onExit: () => void }) {
     if (!import.meta.env.DEV) return;
     const target = window as Window & { render_game_to_text?: () => string };
     const describe = () => JSON.stringify({
-      ready, panel, outfit,
+      ready, panel, outfit, trial,
+      wardrobe: { status: shop.status, owned: [...shop.wardrobe.owned], balance: shop.balance },
       coordinates: "canvas client pixels, x right, y down; spin in radians",
       pet: runtime.pet.phase, patUntil: runtime.pet.patUntil,
       action: runtime.performance?.action ?? null,
@@ -93,7 +108,38 @@ export default function CompanionPage({ onExit }: { onExit: () => void }) {
     return () => {
       if (target.render_game_to_text === describe) delete target.render_game_to_text;
     };
-  }, [outfit, panel, ready, runtime]);
+  }, [outfit, panel, ready, runtime, shop.balance, shop.status, shop.wardrobe.owned, trial]);
+
+  const openPanel = (kind: CompanionPanelKind) => {
+    setPurchaseMessage(null);
+    setPanel(kind);
+  };
+
+  const wear = (id: CompanionAccessory) => {
+    const next = wearAccessory(view, id, shop.wardrobe.owned);
+    setTrial(next.trial);
+    if (!sameOutfit(next.equipped, view.equipped)) shop.equip(next.equipped);
+  };
+
+  const takeAllOff = () => {
+    setTrial({});
+    if (Object.keys(view.equipped).length > 0) shop.equip({});
+  };
+
+  const buy = async (id: CompanionAccessory) => {
+    setPurchaseMessage(null);
+    const outcome = await shop.purchase(id);
+    if (outcome === "busy") return;
+    setPurchaseMessage(PURCHASE_MESSAGES[outcome]);
+    if (outcome !== "bought") return;
+    // The purchase already put it on; drop any try-on covering that slot.
+    setTrial((current) => {
+      const next = { ...current };
+      delete next[accessorySlot(id)];
+      return next;
+    });
+    runtime.perform("jump", performance.now());
+  };
 
   const backButton = (
     <button
@@ -220,8 +266,9 @@ export default function CompanionPage({ onExit }: { onExit: () => void }) {
             <T k="gacha.companion.hint" />
           </p>
           <div className="flex flex-wrap items-center justify-center gap-2">
-            <button type="button" className="btn min-h-11 pointer-events-auto rounded-full" onClick={() => setPanel("actions")}><T k="gacha.companion.actions" variant="stacked" /></button>
-            <button type="button" className="btn min-h-11 pointer-events-auto rounded-full" onClick={() => setPanel("outfit")}><T k="gacha.companion.outfit" variant="stacked" /></button>
+            <button type="button" className="btn min-h-11 pointer-events-auto rounded-full" onClick={() => openPanel("actions")}><T k="gacha.companion.actions" variant="stacked" /></button>
+            <button type="button" className="btn min-h-11 pointer-events-auto rounded-full" onClick={() => openPanel("outfit")}><T k="gacha.companion.outfit" variant="stacked" /></button>
+            <button type="button" className="btn min-h-11 pointer-events-auto rounded-full" onClick={() => openPanel("shop")}><T k="gacha.companion.shop" variant="stacked" /></button>
             <button
               type="button"
               onClick={() => runtime.resetView()}
@@ -233,12 +280,13 @@ export default function CompanionPage({ onExit }: { onExit: () => void }) {
           </div>
         </footer>
       ) : null}
-      {panel && webGL && !contextLost ? <CompanionPanel panel={panel} outfit={outfit}
+      {panel && webGL && !contextLost ? <CompanionPanel panel={panel} view={view} shop={shop} message={purchaseMessage}
         onClose={() => setPanel(null)}
         onAction={(action) => { runtime.perform(action, performance.now()); setPanel(null); }}
         onPat={() => { runtime.dispatch({ type: "pat", now: performance.now() }); setPanel(null); }}
-        onPreview={(id) => setOutfit((current) => previewAccessory(current, id))}
-        onClear={() => setOutfit({})} /> : null}
+        onWear={wear}
+        onClear={takeAllOff}
+        onBuy={(id) => { void buy(id); }} /> : null}
     </div>
   );
 }
