@@ -34,7 +34,15 @@ afterEach(() => {
   act(() => root.unmount());
   host.remove();
   window.history.replaceState(null, "", "/");
+  localStorage.clear();
 });
+
+const desktopNavLabels = () =>
+  Array.from(host.querySelectorAll("aside nav a")).map((link) => link.textContent);
+const desktopMoreToggle = () =>
+  Array.from(host.querySelectorAll<HTMLButtonElement>("aside nav button")).find(
+    (button) => button.textContent === "更多",
+  )!;
 
 describe("default home page", () => {
   it("opens the Vocabulary Book from the root path", () => {
@@ -59,7 +67,7 @@ describe("retired travel page", () => {
     expect(window.history.length).toBe(historyLength);
     expect(host.querySelector('a[href="/travel"]')).toBeNull();
     expect(host.textContent).not.toContain("旅遊英文");
-    expect(host.querySelector('a[href="/exams"]')).not.toBeNull();
+    expect(host.querySelector('a[href="/podcasts"]')).not.toBeNull();
   });
 
   it("preserves authentication when opening a retired bookmark", () => {
@@ -124,7 +132,8 @@ describe("Speech navigation", () => {
   it("shows a single Speech entry instead of separate speech items", () => {
     window.history.replaceState(null, "", "/reader");
     act(() => root.render(<App />));
-    const labels = Array.from(host.querySelectorAll("aside nav a")).map((link) => link.textContent);
+    act(() => desktopMoreToggle().click());
+    const labels = desktopNavLabels();
     expect(labels).toContain("演講");
     expect(labels).not.toContain("英文演講");
     expect(labels).not.toContain("演講練習");
@@ -146,5 +155,55 @@ describe("Speech navigation", () => {
     window.history.replaceState(null, "", "/speech");
     act(() => root.render(<App />));
     expect(window.location.pathname).toBe("/english-speech");
+  });
+});
+
+describe("More section", () => {
+  it("tucks Speech, Show subtitles and Exams under a collapsed 更多 by default", () => {
+    window.history.replaceState(null, "", "/reader");
+    act(() => root.render(<App />));
+    const toggle = desktopMoreToggle();
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    expect(desktopNavLabels()).toEqual(["閱讀器", "生詞本", "單字練習", "Podcast 聽力", "小遊戲"]);
+    act(() => toggle.click());
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    expect(desktopNavLabels().slice(-3)).toEqual(["演講", "影集字幕", "基本學力測驗"]);
+  });
+
+  it("expands 更多 when the current page lives inside it", () => {
+    window.history.replaceState(null, "", "/exams");
+    act(() => root.render(<App />));
+    expect(desktopMoreToggle().getAttribute("aria-expanded")).toBe("true");
+    expect(host.querySelector('aside nav a[aria-current="page"]')?.textContent).toBe("基本學力測驗");
+  });
+
+  it("moves items out of and back into 更多, remembering the choice", () => {
+    window.history.replaceState(null, "", "/reader");
+    act(() => root.render(<App />));
+    act(() => desktopMoreToggle().click());
+    act(() => host.querySelector<HTMLButtonElement>('aside button[aria-label="把「影集字幕」移出更多"]')!.click());
+    act(() => host.querySelector<HTMLButtonElement>('aside button[aria-label="把「小遊戲」移到更多"]')!.click());
+    expect(desktopNavLabels()).toEqual([
+      "閱讀器", "生詞本", "單字練習", "Podcast 聽力", "影集字幕", "演講", "基本學力測驗", "小遊戲",
+    ]);
+
+    act(() => root.unmount());
+    root = createRoot(host);
+    act(() => root.render(<App />));
+    act(() => desktopMoreToggle().click());
+    expect(desktopNavLabels()).toEqual([
+      "閱讀器", "生詞本", "單字練習", "Podcast 聽力", "影集字幕",
+    ]);
+  });
+
+  it("hides the 更多 toggle once every item has been moved out", () => {
+    window.history.replaceState(null, "", "/reader");
+    act(() => root.render(<App />));
+    act(() => desktopMoreToggle().click());
+    for (const label of ["演講", "影集字幕", "基本學力測驗"]) {
+      act(() => host.querySelector<HTMLButtonElement>(`aside button[aria-label="把「${label}」移出更多"]`)!.click());
+    }
+    expect(desktopMoreToggle()).toBeUndefined();
+    expect(desktopNavLabels()).toHaveLength(8);
   });
 });

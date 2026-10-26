@@ -35,6 +35,8 @@ import { useWarmServerOnRouteChange } from "./hooks/useWarmServer";
 import { ErrorBoundary } from "./components/common/ErrorBoundary";
 import { lazyWithReload } from "./utils/lazyWithReload";
 import { SpeechHub } from "./components/Speech/SpeechHub";
+import { SidebarNav, type SidebarNavItem } from "./components/common/SidebarNav";
+import { useSidebarMore } from "./hooks/useSidebarMore";
 
 // Lazy load route components for code splitting. lazyWithReload recovers from
 // stale-chunk errors (old hashed chunks gone after a deploy) by reloading once.
@@ -277,6 +279,9 @@ function AppContent() {
       return false;
     }
   });
+  const { moreOpen, setMoreOpen, isInMore, moveToMore, moveOutOfMore } =
+    useSidebarMore();
+  const [moreRevealedFor, setMoreRevealedFor] = useState<string | null>(null);
 
   // Warm-start backend on each route change
   useWarmServerOnRouteChange();
@@ -427,13 +432,7 @@ function AppContent() {
   const accountLabel = user.displayName || user.email || "使用者";
   const accountEmail = user.email;
   const accountInitial = accountLabel.charAt(0).toUpperCase();
-  const navItems: {
-    to: string;
-    label: string;
-    icon: typeof BookOpen;
-    /** 其他也算在這個入口底下的路徑（子分頁） */
-    matches?: string[];
-  }[] = [
+  const navItems: SidebarNavItem[] = [
     { to: "/reader", label: "閱讀器", icon: BookOpen },
     { to: "/vocabulary", label: "生詞本", icon: BookMarked },
     { to: "/word-practice", label: "單字練習", icon: SpellCheck },
@@ -448,11 +447,32 @@ function AppContent() {
     { to: "/exams", label: "基本學力測驗", icon: ClipboardCheck },
     { to: "/games", label: "小遊戲", icon: Joystick },
   ];
-  const isNavItemActive = (item: (typeof navItems)[number]) =>
+  const isNavItemActive = (item: SidebarNavItem) =>
     item.to === location.pathname ||
     (item.matches?.includes(location.pathname) ?? false);
+  const activeNavItem = navItems.find(isNavItemActive);
+
+  // 目前頁面收在「更多」裡時自動展開，讓使用者看得到自己在哪一頁。
+  if (activeNavItem && isInMore(activeNavItem.to)) {
+    if (moreRevealedFor !== location.pathname) {
+      setMoreRevealedFor(location.pathname);
+      setMoreOpen(true);
+    }
+  } else if (moreRevealedFor !== null) {
+    setMoreRevealedFor(null);
+  }
+
+  const sidebarNavProps = {
+    items: navItems,
+    isActive: isNavItemActive,
+    isInMore,
+    moreOpen,
+    onToggleMore: () => setMoreOpen((open) => !open),
+    onMoveToMore: moveToMore,
+    onMoveOutOfMore: moveOutOfMore,
+  };
   const currentLabel =
-    navItems.find(isNavItemActive)?.label ??
+    activeNavItem?.label ??
     (location.pathname === "/settings" ? "設定" : "Ollie Reader");
 
   return (
@@ -500,28 +520,11 @@ function AppContent() {
             sidebarCollapsed ? "p-2" : "p-3"
           }`}
         >
-          {navItems.map((item) => {
-            const isActive = isNavItemActive(item);
-            const Icon = item.icon;
-            return (
-              <Link
-                key={item.to}
-                to={item.to}
-                title={item.label}
-                aria-current={isActive ? "page" : undefined}
-                className={`flex items-center rounded-lg text-sm font-medium transition-colors duration-200 ${
-                  sidebarCollapsed ? "justify-center px-2 py-2.5" : "gap-3 px-3 py-2"
-                } ${
-                  isActive
-                    ? "bg-accent-tint text-accent"
-                    : "text-base-content/70 hover:bg-accent-tint hover:text-accent"
-                }`}
-              >
-                <Icon className="size-5 shrink-0" strokeWidth={1.75} aria-hidden="true" />
-                {!sidebarCollapsed && <span className="truncate">{item.label}</span>}
-              </Link>
-            );
-          })}
+          <SidebarNav
+            {...sidebarNavProps}
+            variant="desktop"
+            collapsed={sidebarCollapsed}
+          />
         </nav>
 
         {/* Account menu */}
@@ -678,26 +681,11 @@ function AppContent() {
 
               {/* Navigation */}
               <nav className="flex-1 space-y-1 overflow-y-auto p-3">
-                {navItems.map((item) => {
-                  const isActive = isNavItemActive(item);
-                  const Icon = item.icon;
-                  return (
-                    <Link
-                      key={`mobile-${item.to}`}
-                      to={item.to}
-                      onClick={() => setIsMobileMenuOpen(false)}
-                      aria-current={isActive ? "page" : undefined}
-                      className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors duration-200 active:scale-[0.98] ${
-                        isActive
-                          ? "bg-accent-tint text-accent"
-                          : "text-base-content hover:bg-accent-tint hover:text-accent"
-                      }`}
-                    >
-                      <Icon className="size-5 shrink-0" strokeWidth={1.75} aria-hidden="true" />
-                      <span>{item.label}</span>
-                    </Link>
-                  );
-                })}
+                <SidebarNav
+                  {...sidebarNavProps}
+                  variant="mobile"
+                  onNavigate={() => setIsMobileMenuOpen(false)}
+                />
               </nav>
             </div>
           </div>
