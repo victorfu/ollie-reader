@@ -8,6 +8,7 @@ import {
 import type { GameWord } from "../../services/gameService";
 import type { QuizKind, Stage } from "../../types/game";
 import { CLOZE_BLANK } from "../../utils/wordForms";
+import { FALLBACK_GAME_WORDS } from "../../services/gameWords";
 
 const POOL: GameWord[] = [
   { word: "apple", def: "蘋果", emoji: "🍎" },
@@ -416,6 +417,25 @@ describe("cloze", () => {
     const qs = buildQuizQuestions(pool, clozeStage(3));
     expect(qs).toHaveLength(3);
     expect(qs.every((q) => q.kind === "reverse")).toBe(true);
+  });
+
+  it("falls back to reverse when a related word would leak the answer", () => {
+    const pool: GameWord[] = [
+      {
+        word: "communicate",
+        def: "溝通",
+        emoji: "🗣️",
+        example: "Good communication helps us communicate.",
+      },
+      ...POOL,
+    ];
+    expect(buildQuizQuestions(pool, clozeStage(1))[0].kind).toBe("reverse");
+  });
+
+  it("keeps every built-in fallback word as a cloze question", () => {
+    const pool = [...FALLBACK_GAME_WORDS];
+    const qs = buildQuizQuestions(pool, clozeStage(pool.length));
+    expect(qs.filter((q) => q.kind !== "cloze").map((q) => q.word)).toEqual([]);
   });
 
   it("carries the translation", () => {

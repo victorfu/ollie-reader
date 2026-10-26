@@ -73,6 +73,20 @@ function redactHeadword(text: string, word: string): string {
   return redacted.replace(/[_\s]/g, "") ? redacted : text;
 }
 
+/**
+ * 例句能不能出句子填空：要認得出這個字，且挖空後不能再看到同字根的相關字
+ * （"Good communication helps us communicate." 挖掉 communicate 仍留著 communication）。
+ */
+function hasUsableExample(word: GameWord): boolean {
+  if (!word.example || !sentenceUsesWord(word.example, word.word)) return false;
+  const stem = stemOf(word.word);
+  if (stem.length < MIN_STEM_LENGTH) return true;
+  const escaped = stem.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return !new RegExp(`\\b${escaped}`, "i").test(
+    redactWordForms(word.example, word.word),
+  );
+}
+
 /** 該語言是否有釋義可用（不做遮蔽，純粹判斷有無） */
 function rawDef(word: GameWord, lang: DefLanguage): string | null {
   const value = lang === "en" ? word.defEn : word.def;
@@ -291,11 +305,8 @@ export function buildQuizQuestions(
     if (kind === "emoji" && (!word.emoji || word.emoji === DEFAULT_EMOJI)) {
       kind = "meaning";
     }
-    // 沒有例句、或例句裡認不出這個字（如只有所有格）→ 改出反向選字
-    if (
-      kind === "cloze" &&
-      !(word.example && sentenceUsesWord(word.example, word.word))
-    ) {
+    // 沒有例句、例句裡認不出這個字（如只有所有格）、或挖空後會洩答 → 改出反向選字
+    if (kind === "cloze" && !hasUsableExample(word)) {
       kind = "reverse";
     }
     return buildOne(kind, word, usable, lang);
