@@ -139,7 +139,7 @@ export const useSentencePractice = (speechId: string | null) => {
       setOwnedError(operationOwnerKey, null);
 
       try {
-        const result = await getSpeechSentences(speechId, filters);
+        const result = await getSpeechSentences(userId, speechId, filters);
 
         if (
           !isActiveOwner(operationOwnerKey) ||
@@ -194,7 +194,7 @@ export const useSentencePractice = (speechId: string | null) => {
     setLoadingMoreOwnerKey(operationOwnerKey);
 
     try {
-      const result = await getSpeechSentences(speechId, { cursor });
+      const result = await getSpeechSentences(userId, speechId, { cursor });
       if (
         !isActiveOwner(operationOwnerKey) ||
         requestId !== loadMoreRequestIdRef.current ||
@@ -502,7 +502,7 @@ export const useSentencePractice = (speechId: string | null) => {
       }
 
       try {
-        await clearSpeechSentences(targetSpeechId);
+        await clearSpeechSentences(userId, targetSpeechId);
         if (isActiveOwner(operationOwnerKey)) {
           setViewState(emptyView(operationOwnerKey));
         }
@@ -548,7 +548,7 @@ export const useSentencePractice = (speechId: string | null) => {
       }
 
       try {
-        const updates = await updateSentenceOrders(speechId, orderedIds);
+        const updates = await updateSentenceOrders(userId, speechId, orderedIds);
         const orderById = new Map(
           updates.map((update) => [update.id, update.order]),
         );

@@ -12,6 +12,7 @@
     "lint": "eslint . --ignore-pattern 'desktop/.venv/**' --ignore-pattern 'desktop/dist/**' --ignore-pattern 'desktop/build/**'",
     "preview": "vite preview",
     "test": "vitest run --passWithNoTests",
+    "test:rules": "npx -y firebase-tools@13.35.1 emulators:exec --only firestore --project demo-ollie-reader \"vitest run --config vitest.rules.config.ts\"",
     "fetch-transcripts": "node scripts/fetch-transcripts.mjs",
     "build-cefr": "node scripts/build-cefr-levels.mjs"
   },
@@ -34,6 +35,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.2",
+    "@firebase/rules-unit-testing": "^5.0.1",
     "@tailwindcss/postcss": "^4.1.18",
     "@types/node": "^25.2.2",
     "@types/react": "^19.2.13",

@@ -100,7 +100,8 @@ export const useSpeeches = () => {
 
   const remove = useCallback(
     async (speechId: string) => {
-      await deleteSpeechService(speechId);
+      if (!user) return;
+      await deleteSpeechService(user.uid, speechId);
       setSpeeches((prev) => {
         const next = prev.filter((s) => s.id !== speechId);
         if (currentSpeechId === speechId) {
@@ -109,7 +110,7 @@ export const useSpeeches = () => {
         return next;
       });
     },
-    [currentSpeechId, setCurrentSpeechId],
+    [user, currentSpeechId, setCurrentSpeechId],
   );
 
   return {

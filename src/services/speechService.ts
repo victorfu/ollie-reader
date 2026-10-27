@@ -72,9 +72,13 @@ export const renameSpeech = async (
 };
 
 // Delete a speech AND all its sentences
-export const deleteSpeech = async (speechId: string): Promise<void> => {
+export const deleteSpeech = async (
+  userId: string,
+  speechId: string,
+): Promise<void> => {
   const sentenceQ = query(
     collection(db, SENTENCE_COLLECTION),
+    where("userId", "==", userId),
     where("speechId", "==", speechId),
   );
   const sentenceSnap = await getDocs(sentenceQ);
@@ -99,6 +103,7 @@ export const duplicateSpeech = async (
 
   const sentenceQ = query(
     collection(db, SENTENCE_COLLECTION),
+    where("userId", "==", userId),
     where("speechId", "==", sourceSpeechId),
     orderBy("order", "asc"),
   );

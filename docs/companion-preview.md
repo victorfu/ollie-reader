@@ -45,8 +45,8 @@ deferred collection expansion are not implemented yet.
 
 `companion-wardrobe-firestore-rules.fragment` lets an accessory be added only
 in the same commit that lowers the balance by its price, and equipment only
-hold owned items. It must be merged into the deployed rules by hand and has
-not been run against the Firestore emulator. Game rewards are still granted
+hold owned items. It is not yet merged into `firestore.rules` and has not been
+run against the Firestore emulator. Game rewards are still granted
 by browser-side transactions, so these rules cannot stop a forged balance;
 that needs a trusted settlement backend for every reward and purchase.
 

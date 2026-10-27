@@ -44,9 +44,13 @@ const convertToPracticeSentence = (
 });
 
 // Max order within a speech
-export const getMaxOrder = async (speechId: string): Promise<number> => {
+export const getMaxOrder = async (
+  userId: string,
+  speechId: string,
+): Promise<number> => {
   const q = query(
     collection(db, COLLECTION_NAME),
+    where("userId", "==", userId),
     where("speechId", "==", speechId),
     orderBy("order", "desc"),
     limit(1),
@@ -57,9 +61,13 @@ export const getMaxOrder = async (speechId: string): Promise<number> => {
 };
 
 // Min order within a speech; null when the speech has no sentences yet.
-export const getMinOrder = async (speechId: string): Promise<number | null> => {
+export const getMinOrder = async (
+  userId: string,
+  speechId: string,
+): Promise<number | null> => {
   const q = query(
     collection(db, COLLECTION_NAME),
+    where("userId", "==", userId),
     where("speechId", "==", speechId),
     orderBy("order", "asc"),
     limit(1),
@@ -90,7 +98,7 @@ export const addSentences = async (
   // transaction so two tabs cannot read the same minimum and allocate the
   // same order range. The observed minimum bootstraps existing speech records
   // that predate the allocator field.
-  const observedMinOrder = await getMinOrder(speechId);
+  const observedMinOrder = await getMinOrder(userId, speechId);
   const speechRef = doc(db, SPEECH_COLLECTION_NAME, speechId);
   const baseOrder = await runTransaction(db, async (transaction) => {
     const speechSnapshot = await transaction.get(speechRef);
@@ -151,7 +159,7 @@ export const addSentences = async (
 export const addSentence = async (
   sentence: Omit<PracticeSentence, "id" | "createdAt" | "updatedAt">,
 ): Promise<string> => {
-  const maxOrder = await getMaxOrder(sentence.speechId);
+  const maxOrder = await getMaxOrder(sentence.userId, sentence.speechId);
   const now = Timestamp.now();
 
   const docRef = await addDoc(collection(db, COLLECTION_NAME), {
@@ -169,6 +177,7 @@ export const addSentence = async (
 
 // Get all sentences for a speech with pagination
 export const getSpeechSentences = async (
+  userId: string,
   speechId: string,
   filters?: SentencePracticeFilters,
 ): Promise<SentencePracticeResult> => {
@@ -178,6 +187,7 @@ export const getSpeechSentences = async (
 
     let q = query(
       collection(db, COLLECTION_NAME),
+      where("userId", "==", userId),
       where("speechId", "==", speechId),
       orderBy("order", sortDirection),
       limit(pageSize + 1),
@@ -188,6 +198,7 @@ export const getSpeechSentences = async (
       if (cursorDoc.exists()) {
         q = query(
           collection(db, COLLECTION_NAME),
+          where("userId", "==", userId),
           where("speechId", "==", speechId),
           orderBy("order", sortDirection),
           startAfter(cursorDoc),
@@ -242,9 +253,13 @@ export const deleteSentence = async (sentenceId: string): Promise<void> => {
 };
 
 // Clear all sentences within a speech
-export const clearSpeechSentences = async (speechId: string): Promise<void> => {
+export const clearSpeechSentences = async (
+  userId: string,
+  speechId: string,
+): Promise<void> => {
   const q = query(
     collection(db, COLLECTION_NAME),
+    where("userId", "==", userId),
     where("speechId", "==", speechId),
   );
   const querySnapshot = await getDocs(q);
@@ -259,6 +274,7 @@ export const clearSpeechSentences = async (speechId: string): Promise<void> => {
 };
 
 export const updateSentenceOrders = async (
+  userId: string,
   speechId: string,
   orderedSentenceIds: string[],
 ): Promise<{ id: string; order: number }[]> => {
@@ -276,6 +292,7 @@ export const updateSentenceOrders = async (
   // rewriting that unseen data.
   const speechQuery = query(
     collection(db, COLLECTION_NAME),
+    where("userId", "==", userId),
     where("speechId", "==", speechId),
     orderBy("order", "asc"),
   );

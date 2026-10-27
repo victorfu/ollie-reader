@@ -139,7 +139,7 @@ describe("sentence practice ordering", () => {
     const loadedIds = documents.slice(0, 50).map((document) => document.id);
     const desiredIds = [...loadedIds].reverse();
 
-    const updates = await updateSentenceOrders("speech-1", desiredIds);
+    const updates = await updateSentenceOrders("user-1", "speech-1", desiredIds);
     const orderById = new Map(
       updates.map((update) => [update.id, update.order]),
     );
@@ -169,7 +169,7 @@ describe("sentence practice ordering", () => {
       .map((document) => document.id)
       .reverse();
 
-    const updates = await updateSentenceOrders("speech-1", desiredIds);
+    const updates = await updateSentenceOrders("user-1", "speech-1", desiredIds);
 
     expect(updates).toHaveLength(52);
     expect(new Set(updates.map((update) => update.order)).size).toBe(52);

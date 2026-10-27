@@ -70,7 +70,7 @@ The UI follows macOS Human Interface Guidelines adapted for the web: a collapsib
 - A Supabase project with a private `ollie-reader` Storage bucket, Firebase Third-Party Auth, and RLS policies matching the Firebase user ID
 - For backend TTS/URL/OIKID/Podcast features, the standalone [`server/`](server/README.md) API (or, except for Podcasts, the optional desktop sidecar)
 
-Firestore rules and Supabase policies/schema are deployment infrastructure; the repository does not contain the complete deployed rules. Word Practice needs [`word-practice-firestore-rules.fragment`](word-practice-firestore-rules.fragment) merged in, which covers `users/{uid}/wordHomeworks/{homeworkId}` and `users/{uid}/wordPractice/state`. The standalone Next.js API in [`server/`](server/README.md) provides Edge TTS, URL fetching, OIKID bookings, version checks, and Podcast resolution.
+Firestore security rules live in [`firestore.rules`](firestore.rules) and indexes in [`firestore.indexes.json`](firestore.indexes.json): each allow-listed user can reach only their own data, so every query on a shared collection must filter by `userId`. Supabase policies/schema are deployment infrastructure kept outside the repository. The standalone Next.js API in [`server/`](server/README.md) provides Edge TTS, URL fetching, OIKID bookings, version checks, and Podcast resolution.
 
 ### Install and run
 
@@ -263,10 +263,11 @@ ollie-reader/
 ├── server/                       # Standalone Next.js API (Edge TTS, URL fetch, OIKID, Podcasts)
 ├── desktop/                      # Optional PySide6 + FastAPI macOS companion
 ├── tests/                        # Additional data/utility tests
-├── word-practice-firestore-rules.fragment  # Firestore rules to merge for Word Practice
+├── firestore.rules               # Firestore security rules (per-user access)
+├── firestore.indexes.json        # Firestore composite indexes
 ├── Makefile                      # Unified Web, server, and desktop task runner
 ├── vite.config.ts                # Vite, Vitest, and PWA configuration
-└── firebase.json                 # Firebase Hosting SPA/cache configuration
+└── firebase.json                 # Firebase Hosting, Firestore, and emulator configuration
 ```
 
 ## Testing and deployment
@@ -278,6 +279,8 @@ npm run lint
 npm run test
 npm run build
 ```
+
+After changing `firestore.rules`, run `npm run test:rules`; it starts the Firestore emulator (Java 11+, via `npx firebase-tools@13`) under a demo project and never touches the real one. Deploy indexes before rules (`npx firebase-tools deploy --only firestore:indexes`, wait until they finish building, then `--only firestore:rules`).
 
 For server changes, also run `npm run lint --prefix server`, `npm test --prefix server`, and `npm run build --prefix server` (or `make server-lint`, `make server-test`, and `make server-build`). For desktop changes, run `make desktop-test`. `make test` runs both Web and desktop suites (not the server suite).
 

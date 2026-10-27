@@ -1,0 +1,80 @@
+rules_version = '2';
+
+// Every signed-in, allow-listed user sees only their own data. Data lives in
+// three shapes:
+// - paths keyed by uid (users/{uid}/..., gameProgress/{uid}/..., userSettings/{uid});
+// - top-level collections whose documents carry a `userId` owner field. Rules
+//   are not filters, so every query on these must include
+//   where("userId", "==", uid) or Firestore rejects it;
+// - allowedUsers/{email}, the allow-list itself (read-only for its owner).
+// Anything not matched below is denied, including collections of removed
+// features. Tests: npm run test:rules.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null && request.auth.token.email_verified == true;
+    }
+
+    function allowed() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/allowedUsers/$(request.auth.token.email));
+    }
+
+    function isOwner(uid) {
+      return allowed() && request.auth.uid == uid;
+    }
+
+    // Reads of a missing document (deterministic ids, transactions) have no
+    // resource to check, and reveal nothing.
+    function canReadOwned() {
+      return allowed() && (resource == null || resource.data.userId == request.auth.uid);
+    }
+
+    function createsOwned() {
+      return allowed() && request.resource.data.userId == request.auth.uid;
+    }
+
+    function updatesOwned() {
+      return allowed()
+        && resource.data.userId == request.auth.uid
+        && request.resource.data.userId == request.auth.uid;
+    }
+
+    function deletesOwned() {
+      return allowed() && resource.data.userId == request.auth.uid;
+    }
+
+    match /allowedUsers/{email} {
+      allow read: if signedIn() && request.auth.token.email == email;
+    }
+
+    match /users/{uid}/{document=**} {
+      allow read, write: if isOwner(uid);
+    }
+
+    match /gameProgress/{uid} {
+      allow read, write: if isOwner(uid);
+
+      match /{document=**} {
+        allow read, write: if isOwner(uid);
+      }
+    }
+
+    match /userSettings/{uid} {
+      allow read, delete: if isOwner(uid);
+      allow create, update: if isOwner(uid) && request.resource.data.userId == uid;
+    }
+
+    function ownerFieldCollection(collection) {
+      return collection in ['vocabulary', 'sentenceTranslations', 'speeches', 'sentencePractice',
+                            'speechPracticeRecords', 'speechScripts', 'audioUploads'];
+    }
+
+    match /{collection}/{docId} {
+      allow read: if ownerFieldCollection(collection) && canReadOwned();
+      allow create: if ownerFieldCollection(collection) && createsOwned();
+      allow update: if ownerFieldCollection(collection) && updatesOwned();
+      allow delete: if ownerFieldCollection(collection) && deletesOwned();
+    }
+  }
+}

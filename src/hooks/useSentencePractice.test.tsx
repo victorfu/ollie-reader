@@ -106,7 +106,7 @@ describe("useSentencePractice operation ownership", () => {
       lastDocId?: string;
     }>();
     mocks.getSpeechSentences.mockImplementation(
-      (activeSpeechId: string, filters?: { cursor?: string }) => {
+      (_userId: string, activeSpeechId: string, filters?: { cursor?: string }) => {
         if (activeSpeechId === "speech-a" && filters?.cursor) {
           return oldPage.promise;
         }
@@ -150,7 +150,7 @@ describe("useSentencePractice operation ownership", () => {
     const parsed = deferred<{ english: string; chinese: string }[]>();
     mocks.parseAndTranslateSentences.mockReturnValue(parsed.promise);
     mocks.addSentences.mockResolvedValue([{ id: "a-new", order: -1 }]);
-    mocks.getSpeechSentences.mockImplementation((activeSpeechId: string) =>
+    mocks.getSpeechSentences.mockImplementation((_userId: string, activeSpeechId: string) =>
       Promise.resolve({
         sentences:
           activeSpeechId === "speech-b"
@@ -211,7 +211,7 @@ describe("useSentencePractice operation ownership", () => {
   it("does not clear the new speech when an old speech clear finishes", async () => {
     const clearing = deferred<void>();
     mocks.clearSpeechSentences.mockReturnValue(clearing.promise);
-    mocks.getSpeechSentences.mockImplementation((activeSpeechId: string) =>
+    mocks.getSpeechSentences.mockImplementation((_userId: string, activeSpeechId: string) =>
       Promise.resolve({
         sentences: [sentence(`${activeSpeechId}-1`, activeSpeechId)],
         hasMore: false,
@@ -231,14 +231,14 @@ describe("useSentencePractice operation ownership", () => {
       await clearPromise;
     });
 
-    expect(mocks.clearSpeechSentences).toHaveBeenCalledWith("speech-a");
+    expect(mocks.clearSpeechSentences).toHaveBeenCalledWith("user-1", "speech-a");
     expect(current.sentences.map((item) => item.id)).toEqual(["speech-b-1"]);
   });
 
   it("does not apply an old speech reorder result to the new speech", async () => {
     const reordering = deferred<{ id: string; order: number }[]>();
     mocks.updateSentenceOrders.mockReturnValue(reordering.promise);
-    mocks.getSpeechSentences.mockImplementation((activeSpeechId: string) =>
+    mocks.getSpeechSentences.mockImplementation((_userId: string, activeSpeechId: string) =>
       Promise.resolve({
         sentences:
           activeSpeechId === "speech-a"
@@ -265,7 +265,7 @@ describe("useSentencePractice operation ownership", () => {
       await reorderPromise;
     });
 
-    expect(mocks.updateSentenceOrders).toHaveBeenCalledWith("speech-a", [
+    expect(mocks.updateSentenceOrders).toHaveBeenCalledWith("user-1", "speech-a", [
       "a-2",
       "a-1",
     ]);

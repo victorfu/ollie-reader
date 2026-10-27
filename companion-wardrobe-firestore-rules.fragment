@@ -1,8 +1,6 @@
-// Merge inside the deployment's existing /databases/{database}/documents block.
-// This only adds the Cinnamoroll companion wardrobe (大耳狗背包); do not
-// replace all app rules. The deployed rules are not kept in this repo, so this
-// fragment must be merged into them by hand. It has not been run against the
-// Firestore emulator; test it there before deploying.
+// Not yet part of firestore.rules: merge it there (inside the gameProgress
+// match) to add the Cinnamoroll companion wardrobe (大耳狗背包) purchase checks,
+// and cover it in tests/firestore-rules before deploying.
 //
 // A new accessory may only appear in `owned` in the same commit that lowers
 // gameProgress/{uid}.coins by exactly its price (the client's purchase

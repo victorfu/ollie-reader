@@ -38,3 +38,6 @@ dist-ssr
 
 # brainstorming visual companion mockups (throwaway design scratch)
 .superpowers/
+
+# Firestore emulator
+firestore-debug.log
