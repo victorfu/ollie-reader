@@ -96,7 +96,6 @@ running `npm run build`. Both Firebase Hosting workflows generate `.env.producti
 from GitHub Actions repository variables. Their PR previews also use production mode.
 
 Actual environment files are ignored by Git; only the examples are committed.
-`.env.example` is a combined variable reference; prefer the mode-specific templates.
 Keep environment-specific settings out of shared `.env` and `.env.local` files,
 which Vite loads in both modes. Mode-specific files override those shared values;
 optional `.env.development.local` / `.env.production.local` files override the
