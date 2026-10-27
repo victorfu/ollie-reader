@@ -14,7 +14,7 @@ export function PodcastTranscript({ words, time, onSeek }: { words: PodcastCapti
         <T k="listening.captions.transcript" />
         <span className="text-xs font-normal text-muted-foreground"><T k="listening.captions.transcriptStats" params={{ count: words.length, time: formatPodcastTime(words[words.length - 1].end) }} /></span>
       </summary>
-      <p lang="en" className="max-h-72 overflow-y-auto break-words border-t border-border-hairline p-3 leading-relaxed">
+      <p lang="en" className="max-h-72 overflow-y-auto @4xl:max-h-[60vh] break-words border-t border-border-hairline p-3 leading-relaxed">
         {words.map((word, index) => (
           <Fragment key={`${word.start}-${index}`}><button type="button" title={t("listening.captions.jumpTo", { time: formatPodcastTime(word.start) })} onClick={() => onSeek(word.start)}
             className={`rounded hover:bg-accent/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${word.start <= time && time < word.end ? "bg-accent/15 text-accent" : ""}`}>

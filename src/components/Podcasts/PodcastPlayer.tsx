@@ -83,29 +83,35 @@ export function PodcastPlayer({ episode }: { episode: PodcastEpisode }) {
     }
   };
   return (
-    <section aria-label={t("listening.player.label")} className="space-y-4">
-      <audio ref={audioRef} src={episode.audioUrl} preload="metadata"
-        onLoadedMetadata={() => { setLoading(false); sync(); }} onDurationChange={sync} onTimeUpdate={sync} onProgress={sync}
-        onCanPlay={() => { setLoading(false); sync(); }} onWaiting={() => setLoading(true)}
-        onPlaying={() => { setPlaying(true); setLoading(false); }} onPause={() => setPlaying(false)}
-        onEnded={() => { const at = performance.now(); setPlaying(false); setEndedAt(at); setNow(at); sync(); }}
-        onError={() => { setPlaying(false); setLoading(false); setError("listening.player.error.loadFailed"); }} />
-      <label className="block text-sm" htmlFor="podcast-progress"><T k="listening.player.progress" /></label>
-      <input id="podcast-progress" type="range" min={0} max={duration || 1} step={0.1} value={Math.min(time, duration || 1)} disabled={!seekable || !!error}
-        onChange={(event) => seek(Number(event.target.value))} aria-valuetext={`${formatPodcastTime(time)} / ${formatPodcastTime(duration)}`}
-        className="w-full min-h-11 accent-accent" />
-      <div className="flex justify-between text-sm tabular-nums text-muted-foreground"><span>{formatPodcastTime(time)}</span><span>{formatPodcastTime(duration || episode.durationSeconds || 0)}</span></div>
-      <div className="flex flex-wrap items-center justify-center gap-3">
-        <button type="button" aria-label={t("listening.player.back10")} disabled={!seekable || !!error} onClick={() => seek(time - 10)} className="btn btn-ghost min-h-11 min-w-11"><RotateCcw size={20} /><T k="listening.player.tenSeconds" /></button>
-        <button type="button" aria-label={playing ? t("listening.pause") : t("listening.play")} onClick={() => void toggle()} className="btn btn-primary min-h-12 min-w-20">{playing ? <Pause size={20} /> : <Play size={20} />}{playing ? <T k="listening.pause" /> : <T k="listening.play" />}</button>
-        <button type="button" aria-label={t("listening.player.forward10")} disabled={!seekable || !!error} onClick={() => seek(time + 10)} className="btn btn-ghost min-h-11 min-w-11"><T k="listening.player.tenSeconds" /><RotateCw size={20} /></button>
-        <label className="flex items-center gap-2 text-sm"><T k="listening.player.speed" />
-          <select aria-label={t("listening.player.speed")} value={speed} className="select select-bordered min-h-11 w-24" onChange={(event) => {
-            const value = Number(event.target.value); setSpeed(value); if (audioRef.current) audioRef.current.playbackRate = value;
-          }}>{[0.75, 1, 1.25, 1.5].map((value) => <option key={value} value={value}>{value}x</option>)}</select>
-        </label>
+    // Landscape iPad and wider: controls stay in view beside the captions.
+    <section aria-label={t("listening.player.label")} className="grid gap-6 @4xl:grid-cols-[minmax(0,5fr)_minmax(0,6fr)] @4xl:items-start">
+      <div className="min-w-0 space-y-4 @4xl:sticky @4xl:top-20">
+        <audio ref={audioRef} src={episode.audioUrl} preload="metadata"
+          onLoadedMetadata={() => { setLoading(false); sync(); }} onDurationChange={sync} onTimeUpdate={sync} onProgress={sync}
+          onCanPlay={() => { setLoading(false); sync(); }} onWaiting={() => setLoading(true)}
+          onPlaying={() => { setPlaying(true); setLoading(false); }} onPause={() => setPlaying(false)}
+          onEnded={() => { const at = performance.now(); setPlaying(false); setEndedAt(at); setNow(at); sync(); }}
+          onError={() => { setPlaying(false); setLoading(false); setError("listening.player.error.loadFailed"); }} />
+        <label className="block text-sm" htmlFor="podcast-progress"><T k="listening.player.progress" /></label>
+        <input id="podcast-progress" type="range" min={0} max={duration || 1} step={0.1} value={Math.min(time, duration || 1)} disabled={!seekable || !!error}
+          onChange={(event) => seek(Number(event.target.value))} aria-valuetext={`${formatPodcastTime(time)} / ${formatPodcastTime(duration)}`}
+          className="w-full min-h-11 accent-accent" />
+        <div className="flex justify-between text-sm tabular-nums text-muted-foreground"><span>{formatPodcastTime(time)}</span><span>{formatPodcastTime(duration || episode.durationSeconds || 0)}</span></div>
+        <div className="flex flex-wrap items-center justify-center gap-3">
+          <button type="button" aria-label={t("listening.player.back10")} disabled={!seekable || !!error} onClick={() => seek(time - 10)} className="btn btn-ghost min-h-11 min-w-11"><RotateCcw size={20} /><T k="listening.player.tenSeconds" /></button>
+          <button type="button" aria-label={playing ? t("listening.pause") : t("listening.play")} onClick={() => void toggle()} className="btn btn-primary min-h-12 min-w-20">{playing ? <Pause size={20} /> : <Play size={20} />}{playing ? <T k="listening.pause" /> : <T k="listening.play" />}</button>
+          <button type="button" aria-label={t("listening.player.forward10")} disabled={!seekable || !!error} onClick={() => seek(time + 10)} className="btn btn-ghost min-h-11 min-w-11"><T k="listening.player.tenSeconds" /><RotateCw size={20} /></button>
+          <label className="flex items-center gap-2 text-sm"><T k="listening.player.speed" />
+            <select aria-label={t("listening.player.speed")} value={speed} className="select select-bordered min-h-11 w-24" onChange={(event) => {
+              const value = Number(event.target.value); setSpeed(value); if (audioRef.current) audioRef.current.playbackRate = value;
+            }}>{[0.75, 1, 1.25, 1.5].map((value) => <option key={value} value={value}>{value}x</option>)}</select>
+          </label>
+        </div>
+        {loading && <p role="status" className="text-sm text-muted-foreground"><T k="listening.player.loadingAudio" /></p>}
+        {!loading && !seekable && !error && <p className="text-sm text-muted-foreground"><T k="listening.player.notSeekable" /></p>}
+        {error && <p role="alert" className="text-sm text-destructive"><T k={error} /></p>}
       </div>
-      <section aria-label={t("listening.captions.title")} className="space-y-3 rounded-[10px] border border-border-hairline bg-background/60 p-4">
+      <section aria-label={t("listening.captions.title")} className="min-w-0 space-y-3 rounded-[10px] border border-border-hairline bg-background/60 p-4">
         <label className="flex min-h-11 cursor-pointer items-center justify-between gap-3">
           <span className="flex items-center gap-2 text-base font-medium"><Captions size={20} aria-hidden="true" /><T k="listening.captions.title" /></span>
           <input type="checkbox" role="switch" className="toggle toggle-accent shrink-0" checked={captions.enabled} aria-describedby="podcast-caption-status"
@@ -127,9 +133,6 @@ export function PodcastPlayer({ episode }: { episode: PodcastEpisode }) {
         )}
         <PodcastTranscript words={captions.words} time={time} onSeek={seek} />
       </section>
-      {loading && <p role="status" className="text-sm text-muted-foreground"><T k="listening.player.loadingAudio" /></p>}
-      {!loading && !seekable && !error && <p className="text-sm text-muted-foreground"><T k="listening.player.notSeekable" /></p>}
-      {error && <p role="alert" className="text-sm text-destructive"><T k={error} /></p>}
     </section>
   );
 }

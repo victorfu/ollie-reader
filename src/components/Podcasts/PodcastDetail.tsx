@@ -50,7 +50,9 @@ export default function PodcastDetail() {
   }, [uid, podcastId, attempt]);
 
   return (
-    <div className="mx-auto w-full max-w-3xl space-y-6 p-4 md:p-6">
+    // Sized by its own width, not the viewport: on iPad the sidebar comes and
+    // goes between portrait and landscape.
+    <div className="@container mx-auto w-full max-w-5xl space-y-6">
       <Link to="/podcasts" className="btn btn-ghost btn-sm -ml-2 min-h-11 gap-1"><ChevronLeft size={18} /><T k="listening.podcast.backToList" /></Link>
       {saved && !show && !episode && <h1 className="break-words text-2xl font-semibold tracking-tight">{saved.title}</h1>}
       {loading && <p role="status"><T k="listening.podcast.loadingData" /></p>}
@@ -70,9 +72,9 @@ export default function PodcastDetail() {
         </select>
         {show.unavailableCount > 0 && <p className="text-xs text-muted-foreground"><T k="listening.podcast.unavailable" params={{ count: show.unavailableCount }} /></p>}
       </section>}
-      {episode && <article className="space-y-6 rounded-xl border border-border-hairline bg-background p-4 shadow-sm sm:p-6">
-        <div className="flex flex-col items-start gap-4 sm:flex-row">
-          {episode.artworkUrl && <img src={episode.artworkUrl} alt="" referrerPolicy="no-referrer" className="size-28 shrink-0 rounded-lg object-cover" onError={(event) => { event.currentTarget.hidden = true; }} />}
+      {episode && <article className="space-y-6 rounded-xl border border-border-hairline bg-background p-4 shadow-sm @md:p-6">
+        <div className="flex flex-col items-start gap-4 @md:flex-row">
+          {episode.artworkUrl && <img src={episode.artworkUrl} alt="" referrerPolicy="no-referrer" className="size-28 shrink-0 rounded-lg object-cover @4xl:size-32" onError={(event) => { event.currentTarget.hidden = true; }} />}
           <div className="min-w-0 space-y-2"><p className="break-words text-sm text-muted-foreground">{episode.podcastTitle}</p><h2 className="break-words text-xl font-semibold">{episode.title}</h2>{episode.durationSeconds !== null && <p className="text-sm text-muted-foreground"><T k="listening.podcast.episodeLength" params={{ time: formatPodcastTime(episode.durationSeconds) }} /></p>}</div>
         </div>
         <PodcastPlayer key={`${episode.podcastId}:${episode.guid}`} episode={episode} />
