@@ -11,7 +11,7 @@ import {
   orderBy,
   writeBatch,
   type DocumentData,
-} from "firebase/firestore";
+} from "../utils/firestore";
 import { db } from "../utils/firebaseUtil";
 import type { Speech } from "../types/sentencePractice";
 import { DEFAULT_SPEECH_NAME } from "../types/sentencePractice";

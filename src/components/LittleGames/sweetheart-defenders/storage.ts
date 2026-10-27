@@ -185,7 +185,7 @@ function assertUid(uid: string): void {
  */
 async function cloudDoc(uid: string) {
   const [{ doc }, { db }] = await Promise.all([
-    import("firebase/firestore"),
+    import("../../../utils/firestore"),
     import("../../../utils/firebaseUtil"),
   ]);
   return doc(db, "gameProgress", uid, "littleGames", SWEETHEART_CLOUD_DOC);
@@ -195,7 +195,7 @@ export async function loadCloud(uid: string): Promise<SweetheartSaveV1> {
   assertUid(uid);
 
   const [{ getDocFromServer }, ref] = await Promise.all([
-    import("firebase/firestore"),
+    import("../../../utils/firestore"),
     cloudDoc(uid),
   ]);
   const snapshot = await getDocFromServer(ref);
@@ -210,7 +210,7 @@ export async function saveCloud(
   assertUid(uid);
 
   const [firestore, { db }] = await Promise.all([
-    import("firebase/firestore"),
+    import("../../../utils/firestore"),
     import("../../../utils/firebaseUtil"),
   ]);
   const ref = firestore.doc(
@@ -243,7 +243,7 @@ export type CloudRunSettlement = {
 async function importSettlementDependencies() {
   const [service, firestore, firebase] = await Promise.all([
     import("../../../services/gameProgressService"),
-    import("firebase/firestore"),
+    import("../../../utils/firestore"),
     import("../../../utils/firebaseUtil"),
   ]);
   return { service, firestore, db: firebase.db };

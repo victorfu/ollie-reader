@@ -1,4 +1,4 @@
-import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
+import { doc, getDoc, setDoc, serverTimestamp } from "../utils/firestore";
 import { db } from "../utils/firebaseUtil";
 import type { UserSettings } from "../types/settings";
 import type { TTSMode, ReadingMode } from "../types/pdf";

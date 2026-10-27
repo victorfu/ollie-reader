@@ -16,7 +16,7 @@ import {
   updateDoc,
   type DocumentData,
   type QueryDocumentSnapshot,
-} from "firebase/firestore";
+} from "../utils/firestore";
 import { db } from "../utils/firebaseUtil";
 import type {
   PracticeRecord,

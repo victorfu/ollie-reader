@@ -21,6 +21,17 @@ export default defineConfig([
     },
   },
   {
+    // Go through src/utils/firestore so Firestore failures (missing indexes,
+    // rule denials) always reach the console.
+    files: ['src/**/*.{ts,tsx}'],
+    ignores: ['src/**/*.test.{ts,tsx}', 'src/utils/firestore.ts', 'src/utils/firebaseUtil.ts'],
+    rules: {
+      'no-restricted-imports': ['error', {
+        paths: [{ name: 'firebase/firestore', message: 'Import from src/utils/firestore instead.' }],
+      }],
+    },
+  },
+  {
     files: ['src/**/*.test.{ts,tsx}'],
     languageOptions: {
       globals: {

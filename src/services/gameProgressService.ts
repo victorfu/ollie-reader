@@ -9,7 +9,7 @@ import {
   serverTimestamp,
   Timestamp,
   type Transaction,
-} from "firebase/firestore";
+} from "../utils/firestore";
 import { db } from "../utils/firebaseUtil";
 import type { PlayerProgress, Stage } from "../types/game";
 import { computeDailyBonus, type DailyBonusResult } from "./economyService";

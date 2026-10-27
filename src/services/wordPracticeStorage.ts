@@ -20,7 +20,7 @@ import {
   runTransaction,
   updateDoc,
   type DocumentSnapshot,
-} from "firebase/firestore";
+} from "../utils/firestore";
 import type {
   CefrLevel,
   Homework,

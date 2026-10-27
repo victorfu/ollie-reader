@@ -18,7 +18,7 @@ import {
   type Query,
   type QueryDocumentSnapshot,
   type QuerySnapshot,
-} from "firebase/firestore";
+} from "../utils/firestore";
 import { auth, db } from "../utils/firebaseUtil";
 import { supabase, STORAGE_BUCKET } from "../utils/supabaseClient";
 import type { AudioUpload, AudioUploadUpdateInput } from "../types/audioUpload";

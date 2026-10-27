@@ -501,6 +501,8 @@ describe("subscribeTokenBalance", () => {
     onNext({ exists: () => true, data: () => ({ coins: -3 }) });
     onNext({ exists: () => false, data: () => undefined });
     expect(onBalance.mock.calls).toEqual([[125], [0], [0]]);
-    expect(errorHandler).toBe(onError);
+    const failure = new Error("offline");
+    errorHandler(failure);
+    expect(onError).toHaveBeenCalledWith(failure);
   });
 });

@@ -16,7 +16,7 @@ import {
   writeBatch,
   runTransaction,
   updateDoc,
-} from "firebase/firestore";
+} from "../utils/firestore";
 import { db } from "../utils/firebaseUtil";
 import type {
   SentenceKeyWord,

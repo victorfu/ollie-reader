@@ -20,7 +20,7 @@ import {
   writeBatch,
   type DocumentData,
   type QueryDocumentSnapshot,
-} from "firebase/firestore";
+} from "../utils/firestore";
 import { db } from "../utils/firebaseUtil";
 import { shuffleArray } from "../utils/arrayUtils";
 import { normalizeExamples } from "../utils/normalizeExamples";

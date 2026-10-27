@@ -6,7 +6,7 @@ import {
   signInWithPopup,
   signOut,
 } from "firebase/auth";
-import { doc, getDocFromServer } from "firebase/firestore";
+import { doc, getDocFromServer } from "../utils/firestore";
 import {
   useCallback,
   useEffect,

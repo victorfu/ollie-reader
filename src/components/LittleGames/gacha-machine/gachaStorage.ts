@@ -464,7 +464,7 @@ export async function loadGachaMachineState(
 ): Promise<GachaMachineState> {
   assertUid(uid);
   const [{ doc, getDocFromServer }, { db }] = await Promise.all([
-    import("firebase/firestore"),
+    import("../../../utils/firestore"),
     import("../../../utils/firebaseUtil"),
   ]);
   const ref = doc(db, "gameProgress", uid, "littleGames", GACHA_CLOUD_DOC);
@@ -500,7 +500,7 @@ export async function loadGachaCloud(
 export async function loadPlayerCoins(uid: string): Promise<number> {
   assertUid(uid);
   const [{ doc, getDocFromServer }, { db }] = await Promise.all([
-    import("firebase/firestore"),
+    import("../../../utils/firestore"),
     import("../../../utils/firebaseUtil"),
   ]);
   const progressRef = doc(db, "gameProgress", uid);
@@ -521,7 +521,7 @@ export async function recordGachaAttempt(
   assertAttemptId(attemptId);
 
   const [{ doc, runTransaction, serverTimestamp }, { db }] = await Promise.all([
-    import("firebase/firestore"),
+    import("../../../utils/firestore"),
     import("../../../utils/firebaseUtil"),
   ]);
   const ref = doc(db, "gameProgress", uid, "littleGames", GACHA_CLOUD_DOC);
@@ -647,7 +647,7 @@ export async function acknowledgeGachaPendingReveal(
     { deleteField, doc, runTransaction, serverTimestamp },
     { db },
   ] = await Promise.all([
-    import("firebase/firestore"),
+    import("../../../utils/firestore"),
     import("../../../utils/firebaseUtil"),
   ]);
   const ref = doc(db, "gameProgress", uid, "littleGames", GACHA_CLOUD_DOC);
@@ -701,7 +701,7 @@ export async function resetGachaCollection(
     { deleteField, doc, runTransaction, serverTimestamp },
     { db },
   ] = await Promise.all([
-    import("firebase/firestore"),
+    import("../../../utils/firestore"),
     import("../../../utils/firebaseUtil"),
   ]);
   const ref = doc(db, "gameProgress", uid, "littleGames", GACHA_CLOUD_DOC);

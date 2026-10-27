@@ -99,7 +99,7 @@ export function normalizeWardrobe(data: unknown): CompanionWardrobe {
 
 async function firestore() {
   const [firestoreModule, { db }] = await Promise.all([
-    import("firebase/firestore"),
+    import("../../../utils/firestore"),
     import("../../../utils/firebaseUtil"),
   ]);
   return { ...firestoreModule, db };

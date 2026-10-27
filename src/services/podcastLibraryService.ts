@@ -13,7 +13,7 @@ import {
   query,
   setDoc,
   type DocumentSnapshot,
-} from "firebase/firestore";
+} from "../utils/firestore";
 import { db } from "../utils/firebaseUtil";
 import type { PodcastResolution, SavedPodcast } from "../types/podcast";
 
