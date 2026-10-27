@@ -1,0 +1,18 @@
+// Merge inside the deployment's existing /databases/{database}/documents block.
+// This only adds the saved Podcast list (Podcast 聽力); do not replace all app rules.
+// The deployed rules are not kept in this repo, so this fragment must be merged
+// into them by hand before the feature can read or write Firestore.
+function ownsPodcasts(uid) {
+  return request.auth != null && request.auth.uid == uid
+    && request.auth.token.email_verified == true
+    && exists(/databases/$(database)/documents/allowedUsers/$(request.auth.token.email));
+}
+// One document per saved podcast show or episode link.
+match /users/{uid}/podcasts/{podcastId} {
+  allow read, delete: if ownsPodcasts(uid);
+  allow create, update: if ownsPodcasts(uid)
+    && request.resource.data.url is string
+    && request.resource.data.url.size() <= 2048;
+}
+// IMPORTANT: Remove/narrow overlapping public or cross-user wildcard grants.
+// Firestore grants access if ANY matching rule allows it.

@@ -39,3 +39,17 @@ export interface PodcastCaptionWord {
   start: number;
   end: number;
 }
+
+/** A podcast link the user saved to their library, stored at `users/{uid}/podcasts/{id}`. */
+export interface SavedPodcast {
+  id: string;
+  kind: "show" | "episode";
+  /** The resolver's canonical link; reopening the item resolves it again. */
+  url: string;
+  /** The episode title, or the show title for a show. */
+  title: string;
+  podcastTitle: string;
+  artworkUrl: string | null;
+  /** Milliseconds since the epoch. */
+  addedAt: number;
+}

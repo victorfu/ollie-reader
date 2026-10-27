@@ -69,6 +69,7 @@ const AudioUploads = lazyWithReload(
   () => import("./components/AudioUploads/AudioUploads"),
 );
 const Podcasts = lazyWithReload(() => import("./components/Podcasts/Podcasts"));
+const PodcastDetail = lazyWithReload(() => import("./components/Podcasts/PodcastDetail"));
 const WordAdventure = lazyWithReload(
   () => import("./components/Game/WordAdventure"),
 );
@@ -751,6 +752,7 @@ function AppContent() {
                         />
                       </Route>
                       <Route path="/podcasts" element={<Podcasts />} />
+                      <Route path="/podcasts/:podcastId" element={<PodcastDetail />} />
                       <Route path="/show" element={<ShowSubtitlesPage />} />
                       <Route path="/exams" element={<ExamPracticePage />} />
                       <Route path="/games" element={<LittleGamesHub />} />
