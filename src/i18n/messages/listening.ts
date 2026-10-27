@@ -61,6 +61,10 @@ export const listeningZh = {
 
   // Podcast live captions
   "listening.captions.title": "英文即時字幕",
+  "listening.captions.focus": "大字幕模式",
+  "listening.captions.exitFocus": "離開大字幕模式",
+  "listening.captions.textSize": "加大字體",
+  "listening.captions.waiting": "正在聆聽，等待字幕…",
   "listening.captions.offHint": "在瀏覽器本機辨識英文，不上傳音訊。第一次開啟需下載約 17 MB 的語音模型。",
   "listening.captions.downloading": "正在下載語音模型… {percent}%",
   "listening.captions.preparing": "正在準備語音模型與音訊…",
@@ -274,6 +278,10 @@ export const listeningEn: Record<keyof typeof listeningZh, string> = {
 
   // Podcast live captions
   "listening.captions.title": "Live English Captions",
+  "listening.captions.focus": "Large captions",
+  "listening.captions.exitFocus": "Exit large captions",
+  "listening.captions.textSize": "Larger text",
+  "listening.captions.waiting": "Listening, waiting for captions…",
   "listening.captions.offHint": "English is recognized right here in your browser; the audio is never uploaded. The first time, a speech model of about 17 MB is downloaded.",
   "listening.captions.downloading": "Downloading the speech model… {percent}%",
   "listening.captions.preparing": "Getting the speech model and audio ready…",

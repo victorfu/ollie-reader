@@ -75,6 +75,32 @@ it("keeps captions off by default and explains unsupported browsers without touc
   expect(host.querySelector("audio")!.getAttribute("src")).toBe(episode.audioUrl);
   expect(play).not.toHaveBeenCalled();
 });
+it("keeps the same audio and position when entering and leaving large captions", async () => {
+  act(() => root.render(<PodcastPlayer episode={episode} />));
+  const modal = host.querySelector("dialog")!;
+  modal.showModal = () => { modal.open = true; };
+  modal.close = () => { modal.open = false; modal.dispatchEvent(new Event("close")); };
+  const audio = ready();
+  audio.currentTime = 42;
+  act(() => audio.dispatchEvent(new Event("timeupdate")));
+  await act(async () => button("播放").click());
+  const loads = load.mock.calls.length;
+  act(() => Array.from(host.querySelectorAll("button")).find((item) => item.textContent === "大字幕模式")!.click());
+  const dialog = host.querySelector("dialog")!;
+  expect(dialog.open).toBe(true);
+  expect(dialog.textContent).toContain("不支援即時字幕");
+  expect(host.querySelector("audio")).toBe(audio);
+  expect(audio.currentTime).toBe(42);
+  expect(load).toHaveBeenCalledTimes(loads);
+  act(() => dialog.querySelector<HTMLButtonElement>('button[aria-label="快轉 10 秒"]')!.click());
+  expect(audio.currentTime).toBe(52);
+  act(() => dialog.querySelector<HTMLButtonElement>('button[aria-label="暫停"]')!.click());
+  expect(audio.paused).toBe(true);
+  act(() => button("離開大字幕模式").click());
+  expect(dialog.open).toBe(false);
+  expect(audio.currentTime).toBe(52);
+  expect(host.querySelector("audio")).toBe(audio);
+});
 it("does not revive the old episode when unmounted while captions prepare a CORS source", async () => {
   class FakeAudioContext { sampleRate = 48_000; currentTime = 0; resume = vi.fn(async () => {}); suspend = vi.fn(async () => {}); close = vi.fn(async () => {}); }
   vi.stubGlobal("AudioContext", FakeAudioContext);

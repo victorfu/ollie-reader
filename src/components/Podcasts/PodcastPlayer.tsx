@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Captions, Pause, Play, RotateCcw, RotateCw } from "lucide-react";
+import { Captions, Maximize, Pause, Play, RotateCcw, RotateCw, X } from "lucide-react";
 import type { PodcastEpisode } from "../../types/podcast";
 
 import { usePodcastCaptions } from "../../hooks/usePodcastCaptions";
@@ -13,6 +13,14 @@ import type { MessageKey } from "../../i18n/translate";
 export function PodcastPlayer({ episode }: { episode: PodcastEpisode }) {
   const { t } = useLanguage();
   const audioRef = useRef<HTMLAudioElement>(null);
+  const focusRef = useRef<HTMLDialogElement>(null);
+  const [focusMode, setFocusMode] = useState(false);
+  const [largeText, setLargeText] = useState(false);
+  useEffect(() => {
+    const dialog = focusRef.current;
+    if (focusMode && dialog && !dialog.open) dialog.showModal();
+    if (!focusMode && dialog?.open) dialog.close();
+  }, [focusMode]);
   const [playing, setPlaying] = useState(false);
   const [loading, setLoading] = useState(true);
   const [mediaTime, setMediaTime] = useState(0);
@@ -35,7 +43,7 @@ export function PodcastPlayer({ episode }: { episode: PodcastEpisode }) {
     const timer = window.setInterval(() => setNow(performance.now()), 250);
     return () => window.clearInterval(timer);
   }, [draining]);
-  const captionWords = visibleCaptionWords(captions.words, time);
+  const captionWords = visibleCaptionWords(captions.words, time, focusMode ? 12 : 24);
   useEffect(() => {
     const audio = audioRef.current;
     if (audio) {
@@ -83,6 +91,7 @@ export function PodcastPlayer({ episode }: { episode: PodcastEpisode }) {
     }
   };
   return (
+
     // Landscape iPad and wider: controls stay in view beside the captions.
     <section aria-label={t("listening.player.label")} className="grid gap-6 @4xl:grid-cols-[minmax(0,5fr)_minmax(0,6fr)] @4xl:items-start">
       <div className="min-w-0 space-y-4 @4xl:sticky @4xl:top-20">
@@ -92,6 +101,42 @@ export function PodcastPlayer({ episode }: { episode: PodcastEpisode }) {
           onPlaying={() => { setPlaying(true); setLoading(false); }} onPause={() => setPlaying(false)}
           onEnded={() => { const at = performance.now(); setPlaying(false); setEndedAt(at); setNow(at); sync(); }}
           onError={() => { setPlaying(false); setLoading(false); setError("listening.player.error.loadFailed"); }} />
+        <button type="button" className="btn btn-outline min-h-12" onClick={() => {
+          setFocusMode(true);
+          if (!captions.enabled) void captions.enable();
+        }}><Maximize size={20} /><T k="listening.captions.focus" /></button>
+        <dialog ref={focusRef} aria-label={t("listening.captions.focus")} onClose={() => setFocusMode(false)}
+          className="podcast-focus fixed inset-0 m-0 h-dvh max-h-none w-screen max-w-none border-0 bg-slate-950 p-0 text-white">
+          {focusMode && <div className="flex h-full min-h-0 flex-col gap-2 p-3 sm:p-5">
+            <header className="flex shrink-0 items-center gap-3">
+              <p className="min-w-0 flex-1 truncate text-sm text-slate-300">{episode.title}</p>
+              <button type="button" aria-pressed={largeText} className="min-h-12 rounded-lg border border-white/30 px-4 font-semibold focus-visible:outline-2" onClick={() => setLargeText(!largeText)}><T k="listening.captions.textSize" /></button>
+              <button type="button" aria-label={t("listening.captions.exitFocus")} className="flex min-h-12 min-w-12 items-center justify-center rounded-lg bg-white/10 focus-visible:outline-2" onClick={() => setFocusMode(false)}><X size={24} /></button>
+            </header>
+            <div className="flex min-h-0 flex-1 items-center justify-center overflow-y-auto" tabIndex={0}>
+              <p lang="en" className={`my-auto w-full max-w-6xl break-words text-center font-semibold leading-snug ${largeText ? "text-[clamp(2rem,5vw,4.5rem)]" : "text-[clamp(1.75rem,4vw,3.5rem)]"}`}>
+                {captionWords.map((word, index) => <span key={`${word.start}-${index}`} className={word.start <= time && time < word.end ? "rounded bg-yellow-300 px-1 text-slate-950" : undefined}>{word.word} </span>)}
+              </p>
+            </div>
+            <div role={error || captions.state === "error" ? "alert" : "status"} className="shrink-0 text-center text-sm text-slate-200">
+              {error ? <T k={error} /> : captions.state === "error" && captions.error ? <T k={captions.error} /> : captions.state === "loading" ? (
+                captions.progress !== null && captions.progress < 100 ? <T k="listening.captions.downloading" params={{ percent: Math.floor(captions.progress) }} /> : <T k="listening.captions.preparing" />
+              ) : loading ? <T k="listening.player.loadingAudio" /> : buffering ? <T k="listening.captions.buffering" /> : !playing ? <T k="listening.captions.pressPlay" /> : !captionWords.length ? <T k="listening.captions.waiting" /> : null}
+            </div>
+            <footer className="shrink-0 space-y-2 border-t border-white/20 pt-2">
+              <div className="flex items-center gap-3 text-sm tabular-nums text-slate-300">
+                <span>{formatPodcastTime(time)}</span>
+                <input type="range" aria-label={t("listening.player.progress")} min={0} max={duration || 1} step={0.1} value={Math.min(time, duration || 1)} disabled={!seekable || !!error} onChange={(event) => seek(Number(event.target.value))} className="min-h-11 min-w-0 flex-1 accent-yellow-300" />
+                <span>{formatPodcastTime(duration || episode.durationSeconds || 0)}</span>
+              </div>
+              <div className="flex items-center justify-center gap-3">
+                <button type="button" aria-label={t("listening.player.back10")} disabled={!seekable || !!error} onClick={() => seek(time - 10)} className="flex min-h-14 min-w-20 items-center justify-center gap-2 rounded-lg bg-white/10 disabled:opacity-40"><RotateCcw size={24} /><T k="listening.player.tenSeconds" /></button>
+                <button type="button" aria-label={playing ? t("listening.pause") : t("listening.play")} onClick={() => void toggle()} className="flex min-h-14 min-w-28 items-center justify-center gap-2 rounded-lg bg-yellow-300 text-lg font-semibold text-slate-950">{playing ? <Pause size={28} /> : <Play size={28} />}{playing ? <T k="listening.pause" /> : <T k="listening.play" />}</button>
+                <button type="button" aria-label={t("listening.player.forward10")} disabled={!seekable || !!error} onClick={() => seek(time + 10)} className="flex min-h-14 min-w-20 items-center justify-center gap-2 rounded-lg bg-white/10 disabled:opacity-40"><T k="listening.player.tenSeconds" /><RotateCw size={24} /></button>
+              </div>
+            </footer>
+          </div>}
+        </dialog>
         <label className="block text-sm" htmlFor="podcast-progress"><T k="listening.player.progress" /></label>
         <input id="podcast-progress" type="range" min={0} max={duration || 1} step={0.1} value={Math.min(time, duration || 1)} disabled={!seekable || !!error}
           onChange={(event) => seek(Number(event.target.value))} aria-valuetext={`${formatPodcastTime(time)} / ${formatPodcastTime(duration)}`}
