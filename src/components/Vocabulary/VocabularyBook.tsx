@@ -107,18 +107,18 @@ interface FocusRequest {
 }
 
 /**
- * Where focus goes once a lookup settles. On desktop the field takes it back
- * so the next word can be typed right away — unless the user has since moved
- * on to something else. On touch screens the detail sheet opens over the
- * field, so the keyboard is dismissed instead of being popped up behind it.
+ * Where focus goes once a lookup settles. The field takes it back so the next
+ * word can be typed right away — unless the user has since moved on to
+ * something else. On touch screens a detail sheet opened over the field
+ * dismisses the keyboard instead of popping it up behind the sheet.
  */
 function settleQueryFocus(
   input: HTMLInputElement,
   { selectAll, trigger }: FocusRequest,
   { isDesktop, sheetOpen }: { isDesktop: boolean; sheetOpen: boolean },
 ) {
-  if (!isDesktop) {
-    if (sheetOpen) input.blur();
+  if (!isDesktop && sheetOpen) {
+    input.blur();
     return;
   }
   const active = document.activeElement;
@@ -482,7 +482,9 @@ export const VocabularyBook = () => {
     }
 
     const { item } = outcome;
-    setSelected(item);
+    // On touch screens the detail is a modal sheet; keep the field free so
+    // the next word can be typed straight away. The toast confirms the add.
+    if (isDesktop) setSelected(item);
     changeQuery("");
     if (item.kind === "word") {
       setToastMessage({

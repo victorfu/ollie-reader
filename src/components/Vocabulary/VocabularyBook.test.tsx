@@ -335,7 +335,7 @@ describe("VocabularyBook search-or-add field", () => {
     expect(field.value).toBe("Curious!");
   });
 
-  it("adds a new word straight away, shows it and clears the field", async () => {
+  it("adds a new word straight away and clears the field without opening it", async () => {
     mocks.vocabulary.lookupOrAddWord.mockResolvedValue({
       success: true,
       existingWord: makeWord("w-3", "river"),
@@ -347,7 +347,7 @@ describe("VocabularyBook search-or-add field", () => {
     await typeInto(field, "river");
     await submit(field);
 
-    expect(detailSheet()?.textContent).toContain("river");
+    expect(detailSheet()).toBeNull();
     expect(container.textContent).toContain("已加入生詞本");
     expect(field.value).toBe("");
     expect(mocks.vocabulary.loadVocabulary).toHaveBeenCalledTimes(2);
@@ -491,7 +491,7 @@ describe("VocabularyBook search-or-add field", () => {
       "我喜歡蘋果。",
     ]);
     expect(mocks.vocabulary.addWordFromDetails).not.toHaveBeenCalled();
-    expect(detailSheet()?.textContent).toContain("I like apples.");
+    expect(detailSheet()).toBeNull();
   });
 
   it("finds a saved sentence typed without its punctuation instead of adding it again", async () => {
@@ -579,7 +579,7 @@ describe("VocabularyBook search-or-add field", () => {
     expect(field.value).toBe("");
   });
 
-  it("drops the keyboard on touch screens when the result opens over the field", async () => {
+  it("keeps the field focused on touch screens after adding a word", async () => {
     mocks.vocabulary.lookupOrAddWord.mockResolvedValue({
       success: true,
       existingWord: makeWord("w-3", "river"),
@@ -590,6 +590,19 @@ describe("VocabularyBook search-or-add field", () => {
     field.focus();
 
     await typeInto(field, "river");
+    await submit(field);
+
+    expect(detailSheet()).toBeNull();
+    expect(document.activeElement).toBe(field);
+    expect(field.value).toBe("");
+  });
+
+  it("drops the keyboard on touch screens when a saved word opens over the field", async () => {
+    const container = await renderBook();
+    const field = getField(container);
+    field.focus();
+
+    await typeInto(field, "apple");
     await submit(field);
 
     expect(detailSheet()).not.toBeNull();
