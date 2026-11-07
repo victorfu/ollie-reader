@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const pdfMocks = vi.hoisted(() => ({
   renderWidths: [] as Array<number | undefined>,
   pdfJsText: "PDF.js extracted page text",
-  pdfJsItems: null as Array<{ str: string; hasEOL: boolean }> | null,
+  pdfJsItems: null as Array<{ str: string; hasEOL: boolean; transform?: number[] }> | null,
   pdfJsLang: null as string | null,
   renderTextLayerValues: [] as Array<boolean | undefined>,
   // Left null so pages report no size at all, as they did before fitting.
@@ -56,7 +56,7 @@ vi.mock("react-pdf", async () => {
       pageNumber: number;
       width?: number;
       onGetTextSuccess?: (result: {
-        items: Array<{ str: string; hasEOL: boolean }>;
+        items: Array<{ str: string; hasEOL: boolean; transform?: number[] }>;
         lang: string | null;
       }) => void;
       onLoadSuccess?: (result: {
@@ -118,6 +118,7 @@ vi.mock("react-pdf", async () => {
   };
 });
 
+import { registerParagraphLayer } from "../../utils/pdfParagraphText";
 import { PdfViewer } from "./PdfViewer";
 
 let host: HTMLDivElement;
@@ -357,6 +358,51 @@ describe("PdfViewer PDF-only layout", () => {
         ?.click(),
     );
     expect(onSpeak).toHaveBeenCalledWith("• IRS.gov (English)\nLearn more");
+  });
+
+  it("normalizes paragraphs for whole-page speech", () => {
+    pdfMocks.pdfJsItems = [
+      { str: "They knew", hasEOL: true, transform: [20, 0, 0, 20, 10, 100] },
+      { str: "about it.", hasEOL: true, transform: [20, 0, 0, 20, 10, 76] },
+      { str: "Next paragraph.", hasEOL: false, transform: [20, 0, 0, 20, 10, 20] },
+    ];
+    const onSpeak = vi.fn();
+    renderViewer("blob:paragraphs", null, vi.fn(), { onSpeak });
+    act(() => host.querySelector<HTMLButtonElement>('[aria-label="朗讀第 1 頁"]')?.click());
+    expect(onSpeak).toHaveBeenCalledWith("They knew about it.\n\nNext paragraph.");
+  });
+
+  it("writes normalized PDF selection to the clipboard without replacing the range", () => {
+    renderViewer("blob:copy", null);
+    const layer = host.querySelector<HTMLElement>(".textLayer")!;
+    const items = [
+      { str: "They knew", transform: [20, 0, 0, 20, 10, 100], hasEOL: true },
+      { str: "about it.", transform: [20, 0, 0, 20, 10, 76], hasEOL: true },
+    ];
+    layer.innerHTML = '<span role="presentation">They knew</span><br><span role="presentation">about it.</span>';
+    registerParagraphLayer(layer, items);
+    const range = document.createRange();
+    range.setStart(layer.children[0].firstChild!, 0);
+    range.setEnd(layer.children[2].firstChild!, 9);
+    window.getSelection()!.removeAllRanges();
+    window.getSelection()!.addRange(range);
+    const event = new Event("copy", { bubbles: true, cancelable: true });
+    const setData = vi.fn();
+    Object.defineProperty(event, "clipboardData", { value: { setData } });
+    act(() => document.dispatchEvent(event));
+    expect(setData).toHaveBeenCalledWith("text/plain", "They knew about it.");
+    expect(event.defaultPrevented).toBe(true);
+    expect(window.getSelection()!.getRangeAt(0)).toBe(range);
+    const input = document.createElement("textarea");
+    host.append(input);
+    input.focus();
+    const inputCopy = new Event("copy", { bubbles: true, cancelable: true });
+    Object.defineProperty(inputCopy, "clipboardData", { value: { setData } });
+    setData.mockClear();
+    act(() => input.dispatchEvent(inputCopy));
+    expect(setData).not.toHaveBeenCalled();
+    expect(inputCopy.defaultPrevented).toBe(false);
+    window.getSelection()!.removeAllRanges();
   });
 
   // PDF.js sizes every text-layer run by measuring it on a canvas tagged with

@@ -1,5 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 
+import { pdfSelectionText } from "../utils/pdfParagraphText";
+
 export type SelectionToolbarPosition = {
   top: number;
   left: number;
@@ -50,7 +52,7 @@ export function useTextSelection() {
 
   const handleTextSelection = useCallback(() => {
     const selection = window.getSelection();
-    const text = selection?.toString().trim() || "";
+    const text = pdfSelectionText(selection) ?? selection?.toString().trim() ?? "";
     if (text !== selectedTextRef.current) {
       selectedTextRef.current = text;
       setSelectedText(text);

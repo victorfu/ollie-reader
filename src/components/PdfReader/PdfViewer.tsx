@@ -20,6 +20,7 @@ import {
   PAGE_CHROME_PX,
   computeFitPageWidth,
 } from "../../utils/pdfPageFit";
+import { pdfParagraphText, pdfSelectionText, registerParagraphLayer } from "../../utils/pdfParagraphText";
 import { selectWordAtPoint } from "../../utils/pdfTextSelection";
 import {
   advancesFromStore,
@@ -279,6 +280,7 @@ export const PdfViewer = memo(
         `[data-page-number="${pageNumber}"] .textLayer`,
       );
       if (!page || !text || !layer) return;
+      registerParagraphLayer(layer, text.items);
       fitTextLayerRuns(
         layer,
         text.items,
@@ -381,6 +383,30 @@ export const PdfViewer = memo(
         left: 0,
       });
     }, [pdfPageWidth]);
+
+    useEffect(() => {
+      // Native copy targets the focused element (often body), not necessarily
+      // the PDF selection's container. Scope the document listener by range.
+      const handleCopy = (event: ClipboardEvent) => {
+        const target = event.target;
+        if (target instanceof HTMLElement &&
+            (target.closest("input, textarea") || target.isContentEditable)) return;
+        const active = document.activeElement;
+        if (active instanceof HTMLElement &&
+            (active.matches("input, textarea") || active.isContentEditable)) return;
+        const selection = window.getSelection();
+        const container = containerRef.current;
+        if (!selection?.rangeCount || !container || !event.clipboardData) return;
+        const range = selection.getRangeAt(0);
+        if (!container.contains(range.startContainer) || !container.contains(range.endContainer)) return;
+        const text = pdfSelectionText(selection);
+        if (text === null) return;
+        event.clipboardData.setData("text/plain", text);
+        event.preventDefault();
+      };
+      document.addEventListener("copy", handleCopy);
+      return () => document.removeEventListener("copy", handleCopy);
+    }, []);
 
     const handlePointerDown = useCallback(
       (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -568,16 +594,9 @@ export const PdfViewer = memo(
                                     ? previous
                                     : { url, lang: nextLang },
                                 );
-                                // Runs already carry their word spaces; a
-                                // separator would split words stored one glyph
-                                // per run ("I R S . g o v").
-                                const pageTextFromPdf = items
-                                  .map((item) => {
-                                    if (!("str" in item)) return "";
-                                    return `${item.str}${item.hasEOL ? "\n" : ""}`;
-                                  })
-                                  .join("")
-                                  .trim();
+                                const pageTextFromPdf = pdfParagraphText(
+                                  items.filter((item) => "str" in item),
+                                );
                                 setPdfJsPageState((previousState) => {
                                   const previous =
                                     previousState.url === url
