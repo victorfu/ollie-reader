@@ -14,10 +14,16 @@ export function useTextSelection() {
     useState<SelectionToolbarPosition | null>(null);
   const selectedTextRef = useRef("");
 
+  const resetSelectionState = useCallback(() => {
+    selectedTextRef.current = "";
+    setSelectedText("");
+    setToolbarPosition(null);
+  }, []);
+
   const updateToolbarPosition = useCallback(() => {
     const selection = window.getSelection();
-    if (!selection || selection.rangeCount === 0) {
-      setToolbarPosition(null);
+    if (!selection || selection.rangeCount === 0 || selection.isCollapsed || !selection.toString().trim()) {
+      resetSelectionState();
       return;
     }
 
@@ -48,7 +54,7 @@ export function useTextSelection() {
     );
 
     setToolbarPosition({ top, left: clampedLeft, placement });
-  }, []);
+  }, [resetSelectionState]);
 
   const handleTextSelection = useCallback(() => {
     const selection = window.getSelection();
@@ -65,11 +71,23 @@ export function useTextSelection() {
   }, [updateToolbarPosition]);
 
   const clearSelection = useCallback(() => {
-    selectedTextRef.current = "";
-    setSelectedText("");
-    setToolbarPosition(null);
+    resetSelectionState();
     window.getSelection()?.removeAllRanges();
-  }, []);
+  }, [resetSelectionState]);
+
+  useEffect(() => {
+    // Replacing PDF text nodes on resize collapses the native Range without
+    // a pointer-up in the reader. Do not retain actions for that stale text.
+    const handleSelectionChange = () => {
+      if (!selectedTextRef.current) return;
+      const selection = window.getSelection();
+      if (!selection || selection.isCollapsed || !selection.toString().trim()) {
+        resetSelectionState();
+      }
+    };
+    document.addEventListener("selectionchange", handleSelectionChange);
+    return () => document.removeEventListener("selectionchange", handleSelectionChange);
+  }, [resetSelectionState]);
 
   useEffect(() => {
     if (!selectedText) return;

@@ -39,7 +39,12 @@ export const SelectionToolbar = memo(
     : undefined;
 
   return (
-    <div className={containerClasses} style={containerStyle}>
+    <div
+      className={containerClasses}
+      style={containerStyle}
+      // Keep the native selection alive until the action's click handler runs.
+      onMouseDown={(event) => event.preventDefault()}
+    >
       <div className="flex items-center gap-3 rounded-full border border-accent/20 bg-accent px-3 py-2 text-accent-content shadow-floating sm:px-6 sm:py-3">
         <div className="flex gap-2">
           {/* Speak button */}
