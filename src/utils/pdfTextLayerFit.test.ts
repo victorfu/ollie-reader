@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   advancesFromStore,
   buildAdvanceMap,
@@ -27,6 +27,8 @@ const TITLE_ADVANCES = new Map<string, number>([
 
 afterEach(() => {
   document.body.replaceChildren();
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 describe("buildAdvanceMap", () => {
@@ -189,9 +191,9 @@ describe("fitTextLayerRuns", () => {
       " ",
       "Suit",
     ]);
-    // Total stays at the run's measured 190px, so PDF.js's scaleX still fits.
+    // Total follows PDF geometry rather than the substitute font's 190px.
     const total = 1833 + 434 + 2658 + 434 + 2056 + 434 + 1964;
-    const kingTarget = (2658 / total) * 190;
+    const kingTarget = (2658 / total) * (392.6 / 39.984) * 20;
     const kingSpacingPx = (kingTarget - 60) / 6;
     expect(parseFloat(segments[2].style.letterSpacing)).toBeCloseTo(
       kingSpacingPx / 20,
@@ -200,6 +202,57 @@ describe("fitTextLayerRuns", () => {
     expect(segments.every((segment) => segment.style.position === "static")).toBe(
       true,
     );
+  });
+
+  it.each([1, 2])("preserves PDF word positions at CSS scale %s despite different font metrics", (scale) => {
+    const layer = makeLayer(["a b"]);
+    const span = layer.firstElementChild as HTMLElement;
+    span.style.fontSize = `${20 * scale}px`;
+    span.style.transform = "rotate(15deg) scaleX(0.8)";
+    fitTextLayerRuns(layer, [
+      { str: "a b", fontName: "body", width: 30, transform: [20, 0, 0, 20, 0, 0] },
+    ], () => new Map([["a", 500], [" ", 500], ["b", 500]]), {
+      measure: () => 9 * scale,
+    });
+    const widths = [...span.children].map(child =>
+      9 * scale + parseFloat((child as HTMLElement).style.letterSpacing) * 20 * scale,
+    );
+    expect(widths[0] * 0.8).toBeCloseTo(10 * scale);
+    expect(widths.reduce((sum, width) => sum + width, 0) * 0.8).toBeCloseTo(30 * scale);
+    expect(span.textContent).toBe("a b");
+  });
+
+  it("measures final inline boxes and fixes each advance to the PDF width", () => {
+    const originalGetStyle = window.getComputedStyle;
+    vi.spyOn(window, "getComputedStyle").mockImplementation((element) => {
+      const style = originalGetStyle(element);
+      if ((element as HTMLElement).style.display === "inline-block") {
+        Object.defineProperty(style, "width", { value: "8px" });
+      }
+      return style;
+    });
+    const layer = makeLayer(["a b"]);
+    const span = layer.firstElementChild as HTMLElement;
+    span.style.transform = "scaleX(0.8)";
+    fitTextLayerRuns(layer, [
+      { str: "a b", fontName: "body", width: 30, transform: [20, 0, 0, 20, 0, 0] },
+    ], () => new Map([["a", 500], [" ", 500], ["b", 500]]), {
+      measure: () => { throw new Error("Must use the rendered width"); },
+    });
+    const word = span.firstElementChild as HTMLElement;
+    expect((8 + parseFloat(word.style.letterSpacing) * 20) * 0.8).toBeCloseTo(10);
+    expect(parseFloat(word.style.width) * 20 * 0.8).toBeCloseTo(10);
+  });
+
+  it("also fits single-word runs to their PDF width", () => {
+    const layer = makeLayer(["what"]);
+    const span = layer.firstElementChild as HTMLElement;
+    span.style.transform = "scaleX(0.9)";
+    fitTextLayerRuns(layer, [
+      { str: "what", fontName: "body", width: 50, transform: [20, 0, 0, 20, 0, 0] },
+    ], () => new Map([["w", 500]]), { measure: measureByLength });
+    const word = span.firstElementChild as HTMLElement;
+    expect((40 + parseFloat(word.style.letterSpacing) * 20 * 4) * 0.9).toBeCloseTo(50);
   });
 
   it("fits each run once, even when called again", () => {

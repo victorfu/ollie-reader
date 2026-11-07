@@ -7,8 +7,9 @@
  * This re-lays each run word by word from the font's real glyph advances
  * (exposed by PDF.js when the document is loaded with `fontExtraProperties`):
  * every word and gap becomes an inline span whose letter-spacing stretches it
- * to its true share of the run. The run's total width is unchanged, so the
- * scaleX PDF.js computed still applies.
+ * to its true share of the PDF width, accounting for PDF.js's existing scaleX.
+ * Do not preserve the substitute font's measured total: PDF.js measures at
+ * device-pixel resolution, where font metrics can differ from CSS resolution.
  */
 
 /** Advance widths in 1/1000 em, keyed by the single character they render. */
@@ -260,29 +261,42 @@ export function fitTextLayerRuns(
       item.str,
       advances,
       (item.width / fontSize) * 1000,
-    );
-    span.dataset[FIT_MARK] = "1";
+    ) ?? (!/\s/.test(item.str) ? [{ text: item.str, share: 1 }] : null);
+    span.dataset[FIT_MARK] = "geometry";
     if (!shares) return;
 
     const fontSizePx = parseFloat(getComputedStyle(span).fontSize);
-    const natural = shares.map((segment) =>
-      measure(segment.text, span, lang),
-    );
-    const total = natural.reduce((sum, width) => sum + width, 0);
+    // PDF.js may measure at a different pixel size (DPR) than the DOM.
+    // Anchor the fitted width to the PDF geometry, not those font metrics.
+    // Its optional minimum-font-size scale cancels with the inflated CSS
+    // font size, while rotation does not change the advance along the run.
+    const scaleX = Number(span.style.transform.match(/scaleX\(([^)]+)\)/)?.[1] ?? 1);
+    const total = (item.width / fontSize) * fontSizePx / scaleX;
     if (!(fontSizePx > 0) || !(total > 0)) return;
 
-    const children = shares.map((segment, segmentIndex) => {
+    const children = shares.map((segment) => {
       const child = document.createElement("span");
       child.textContent = segment.text;
-      // PDF.js positions every span in the layer absolutely; these flow inline.
+      // Measure the final inline boxes, after splitting the text. Font
+      // fallback/shaping can differ from measuring the original whole run.
       child.style.position = "static";
+      child.style.display = "inline-block";
       child.style.transform = "none";
-      const target = segment.share * total;
-      const spacing =
-        (target - natural[segmentIndex]) / [...segment.text].length;
-      child.style.letterSpacing = `${(spacing / fontSizePx).toFixed(5)}em`;
       return child;
     });
     span.replaceChildren(...children);
+    // Read all natural widths before writing styles to avoid layout per word.
+    const natural = children.map((child, index) => {
+      const width = parseFloat(getComputedStyle(child).width);
+      return Number.isFinite(width) ? width : measure(shares[index].text, child, lang);
+    });
+    children.forEach((child, index) => {
+      const target = shares[index].share * total;
+      const spacing = (target - natural[index]) / [...shares[index].text].length;
+      child.style.letterSpacing = `${(spacing / fontSizePx).toFixed(5)}em`;
+      // Explicit advances prevent rounding or shaping differences accumulating
+      // across a long line. em keeps them proportional when the page scales.
+      child.style.width = `${target / fontSizePx}em`;
+    });
   });
 }
