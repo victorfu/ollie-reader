@@ -42,6 +42,7 @@ function PdfReader() {
 
   const {
     isSpeaking,
+    speakingText,
     isLoadingAudio,
     speechSupported,
     speak,
@@ -363,6 +364,7 @@ function PdfReader() {
               onTextSelection={handleTextSelection}
               isLoadingAudio={isLoadingAudio}
               isSpeaking={isSpeaking}
+              speakingText={speakingText}
               initialScrollPosition={initialScrollPosition}
               onScrollPositionChange={saveScrollPosition}
               headerActions={

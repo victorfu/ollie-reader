@@ -4,11 +4,12 @@ import { Play } from "lucide-react";
 import { useLanguage } from "../../hooks/useLanguage";
 import { layerSentences, sentenceRects, type Sentence } from "../../utils/pdfSentences";
 
-type Hint = { sentence: Sentence; rects: DOMRect[]; left: number; top: number };
+type Hint = { layer: HTMLElement; sentence: Sentence; rects: DOMRect[]; left: number; top: number };
 
-export function SentenceHover({ containerRef, onSpeak, layoutKey }: {
+export function SentenceHover({ containerRef, onSpeak, onSentenceSpeak, layoutKey }: {
   containerRef: RefObject<HTMLDivElement | null>;
   onSpeak: (text: string) => void;
+  onSentenceSpeak?: (sentence: Sentence, layer: HTMLElement) => void;
   layoutKey: string;
 }) {
   const { t } = useLanguage();
@@ -49,6 +50,7 @@ export function SentenceHover({ containerRef, onSpeak, layoutKey }: {
           // Anchor to the sentence itself, not the page gutter. Keep the
           // control just above its first word so it does not cover that word.
           const next = {
+            layer,
             sentence,
             rects: visibleRects,
             left: Math.min(rects[0].left, window.innerWidth - 40),
@@ -111,7 +113,8 @@ export function SentenceHover({ containerRef, onSpeak, layoutKey }: {
       onMouseDown={event => event.preventDefault()}
       onClick={() => {
         if (window.getSelection()?.isCollapsed === false) return;
-        onSpeak(hint.sentence.text);
+        if (onSentenceSpeak) onSentenceSpeak(hint.sentence, hint.layer);
+        else onSpeak(hint.sentence.text);
       }}><Play className="size-4" fill="currentColor" aria-hidden="true" /></button>
   </>, document.body);
 }

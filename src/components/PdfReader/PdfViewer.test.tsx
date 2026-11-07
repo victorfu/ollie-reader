@@ -21,6 +21,21 @@ const pdfMocks = vi.hoisted(() => ({
   textLayerSuccessHandlers: [] as Array<(() => void) | undefined>,
 }));
 
+const playbackMocks = vi.hoisted(() => ({
+  sentence: { text: "One sentence.", ranges: [] as Range[] },
+  activate: undefined as undefined | ((sentence: { text: string; ranges: Range[] }, layer: HTMLElement) => void),
+}));
+vi.mock("./SentenceHover", () => ({
+  SentenceHover: ({ onSentenceSpeak }: { onSentenceSpeak: typeof playbackMocks.activate }) => {
+    playbackMocks.activate = onSentenceSpeak;
+    return null;
+  },
+}));
+vi.mock("../../utils/pdfSentences", () => ({
+  layerSentences: () => [playbackMocks.sentence],
+  sentenceRects: () => [],
+}));
+
 const fitMocks = vi.hoisted(() => ({ fitTextLayerRuns: vi.fn() }));
 
 vi.mock("../../utils/pdfTextLayerFit", async (importOriginal) => ({
@@ -668,5 +683,36 @@ describe("PdfViewer width changes", () => {
 
     // No timer advance: the initial measurement must not be debounced.
     expect(pdfMocks.renderWidths.at(-1)).toBe(640);
+  });
+});
+
+describe("sentence playback highlight lifecycle", () => {
+  it("highlights only during matching playback and never changes native selection", () => {
+    const onSpeak = vi.fn();
+    renderViewer("blob:playing", null, vi.fn(), { onSpeak });
+    const layer = host.querySelector<HTMLElement>(".textLayer")!;
+    act(() => playbackMocks.activate!(playbackMocks.sentence, layer));
+    expect(onSpeak).toHaveBeenCalledWith("One sentence.");
+    const highlight = () => document.querySelector('[data-testid="sentence-playback-highlight"]');
+    renderViewer("blob:playing", null, vi.fn(), { onSpeak, isLoadingAudio: true, isSpeaking: false, speakingText: "One sentence." });
+    expect(highlight()).toBeNull();
+    renderViewer("blob:playing", null, vi.fn(), { onSpeak, isSpeaking: true, speakingText: "One sentence." });
+    expect(highlight()).not.toBeNull();
+    const range = document.createRange(); range.selectNodeContents(layer);
+    window.getSelection()!.addRange(range);
+    act(() => document.dispatchEvent(new Event("selectionchange")));
+    expect(highlight()).not.toBeNull();
+    expect(highlight()!.classList.contains("pointer-events-none")).toBe(true);
+    expect(window.getSelection()!.getRangeAt(0)).toBe(range);
+    // Both completion and explicit Stop set isSpeaking=false, even if the
+    // context retains the last speakingText.
+    renderViewer("blob:playing", null, vi.fn(), { onSpeak, isSpeaking: false, speakingText: "One sentence." });
+    expect(highlight()).toBeNull();
+    expect(window.getSelection()!.getRangeAt(0)).toBe(range);
+    renderViewer("blob:playing", null, vi.fn(), { onSpeak, isSpeaking: true, speakingText: "Another sentence." });
+    expect(highlight()).toBeNull();
+    renderViewer("blob:new-document", null, vi.fn(), { onSpeak, isSpeaking: true, speakingText: "One sentence." });
+    expect(highlight()).toBeNull();
+    window.getSelection()!.removeAllRanges();
   });
 });

@@ -31,6 +31,8 @@ import {
 import { Tooltip } from "../common/Tooltip";
 import { T } from "../common/T";
 import { useLanguage } from "../../hooks/useLanguage";
+import { SentencePlaybackHighlight, type SentencePlaybackTarget } from "./SentencePlaybackHighlight";
+import { layerSentences, type Sentence } from "../../utils/pdfSentences";
 import { SentenceHover } from "./SentenceHover";
 import { CopyPagePromptButton } from "./CopyPagePromptButton";
 
@@ -43,6 +45,7 @@ interface PdfViewerProps {
   onTextSelection: () => void;
   isLoadingAudio?: boolean;
   isSpeaking?: boolean;
+  speakingText?: string | null;
   initialScrollPosition?: number | null;
   onScrollPositionChange?: (position: number) => void;
   /**
@@ -89,11 +92,19 @@ export const PdfViewer = memo(
     onTextSelection,
     isLoadingAudio,
     isSpeaking,
+    speakingText,
     initialScrollPosition,
     onScrollPositionChange,
     headerActions,
   }: PdfViewerProps) => {
     const { t } = useLanguage();
+    const [playbackTarget, setPlaybackTarget] = useState<(SentencePlaybackTarget & { url: string }) | null>(null);
+    const speakSentence = useCallback((sentence: Sentence, layer: HTMLElement) => {
+      const page = Number(layer.closest("[data-page-number]")?.getAttribute("data-page-number"));
+      const index = layerSentences(layer).indexOf(sentence);
+      setPlaybackTarget(page > 0 && index >= 0 ? { page, index, text: sentence.text, url } : null);
+      onSpeak(sentence.text);
+    }, [onSpeak, url]);
     const containerRef = useRef<HTMLDivElement | null>(null);
     const measureRef = useRef<HTMLDivElement | null>(null);
     const pointerStartRef = useRef<PointerStart | null>(null);
@@ -465,7 +476,10 @@ export const PdfViewer = memo(
 
     return (
       <div className="flex h-full w-full flex-col">
-        <SentenceHover key={`${url}:${pdfPageWidth}`} containerRef={containerRef} onSpeak={onSpeak} layoutKey={`${url}:${pdfPageWidth}`} />
+        <SentenceHover key={`${url}:${pdfPageWidth}`} containerRef={containerRef} onSpeak={onSpeak} onSentenceSpeak={speakSentence} layoutKey={`${url}:${pdfPageWidth}`} />
+        {isSpeaking && playbackTarget?.url === url && speakingText === playbackTarget.text && (
+          <SentencePlaybackHighlight key={`${url}:${playbackTarget.page}:${playbackTarget.index}`} containerRef={containerRef} target={playbackTarget} />
+        )}
         <div className="sticky top-0 z-10 flex shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-2 rounded-t-xl border-b border-border-hairline bg-base-200/90 px-3 py-2 backdrop-blur-md">
           {headerActions ?? (
             <span className="text-sm font-medium text-base-content">
