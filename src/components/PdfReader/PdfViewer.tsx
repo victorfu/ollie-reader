@@ -31,6 +31,7 @@ import {
 import { Tooltip } from "../common/Tooltip";
 import { T } from "../common/T";
 import { useLanguage } from "../../hooks/useLanguage";
+import { SentenceHover } from "./SentenceHover";
 import { CopyPagePromptButton } from "./CopyPagePromptButton";
 
 import "react-pdf/dist/Page/AnnotationLayer.css";
@@ -464,6 +465,7 @@ export const PdfViewer = memo(
 
     return (
       <div className="flex h-full w-full flex-col">
+        <SentenceHover key={`${url}:${pdfPageWidth}`} containerRef={containerRef} onSpeak={onSpeak} layoutKey={`${url}:${pdfPageWidth}`} />
         <div className="sticky top-0 z-10 flex shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-2 rounded-t-xl border-b border-border-hairline bg-base-200/90 px-3 py-2 backdrop-blur-md">
           {headerActions ?? (
             <span className="text-sm font-medium text-base-content">

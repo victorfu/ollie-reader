@@ -8,6 +8,9 @@ export type ParagraphItem = {
 
 type Run = { text: string; separator: string };
 type Line = { items: ParagraphItem[]; runs: Run[] };
+const layers = new WeakMap<HTMLElement, { spans: Element[]; runs: Run[] }>();
+export const getParagraphLayer = (layer: HTMLElement) => layers.get(layer);
+
 const registeredRuns = new WeakMap<Element, Run>();
 
 function size(item: ParagraphItem): number {
@@ -64,6 +67,7 @@ export function registerParagraphLayer(layer: HTMLElement, items: readonly Parag
   const runs = paragraphRuns(items);
   if (spans.length !== runs.length || spans.some((span, i) => span.textContent !== runs[i].text)) return;
   spans.forEach((span, i) => registeredRuns.set(span, runs[i]));
+  layers.set(layer, { spans, runs });
 }
 
 /** null means a non-PDF or unregistered selection: leave native behavior intact. */
