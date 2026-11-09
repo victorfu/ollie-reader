@@ -227,6 +227,27 @@ afterEach(() => {
 });
 
 describe("SpeechProvider request ownership", () => {
+  it("replays cached audio after completion and ignores the previous audio's end event", async () => {
+    mocks.getCache.mockResolvedValue(new Blob(["audio"]));
+    mocks.createObjectURL.mockReturnValueOnce("blob:first").mockReturnValueOnce("blob:second");
+    await mountProvider();
+    act(() => speech().speak("huddle"));
+    await flushPromises();
+    const first = MockAudio.instances[0];
+    act(() => first.onended?.());
+    expect(speech().isSpeaking).toBe(false);
+
+    act(() => speech().speak("huddle"));
+    await flushPromises();
+    const second = MockAudio.instances[1];
+    expect(second.play).toHaveBeenCalledOnce();
+    act(() => first.onended?.());
+    expect(speech().isSpeaking).toBe(true);
+    act(() => second.onended?.());
+    expect(speech().isSpeaking).toBe(false);
+    expect(mocks.fetchWithComputeBase).not.toHaveBeenCalled();
+  });
+
   it("routes API speech through Edge with its cloud base and cache namespace", async () => {
     mocks.getCache.mockResolvedValue(null);
     mocks.fetchWithComputeBase.mockResolvedValue({ ok: true, blob: async () => new Blob(["audio"]) });

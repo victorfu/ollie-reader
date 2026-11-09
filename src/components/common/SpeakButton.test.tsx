@@ -19,12 +19,12 @@ import { SpeakButton } from "./SpeakButton";
 let root: Root | null;
 let host: HTMLDivElement | null;
 
-async function render(text = "river", onParentClick?: () => void) {
+async function render(text = "river", onParentClick?: () => void, replayOnClick = false) {
   root = createRoot(host as HTMLDivElement);
   await act(async () => {
     root?.render(
       <div onClick={onParentClick}>
-        <SpeakButton text={text} label="播放發音" />
+        <SpeakButton text={text} label="播放發音" replayOnClick={replayOnClick} />
       </div>,
     );
   });
@@ -50,6 +50,26 @@ afterEach(() => {
 });
 
 describe("SpeakButton", () => {
+  it("replays an active pronunciation instead of stopping it", async () => {
+    speech.isSpeaking = true;
+    speech.speakingText = "river";
+    const button = await render("river", undefined, true);
+    expect(button.getAttribute("aria-label")).toBe("播放發音");
+    await act(async () => button.click());
+    expect(speech.speak).toHaveBeenCalledWith("river");
+    expect(speech.stopSpeaking).not.toHaveBeenCalled();
+  });
+
+  it("does not cancel a loading pronunciation on repeated taps", async () => {
+    speech.isLoadingAudio = true;
+    speech.speakingText = "river";
+    const button = await render("river", undefined, true);
+    await act(async () => { button.click(); button.click(); });
+    expect(speech.speak).not.toHaveBeenCalled();
+    expect(speech.stopSpeaking).not.toHaveBeenCalled();
+    expect(button.getAttribute("aria-busy")).toBe("true");
+  });
+
   it("speaks its text when idle and does not bubble the click", async () => {
     const onParentClick = vi.fn();
     const button = await render("river", onParentClick);

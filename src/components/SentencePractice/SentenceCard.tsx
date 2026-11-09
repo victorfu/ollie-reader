@@ -33,13 +33,15 @@ export const SentenceCard = ({
   onEditingChange,
   dragControls,
 }: SentenceCardProps) => {
-  const { speak, isSpeaking, isLoadingAudio } = useSpeechState();
+  const { speak, isLoadingAudio, speakingText } = useSpeechState();
+  const isLoadingSentence = isLoadingAudio && speakingText === sentence.english;
   const { t } = useLanguage();
   const [isEditing, setIsEditing] = useState(false);
   const [editedEnglish, setEditedEnglish] = useState(sentence.english);
   const [isUpdating, setIsUpdating] = useState(false);
 
   const handleSpeak = () => {
+    if (isLoadingSentence) return;
     speak(sentence.english);
   };
 
@@ -125,12 +127,12 @@ export const SentenceCard = ({
           <button
             type="button"
             onClick={handleSpeak}
-            disabled={isSpeaking || isLoadingAudio}
+            aria-busy={isLoadingSentence}
             className="btn btn-circle btn-sm btn-ghost text-primary shrink-0 mt-0.5"
             title={t("practice.sentence.playSentence")}
             aria-label={t("practice.sentence.playSentence")}
           >
-            {isLoadingAudio ? (
+            {isLoadingSentence ? (
               <span className="loading loading-spinner loading-xs"></span>
             ) : (
               <svg

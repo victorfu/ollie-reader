@@ -48,7 +48,7 @@ export const PageTextArea = memo(
               key={`w-${key++}-${start}`}
               type="button"
               onClick={() => onSpeak(word)}
-              disabled={isLoadingAudio || isSpeaking}
+              disabled={isLoadingAudio}
               className="inline rounded hover:bg-warning/30 hover:text-warning-content transition-colors focus:outline-none focus:ring-2 focus:ring-warning/50 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent"
               title={`Speak: ${word}`}
             >
@@ -67,7 +67,7 @@ export const PageTextArea = memo(
           </div>
         );
       },
-      [onSpeak, isLoadingAudio, isSpeaking],
+      [onSpeak, isLoadingAudio],
     );
 
     const renderSelectableText = useCallback(
@@ -104,7 +104,7 @@ export const PageTextArea = memo(
                     ? "bg-base-300/90 text-base-content"
                     : "bg-success/90 hover:bg-success text-success-content"
                 }`}
-                disabled={isLoadingAudio || isSpeaking}
+                disabled={isLoadingAudio}
               >
                 {isLoadingAudio ? (
                   <>

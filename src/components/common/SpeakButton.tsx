@@ -11,6 +11,8 @@ interface SpeakButtonProps {
   /** Accessible name while idle; defaults to "play pronunciation". */
   label?: string;
   size?: SpeakButtonSize;
+  /** Repeat short pronunciations instead of toggling playback off. */
+  replayOnClick?: boolean;
   className?: string;
 }
 
@@ -29,6 +31,7 @@ export const SpeakButton = ({
   text,
   label,
   size = "sm",
+  replayOnClick = false,
   className = "",
 }: SpeakButtonProps) => {
   const { speak, stopSpeaking, isSpeaking, isLoadingAudio, speakingText } =
@@ -41,7 +44,9 @@ export const SpeakButton = ({
   const handleClick = (e: MouseEvent<HTMLButtonElement>) => {
     // Rows wrap this in a selectable container; never toggle selection.
     e.stopPropagation();
-    if (isActive) {
+    // Keep an in-flight pronunciation request alive on repeated taps.
+    if (replayOnClick && isLoading) return;
+    if (isActive && !replayOnClick) {
       stopSpeaking();
     } else {
       speak(text);
@@ -57,8 +62,8 @@ export const SpeakButton = ({
     <button
       type="button"
       onClick={handleClick}
-      aria-label={isActive ? t("speak.stop") : idleLabel}
-      title={isActive ? t("speak.stop") : idleLabel}
+      aria-label={isActive && !replayOnClick ? t("speak.stop") : idleLabel}
+      title={isActive && !replayOnClick ? t("speak.stop") : idleLabel}
       aria-pressed={isActive}
       aria-busy={isLoading}
       className={`inline-flex shrink-0 items-center justify-center rounded-full transition-colors active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${button} ${stateClass} ${className}`}

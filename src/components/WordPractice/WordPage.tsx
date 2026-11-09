@@ -114,7 +114,7 @@ function RecallSection({ word, onDone }: { word: HomeworkWord; onDone: () => voi
         <T k="practice.page.recallTitle" />
       </Heading>
       <div className="flex items-center gap-2">
-        <SpeakButton text={word.word} size="md" />
+        <SpeakButton text={word.word} size="md" replayOnClick />
       </div>
       <AnswerInput
         key={attempts}
@@ -191,7 +191,7 @@ function FormSection({
         </Heading>
         <div className="flex flex-wrap items-center gap-3">
           <p className="text-2xl font-semibold">{inflection.form}</p>
-          <SpeakButton text={inflection.form} size="md" />
+          <SpeakButton text={inflection.form} size="md" replayOnClick />
         </div>
         <ul className="space-y-1 rounded-[10px] border border-border-hairline bg-background px-4 py-3 text-sm">
           <li>
@@ -321,7 +321,7 @@ export function WordPage({ word, progress, index, total, onChange }: WordPagePro
               </span>
             )}
             <h2 className="break-words text-3xl font-semibold tracking-tight">{word.word}</h2>
-            <SpeakButton text={word.word} size="md" />
+            <SpeakButton text={word.word} size="md" replayOnClick />
           </div>
         )}
       </header>

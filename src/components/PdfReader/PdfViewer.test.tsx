@@ -352,6 +352,22 @@ describe("PdfViewer PDF-only layout", () => {
     expect(onSpeak).toHaveBeenCalledWith(pdfMocks.pdfJsText);
   });
 
+  it("allows page narration to restart while audio is playing", async () => {
+    const onSpeak = vi.fn();
+    renderViewer("blob:replay", null, vi.fn(), {
+      onSpeak,
+      isSpeaking: true,
+      speakingText: pdfMocks.pdfJsText,
+    });
+    await act(async () => Promise.resolve());
+    const button = host.querySelector<HTMLButtonElement>('[aria-label="朗讀第 1 頁"]');
+    expect(button?.disabled).toBe(false);
+    act(() => button?.click());
+    act(() => button?.click());
+    expect(onSpeak).toHaveBeenCalledTimes(2);
+    expect(onSpeak).toHaveBeenLastCalledWith(pdfMocks.pdfJsText);
+  });
+
   it("joins PDF.js text runs as stored, so split words stay whole", async () => {
     // PDF.js already includes word spaces in its runs; some PDFs store a word
     // one glyph per run (e.g. "IRS.gov/Spanish"), which must not gain spaces.

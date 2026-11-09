@@ -162,7 +162,7 @@ export const WordDetailPanel = ({
               {word.word}
             </h2>
             {cefr && <CefrBadge info={cefr} />}
-            <SpeakButton text={word.word} label={t("reader.vocab.pronounce")} size="md" />
+            <SpeakButton text={word.word} label={t("reader.vocab.pronounce")} size="md" replayOnClick />
             <button
               type="button"
               onClick={handleRegenerate}
@@ -353,7 +353,7 @@ export const WordDetailPanel = ({
                   <p className="font-medium text-accent capitalize mb-1">
                     {def.partOfSpeech}
                   </p>
-                  <SpeakButton text={def.definition} label={t("reader.vocab.speakDefinition")} />
+                  <SpeakButton text={def.definition} label={t("reader.vocab.speakDefinition")} replayOnClick />
                 </div>
                 <p className="text-base-content">
                   {def.definition || def.definitionChinese}
@@ -383,7 +383,7 @@ export const WordDetailPanel = ({
               >
                 <div className="flex justify-between items-start gap-2 mb-1">
                   <p className="italic flex-1">{example.sentence}</p>
-                  <SpeakButton text={example.sentence} label={t("reader.speakExample")} />
+                  <SpeakButton text={example.sentence} label={t("reader.speakExample")} replayOnClick />
                 </div>
                 {example.translation && (
                   <p className="text-sm text-muted-foreground">{example.translation}</p>

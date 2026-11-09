@@ -47,7 +47,7 @@ export const SentenceDetailPanel = ({
             <h2 className="text-3xl sm:text-4xl font-semibold tracking-tight">
               {sentence.english}
             </h2>
-            <SpeakButton text={sentence.english} label={t("reader.sentence.speak")} size="md" />
+            <SpeakButton text={sentence.english} label={t("reader.sentence.speak")} size="md" replayOnClick />
           </div>
         </div>
       </div>

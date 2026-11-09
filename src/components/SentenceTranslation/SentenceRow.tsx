@@ -63,7 +63,7 @@ export const SentenceRow = ({
       {/* Action buttons — siblings of the selector, not descendants.
           Always visible on touch screens; revealed on hover with a mouse. */}
       <span className={ROW_ACTIONS_CLASS}>
-        <SpeakButton text={sentence.english} label={t("reader.sentence.speak")} />
+        <SpeakButton text={sentence.english} label={t("reader.sentence.speak")} replayOnClick />
         <button
           type="button"
           onClick={onDelete}
