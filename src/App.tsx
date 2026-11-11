@@ -17,6 +17,7 @@ import {
   MonitorPlay,
   ClipboardCheck,
   Joystick,
+  Divide,
   Settings as SettingsIcon,
   LogOut,
   AlertTriangle,
@@ -105,6 +106,10 @@ const GachaMachine = lazyWithReload(
 const CinnamorollCompanion = lazyWithReload(
   () =>
     import("./components/LittleGames/cinnamoroll-companion/CompanionPage"),
+);
+
+const FractionCalculator = lazyWithReload(
+  () => import("./components/Fraction/FractionCalculator"),
 );
 
 const SIDEBAR_COLLAPSED_KEY = "ollie-sidebar-collapsed";
@@ -453,6 +458,7 @@ function AppContent() {
     { to: "/podcasts", labelKey: "nav.podcasts", icon: Headphones },
     { to: "/show", labelKey: "nav.show", icon: MonitorPlay },
     { to: "/exams", labelKey: "nav.exams", icon: ClipboardCheck },
+    { to: "/fraction", labelKey: "nav.fraction", icon: Divide },
     { to: "/games", labelKey: "nav.games", icon: Joystick },
   ];
   const isNavItemActive = (item: SidebarNavItem) =>
@@ -755,6 +761,7 @@ function AppContent() {
                       <Route path="/podcasts/:podcastId" element={<PodcastDetail />} />
                       <Route path="/show" element={<ShowSubtitlesPage />} />
                       <Route path="/exams" element={<ExamPracticePage />} />
+                      <Route path="/fraction" element={<FractionCalculator />} />
                       <Route path="/games" element={<LittleGamesHub />} />
                       <Route
                         path="/games/spirit"

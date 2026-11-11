@@ -6,6 +6,7 @@ import { gachaZh } from "./messages/gacha";
 import { defendersZh } from "./messages/defenders";
 import { adventureZh } from "./messages/adventure";
 import { arcadeZh } from "./messages/arcade";
+import { fractionZh } from "./messages/fraction";
 
 /**
  * 繁體中文字典：所有介面文字的來源。
@@ -32,6 +33,7 @@ export const zhTW = {
   "nav.show": "影集字幕",
   "nav.exams": "基本學力測驗",
   "nav.games": "小遊戲",
+  "nav.fraction": "分數計算",
   "nav.settings": "設定",
   "nav.signOut": "登出",
   "nav.more": "更多",
@@ -152,6 +154,7 @@ export const zhTW = {
   ...defendersZh,
   ...adventureZh,
   ...arcadeZh,
+  ...fractionZh,
 } as const;
 
 export type MessageKey = keyof typeof zhTW;

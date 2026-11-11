@@ -7,6 +7,7 @@ import { gachaEn } from "./messages/gacha";
 import { defendersEn } from "./messages/defenders";
 import { adventureEn } from "./messages/adventure";
 import { arcadeEn } from "./messages/arcade";
+import { fractionEn } from "./messages/fraction";
 
 
 /** English dictionary. Typed against the zh-TW keys so a missing entry fails tsc. */
@@ -30,6 +31,7 @@ export const en: Record<MessageKey, string> = {
   "nav.show": "Show Subtitles",
   "nav.exams": "Practice Tests",
   "nav.games": "Games",
+  "nav.fraction": "Fractions",
   "nav.settings": "Settings",
   "nav.signOut": "Sign Out",
   "nav.more": "More",
@@ -150,4 +152,5 @@ export const en: Record<MessageKey, string> = {
   ...defendersEn,
   ...adventureEn,
   ...arcadeEn,
+  ...fractionEn,
 };
