@@ -10,9 +10,12 @@ import {
   type Fraction,
   type FractionOperator,
   type FractionStep,
+  type MixedNumber,
 } from "../../utils/fraction";
 
 interface FractionDraft {
+  /** Optional whole-number part of a mixed number. */
+  whole: string;
   num: string;
   den: string;
 }
@@ -31,7 +34,7 @@ const OPERATOR_SYMBOL: Record<FractionOperator, string> = {
   "/": "÷",
 };
 
-const DEFAULT_DRAFT: FractionDraft = { num: "1", den: "1" };
+const DEFAULT_DRAFT: FractionDraft = { whole: "", num: "1", den: "1" };
 
 /** Show negatives with a proper minus sign instead of a hyphen. */
 const formatPart = (n: number) => (n < 0 ? `−${Math.abs(n)}` : String(n));
@@ -82,29 +85,40 @@ function FractionInput({
 }) {
   const { t } = useLanguage();
   const inputClass =
-    "w-20 rounded-[6px] border border-border-hairline bg-background/50 px-2 py-2 text-center text-xl tabular-nums shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent sm:w-24";
+    "rounded-[6px] border border-border-hairline bg-background/50 px-2 py-2 text-center text-xl tabular-nums shadow-sm placeholder:text-sm placeholder:text-base-content/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent";
   return (
-    <fieldset className="flex flex-col items-center">
+    <fieldset className="flex items-center gap-2">
       <legend className="sr-only">{t(labelKey)}</legend>
       <input
         type="text"
         inputMode="numeric"
-        className={inputClass}
-        value={value.num}
-        aria-label={`${t(labelKey)} ${t("fraction.numerator")}`}
-        placeholder={t("fraction.numerator")}
-        onChange={(e) => onChange({ ...value, num: e.target.value })}
+        className={`${inputClass} w-16`}
+        value={value.whole}
+        aria-label={`${t(labelKey)} ${t("fraction.whole")}`}
+        placeholder={t("fraction.whole")}
+        onChange={(e) => onChange({ ...value, whole: e.target.value })}
       />
-      <span aria-hidden className="my-2 h-0.5 w-full rounded-full bg-base-content/80" />
-      <input
-        type="text"
-        inputMode="numeric"
-        className={inputClass}
-        value={value.den}
-        aria-label={`${t(labelKey)} ${t("fraction.denominator")}`}
-        placeholder={t("fraction.denominator")}
-        onChange={(e) => onChange({ ...value, den: e.target.value })}
-      />
+      <span className="flex flex-col items-center">
+        <input
+          type="text"
+          inputMode="numeric"
+          className={`${inputClass} w-20`}
+          value={value.num}
+          aria-label={`${t(labelKey)} ${t("fraction.numerator")}`}
+          placeholder={t("fraction.numerator")}
+          onChange={(e) => onChange({ ...value, num: e.target.value })}
+        />
+        <span aria-hidden className="my-2 h-0.5 w-full rounded-full bg-base-content/80" />
+        <input
+          type="text"
+          inputMode="numeric"
+          className={`${inputClass} w-20`}
+          value={value.den}
+          aria-label={`${t(labelKey)} ${t("fraction.denominator")}`}
+          placeholder={t("fraction.denominator")}
+          onChange={(e) => onChange({ ...value, den: e.target.value })}
+        />
+      </span>
     </fieldset>
   );
 }
@@ -114,15 +128,36 @@ type Outcome =
   | { kind: "error"; messageKey: MessageKey }
   | { kind: "steps"; steps: FractionStep[] };
 
+type ParsedDraft = MixedNumber | "empty" | "invalid";
+
+/**
+ * The whole-number box is optional. A whole number on its own (fraction boxes
+ * left blank) counts as that number, e.g. 3 → 3/1.
+ */
+function parseDraft(draft: FractionDraft): ParsedDraft {
+  const [whole, num, den] = [draft.whole, draft.num, draft.den].map(parseFractionInput);
+  if ([whole, num, den].includes("invalid")) return "invalid";
+  if (typeof whole === "number" && num === "empty" && den === "empty") {
+    return { num: whole, den: 1 };
+  }
+  if (typeof num !== "number" || typeof den !== "number") return "empty";
+  return typeof whole === "number" ? { whole, num, den } : { num, den };
+}
+
+const ERROR_KEYS: Record<"divideByZero" | "mixedSign", MessageKey> = {
+  divideByZero: "fraction.error.divideByZero",
+  mixedSign: "fraction.error.mixedSign",
+};
+
 function evaluate(a: FractionDraft, op: FractionOperator, b: FractionDraft): Outcome {
-  const parts = [a.num, a.den, b.num, b.den].map(parseFractionInput);
-  if (parts.includes("invalid")) {
+  const parsed = [parseDraft(a), parseDraft(b)];
+  if (parsed.includes("invalid")) {
     return { kind: "error", messageKey: "fraction.error.notInteger" };
   }
-  if (parts.includes("empty")) return { kind: "empty" };
-  const [an, ad, bn, bd] = parts as number[];
-  const result = computeFractionSteps({ num: an, den: ad }, op, { num: bn, den: bd });
-  if (!result.ok) return { kind: "error", messageKey: "fraction.error.divideByZero" };
+  const [left, right] = parsed;
+  if (typeof left !== "object" || typeof right !== "object") return { kind: "empty" };
+  const result = computeFractionSteps(left, op, right);
+  if (!result.ok) return { kind: "error", messageKey: ERROR_KEYS[result.error] };
   return { kind: "steps", steps: result.steps };
 }
 
@@ -159,12 +194,12 @@ export default function FractionCalculator() {
       </header>
 
       <section className="card rounded-[10px] border border-border-hairline bg-base-100 p-5 shadow-sm sm:p-8">
-        <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-6">
+        <div className="flex flex-col items-center justify-center gap-4 md:flex-row md:gap-6">
           <FractionInput value={first} onChange={setFirst} labelKey="fraction.first" />
           <div
             role="radiogroup"
             aria-labelledby={operatorGroupId}
-            className="grid grid-cols-2 gap-1.5"
+            className="grid grid-cols-4 gap-1.5 md:grid-cols-2"
           >
             <span id={operatorGroupId} className="sr-only">
               {t("fraction.operator")}

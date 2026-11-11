@@ -8,10 +8,15 @@ export interface Fraction {
   den: number;
 }
 
+/** A fraction with an optional whole-number part, e.g. 2 1/3. */
+export interface MixedNumber extends Fraction {
+  whole?: number;
+}
+
 export type FractionOperator = "+" | "-" | "*" | "/";
 
 export type FractionStep =
-  | { kind: "pair"; left: Fraction; op: "+" | "*"; right: Fraction }
+  | { kind: "pair"; left: Fraction; op: FractionOperator; right: Fraction }
   | {
       kind: "value";
       /** Leading minus sign shown in front of the whole / fraction part. */
@@ -22,7 +27,14 @@ export type FractionStep =
 
 export type FractionResult =
   | { ok: true; steps: FractionStep[] }
-  | { ok: false; error: "divideByZero" };
+  | { ok: false; error: "divideByZero" | "mixedSign" };
+
+const isMixed = (n: MixedNumber) => n.whole !== undefined && n.whole !== 0;
+
+/** −2 1/3 means −(2 + 1/3), the way it is read on paper. */
+function toImproper({ whole = 0, num, den }: MixedNumber): Fraction {
+  return { num: whole * den + (whole < 0 ? -num : num), den };
+}
 
 const gcd = (a: number, b: number): number => {
   let x = Math.abs(a);
@@ -42,15 +54,24 @@ export function parseFractionInput(raw: string): number | "empty" | "invalid" {
 }
 
 export function computeFractionSteps(
-  a: Fraction,
+  mixedA: MixedNumber,
   operator: FractionOperator,
-  b: Fraction,
+  mixedB: MixedNumber,
 ): FractionResult {
+  if ([mixedA, mixedB].some((n) => isMixed(n) && (n.num < 0 || n.den < 0))) {
+    return { ok: false, error: "mixedSign" };
+  }
+  const a = toImproper(mixedA);
+  const b = toImproper(mixedB);
   if (a.den === 0 || b.den === 0 || (operator === "/" && b.num === 0)) {
     return { ok: false, error: "divideByZero" };
   }
 
   const steps: FractionStep[] = [];
+  if (isMixed(mixedA) || isMixed(mixedB)) {
+    steps.push({ kind: "pair", left: a, op: operator, right: b });
+  }
+
   let left = a;
   let right = b;
   let op: "+" | "*";

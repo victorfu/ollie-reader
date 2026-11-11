@@ -102,12 +102,76 @@ describe("computeFractionSteps", () => {
     });
   });
 
+  it("uses a positive common denominator when a denominator is negative", () => {
+    const result = computeFractionSteps(f(1, -2), "+", f(1, 3));
+    expect(result).toMatchObject({
+      steps: [
+        { kind: "pair", left: f(-3, 6), op: "+", right: f(2, 6) },
+        { kind: "value", fraction: f(-1, 6) },
+        { kind: "value", negative: true, fraction: f(1, 6) },
+      ],
+    });
+  });
+
+  it("converts mixed numbers to improper fractions first", () => {
+    const result = computeFractionSteps({ whole: 2, ...f(1, 3) }, "+", f(1, 2));
+    expect(result).toEqual({
+      ok: true,
+      steps: [
+        { kind: "pair", left: f(7, 3), op: "+", right: f(1, 2) },
+        { kind: "pair", left: f(14, 6), op: "+", right: f(3, 6) },
+        { kind: "value", fraction: f(17, 6) },
+        { kind: "value", whole: 2, fraction: f(5, 6) },
+      ],
+    });
+  });
+
+  it("reads a negative mixed number as minus the whole thing", () => {
+    const result = computeFractionSteps({ whole: -1, ...f(1, 2) }, "/", { whole: 1, ...f(1, 4) });
+    expect(result).toEqual({
+      ok: true,
+      steps: [
+        { kind: "pair", left: f(-3, 2), op: "/", right: f(5, 4) },
+        { kind: "pair", left: f(-3, 2), op: "*", right: f(4, 5) },
+        { kind: "value", fraction: f(-12, 10) },
+        { kind: "value", negative: true, fraction: f(6, 5) },
+        { kind: "value", negative: true, whole: 1, fraction: f(1, 5) },
+      ],
+    });
+  });
+
+  it("treats a whole number with a 0 numerator as that whole number", () => {
+    const result = computeFractionSteps({ whole: 3, ...f(0, 1) }, "*", f(1, 2));
+    expect(result).toMatchObject({
+      steps: [
+        { kind: "pair", left: f(3, 1), op: "*", right: f(1, 2) },
+        { kind: "value", fraction: f(3, 2) },
+        { kind: "value", whole: 1, fraction: f(1, 2) },
+      ],
+    });
+  });
+
+  it("rejects mixed numbers with a negative numerator or denominator", () => {
+    expect(computeFractionSteps({ whole: 1, ...f(-1, 2) }, "+", f(1, 2))).toEqual({
+      ok: false,
+      error: "mixedSign",
+    });
+    expect(computeFractionSteps(f(1, 2), "+", { whole: 1, ...f(1, -2) })).toEqual({
+      ok: false,
+      error: "mixedSign",
+    });
+  });
+
   it("rejects zero denominators and division by zero", () => {
     expect(computeFractionSteps(f(1, 0), "+", f(1, 2))).toEqual({
       ok: false,
       error: "divideByZero",
     });
     expect(computeFractionSteps(f(1, 2), "/", f(0, 5))).toEqual({
+      ok: false,
+      error: "divideByZero",
+    });
+    expect(computeFractionSteps(f(1, 2), "/", { whole: 0, ...f(0, 5) })).toEqual({
       ok: false,
       error: "divideByZero",
     });
