@@ -5,7 +5,7 @@ import { OpenAITranslationError } from "./translationErrors";
 import { readTranslationModel } from "./translationPreferences";
 
 export async function generateTranslationText(action: TranslationAction, text: string, signal?: AbortSignal): Promise<string> {
-  const model = readTranslationModel();
+  const model = await readTranslationModel();
   if (!model) {
     const result = await generateGeminiContent(translationPrompts[action](text), { action, signal });
     return result.response.text();

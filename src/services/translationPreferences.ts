@@ -1,15 +1,11 @@
-// A null model uses the existing Gemini path. A stored OpenAI model applies to this browser.
-export const TRANSLATION_MODEL_KEY = "ollie.translation.openaiModel";
+import { auth } from "../utils/firebaseUtil";
+import { getUserSettings } from "./settingsService";
 
-export function readTranslationModel(): string | null {
-  try {
-    return localStorage.getItem(TRANSLATION_MODEL_KEY) || null;
-  } catch {
-    return null;
-  }
-}
-
-export function saveTranslationModel(model: string | null): void {
-  if (model) localStorage.setItem(TRANSLATION_MODEL_KEY, model);
-  else localStorage.removeItem(TRANSLATION_MODEL_KEY);
+export async function readTranslationModel(): Promise<string | null> {
+  await auth.authStateReady();
+  const uid = auth.currentUser?.uid;
+  if (!uid) return null;
+  const settings = await getUserSettings(uid);
+  if (auth.currentUser?.uid !== uid) throw new Error("Account changed while loading translation settings");
+  return settings?.translationModel ?? null;
 }

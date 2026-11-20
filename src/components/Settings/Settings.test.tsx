@@ -6,7 +6,16 @@ import {
   SHOW_ALL_GACHA_ENTRIES_STORAGE_KEY,
 } from "../../services/gachaPreferences";
 
-import { TRANSLATION_MODEL_KEY } from "../../services/translationPreferences";
+const modelSettings = vi.hoisted(() => new Map<string, { translationModel: string | null }>());
+vi.mock("../../services/settingsService", () => ({
+  getUserSettings: async (uid: string) => modelSettings.get(uid),
+  saveUserSettings: async (uid: string, settings: { translationModel: string | null }) => {
+    modelSettings.set(uid, settings);
+  },
+}));
+vi.mock("../../utils/firebaseUtil", () => ({
+  auth: { currentUser: { uid: "player-1" }, authStateReady: async () => {} },
+}));
 import { translateWithAI } from "../../services/aiService";
 
 const aiMocks = vi.hoisted(() => ({ apiFetch: vi.fn(), generateGeminiContent: vi.fn() }));
@@ -282,23 +291,23 @@ describe("translation model selection", () => {
     }));
     const select = container.querySelector("select")!;
     expect(select.value).toBe("");
-    act(() => {
+    await act(async () => {
       select.value = "test-large";
       select.dispatchEvent(new Event("change", { bubbles: true }));
     });
-    expect(localStorage.getItem(TRANSLATION_MODEL_KEY)).toBe("test-large");
+    expect(modelSettings.get("player-1")?.translationModel).toBe("test-large");
     aiMocks.apiFetch.mockResolvedValueOnce(Response.json({ text: "你好" }));
     await expect(translateWithAI("Hello")).resolves.toBe("你好");
     expect(aiMocks.apiFetch).toHaveBeenLastCalledWith(expect.stringContaining("/api/openai/translate"), expect.objectContaining({
       includeAuthToken: true, body: JSON.stringify({ action: "translation", text: "Hello", model: "test-large" }),
     }));
     expect(aiMocks.generateGeminiContent).not.toHaveBeenCalled();
-    act(() => {
+    await act(async () => {
       select.value = "";
       select.dispatchEvent(new Event("change", { bubbles: true }));
     });
     aiMocks.generateGeminiContent.mockResolvedValueOnce({ response: { text: () => "哈囉" } });
     await expect(translateWithAI("Hello")).resolves.toBe("哈囉");
-    expect(localStorage.getItem(TRANSLATION_MODEL_KEY)).toBeNull();
+    expect(modelSettings.get("player-1")?.translationModel).toBeNull();
   });
 });

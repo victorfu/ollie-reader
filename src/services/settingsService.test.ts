@@ -38,6 +38,15 @@ describe("Edge-only speech settings", () => {
     },
   );
 
+  it("round-trips the account model through the settings document", async () => {
+    storedSettings({}, false);
+    await saveUserSettings("reader", { translationModel: "gpt-6-luna" });
+    const saved = vi.mocked(setDoc).mock.calls[0][1];
+    expect(saved).toMatchObject({ userId: "reader", translationModel: "gpt-6-luna" });
+    storedSettings(saved);
+    expect((await getUserSettings("reader"))?.translationModel).toBe("gpt-6-luna");
+  });
+
   it("preserves system speech for an account with a legacy engine", async () => {
     storedSettings({ ttsEngine: "piper", ttsMode: "browser" });
     expect(await getUserSettings("reader")).toMatchObject({ ttsEngine: "edge", ttsMode: "browser" });
@@ -61,6 +70,7 @@ describe("Edge-only speech settings", () => {
     expect(setDoc).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({ userId: "reader", ttsEngine: "edge", ttsMode: "api", speechRate: 1 }),
+      { merge: true },
     );
   });
 });

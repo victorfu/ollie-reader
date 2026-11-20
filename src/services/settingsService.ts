@@ -24,6 +24,7 @@ export const getUserSettings = async (
         ttsEngine: "edge",
         speechRate: (data.speechRate as number) ?? 1,
         readingMode: (data.readingMode as ReadingMode) || "word",
+        translationModel: typeof data.translationModel === "string" ? data.translationModel : null,
         createdAt: data.createdAt?.toDate(),
         updatedAt: data.updatedAt?.toDate(),
       };
@@ -42,7 +43,7 @@ export const getUserSettings = async (
 export const saveUserSettings = async (
   userId: string,
   settings: Partial<
-    Pick<UserSettings, "ttsMode" | "speechRate" | "readingMode">
+    Pick<UserSettings, "ttsMode" | "speechRate" | "readingMode" | "translationModel">
   >,
 ): Promise<void> => {
   try {
@@ -63,6 +64,7 @@ export const saveUserSettings = async (
     } else {
       // Create new settings with defaults
       await setDoc(docRef, {
+        ...settings,
         userId,
         ttsMode: settings.ttsMode || "browser",
         ttsEngine: "edge",
@@ -70,7 +72,7 @@ export const saveUserSettings = async (
         readingMode: settings.readingMode || "word",
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
-      });
+      }, { merge: true });
     }
   } catch (error) {
     console.error("Error saving user settings:", error);

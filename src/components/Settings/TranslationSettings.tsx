@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { API_BASE_URL } from "../../constants/api";
 import type { MessageKey } from "../../i18n/translate";
 import { useLanguage } from "../../hooks/useLanguage";
-import { readTranslationModel, saveTranslationModel, TRANSLATION_MODEL_KEY } from "../../services/translationPreferences";
+import { getUserSettings, saveUserSettings } from "../../services/settingsService";
 import { apiFetch } from "../../utils/apiUtil";
 
 interface ModelCatalog {
@@ -12,25 +12,23 @@ interface ModelCatalog {
 
 export function TranslationSettings({ uid }: { uid?: string }) {
   const { t } = useLanguage();
-  const [model, setModel] = useState(readTranslationModel);
+  const [model, setModel] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [ready, setReady] = useState(false);
   const [catalog, setCatalog] = useState<ModelCatalog | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
   const [saveFailed, setSaveFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
-    function sync(event: StorageEvent) {
-      if (!event.key || event.key === TRANSLATION_MODEL_KEY) setModel(readTranslationModel());
-    }
-    window.addEventListener("storage", sync);
-    return () => window.removeEventListener("storage", sync);
-  }, []);
-
-  useEffect(() => {
     if (!uid) return;
     const controller = new AbortController();
     async function loadModels() {
       try {
+        const settings = await getUserSettings(uid!);
+        if (controller.signal.aborted) return;
+        setModel(settings?.translationModel ?? null);
+        setReady(true);
         const response = await apiFetch(`${API_BASE_URL}/api/openai/models`, {
           includeAuthToken: true,
           includeAppCheckToken: true,
@@ -49,13 +47,17 @@ export function TranslationSettings({ uid }: { uid?: string }) {
     return () => controller.abort();
   }, [uid, attempt]);
 
-  function selectModel(value: string) {
+  async function selectModel(value: string) {
+    if (!uid) return;
+    setSaving(true);
     try {
-      saveTranslationModel(value || null);
+      await saveUserSettings(uid, { translationModel: value || null });
       setModel(value || null);
       setSaveFailed(false);
     } catch {
       setSaveFailed(true);
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -74,7 +76,7 @@ export function TranslationSettings({ uid }: { uid?: string }) {
       <label className="flex max-w-md flex-col gap-2 text-sm font-medium">
         {t("settings.translation.model")}
         <select className="select min-h-11 w-full border-border-hairline focus-visible:ring-2 focus-visible:ring-accent"
-          value={model ?? ""} onChange={(event) => selectModel(event.target.value)}>
+          disabled={!uid || !ready || saving} value={model ?? ""} onChange={(event) => selectModel(event.target.value)}>
           <option value="">Gemini</option>
           <optgroup label="OpenAI (ChatGPT)" disabled={!uid || !catalog?.configured}>
             {model && !catalog?.models.includes(model) && <option value={model} disabled>{model}</option>}
