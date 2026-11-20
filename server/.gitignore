@@ -3,3 +3,4 @@
 coverage/
 next-env.d.ts
 *.tsbuildinfo
+oikid-materials/

@@ -41,6 +41,19 @@ Configure `OIKID_USERNAME` and `OIKID_PASSWORD` in `.env.local` or deployment se
 
 Missing server configuration returns `500`; upstream login/network/JSON failures return `502`. Individual upstream requests have a 30-second timeout and the overall operation a 90-second deadline. No credentials, session cookies, booking tokens or booking data are logged.
 
+### OIKID 上課紀錄 CLI
+
+`npm run oikid` lists classes from OIKID's 上課紀錄 (`?a=Student/SchoolRecord`) and downloads their materials, using the same `OIKID_USERNAME`/`OIKID_PASSWORD` from `.env.local`. It is a local tool, not an API route.
+
+```bash
+npm run oikid -- list --page 1
+npm run oikid -- download 7317449 -k handout,preview
+npm run oikid -- download --since 2026-10-01 -o ~/Downloads/oikid
+npm run oikid -- download --all
+```
+
+It logs in, posts `?a=Student/SchoolRecord&b=Search` (`P` = page, 30 rows each), and uses the session-bound `Token` with `PHP/Review.php?id=<id>&token=<Token>` for 教材 (`&type=review` for 複習) and `PHP/Preview.php` for 預習. Review.php redirects to a pre-signed `oikid-classfile` S3 URL; the script follows it without OIKID cookies. 教材/複習 are PDFs, 預習 is an MP4 for regular classes and absent for FW open classes. Files go to `./oikid-materials` (gitignored) by default; existing files are skipped unless `--force`, and classes that have not started yet are skipped. Run `npm run oikid -- --help` for all options.
+
 ### Deployment limits and frontend routing
 
 Vercel documents a [4.5 MB request/response payload limit](https://vercel.com/docs/functions/limitations). Streamed responses are exempt from it, which is why `fetch-url` streams; buffered responses and request bodies stay within it.

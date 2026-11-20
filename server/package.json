@@ -12,7 +12,8 @@
     "start": "next start -p 3000",
     "lint": "eslint .",
     "test": "vitest run",
-    "test:runtime": "node scripts/smoke-auth-runtime.mjs"
+    "test:runtime": "node scripts/smoke-auth-runtime.mjs",
+    "oikid": "node scripts/oikid-school-records.mjs"
   },
   "dependencies": {
     "fast-xml-parser": "^5.11.2",
