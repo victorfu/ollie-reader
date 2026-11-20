@@ -6,6 +6,13 @@ import {
   SHOW_ALL_GACHA_ENTRIES_STORAGE_KEY,
 } from "../../services/gachaPreferences";
 
+import { TRANSLATION_MODEL_KEY } from "../../services/translationPreferences";
+import { translateWithAI } from "../../services/aiService";
+
+const aiMocks = vi.hoisted(() => ({ apiFetch: vi.fn(), generateGeminiContent: vi.fn() }));
+vi.mock("../../utils/apiUtil", () => ({ apiFetch: aiMocks.apiFetch }));
+vi.mock("../../services/geminiClient", () => ({ generateGeminiContent: aiMocks.generateGeminiContent }));
+
 const updateSettingMock = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 // 可變的設定替身：保留系統語音與 Edge TTS 的模式選擇。
 const settingsState = vi.hoisted(() => ({
@@ -261,5 +268,34 @@ describe("Settings language", () => {
 
     clickButton("繁體中文");
     expect(container.textContent).toContain("外觀主題");
+  });
+});
+
+describe("translation model selection", () => {
+  it("routes a new translation to the selected model and switches back to Gemini", async () => {
+    aiMocks.apiFetch.mockResolvedValueOnce(Response.json({ configured: true, models: ["test-mini", "test-large"] }));
+    renderSettings();
+    const category = [...container.querySelectorAll("button")].find((button) => button.textContent === "翻譯");
+    await act(async () => category!.click());
+    const select = container.querySelector("select")!;
+    expect(select.value).toBe("");
+    act(() => {
+      select.value = "test-large";
+      select.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    expect(localStorage.getItem(TRANSLATION_MODEL_KEY)).toBe("test-large");
+    aiMocks.apiFetch.mockResolvedValueOnce(Response.json({ text: "你好" }));
+    await expect(translateWithAI("Hello")).resolves.toBe("你好");
+    expect(aiMocks.apiFetch).toHaveBeenLastCalledWith(expect.stringContaining("/api/openai/translate"), expect.objectContaining({
+      includeAuthToken: true, body: JSON.stringify({ action: "translation", text: "Hello", model: "test-large" }),
+    }));
+    expect(aiMocks.generateGeminiContent).not.toHaveBeenCalled();
+    act(() => {
+      select.value = "";
+      select.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    aiMocks.generateGeminiContent.mockResolvedValueOnce({ response: { text: () => "哈囉" } });
+    await expect(translateWithAI("Hello")).resolves.toBe("哈囉");
+    expect(localStorage.getItem(TRANSLATION_MODEL_KEY)).toBeNull();
   });
 });

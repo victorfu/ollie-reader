@@ -28,20 +28,21 @@ export async function postOptions(request: Request): Promise<Response> {
   return preflight(request, "POST");
 }
 
-async function preflight(request: Request, allowedMethod: "GET" | "POST"): Promise<Response> {
+export async function preflight(request: Request, allowedMethod: "GET" | "POST", extraHeaders: string[] = []): Promise<Response> {
   return apiResponse(request, async (headers) => {
     const method = request.headers.get("access-control-request-method");
     const requested = (request.headers.get("access-control-request-headers") || "").split(",");
     const allowedHeaders = allowedMethod === "GET" ? ["authorization", "content-type", "cache-control"] : ["authorization", "content-type"];
+    allowedHeaders.push(...extraHeaders.map((header) => header.toLowerCase()));
     if ((method && method !== allowedMethod) || requested.some((h) => h.trim() && !allowedHeaders.includes(h.trim().toLowerCase()))) {
       throw new ApiError("不支援的預檢請求", 403);
     }
-    if (allowedMethod === "POST") headers.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    if (allowedMethod === "POST") headers.set("Access-Control-Allow-Headers", ["Content-Type", "Authorization", ...extraHeaders].join(", "));
     return new Response(null, { status: 204, headers });
   }, allowedMethod);
 }
 
-export async function readLimited(response: Response, maxBytes: number): Promise<Uint8Array<ArrayBuffer>> {
+export async function readLimited(response: Pick<Response, "body">, maxBytes: number): Promise<Uint8Array<ArrayBuffer>> {
   const reader = response.body?.getReader();
   if (!reader) return new Uint8Array();
   const chunks: Uint8Array[] = [];

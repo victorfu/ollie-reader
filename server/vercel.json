@@ -1,6 +1,9 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "functions": {
+    "src/app/api/openai/translate/route.ts": {
+      "supportsCancellation": true
+    },
     "src/app/api/etts/route.ts": {
       "supportsCancellation": true
     },

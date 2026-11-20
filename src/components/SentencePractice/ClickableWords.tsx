@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { useSpeechState } from "../../hooks/useSpeechState";
 import { useLanguage } from "../../hooks/useLanguage";
 import { T } from "../common/T";
-import { isGeminiRateLimitError } from "../../services/geminiErrorPolicy";
+import { isTranslationServiceError } from "../../services/translationErrors";
 
 interface ClickableWordsProps {
   text: string;
@@ -75,7 +75,7 @@ export const ClickableWords = ({
         if (requestId !== lookupRequestIdRef.current) return;
         console.error("Failed to get definition:", error);
         setDefinition(
-          isGeminiRateLimitError(error) ? error.message : t("practice.sentence.noDefinition"),
+          isTranslationServiceError(error) ? error.message : t("practice.sentence.noDefinition"),
         );
       } finally {
         if (requestId === lookupRequestIdRef.current) {

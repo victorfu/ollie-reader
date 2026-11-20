@@ -1,4 +1,5 @@
-import { auth } from "./firebaseUtil";
+import { getToken } from "firebase/app-check";
+import { appCheck, auth } from "./firebaseUtil";
 
 export interface ApiFetchOptions extends RequestInit {
   /**
@@ -6,6 +7,7 @@ export interface ApiFetchOptions extends RequestInit {
    * @default false
    */
   includeAuthToken?: boolean;
+  includeAppCheckToken?: boolean;
 }
 
 /**
@@ -33,7 +35,7 @@ export async function apiFetch(
   url: string,
   options: ApiFetchOptions = {},
 ): Promise<Response> {
-  const { includeAuthToken = false, headers = {}, ...restOptions } = options;
+  const { includeAuthToken = false, includeAppCheckToken = false, headers = {}, ...restOptions } = options;
 
   // 準備最終的 headers
   const finalHeaders = new Headers(headers);
@@ -56,6 +58,12 @@ export async function apiFetch(
       console.error("取得 Firebase ID Token 失敗:", error);
       throw new Error("認證失敗，請重新登入");
     }
+  }
+
+  if (includeAppCheckToken) {
+    // Firestore itself decides whether App Check is enforced for this project.
+    const token = await getToken(appCheck).catch(() => null);
+    if (token?.token) finalHeaders.set("X-Firebase-AppCheck", token.token);
   }
 
   // 執行 fetch

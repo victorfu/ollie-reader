@@ -13,7 +13,7 @@ import { useSentenceTranslation } from "../../hooks/useSentenceTranslation";
 import { useDebounce } from "../../hooks/useDebounce";
 import { useCefrLevels } from "../../hooks/useCefrLevels";
 import { smartLookup } from "../../services/aiService";
-import { isGeminiRateLimitError } from "../../services/geminiErrorPolicy";
+import { isTranslationServiceError } from "../../services/translationErrors";
 import type { VocabularyWord, VocabularyFilters } from "../../types/vocabulary";
 import type { SentenceTranslation } from "../../types/sentenceTranslation";
 import { WordDetail } from "./WordDetail";
@@ -455,7 +455,7 @@ export const VocabularyBook = () => {
         ? { status: "aborted" }
         : {
             status: "failed",
-            message: isGeminiRateLimitError(error)
+            message: isTranslationServiceError(error)
               ? error.message
               : LOOKUP_FAILED_MESSAGE,
           };

@@ -133,3 +133,9 @@ Relays one verified RSS enclosure with CORS so the web player's optional English
 Media elements cannot send a Firebase token, so the credential is the link itself: `url`, `expires` and an HMAC-SHA256 `signature` minted by the resolver with `PODCAST_AUDIO_SECRET`. Links last 12 hours and bind the exact enclosure URL; any change returns `403`. Without the secret the route returns `503`.
 
 Each response is a single `206` slice of at most 4 MiB: an open or larger `Range` is clamped, and the media element requests the next range itself, so no invocation streams a whole episode. Suffix and multi-range requests return `416`, and an upstream `416` is passed through. Upstream redirects (up to eight) go through the same public-address-only socket dispatcher as other fetches. Only a byte-exact `206` answer with an audio (or octet-stream) type and no content encoding is relayed; anything else returns `502`. The upstream deadline is 60 seconds.
+
+### OpenAI translation
+
+Set `OPENAI_API_KEY` in the ignored `server/.env` for local development or in the server deployment environment. `OPENAI_MODELS` is a comma-separated list of text models supported by the Responses API and available to that key (defaults to `gpt-4.1-mini,gpt-5-mini`). Restart the server or redeploy after a change. Configure `FIREBASE_PROJECT_ID` to match the web app so the server can verify sign-in.
+
+In Settings → Translation, select Gemini or a specific OpenAI model. The choice is saved in this browser. Existing vocabulary and sentence translations are reused. Authenticated model-list and translation requests use `VITE_API_BASE_URL`; the server checks the signed-in user's verified email against the existing Firestore allow-list before calling OpenAI.

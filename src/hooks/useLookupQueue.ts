@@ -2,7 +2,7 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import type { VocabularyWord } from "../types/vocabulary";
 import { isAbortError } from "../utils/errorUtils";
 import { logger } from "../utils/logger";
-import { isGeminiRateLimitError } from "../services/geminiErrorPolicy";
+import { isTranslationServiceError } from "../services/translationErrors";
 
 export type LookupStatus = "loading" | "success" | "error";
 export type LookupItemType = "word" | "translation";
@@ -146,7 +146,7 @@ export function useLookupQueue(
           logger.error("Lookup/translation failed:", err);
           updateItem({
             status: "error",
-            error: isGeminiRateLimitError(err) ? err.message : errorMessage,
+            error: isTranslationServiceError(err) ? err.message : errorMessage,
           });
         });
     },
