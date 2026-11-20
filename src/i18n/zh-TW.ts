@@ -97,6 +97,7 @@ export const zhTW = {
   "settings.translation.signIn": "登入後即可選用 OpenAI 模型。",
   "settings.translation.failed": "無法載入 OpenAI 模型清單。",
   "settings.translation.loading": "正在載入 OpenAI 模型…",
+  "settings.translation.noModels": "目前的 OpenAI 設定沒有可選的文字翻譯模型。",
   "settings.translation.unconfigured": "伺服器尚未啟用 OpenAI 翻譯。",
   "settings.translation.retired": "先前選取的模型已停用，請重新選擇。",
   "settings.translation.saveFailed": "瀏覽器無法儲存這項設定。",

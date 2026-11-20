@@ -33,6 +33,7 @@ export function TranslationSettings({ uid }: { uid?: string }) {
       try {
         const response = await apiFetch(`${API_BASE_URL}/api/openai/models`, {
           includeAuthToken: true,
+          includeAppCheckToken: true,
           signal: controller.signal,
         });
         if (!response.ok) throw new Error();
@@ -62,7 +63,8 @@ export function TranslationSettings({ uid }: { uid?: string }) {
   if (!uid) notice = "settings.translation.signIn";
   else if (loadFailed) notice = "settings.translation.failed";
   else if (!catalog) notice = "settings.translation.loading";
-  else if (!catalog.configured || !catalog.models.length) notice = "settings.translation.unconfigured";
+  else if (!catalog.configured) notice = "settings.translation.unconfigured";
+  else if (!catalog.models.length) notice = "settings.translation.noModels";
   else if (model && !catalog.models.includes(model)) notice = "settings.translation.retired";
 
   return (

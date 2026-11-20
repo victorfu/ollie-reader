@@ -32,30 +32,49 @@ export async function preflight(request: Request, allowedMethod: "GET" | "POST",
   return apiResponse(request, async (headers) => {
     const method = request.headers.get("access-control-request-method");
     const requested = (request.headers.get("access-control-request-headers") || "").split(",");
-    const allowedHeaders = allowedMethod === "GET" ? ["authorization", "content-type", "cache-control"] : ["authorization", "content-type"];
-    allowedHeaders.push(...extraHeaders.map((header) => header.toLowerCase()));
-    if ((method && method !== allowedMethod) || requested.some((h) => h.trim() && !allowedHeaders.includes(h.trim().toLowerCase()))) {
+    const allowedHeaders = ["Content-Type", "Authorization", ...extraHeaders];
+    if (allowedMethod === "GET") allowedHeaders.push("Cache-Control");
+    const normalized = allowedHeaders.map((name) => name.toLowerCase());
+    if ((method && method !== allowedMethod) || requested.some((h) => h.trim() && !normalized.includes(h.trim().toLowerCase()))) {
       throw new ApiError("不支援的預檢請求", 403);
     }
-    if (allowedMethod === "POST") headers.set("Access-Control-Allow-Headers", ["Content-Type", "Authorization", ...extraHeaders].join(", "));
+    headers.set("Access-Control-Allow-Headers", allowedHeaders.join(", "));
     return new Response(null, { status: 204, headers });
   }, allowedMethod);
 }
 
-export async function readLimited(response: Pick<Response, "body">, maxBytes: number): Promise<Uint8Array<ArrayBuffer>> {
+// Stop waiting for non-cancellable or shared work without cancelling other callers.
+export async function waitWithSignal<T>(work: Promise<T>, signal: AbortSignal): Promise<T> {
+  const aborted = Promise.withResolvers<never>();
+  const onAbort = () => aborted.reject(signal.reason);
+  if (signal.aborted) onAbort();
+  else signal.addEventListener("abort", onAbort, { once: true });
+  try {
+    return await Promise.race([aborted.promise, work]);
+  } finally {
+    signal.removeEventListener("abort", onAbort);
+  }
+}
+
+export async function readLimited(response: Pick<Response, "body">, maxBytes: number, signal?: AbortSignal): Promise<Uint8Array<ArrayBuffer>> {
+  signal?.throwIfAborted();
   const reader = response.body?.getReader();
   if (!reader) return new Uint8Array();
+  const onAbort = () => { void reader.cancel().catch(() => {}); };
+  signal?.addEventListener("abort", onAbort, { once: true });
   const chunks: Uint8Array[] = [];
   let size = 0;
   try {
     while (true) {
       const { done, value } = await reader.read();
+      signal?.throwIfAborted();
       if (done) break;
       size += value.length;
       if (size > maxBytes) throw new ApiError("檔案超過大小限制", 413);
       chunks.push(value);
     }
   } finally {
+    signal?.removeEventListener("abort", onAbort);
     await reader.cancel().catch(() => {});
     reader.releaseLock();
   }

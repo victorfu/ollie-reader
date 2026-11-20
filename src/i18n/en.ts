@@ -95,6 +95,7 @@ export const en: Record<MessageKey, string> = {
   "settings.translation.signIn": "Sign in to select an OpenAI model.",
   "settings.translation.failed": "Could not load the OpenAI model list.",
   "settings.translation.loading": "Loading OpenAI models…",
+  "settings.translation.noModels": "No translation models are available for this OpenAI configuration.",
   "settings.translation.unconfigured": "OpenAI translation is not configured on the server.",
   "settings.translation.retired": "Your selected model is no longer available. Choose another model.",
   "settings.translation.saveFailed": "This browser could not save the setting.",

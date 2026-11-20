@@ -136,6 +136,6 @@ Each response is a single `206` slice of at most 4 MiB: an open or larger `Range
 
 ### OpenAI translation
 
-Set `OPENAI_API_KEY` in the ignored `server/.env` for local development or in the server deployment environment. `OPENAI_MODELS` is a comma-separated list of text models supported by the Responses API and available to that key (defaults to `gpt-4.1-mini,gpt-5-mini`). Restart the server or redeploy after a change. Configure `FIREBASE_PROJECT_ID` to match the web app so the server can verify sign-in.
+Set `OPENAI_API_KEY` in the ignored `server/.env` for local development or in the server deployment environment. By default, the server calls OpenAI’s `GET /v1/models` with that key, filters model IDs for general text GPT families, and caches the result for five minutes per server instance. The key needs permission to list models and create responses. To restrict the available models or use a key without model-list access, set `OPENAI_MODELS` to an explicit comma-separated allow-list. Omit the variable to enable discovery. Restart the server or redeploy after a change. Configure `FIREBASE_PROJECT_ID` to match the web app so the server can verify sign-in.
 
 In Settings → Translation, select Gemini or a specific OpenAI model. The choice is saved in this browser. Existing vocabulary and sentence translations are reused. Authenticated model-list and translation requests use `VITE_API_BASE_URL`; the server checks the signed-in user's verified email against the existing Firestore allow-list before calling OpenAI.

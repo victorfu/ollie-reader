@@ -277,6 +277,9 @@ describe("translation model selection", () => {
     renderSettings();
     const category = [...container.querySelectorAll("button")].find((button) => button.textContent === "翻譯");
     await act(async () => category!.click());
+    expect(aiMocks.apiFetch).toHaveBeenCalledWith(expect.stringContaining("/api/openai/models"), expect.objectContaining({
+      includeAuthToken: true, includeAppCheckToken: true,
+    }));
     const select = container.querySelector("select")!;
     expect(select.value).toBe("");
     act(() => {

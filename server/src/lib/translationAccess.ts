@@ -3,7 +3,7 @@ import { ApiError } from "./api";
 
 // Read the user's own allow-list entry under the same Firestore rules as the web
 // app. Using their ID token avoids requiring Admin credentials on the server.
-export async function verifyTranslationAccess(request: Request, identity: DecodedIdToken): Promise<void> {
+export async function verifyTranslationAccess(request: Request, identity: DecodedIdToken, signal = request.signal): Promise<void> {
   if (!identity.email_verified || !identity.email || identity.email.includes("/")) {
     throw new ApiError("此帳號沒有使用翻譯服務的權限", 403);
   }
@@ -14,7 +14,7 @@ export async function verifyTranslationAccess(request: Request, identity: Decode
   if (appCheck) headers.set("X-Firebase-AppCheck", appCheck);
   const response = await fetch(
     `https://firestore.googleapis.com/v1/projects/${project}/databases/(default)/documents/allowedUsers/${email}`,
-    { headers, cache: "no-store", signal: AbortSignal.any([request.signal, AbortSignal.timeout(10_000)]) },
+    { headers, cache: "no-store", signal: AbortSignal.any([signal, AbortSignal.timeout(10_000)]) },
   );
   await response.body?.cancel();
   if ([401, 403, 404].includes(response.status)) throw new ApiError("此帳號沒有使用翻譯服務的權限", 403);

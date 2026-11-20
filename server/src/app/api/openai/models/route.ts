@@ -1,14 +1,18 @@
-import { apiResponse, getOptions } from "../../../../lib/api";
+import { apiResponse, preflight } from "../../../../lib/api";
 import { verifyFirebaseToken } from "../../../../lib/firebaseAuth";
-import { openAIModels } from "../../../../lib/openaiTranslation";
+import { verifyTranslationAccess } from "../../../../lib/translationAccess";
+import { openAIModels } from "../../../../lib/openaiModels";
 
 export async function GET(request: Request): Promise<Response> {
   return apiResponse(request, async (headers) => {
-    await verifyFirebaseToken(request);
+    const identity = await verifyFirebaseToken(request);
+    await verifyTranslationAccess(request, identity);
     return Response.json({
       configured: Boolean(process.env.OPENAI_API_KEY?.trim()),
-      models: openAIModels(),
+      models: await openAIModels(),
     }, { headers });
   });
 }
-export const OPTIONS = getOptions;
+export function OPTIONS(request: Request) {
+  return preflight(request, "GET", ["X-Firebase-AppCheck"]);
+}
