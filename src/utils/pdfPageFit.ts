@@ -11,6 +11,39 @@
  * Pure so it can be tested without layout, which jsdom lacks.
  */
 
+/**
+ * How a page is sized in the column.
+ * - `page`: the whole page fits the visible box (narrowed by height if needed).
+ * - `width`: the page fills the column and is read by scrolling.
+ */
+export type PageFitMode = "page" | "width";
+
+/** What the reader chose; `auto` decides from the page's orientation. */
+export type PageFitPreference = "auto" | PageFitMode;
+
+/**
+ * Resolves `auto` from the page shape. A landscape or square page (OIKID's
+ * slides) loses little when fitted whole, but a portrait page such as A4 is
+ * narrowed to well under half a laptop column, so its text becomes too small
+ * to read — portrait pages fill the width instead. Before the page reports its
+ * shape, `auto` resolves to `page`, which renders at the column width anyway.
+ */
+export function resolvePageFitMode(
+  preference: PageFitPreference,
+  pageAspectRatio: number | null,
+): PageFitMode {
+  if (preference !== "auto") return preference;
+  if (
+    pageAspectRatio !== null &&
+    Number.isFinite(pageAspectRatio) &&
+    pageAspectRatio > 0 &&
+    pageAspectRatio < 1
+  ) {
+    return "width";
+  }
+  return "page";
+}
+
 /** Below this a fitted page stops being readable; scrolling is the better trade. */
 export const MIN_FIT_PAGE_WIDTH = 320;
 
@@ -30,6 +63,8 @@ interface FitPageWidthInput {
   availableHeight: number;
   /** originalWidth / originalHeight of the document's first page. */
   pageAspectRatio: number | null;
+  /** `width` always fills the column; defaults to `page`. */
+  mode?: PageFitMode;
 }
 
 /**
@@ -42,8 +77,10 @@ export function computeFitPageWidth({
   columnWidth,
   availableHeight,
   pageAspectRatio,
+  mode = "page",
 }: FitPageWidthInput): number {
   if (!Number.isFinite(columnWidth) || columnWidth <= 0) return 0;
+  if (mode === "width") return columnWidth;
   if (
     pageAspectRatio === null ||
     !Number.isFinite(pageAspectRatio) ||

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   MIN_FIT_PAGE_WIDTH,
   computeFitPageWidth,
+  resolvePageFitMode,
 } from "./pdfPageFit";
 
 const A4_PORTRAIT = 595 / 842;
@@ -87,5 +88,52 @@ describe("computeFitPageWidth", () => {
         pageAspectRatio: SLIDE_16_9,
       }),
     ).toBe(0);
+  });
+});
+
+describe("computeFitPageWidth in width mode", () => {
+  it("fills the column with a portrait page however short the box is", () => {
+    expect(
+      computeFitPageWidth({
+        columnWidth: 944,
+        availableHeight: 600,
+        pageAspectRatio: A4_PORTRAIT,
+        mode: "width",
+      }),
+    ).toBe(944);
+  });
+
+  it("still waits for the column to be measured", () => {
+    expect(
+      computeFitPageWidth({
+        columnWidth: 0,
+        availableHeight: 600,
+        pageAspectRatio: A4_PORTRAIT,
+        mode: "width",
+      }),
+    ).toBe(0);
+  });
+});
+
+describe("resolvePageFitMode", () => {
+  it("fills the width for a portrait page under auto", () => {
+    expect(resolvePageFitMode("auto", A4_PORTRAIT)).toBe("width");
+  });
+
+  it("fits the whole page for a landscape page under auto", () => {
+    expect(resolvePageFitMode("auto", SLIDE_16_9)).toBe("page");
+  });
+
+  it("fits the whole page for a square page under auto", () => {
+    expect(resolvePageFitMode("auto", 1)).toBe("page");
+  });
+
+  it("fits the whole page under auto before the page reports its shape", () => {
+    expect(resolvePageFitMode("auto", null)).toBe("page");
+  });
+
+  it("honours an explicit choice whatever the orientation", () => {
+    expect(resolvePageFitMode("page", A4_PORTRAIT)).toBe("page");
+    expect(resolvePageFitMode("width", SLIDE_16_9)).toBe("width");
   });
 });

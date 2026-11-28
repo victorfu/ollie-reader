@@ -135,6 +135,7 @@ vi.mock("react-pdf", async () => {
 
 import { registerParagraphLayer } from "../../utils/pdfParagraphText";
 import { PdfViewer } from "./PdfViewer";
+import { PDF_FIT_PREFERENCE_KEY } from "../../utils/pdfFitPreference";
 
 let host: HTMLDivElement;
 let root: Root;
@@ -249,6 +250,7 @@ beforeEach(() => {
 
 afterEach(() => {
   act(() => root.unmount());
+  localStorage.removeItem(PDF_FIT_PREFERENCE_KEY);
   vi.clearAllTimers();
   vi.useRealTimers();
   vi.restoreAllMocks();
@@ -513,6 +515,56 @@ describe("PdfViewer page fitting", () => {
     pdfMocks.pageDimensions = { originalWidth: 1280, originalHeight: 720 };
 
     renderViewer("blob:tall-box", null);
+    await act(async () => Promise.resolve());
+
+    expect(
+      host.querySelector('[data-testid="pdf-page"]')?.getAttribute("data-width"),
+    ).toBe("944");
+  });
+
+  it("fills the column with a portrait A4 page by default", async () => {
+    measuredClientWidth = 944;
+    measuredClientHeight = 696; // 600 left once the page chrome is subtracted
+    pdfMocks.pageDimensions = { originalWidth: 595, originalHeight: 842 };
+
+    renderViewer("blob:a4-auto", null);
+    await act(async () => Promise.resolve());
+
+    expect(
+      host.querySelector('[data-testid="pdf-page"]')?.getAttribute("data-width"),
+    ).toBe("944");
+    expect(
+      host.querySelector("[data-fit-mode]")?.getAttribute("data-fit-mode"),
+    ).toBe("width");
+  });
+
+  it("switches a portrait page to whole-page fit and remembers it", async () => {
+    measuredClientWidth = 944;
+    measuredClientHeight = 696;
+    pdfMocks.pageDimensions = { originalWidth: 595, originalHeight: 842 };
+
+    renderViewer("blob:a4-toggle", null);
+    await act(async () => Promise.resolve());
+
+    const toggle = host.querySelector("[data-fit-mode]");
+    expect(toggle?.getAttribute("aria-label")).toBe("整頁顯示");
+    act(() => {
+      (toggle as HTMLButtonElement).click();
+    });
+
+    expect(
+      host.querySelector('[data-testid="pdf-page"]')?.getAttribute("data-width"),
+    ).toBe("423");
+    expect(localStorage.getItem(PDF_FIT_PREFERENCE_KEY)).toBe("page");
+  });
+
+  it("applies a remembered width fit to a landscape page", async () => {
+    localStorage.setItem(PDF_FIT_PREFERENCE_KEY, "width");
+    measuredClientWidth = 944;
+    measuredClientHeight = 536;
+    pdfMocks.pageDimensions = { originalWidth: 1280, originalHeight: 720 };
+
+    renderViewer("blob:slide-width", null);
     await act(async () => Promise.resolve());
 
     expect(

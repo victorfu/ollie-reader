@@ -9,7 +9,7 @@ import {
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from "react";
-import { Volume2 } from "lucide-react";
+import { MoveHorizontal, Shrink, Volume2 } from "lucide-react";
 import { Document, Page } from "react-pdf";
 import { pdfDocumentOptions } from "../../utils/pdfConfig";
 import {
@@ -19,7 +19,13 @@ import {
 import {
   PAGE_CHROME_PX,
   computeFitPageWidth,
+  resolvePageFitMode,
+  type PageFitPreference,
 } from "../../utils/pdfPageFit";
+import {
+  readPdfFitPreference,
+  writePdfFitPreference,
+} from "../../utils/pdfFitPreference";
 import { pdfParagraphText, pdfSelectionText, registerParagraphLayer } from "../../utils/pdfParagraphText";
 import { selectWordAtPoint } from "../../utils/pdfTextSelection";
 import {
@@ -132,6 +138,8 @@ export const PdfViewer = memo(
       width: 0,
       height: 0,
     });
+    const [fitPreference, setFitPreference] =
+      useState<PageFitPreference>(readPdfFitPreference);
     const [pageAspectState, setPageAspectState] = useState<{
       url: string;
       ratio: number | null;
@@ -158,16 +166,25 @@ export const PdfViewer = memo(
     const pageAspectRatio =
       pageAspectState.url === url ? pageAspectState.ratio : null;
 
-    // The width every page renders at: the column, unless the box is too short
-    // to show a whole page at that width, in which case the height decides.
+    const fitMode = resolvePageFitMode(fitPreference, pageAspectRatio);
+    const toggleFitMode = useCallback(() => {
+      const next = fitMode === "page" ? "width" : "page";
+      writePdfFitPreference(next);
+      setFitPreference(next);
+    }, [fitMode]);
+
+    // The width every page renders at: the column, unless fitting a whole page
+    // and the box is too short to show one at that width, in which case the
+    // height decides.
     const pdfPageWidth = useMemo(
       () =>
         computeFitPageWidth({
           columnWidth: columnMetrics.width,
           availableHeight: columnMetrics.height - PAGE_CHROME_PX,
           pageAspectRatio,
+          mode: fitMode,
         }),
-      [columnMetrics, pageAspectRatio],
+      [columnMetrics, pageAspectRatio, fitMode],
     );
 
     // Measure a stable, capped single-column viewport before mounting any Page,
@@ -486,9 +503,37 @@ export const PdfViewer = memo(
               <T k="reader.viewer.title" />
             </span>
           )}
-          <span className="hidden text-xs text-base-content/55 sm:inline">
-            <T k="reader.viewer.hint" />
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="hidden text-xs text-base-content/55 sm:inline">
+              <T k="reader.viewer.hint" />
+            </span>
+            <Tooltip
+              content={t(
+                fitMode === "page"
+                  ? "reader.viewer.fitWidth"
+                  : "reader.viewer.fitPage",
+              )}
+              position="bottom"
+            >
+              <button
+                type="button"
+                onClick={toggleFitMode}
+                data-fit-mode={fitMode}
+                aria-label={t(
+                  fitMode === "page"
+                    ? "reader.viewer.fitWidth"
+                    : "reader.viewer.fitPage",
+                )}
+                className="inline-flex h-11 w-11 items-center justify-center rounded-md text-base-content/70 transition-all duration-200 hover:bg-base-content/10 hover:text-base-content active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent sm:h-8 sm:w-8"
+              >
+                {fitMode === "page" ? (
+                  <MoveHorizontal className="h-4 w-4" strokeWidth={1.8} />
+                ) : (
+                  <Shrink className="h-4 w-4" strokeWidth={1.8} />
+                )}
+              </button>
+            </Tooltip>
+          </div>
         </div>
         {/* `relative` is load-bearing, not decoration: a static scroll container
             is not a containing block, so the absolutely positioned layers

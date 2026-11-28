@@ -41,6 +41,8 @@ export const readerZh = {
   "reader.viewer.hint": "點擊單字，或拖曳選取片語與句子",
   "reader.viewer.loading": "載入 PDF 中...",
   "reader.viewer.loadFailed": "PDF 載入失敗",
+  "reader.viewer.fitWidth": "符合寬度",
+  "reader.viewer.fitPage": "整頁顯示",
   "reader.page.readAloud": "朗讀此頁",
   "reader.page.readAloudLabel": "朗讀第 {page} 頁",
 
@@ -202,6 +204,8 @@ export const readerEn: Record<keyof typeof readerZh, string> = {
   "reader.viewer.hint": "Tap a word, or drag to select a phrase or sentence",
   "reader.viewer.loading": "Loading PDF…",
   "reader.viewer.loadFailed": "Couldn’t load the PDF",
+  "reader.viewer.fitWidth": "Fit to width",
+  "reader.viewer.fitPage": "Fit whole page",
   "reader.page.readAloud": "Read this page aloud",
   "reader.page.readAloudLabel": "Read page {page} aloud",
 
